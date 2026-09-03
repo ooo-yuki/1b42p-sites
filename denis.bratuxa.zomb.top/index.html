@@ -28,7 +28,7 @@ b.gold{color:gold}b.grn{color:#0f6}b.red{color:#f55}
 </head>
 <body>
 <div id="ui">
-<div id="hud">❤️ <span id="hp">100</span> | 🏆 Респект: <span id="resp">0</span> | 🗺️ Территории 42: <span id="terr">15%</span><br>WASD — идти • Shift — бег • E — действие • F — тачка • ЛКМ — бита • C — камера<br>📻 <span id="radio">VICE 42 FM</span> (R — станция) • M — звук • V — озвучка (?) — редкие NPC</div><div id="radiopop" style="position:absolute;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);border:2px solid magenta;border-radius:10px;padding:8px 18px;font-size:18px;display:none">📻 <span id="radiopop-t"></span></div>
+<div id="hud">❤️ <span id="hp">100</span> | 🏆 Респект: <span id="resp">0</span> | 🗺️ Территории 42: <span id="terr">15%</span><br>WASD — идти • Shift — бег • E — действие • F — тачка • ЛКМ — бита • C — камера<br>📻 <span id="radio">VICE 42 FM</span> (R — станция) • M — звук • V — озвучка (?) — редкие NPC • H — скрыть подсказки</div><div id="radiopop" style="position:absolute;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);border:2px solid magenta;border-radius:10px;padding:8px 18px;font-size:18px;display:none">📻 <span id="radiopop-t"></span></div>
 <div id="mission">📜 <b id="mtitle">Миссия 1: Возвращение</b><br><span id="mdesc">Иди в штаб (жёлтая метка H)</span></div>
 <canvas id="minimap" width="160" height="160"></canvas>
 <div id="hint">Метки: H — штаб • ! — цель • 🚗 — тачка • 💀 — враги</div>
@@ -190,6 +190,8 @@ const tag=new THREE.Mesh(new THREE.BoxGeometry(.5,.28,.08),new THREE.MeshStandar
 const bat=new THREE.Mesh(new THREE.BoxGeometry(.25,.25,2.4),new THREE.MeshStandardMaterial({color:0x8B5A2B}));bat.position.set(1,1.6,.4);player.add(bat);
 let HP=100,RESP=0,TERR=15,inCar=false,camDist=12,camAng=0;
 addEventListener('keydown',e=>{if(e.code==='KeyC')camDist=camDist===12?18:(camDist===18?8:12);});
+let HIDE_HELP=false;
+addEventListener('keydown',e=>{if(e.code==='KeyH'){HIDE_HELP=!HIDE_HELP;for(const id of ['hud','mission','hint']){const el=document.getElementById(id);if(el)el.style.display=HIDE_HELP?'none':'';}}});
 // тачка
 const car=new THREE.Group();
 const cb=new THREE.Mesh(new THREE.BoxGeometry(3,1.2,5.5),new THREE.MeshStandardMaterial({color:0x00aaff,metalness:.6,roughness:.35}));cb.position.y=1;cb.castShadow=true;car.add(cb);
