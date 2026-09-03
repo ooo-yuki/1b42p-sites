@@ -443,30 +443,17 @@ AU.doorSfx=function(){AU.blip(180,.12,'square',.15);setTimeout(()=>AU.blip(120,.
 AU.spraySfx=function(){if(!AU.ctx||AU.muted)return;const x=AU.ctx,t=x.currentTime,s=x.createBufferSource();s.buffer=AU.noiseBuf();const f=x.createBiquadFilter();f.type='highpass';f.frequency.value=3000;const g=x.createGain();g.gain.setValueAtTime(.15,t);g.gain.exponentialRampToValueAtTime(.001,t+.6);s.connect(f);f.connect(g);g.connect(AU.sfx);s.start(t);s.stop(t+.65);AU.blip(880,.3,'sine',.12);};
 AU.missionDone=function(){if(!AU.ctx||AU.muted)return;[523,659,784,1046].forEach((f,i)=>setTimeout(()=>AU.blip(f,.35,'triangle',.2),i*130));};
 AU.viceSting=function(){if(!AU.ctx||AU.muted)return;[110,138,165,220,277].forEach(f=>AU.padNote(f,AU.ctx.currentTime,2.5));[440,554,659,880].forEach((f,i)=>setTimeout(()=>AU.blip(f,.4,'sawtooth',.1),i*160));AU.missionDone();};
-AU.anthemChain=function(){
- const x=AU.ctx,el=document.getElementById('anthem');
- if(!el)return null;
- try{
-  if(!AU._antSrc){
-   const src=x.createMediaElementSource(el);
-   const lp=x.createBiquadFilter();lp.type='lowpass';lp.frequency.value=5200; // тёмный найт-сити верх
-   const lb=x.createBiquadFilter();lb.type='lowshelf';lb.frequency.value=160;lb.gain.value=5; // ночь-бас
-   const dl=x.createDelay(1);dl.delayTime.value=.31; // кибер-эхо
-   const fb=x.createGain();fb.gain.value=.28;
-   const wet=x.createGain();wet.gain.value=.22;
-   const g=x.createGain();g.gain.value=.9;
-   src.connect(lp);lp.connect(lb);lb.connect(g);g.connect(AU.master);g.connect(AU.busConv);
-   lb.connect(dl);dl.connect(fb);fb.connect(dl);dl.connect(wet);wet.connect(AU.master);
-   AU._antSrc=src;
-  }
-  return true;
- }catch(_){return false;}
-};
 AU.playAnthem=function(){
  const el=document.getElementById('anthem');if(!el)return;
- try{el.playbackRate=.94;}catch(_){} // упрощённый найт-сити ремикс: темнее и медленнее
- try{if(AU.ctx&&AU.anthemChain()){el.muted=false;} }catch(_){}
- const pr=el.play();if(pr&&pr.catch)pr.catch(()=>{});
+ try{el.muted=false;if(AU.muted)el.muted=true;}catch(_){}
+ try{el.volume=1;}catch(_){}
+ try{el.playbackRate=.94;}catch(_){} // найт-сити: темнее и медленнее
+ const pr=el.play();
+ const popT=document.getElementById('radiopop-t');
+ if(pr&&pr.then){
+  pr.then(()=>{try{popT.textContent+=' ▶ играет';}catch(_){}})
+    .catch(()=>{try{popT.textContent+=' ⚠ браузер заблокировал звук — нажми R ещё раз';}catch(_){}});
+ }
 };
 AU.stopAnthem=function(){const el=document.getElementById('anthem');if(!el)return;try{el.pause();}catch(_){}};
 AU.nextStation=function(){
