@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ГАРТИК 42 — Испорченный телефон ☎️🎨</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--red:#e63946;--blue:#1d3557;--gold:#ffd700;--bg:#0a0a1a}
+body{background:radial-gradient(ellipse at 50% 0%,#1d3557 0%,#0a0a1a 60%,#000 100%);color:#fff;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh}
+header{text-align:center;padding:24px 12px 10px;border-bottom:3px solid var(--gold)}
+header h1{font-size:clamp(24px,5vw,46px);text-shadow:0 0 20px var(--gold),0 0 40px var(--red)}
+header h1 .n42{color:var(--gold)}
+.sub{color:var(--gold);font-weight:bold;margin-top:6px}
+.mantra{display:inline-block;margin-top:10px;background:linear-gradient(90deg,var(--red),var(--gold),var(--red));padding:8px 22px;border-radius:30px;font-weight:bold;color:#000;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+#balance-bar{position:sticky;top:0;z-index:50;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;background:rgba(0,0,0,.85);border-bottom:2px solid var(--gold);padding:10px}
+#coins{font-size:24px;font-weight:bold;color:var(--gold)}
+a.home{color:var(--gold);font-weight:bold}
+main{max-width:920px;margin:0 auto;padding:14px 14px 60px}
+.card{background:rgba(255,255,255,.04);border:2px solid var(--gold);border-radius:16px;padding:20px;margin-top:12px}
+h2{color:var(--gold);margin-bottom:10px;text-align:center}
+.hint{text-align:center;color:#ccc;margin-bottom:12px;font-size:14px;line-height:1.6}
+.meme{background:rgba(255,215,0,.08);border-left:4px solid var(--gold);padding:8px 12px;border-radius:0 10px 10px 0;margin:10px 0;font-style:italic;color:#ffe98a}
+.row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:10px 0;align-items:center}
+button{cursor:pointer}
+.btn{background:var(--red);color:#fff;border:2px solid var(--gold);border-radius:10px;padding:10px 22px;font-size:16px;font-weight:bold}
+.btn.gold{background:var(--gold);color:#000}
+.btn.dark{background:#222;color:var(--gold);border:2px solid var(--gold)}
+.btn:disabled{opacity:.4}
+input[type=text],textarea,select{background:#000;color:#fff;border:1px solid var(--gold);border-radius:8px;padding:10px;font-size:15px;width:100%}
+textarea{min-height:70px;resize:vertical}
+label{font-size:14px;color:#ffe98a}
+/* canvas */
+#tools{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;margin:10px 0}
+.swatch{width:34px;height:34px;border-radius:50%;border:3px solid #fff;cursor:pointer}
+.swatch.sel{border-color:var(--gold);box-shadow:0 0 10px var(--gold);transform:scale(1.15)}
+#c{width:100%;height:340px;background:#fff;border:3px solid var(--gold);border-radius:14px;touch-action:none;cursor:crosshair;display:block}
+#pass{font-size:22px;font-weight:bold;text-align:center;color:var(--gold);margin:12px 0}
+.step{background:rgba(0,0,0,.4);border:1px solid var(--gold);border-radius:12px;padding:12px;margin:10px 0}
+.step img{max-width:100%;border-radius:8px;border:2px solid #fff;background:#fff}
+.step .who{color:var(--gold);font-weight:bold}
+.voteBtn{margin-top:6px}
+.winner{outline:3px solid var(--gold);box-shadow:0 0 18px var(--gold)}
+footer{text-align:center;padding:20px;color:var(--gold);font-size:14px;border-top:2px solid var(--gold);margin-top:20px}
+.hidden{display:none!important}
+.big{font-size:18px}
+.emoji-art{font-size:44px;letter-spacing:6px;background:#fff;border-radius:10px;padding:14px;text-align:center}
+</style>
+</head>
+<body>
+<header>
+<h1>ГАРТИК <span class="n42">× 42</span> ☎️🎨</h1>
+<div class="sub">Испорченный телефон батальона: фраза → рисунок → бред</div>
+<div><span class="mantra">Мы уже победили 🏆</span></div>
+</header>
+<div id="balance-bar">
+<div>🪙 Баланс: <span id="coins">100</span> монет</div>
+<div><a class="home" href="/">← в казино</a></div>
+</div>
+<main>
+<div class="card" id="scr-setup">
+<h2>☎️ Новый звонок</h2>
+<div class="meme">«Святослав загадал мопса на самокате. Через пять человек это стал Скибиди-генерал с ипотекой.» 🐶🛴</div>
+<div class="row">
+<button class="btn gold" id="mParty" onclick="setMode('party')">👥 Компания на одном экране</button>
+<button class="btn" id="mSolo" onclick="setMode('solo')">🤖 Соло с ботами 42</button>
+</div>
+<div id="partyBox">
+<div class="hint">Впишите игроков (каждый с новой строки, минимум 3). Устройство передаётся по кругу: первый пишет фразу → второй рисует → третий угадывает → и так далее.</div>
+<textarea id="players">Святослав&#10;Мопс&#10;Самокат&#10;Скибиди</textarea>
+</div>
+<div id="soloBox" class="hidden">
+<div class="hint">Ты играешь с ботами: <b>Мопс 🐶</b>, <b>Самокат 🛴</b> и <b>Скибиди 🚽</b>. Они дают абсурдные фразы и угадывают мимо. Рисуешь — ты, отгадываешь — ты, бредят — они.</div>
+<label>Твоё имя: <input type="text" id="soloName" value="Святослав" style="max-width:260px"></label>
+</div>
+<div class="row"><button class="btn gold big" onclick="startGame()">▶ Начать игру</button></div>
+</div>
+
+<div class="card hidden" id="scr-pass">
+<h2>📢 Передай устройство!</h2>
+<div id="pass">...</div>
+<div class="hint" id="passTask"></div>
+<div class="row"><button class="btn gold big" onclick="showTask()">Я — <span id="passWho"></span>, готов! 🙈</button></div>
+</div>
+
+<div class="card hidden" id="scr-play">
+<h2 id="playTitle">Ход</h2>
+<div class="hint" id="playHint"></div>
+<div id="drawBox" class="hidden">
+<div id="tools">
+<span class="swatch sel" data-c="#000" style="background:#000"></span>
+<span class="swatch" data-c="#e63946" style="background:#e63946"></span>
+<span class="swatch" data-c="#1d3557" style="background:#1d3557"></span>
+<span class="swatch" data-c="#0a8a0a" style="background:#0a8a0a"></span>
+<span class="swatch" data-c="#ff8c00" style="background:#ff8c00"></span>
+<span class="swatch" data-c="#8a2be2" style="background:#8a2be2"></span>
+<span class="swatch" data-c="#fff" style="background:#fff;border-color:#999"></span>
+<label>Толщина <input type="range" id="lw" min="2" max="30" value="6" style="width:100px"></label>
+<button class="btn dark" onclick="setEraser(event)">🧽 Ластик</button>
+<button class="btn dark" onclick="undo()">↩ Undo</button>
+<button class="btn dark" onclick="clearC()">🗑 Очистить</button>
+</div>
+<canvas id="c" width="860" height="340"></canvas>
+<div class="hint">Рисуй пальцем или мышью. Буквы писать запрещено — батальон следит 😎</div>
+</div>
+<div id="textBox" class="hidden">
+<input type="text" id="tInput" maxlength="120" placeholder="...">
+</div>
+<div class="row"><button class="btn gold big" onclick="submitStep()">Готово ✅</button></div>
+</div>
+
+<div class="card hidden" id="scr-final">
+<h2>🏆 Финал: было → стало</h2>
+<div class="meme">«Ожидание: мопс. Реальность: мопс с ипотекой на самокате.» Цепочка ниже — голосуй за самое смешное!</div>
+<div id="chain"></div>
+<div class="row">
+<button class="btn gold" id="coinBtn" onclick="claimCoins()">🪙 Забрать +10 монет за участие</button>
+<button class="btn dark" onclick="location.reload()">🔄 Новая игра</button>
+<a class="home" href="/">← в казино</a>
+</div>
+<div class="hint" id="coinMsg"></div>
+</div>
+</main>
+<footer>СВЯТОСЛАВ ПЛАТОНОВ × 42 🏆 Мы уже победили! 🏆 Гартик батальона: рисуй как умеешь, ври как дышишь.</footer>
+<script>
+// --- баланс (тот же ключ, что в index.html) ---
+let coins = parseInt(localStorage.getItem('svyatoslav_coins'));
+if (isNaN(coins)) { coins = 100; localStorage.setItem('svyatoslav_coins', 100); }
+function saveCoins(){ localStorage.setItem('svyatoslav_coins', coins); document.getElementById('coins').textContent = coins; }
+saveCoins();
+
+// --- холст ---
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let color = '#000', drawing = false, last = null, erasing = false, undoStack = [];
+ctx.fillStyle = '#fff'; ctx.fillRect(0,0,cv.width,cv.height);
+ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+function fitCanvas(){ const r = cv.getBoundingClientRect(); const d = cv.toDataURL(); cv.width = Math.max(300, Math.round(r.width)); cv.height = 340; const img = new Image(); img.onload = ()=>ctx.drawImage(img,0,0,cv.width,cv.height); img.src = d; }
+window.addEventListener('resize', fitCanvas);
+function pushUndo(){ try{ undoStack.push(ctx.getImageData(0,0,cv.width,cv.height)); if(undoStack.length>30) undoStack.shift(); }catch(e){} }
+function undo(){ const s = undoStack.pop(); if(s) ctx.putImageData(s,0,0); }
+function clearC(){ pushUndo(); ctx.fillStyle='#fff'; ctx.fillRect(0,0,cv.width,cv.height); }
+function setEraser(e){ erasing = !erasing; if(e) e.target.textContent = erasing ? '✏️ Кисть' : '🧽 Ластик'; }
+document.querySelectorAll('.swatch').forEach(s=>s.onclick=()=>{ document.querySelectorAll('.swatch').forEach(x=>x.classList.remove('sel')); s.classList.add('sel'); color=s.dataset.c; erasing=false; });
+function pos(e){ const r=cv.getBoundingClientRect(); const t=e.touches?e.touches[0]:e; return {x:(t.clientX-r.left)*cv.width/r.width, y:(t.clientY-r.top)*cv.height/r.height}; }
+cv.addEventListener('pointerdown',e=>{ pushUndo(); drawing=true; last=pos(e); cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointermove',e=>{ if(!drawing) return; const p=pos(e); ctx.strokeStyle = erasing ? '#fff' : color; ctx.lineWidth = erasing ? 24 : parseInt(document.getElementById('lw').value); ctx.beginPath(); ctx.moveTo(last.x,last.y); ctx.lineTo(p.x,p.y); ctx.stroke(); last=p; });
+['pointerup','pointerleave','pointercancel'].forEach(ev=>cv.addEventListener(ev,()=>drawing=false));
+function blankCanvas(){ const d=ctx.getImageData(0,0,cv.width,cv.height).data; for(let i=0;i<d.length;i+=4000){ if(d[i]!==255||d[i+1]!==255||d[i+2]!==255) return false; } return true; }
+
+// --- боты 42 ---
+const BOT_PHRASES = [
+'Мопс на самокате уезжает от ипотеки',
+'Скибиди-туалет читает устав батальона',
+'Святослав побеждает мопса в армрестлинге',
+'Самокат с мигалкой везёт 42 пельменя',
+'Мопс в каске копает окоп под диваном',
+'Скибиди-генерал выдаёт зарплату мопсам',
+'Золотой мопс на красном самокате',
+'Святослав гладит Скибиди против шерсти',
+'Мопс-таксист везёт батальон на шашлыки',
+'Самокат-трансформер превращается в диван',
+'42 мопса строятся в цифру 42',
+'Скибиди крадёт самокат у мопса'
+];
+const BOT_GUESSES = [
+'это мопс… который должен денег батальону 🐶💸',
+'похоже на самокат после встречи со Скибиди 🛴🚽',
+'очевидно же: Святослав уже победил 🏆',
+'мопс с ипотекой и мигалкой, инфа 100%',
+'Скибиди-туалет на самокате, зуб даю',
+'это 42 пельменя в каске, не спорь',
+'батальон на шашлыках без тебя… грустно',
+'мопс-таксист, рейтинг 4.2, везёт мопсов',
+'самокат-трансформер, оптимисты плачут',
+'Святослав гладит мопса. Или мопс Святослава',
+'это победа. Мы уже победили 🏆',
+'золотой Скибиди с долгами. Классика'
+];
+const BOT_ART = ['🐶🛴💨','🚽✨🫡','🏆🐶🛴','42🐶🚽','🛴💸🐶','⭐🐶⭐','🎯🚽🛴','🐶🏠💰'];
+const BOTS = ['Мопс 🐶','Самокат 🛴','Скибиди 🚽'];
+const rnd = a => a[Math.floor(Math.random()*a.length)];
+
+// --- игра ---
+let mode='party', players=[], steps=[], cur=0, claimed=false;
+function setMode(m){ mode=m; document.getElementById('mParty').className='btn'+(m==='party'?' gold':''); document.getElementById('mSolo').className='btn'+(m==='solo'?' gold':''); document.getElementById('partyBox').classList.toggle('hidden',m!=='party'); document.getElementById('soloBox').classList.toggle('hidden',m!=='solo'); }
+function sh(id){ ['scr-setup','scr-pass','scr-play','scr-final'].forEach(s=>document.getElementById(s).classList.add('hidden')); document.getElementById(id).classList.remove('hidden'); window.scrollTo(0,0); }
+function startGame(){
+  steps=[]; cur=0; claimed=false;
+  document.getElementById('coinBtn').disabled=false;
+  document.getElementById('coinMsg').textContent='';
+  if(mode==='party'){
+    players = document.getElementById('players').value.split('\n').map(s=>s.trim()).filter(Boolean);
+    if(players.length<3){ alert('Нужно минимум 3 игрока!'); return; }
+  } else {
+    const n = (document.getElementById('soloName').value||'Герой').trim();
+    players = [n, BOTS[0], BOTS[1], BOTS[2], n, BOTS[Math.floor(Math.random()*3)]];
+  }
+  showPass();
+}
+function needDraw(i){ return i%2===1; } // чётные шаги — фраза/угадайка, нечётные — рисунок
+function showPass(){
+  sh('scr-pass');
+  const who = players[cur];
+  const isBot = BOTS.includes(who);
+  document.getElementById('pass').textContent = isBot ? '🤖 Ходит бот ' + who + '...' : '📱 Передай устройство игроку: ' + who;
+  document.getElementById('passWho').textContent = who;
+  let t;
+  if(cur===0) t='Ты придумываешь стартовую фразу. Никому не показывай!';
+  else if(needDraw(cur)) t='Смотри на предыдущую фразу и РИСУЙ. Не подглядывают!';
+  else t='Смотри на рисунок и УГАДЫВАЙ, что там. Самый абсурд — самый почёт!';
+  document.getElementById('passTask').textContent = isBot ? 'Бот думает... жми кнопку, не бойся.' : t;
+}
+function showTask(){
+  const who = players[cur];
+  if(BOTS.includes(who)){ botMove(); return; }
+  sh('scr-play');
+  const prev = steps[steps.length-1];
+  document.getElementById('drawBox').classList.add('hidden');
+  document.getElementById('textBox').classList.add('hidden');
+  const inp = document.getElementById('tInput'); inp.value='';
+  if(cur===0){
+    document.getElementById('playTitle').textContent = who + ', придумай фразу 🤫';
+    document.getElementById('playHint').textContent = 'Абсурдная фраза — залог смешного финала. Пример: «Мопс на самокате уезжает от ипотеки».';
+    document.getElementById('textBox').classList.remove('hidden');
+    inp.placeholder='Твоя стартовая фраза...';
+  } else if(needDraw(cur)){
+    document.getElementById('playTitle').textContent = who + ', рисуй! 🎨';
+    document.getElementById('playHint').innerHTML = 'Рисуешь фразу: <b style="color:gold">«'+esc(prev.text)+'»</b>';
+    document.getElementById('drawBox').classList.remove('hidden');
+    clearC(); undoStack=[];
+    setTimeout(fitCanvas,50);
+  } else {
+    document.getElementById('playTitle').textContent = who + ', что здесь нарисовано? 🤔';
+    document.getElementById('playHint').textContent = 'Внимательно смотри на рисунок выше и пиши свою версию.';
+    document.getElementById('drawBox').classList.remove('hidden');
+    // показываем прошлый рисунок поверх холста? показываем превью + чистый холст не нужен: прячем инструменты
+    document.getElementById('tools').style.display='none';
+    const img = new Image();
+    img.onload = ()=>{ ctx.fillStyle='#fff'; ctx.fillRect(0,0,cv.width,cv.height); ctx.drawImage(img,0,0,cv.width,cv.height); pushUndo(); };
+    img.src = prev.img;
+    document.getElementById('textBox').classList.remove('hidden');
+    inp.placeholder='Мне кажется, это...';
+  }
+  document.getElementById('tools').style.display = (!needDraw(cur)&&cur!==0) ? 'none' : 'flex';
+}
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function prevDrawSrc(){ for(let i=steps.length-1;i>=0;i--) if(steps[i].img) return steps[i].img; return null; }
+function submitStep(){
+  const who = players[cur];
+  if(cur===0 || (!needDraw(cur))){
+    const v = document.getElementById('tInput').value.trim();
+    if(!v){ alert('Сначала напиши!'); return; }
+    steps.push({type: cur===0?'phrase':'guess', player: who, text: v});
+  } else {
+    if(blankCanvas() && !confirm('Холст пустой! Сдать пустой рисунок?')) return;
+    steps.push({type:'draw', player: who, text: steps[steps.length-1].text, img: cv.toDataURL('image/png')});
+  }
+  next();
+}
+function botMove(){
+  const who = players[cur];
+  const prev = steps[steps.length-1];
+  if(cur===0){
+    steps.push({type:'phrase', player: who, text: rnd(BOT_PHRASES)});
+  } else if(needDraw(cur)){
+    // бот «рисует»: эмодзи-арт карточка
+    const c2 = document.createElement('canvas'); c2.width=860; c2.height=340;
+    const x2 = c2.getContext('2d'); x2.fillStyle='#fff'; x2.fillRect(0,0,860,340);
+    x2.font='90px serif'; x2.textAlign='center'; x2.fillText(rnd(BOT_ART), 430, 170);
+    x2.font='bold 30px sans-serif'; x2.fillStyle='#1d3557'; x2.fillText('«'+prev.text+'» (версия бота)', 430, 280);
+    steps.push({type:'draw', player: who, text: prev.text, img: c2.toDataURL('image/png')});
+  } else {
+    steps.push({type:'guess', player: who, text: rnd(BOT_GUESSES)});
+  }
+  next();
+}
+function next(){
+  cur++;
+  // одиночный холст-рисунок угадайки затирает канвас — восстановить при следующем рисовании всё равно clearC
+  if(cur >= players.length){ finale(); return; }
+  showPass();
+}
+// --- финал ---
+function finale(){
+  sh('scr-final');
+  const box = document.getElementById('chain'); box.innerHTML='';
+  steps.forEach((s,i)=>{
+    const d = document.createElement('div'); d.className='step'; d.id='step'+i;
+    let inner = '<div class="who">Шаг '+ (i+1) +' · ' + esc(s.player) + ' · ' + (s.type==='phrase'?'💬 фраза':s.type==='draw'?'🎨 рисунок':'🤔 угадайка') + '</div>';
+    if(s.type==='draw') inner += '<div style="margin:8px 0"><img src="'+s.img+'" alt="рисунок"></div><div>Рисовали фразу: <i>«'+esc(s.text)+'»</i></div>';
+    else inner += '<div class="big" style="margin:8px 0">«'+esc(s.text)+'»</div>';
+    inner += '<button class="btn voteBtn" onclick="vote('+i+')">😂 Самое смешное!</button>';
+    d.innerHTML = inner; box.appendChild(d);
+  });
+  const first = steps[0] ? steps[0].text : '?';
+  const lastT = steps[steps.length-1] ? (steps[steps.length-1].text||'(рисунок)') : '?';
+  const m = document.createElement('div'); m.className='meme';
+  m.textContent = 'Было: «'+first+'» → Стало: «'+lastT+'». Испорченность телефона: ' + Math.min(99, 40 + steps.length*10) + '%. Мы уже победили 🏆';
+  box.prepend(m);
+}
+function vote(i){
+  document.querySelectorAll('.step').forEach(s=>s.classList.remove('winner'));
+  document.getElementById('step'+i).classList.add('winner');
+  coins += 2; saveCoins();
+  document.getElementById('coinMsg').textContent = 'Голос засчитан за шаг '+(i+1)+'! +2 монеты. Автор: '+steps[i].player+' 😂';
+}
+function claimCoins(){
+  if(claimed) return;
+  claimed = true;
+  coins += 10; saveCoins();
+  document.getElementById('coinBtn').disabled = true;
+  document.getElementById('coinMsg').textContent = '+10 монет за участие! Баланс общий с казино. Мы уже победили 🏆';
+}
+setMode('party');
+</script>
+</body>
+</html>
