@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  createZapoiState, TREE, ARTS, SYNS, upgradeCost,
+  createZapoiState, TREE, ARTS, QUALITY_NAMES, SYNS, upgradeCost,
   dmgPerSip, heal1val, heal1cost, heal2val, heal2cost,
   buyUpgrade, buyArt, jagerClick, healSmall, healBig, tickZapoi,
   checkSyns, synReady, hangoverRate, fmtZ,
@@ -101,25 +101,30 @@ export default function ZapoiGame() {
         return r ? `💉 Капельница: +${r.v} HP за ${r.c} бухла` : '';
       }, 700)} style={{ fontSize: 15 }}>💉 КАПЕЛЬНИЦА: +{heal2val(z)} HP за {heal2cost(z)} бухла</button>
       <div className="zlog">{log}</div>
-      <h3 style={{ color: 'gold' }}>🏺 Артефакты (разовые, имбовые)</h3>
+      <h3 style={{ color: 'gold' }}>🏺 Артефакты по качествам (чем выше — тем дороже и имбовее)</h3>
       <div>
-        {ARTS.map((a) => {
-          const owned = !!z.arts[a.id];
-          return (
-            <div className="art" key={a.id}>
-              <b>{a.name}</b> — {a.desc}{' '}
-              <button disabled={owned || z.m < a.cost} onClick={() => mutate((n) => {
-                const syns = buyArt(n, a.id);
-                if (syns === false) return '';
-                if (syns.length > 0) {
-                  const names = syns.map((id) => SYNS.find((s) => s.id === id).name).join(', ');
-                  return `${names} — синергия!`;
-                }
-                return `🏺 Артефакт: ${a.name} — имба активирована!`;
-              }, 900)}>{owned ? 'ВЗЯТ ✅' : `Взять за ${a.cost}`}</button>
-            </div>
-          );
-        })}
+        {[1, 2, 3, 4].map((q) => (
+          <div key={q}>
+            <div style={{ color: 'gold', fontWeight: 'bold', margin: '8px 0 4px', fontSize: 14 }}>{QUALITY_NAMES[q]}</div>
+            {ARTS.filter((a) => (a.q || 3) === q).map((a) => {
+              const owned = !!z.arts[a.id];
+              return (
+                <div className="art" key={a.id}>
+                  <b>{a.name}</b> — {a.desc}{' '}
+                  <button disabled={owned || z.m < a.cost} onClick={() => mutate((n) => {
+                    const syns = buyArt(n, a.id);
+                    if (syns === false) return '';
+                    if (syns.length > 0) {
+                      const names = syns.map((id) => SYNS.find((s) => s.id === id).name).join(', ');
+                      return `${names} — синергия!`;
+                    }
+                    return `🏺 Артефакт: ${a.name} — имба активирована!`;
+                  }, 900)}>{owned ? 'ВЗЯТ ✅' : `Взять за ${a.cost}`}</button>
+                </div>
+              );
+            })}
+          </div>
+        ))}
       </div>
       <h3 style={{ color: 'gold' }}>✨ Синергии артефактов</h3>
       <div style={{ fontSize: 14 }}>

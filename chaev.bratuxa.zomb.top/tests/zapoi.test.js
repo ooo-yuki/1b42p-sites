@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
-  createZapoiState, TREE, upgradeCost, artCount,
+  createZapoiState, TREE, ARTS, upgradeCost, artCount,
   dmgPerSip, heal1val, heal1cost, heal2val, heal2cost,
   buyUpgrade, buyArt, jagerClick, healSmall, healBig,
   tickZapoi, applyHangover, checkSyns,
 } from '../src/game/zapoiLogic.js';
-import { hangoverRate } from '../src/game/synergies.js';
+import { SYNS, hangoverRate } from '../src/game/synergies.js';
 
 describe('цены апгрейдов: base × growth^уровень', () => {
   it('12 апгрейдов в древе', () => {
@@ -136,5 +136,77 @@ describe('артефакты и синергии', () => {
     checkSyns(z);
     expect(z.syn.balance).toBe(1);
     expect(heal1val(z)).toBe(Math.round(15 * 1.3));
+  });
+});
+
+describe('качества артефактов 1-4', () => {
+  it('10 артефактов, у каждого качество', () => {
+    expect(ARTS).toHaveLength(10);
+    for (const a of ARTS) expect([1, 2, 3, 4]).toContain(a.q);
+  });
+  it('цена растёт с качеством', () => {
+    const maxQ1 = Math.max(...ARTS.filter((a) => a.q === 1).map((a) => a.cost));
+    const minQ4 = Math.min(...ARTS.filter((a) => a.q === 4).map((a) => a.cost));
+    expect(minQ4).toBeGreaterThan(maxQ1);
+  });
+  it('дешёвая крышка: +1 к клику за 300', () => {
+    const z = createZapoiState();
+    z.m = 1000;
+    expect(buyArt(z, 'cap')).toBeTruthy();
+    expect(z.click).toBe(2);
+    expect(z.m).toBe(700);
+  });
+  it('легендарная корона: mult×3', () => {
+    const z = createZapoiState();
+    z.m = 1e9;
+    buyArt(z, 'crown');
+    expect(z.mult).toBe(3);
+  });
+});
+
+describe('новые синергии incl. дешёвые', () => {
+  function rich() {
+    const z = createZapoiState();
+    z.m = 1e9;
+    return z;
+  }
+  it('11 синергий всего', () => {
+    expect(SYNS).toHaveLength(11);
+  });
+  it('крышка+пластырь → Аптечка Двора', () => {
+    const z = rich();
+    buyArt(z, 'cap');
+    const syns = buyArt(z, 'plaster');
+    expect(syns).toContain('firstaid');
+    expect(z.maxhp).toBe(100 + 20 + 30);
+  });
+  it('крышка+чек → Эконом 42 (mult×1.15)', () => {
+    const z = rich();
+    buyArt(z, 'cap');
+    buyArt(z, 'check');
+    expect(z.syn.economy).toBe(1);
+    expect(z.mult).toBeCloseTo(1.15, 5);
+  });
+  it('чек+фляга → Сдача (+500 бухла)', () => {
+    const z = rich();
+    buyArt(z, 'check');
+    const before = z.m;
+    buyArt(z, 'flask');
+    expect(z.syn.change).toBe(1);
+    expect(z.m).toBe(before - 2500 + 500);
+  });
+  it('корона+сердце → Коронация', () => {
+    const z = rich();
+    buyArt(z, 'crown');
+    buyArt(z, 'heart42');
+    expect(z.syn.royal).toBe(1);
+    expect(z.mult).toBeCloseTo(3 * 1.5, 5);
+  });
+  it('корона+рюмка+сердце → Легенда 42', () => {
+    const z = rich();
+    buyArt(z, 'crown');
+    buyArt(z, 'goldshot');
+    const syns = buyArt(z, 'heart42');
+    expect(syns).toContain('legend');
   });
 });
