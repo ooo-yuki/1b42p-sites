@@ -33,6 +33,21 @@ a{color:gold}
 <button onclick="resetGame()">ЗАНОВО 🔄</button>
 <p class="hint">Скорость растёт с каждым уровнем • звук: 🔊 вкл (WebAudio, без файлов)</p>
 </div>
+<div class="card">
+<h2>🦌 ЯГЕРМЕЙСТЕР 🦌</h2>
+<p>Срок запоя Чаева: <b id="zapoi" style="color:gold;font-size:22px">1 минута</b></p>
+<button onclick="jager()" style="background:linear-gradient(180deg,#ff7a00,#c50);color:#fff;font-size:24px;padding:14px 40px">ЯГЕРМЕЙСТЕР 🍾</button>
+<p class="hint">Каждое нажатие удваивает срок. Мы уже победили 🏆</p>
+</div>
+<div class="card">
+<h2>🎵 ЛЮБИМЫЕ ТРЕКИ ЧАЕВА 🎵</h2>
+<p>🎧 42 — 5opka, 6055<br>🎧 ELA DANCA — 5opka, Sayfalse и ещё 1 исполнитель<br>🎧 ТУСА ПЕЗДУЗА — 5opka, Mellsher</p>
+</div>
+<script>
+let zapoiMin=1;
+function fmtZapoi(m){if(m<60)return m+' минута';if(m<1440)return (m/60)+' час(а)';return (m/1440)+' сут.';}
+function jager(){zapoiMin*=2;document.getElementById('zapoi').textContent=fmtZapoi(zapoiMin)+' (x'+zapoiMin+')';try{const x=new (window.AudioContext||window.webkitAudioContext)();const o=x.createOscillator(),g=x.createGain();o.type='square';o.frequency.setValueAtTime(300,x.currentTime);o.frequency.exponentialRampToValueAtTime(900,x.currentTime+.15);g.gain.setValueAtTime(.15,x.currentTime);g.gain.exponentialRampToValueAtTime(.001,x.currentTime+.2);o.connect(g);g.connect(x.destination);o.start();o.stop(x.currentTime+.22);}catch(e){}}
+</script>
 
 <script type="text/babel">
 const {useState} = React;
