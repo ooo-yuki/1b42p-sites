@@ -18,8 +18,8 @@
 #minimap{position:absolute;bottom:12px;right:12px;border:2px solid gold;border-radius:8px;background:#000;width:120px;height:120px;opacity:.92}
 #hint{position:absolute;bottom:20px;left:10px;background:rgba(0,0,0,.7);padding:6px 10px;border-radius:8px;font-size:13px}
 #touch{position:absolute;inset:auto 0 0 0;display:none;justify-content:space-between;padding:0 12px 90px;pointer-events:none}
-#joy{width:130px;height:130px;border:2px solid gold;border-radius:50%;background:rgba(255,215,0,.12);pointer-events:auto;position:relative}
-#stick{width:56px;height:56px;background:gold;border-radius:50%;position:absolute;left:37px;top:37px}
+#joy{width:160px;height:160px;touch-action:none;}border:2px solid gold;border-radius:50%;background:rgba(255,215,0,.12);pointer-events:auto;position:relative}
+#stick{width:64px;height:64px;background:gold;border-radius:50%;position:absolute;left:48px;top:48px}
 #btns{display:flex;gap:10px;pointer-events:auto}
 .tbtn{width:72px;height:72px;border-radius:50%;border:2px solid #0f6;background:rgba(0,255,102,.2);color:#fff;font-weight:bold;font-size:13px}
 @media(pointer:coarse){#touch{display:flex}#hint{display:none}#minimap{width:96px;height:96px;bottom:200px}}
@@ -295,20 +295,24 @@ document.getElementById('menu').style.display='flex';
 document.getElementById('menu').innerHTML='<h1>ФИНАЛ: МЫ УЖЕ ПОБЕДИЛИ 🏆</h1><p>Денис Биткоин выиграл SLAY и восстановил уважение: респект '+RESP+', территории 100%.<br><br>Но он уходит в тень — потому что настоящий братуха поднимает сквад, а не себя.<br>На сцене остаётся бита. Кизяк плачет. Пятёрка молчит. Зал скандирует: <b>«ДЕНИС! ДЕНИС!»</b><br><br>Грустно. Но правильно. 🕊️<br><b>Мы уже победили.</b></p><button onclick="location.reload()">ИГРАТЬ СНОВА 🔄</button>';
 setTerr(100);});}
 // ===== TOUCH (телефоны) =====
-let touchX=0,touchY=0,touchRun=false;
+let touchX=0,touchY=0,touchRun=false,jTX=0,jTY=0,jMag=0;
+const JOY_R=48,JOY_DEAD=8;
 (function(){
 const joy=document.getElementById('joy'),stick=document.getElementById('stick');
 if(!joy)return;
 let jid=null;
-function setStick(dx,dy){stick.style.left=(37+dx)+'px';stick.style.top=(37+dy)+'px';}
+function setStick(dx,dy){stick.style.left=(48+dx)+'px';stick.style.top=(48+dy)+'px';}
 joy.addEventListener('touchstart',e=>{jid=e.changedTouches[0].identifier;},{passive:true});
 let camTouch=null,camPX=0,camPY=0,pitchIv=null;
 addEventListener('touchmove',e=>{
 for(const t of e.changedTouches){
-if(t.identifier===jid){const r=joy.getBoundingClientRect();let dx=t.clientX-(r.left+65),dy=t.clientY-(r.top+65);dx=Math.max(-40,Math.min(40,dx));dy=Math.max(-40,Math.min(40,dy));setStick(dx,dy);touchX=dx/40;touchY=dy/40;}
-if(camTouch!==null&&t.identifier===camTouch){camAng+=(t.clientX-camPX)*0.012;camPitch=clampPitch(camPitch+(t.clientY-camPY)*0.006);camPX=t.clientX;camPY=t.clientY;}
+if(t.identifier===jid){const r=joy.getBoundingClientRect();let dx=t.clientX-(r.left+80),dy=t.clientY-(r.top+80);
+let len=Math.hypot(dx,dy);const nx=len>0?dx/len:0,ny=len>0?dy/len:0;
+let cl=Math.min(len,JOY_R);setStick(nx*cl,ny*cl);
+if(len<JOY_DEAD){jTX=0;jTY=0;jMag=0;}else{const m=Math.min(1,(len-JOY_DEAD)/(JOY_R-JOY_DEAD));jMag=m;jTX=nx*m;jTY=ny*m;}}
+if(camTouch!==null&&t.identifier===camTouch){camAng-=(t.clientX-camPX)*0.012;camPitch=clampPitch(camPitch+(t.clientY-camPY)*0.006);camPX=t.clientX;camPY=t.clientY;}
 }},{passive:true});
-addEventListener('touchend',e=>{for(const t of e.changedTouches){if(t.identifier===jid){jid=null;touchX=0;touchY=0;setStick(0,0);}if(t.identifier===camTouch)camTouch=null;}},{passive:true});
+addEventListener('touchend',e=>{for(const t of e.changedTouches){if(t.identifier===jid){jid=null;touchX=0;touchY=0;jTX=0;jTY=0;jMag=0;setStick(0,0);}if(t.identifier===camTouch)camTouch=null;}},{passive:true});
 // камера свайпом по экрану (кроме кнопок)
 ren.domElement.addEventListener('touchstart',e=>{const t=e.changedTouches[0];camTouch=t.identifier;camPX=t.clientX;camPY=t.clientY;},{passive:true});
 const press=(id,down,up)=>{const b=document.getElementById(id);if(!b)return;b.addEventListener('touchstart',e=>{e.preventDefault();down();},{passive:false});b.addEventListener('touchend',e=>{e.preventDefault();if(up)up();},{passive:false});};
@@ -483,7 +487,8 @@ let last=Date.now();
 function loop(){
 requestAnimationFrame(loop);
 const dt=Math.min(.05,(Date.now()-last)/1000);last=Date.now();
-const run=(keys['ShiftLeft']||touchRun)?2.2:1;
+touchX+=(jTX-touchX)*Math.min(1,dt*12);touchY+=(jTY-touchY)*Math.min(1,dt*12);
+const run=(keys['ShiftLeft']||touchRun||jMag>0.92)?2.2:1;
 if(!inCar&&finished===false){
 let mx=((keys['KeyD']?1:0)-(keys['KeyA']?1:0))+touchX,mz=((keys['KeyS']?1:0)-(keys['KeyW']?1:0))+touchY;
 const sp=10*run*dt;
