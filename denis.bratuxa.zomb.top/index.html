@@ -21,18 +21,18 @@
 #joy{width:130px;height:130px;border:2px solid gold;border-radius:50%;background:rgba(255,215,0,.12);pointer-events:auto;position:relative}
 #stick{width:56px;height:56px;background:gold;border-radius:50%;position:absolute;left:37px;top:37px}
 #btns{display:flex;gap:10px;pointer-events:auto}
-.tbtn{width:64px;height:64px;border-radius:50%;border:2px solid #0f6;background:rgba(0,255,102,.2);color:#fff;font-weight:bold;font-size:13px}
+.tbtn{width:72px;height:72px;border-radius:50%;border:2px solid #0f6;background:rgba(0,255,102,.2);color:#fff;font-weight:bold;font-size:13px}
 @media(pointer:coarse){#touch{display:flex}#hint{display:none}#minimap{width:110px;height:110px;bottom:170px}}
 b.gold{color:gold}b.grn{color:#0f6}b.red{color:#f55}
 </style>
 </head>
 <body>
 <div id="ui">
-<div id="hud">❤️ <span id="hp">100</span> | 🏆 Респект: <span id="resp">0</span> | 🗺️ Территории 42: <span id="terr">15%</span><br>WASD — идти • Shift — бег • E — действие • F — тачка • ЛКМ — бита • C — камера<br>📻 <span id="radio">VICE 42 FM</span> (R — станция) • M — звук • V — озвучка (?) — редкие NPC • H — скрыть подсказки</div><div id="radiopop" style="position:absolute;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);border:2px solid magenta;border-radius:10px;padding:8px 18px;font-size:18px;display:none">📻 <span id="radiopop-t"></span></div>
+<div id="hud">❤️ <span id="hp">100</span> | 🏆 Респект: <span id="resp">0</span> | 🗺️ Территории 42: <span id="terr">15%</span><br>WASD — идти • Shift — бег • E — действие • F — тачка • ЛКМ — бита • C — камера<br>ПКМ-мышь/стрелки — взгляд (вверх/вниз) • колесо — зум • на телефоне: свайп + 🔼🔽<br>📻 <span id="radio">VICE 42 FM</span> (R — станция) • M — звук • V — озвучка (?) — редкие NPC • H — скрыть подсказки</div><div id="radiopop" style="position:absolute;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);border:2px solid magenta;border-radius:10px;padding:8px 18px;font-size:18px;display:none">📻 <span id="radiopop-t"></span></div>
 <div id="mission">📜 <b id="mtitle">Миссия 1: Возвращение</b><br><span id="mdesc">Иди в штаб (жёлтая метка H)</span></div>
 <canvas id="minimap" width="160" height="160"></canvas>
 <div id="hint">Метки: H — штаб • ! — цель • 🚗 — тачка • 💀 — враги</div>
-<div id="touch"><div id="joy"><div id="stick"></div></div><div id="btns"><button class="tbtn" id="bE">E</button><button class="tbtn" id="bF">🚗</button><button class="tbtn" id="bHit">БИТА</button><button class="tbtn" id="bRun">БЕГ</button></div></div>
+<div id="touch"><div id="joy"><div id="stick"></div></div><div id="btns"><button class="tbtn" id="bE">E</button><button class="tbtn" id="bF">🚗</button><button class="tbtn" id="bHit">БИТА</button><button class="tbtn" id="bRun">БЕГ</button><button class="tbtn" id="bUp">🔼</button><button class="tbtn" id="bDn">🔽</button></div></div>
 <audio id="anthem" src="anthem.mp3" loop preload="auto"></audio><div id="dialog" style="display:none"><div id="dtext"></div><button id="dnext">ДАЛЕЕ ➤</button></div>
 <div id="menu">
 <h1>42 • ДЕНИС БИТКОИН</h1>
@@ -188,7 +188,8 @@ const chain=new THREE.Mesh(new THREE.TorusGeometry(.55,.09,10,24),new THREE.Mesh
 const tagC=document.createElement('canvas');tagC.width=128;tagC.height=64;const tg=tagC.getContext('2d');tg.fillStyle='gold';tg.fillRect(0,0,128,64);tg.fillStyle='#000';tg.font='bold 40px Arial';tg.fillText('42',35,46);
 const tag=new THREE.Mesh(new THREE.BoxGeometry(.5,.28,.08),new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(tagC)}));tag.position.set(0,1.15,1.05);player.add(tag);
 const bat=new THREE.Mesh(new THREE.BoxGeometry(.25,.25,2.4),new THREE.MeshStandardMaterial({color:0x8B5A2B}));bat.position.set(1,1.6,.4);player.add(bat);
-let HP=100,RESP=0,TERR=15,inCar=false,camDist=12,camAng=0;
+let HP=100,RESP=0,TERR=15,inCar=false,camDist=12,camAng=0,camPitch=0.45;
+function clampPitch(v){return Math.max(0.08,Math.min(1.25,v));}
 addEventListener('keydown',e=>{if(e.code==='KeyC')camDist=camDist===12?18:(camDist===18?8:12);});
 let HIDE_HELP=false;
 addEventListener('keydown',e=>{if(e.code==='KeyH'){HIDE_HELP=!HIDE_HELP;for(const id of ['hud','mission','hint']){const el=document.getElementById(id);if(el)el.style.display=HIDE_HELP?'none':'';}}});
@@ -269,7 +270,8 @@ const keys={};addEventListener('keydown',e=>keys[e.code]=true);addEventListener(
 let mouseDown=false,attackCD=0;
 addEventListener('mousedown',e=>{if(e.button===0)mouseDown=true;if(e.button===2)rmb=true;});
 addEventListener('mouseup',e=>{if(e.button===0)mouseDown=false;if(e.button===2)rmb=false;});
-let rmb=false;addEventListener('mousemove',e=>{if(rmb)camAng+=e.movementX*0.005;});
+let rmb=false;addEventListener('mousemove',e=>{if(rmb){camAng+=e.movementX*0.005;camPitch=clampPitch(camPitch+e.movementY*0.003);}});
+addEventListener('wheel',e=>{camDist=Math.max(6,Math.min(26,camDist+(e.deltaY>0?1:-1)));},{passive:true});
 addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();ren.setSize(innerWidth,innerHeight);});
 function dist(a,b){return Math.hypot(a.position.x-b.position.x,a.position.z-b.position.z);}
 function near(px,pz,r){return Math.hypot(player.position.x-px,player.position.z-pz)<r;}
@@ -300,20 +302,25 @@ if(!joy)return;
 let jid=null;
 function setStick(dx,dy){stick.style.left=(37+dx)+'px';stick.style.top=(37+dy)+'px';}
 joy.addEventListener('touchstart',e=>{jid=e.changedTouches[0].identifier;},{passive:true});
-let camTouch=null,camPX=0;
+let camTouch=null,camPX=0,camPY=0,pitchIv=null;
 addEventListener('touchmove',e=>{
 for(const t of e.changedTouches){
 if(t.identifier===jid){const r=joy.getBoundingClientRect();let dx=t.clientX-(r.left+65),dy=t.clientY-(r.top+65);dx=Math.max(-40,Math.min(40,dx));dy=Math.max(-40,Math.min(40,dy));setStick(dx,dy);touchX=dx/40;touchY=dy/40;}
-if(camTouch!==null&&t.identifier===camTouch){camAng+=(t.clientX-camPX)*0.01;camPX=t.clientX;}
+if(camTouch!==null&&t.identifier===camTouch){camAng+=(t.clientX-camPX)*0.012;camPitch=clampPitch(camPitch+(t.clientY-camPY)*0.006);camPX=t.clientX;camPY=t.clientY;}
 }},{passive:true});
 addEventListener('touchend',e=>{for(const t of e.changedTouches){if(t.identifier===jid){jid=null;touchX=0;touchY=0;setStick(0,0);}if(t.identifier===camTouch)camTouch=null;}},{passive:true});
 // камера свайпом по экрану (кроме кнопок)
-ren.domElement.addEventListener('touchstart',e=>{const t=e.changedTouches[0];camTouch=t.identifier;camPX=t.clientX;},{passive:true});
+ren.domElement.addEventListener('touchstart',e=>{const t=e.changedTouches[0];camTouch=t.identifier;camPX=t.clientX;camPY=t.clientY;},{passive:true});
 const press=(id,down,up)=>{const b=document.getElementById(id);if(!b)return;b.addEventListener('touchstart',e=>{e.preventDefault();down();},{passive:false});b.addEventListener('touchend',e=>{e.preventDefault();if(up)up();},{passive:false});};
 press('bE',()=>dispatchKey('KeyE'));
 press('bF',()=>dispatchKey('KeyF'));
 press('bHit',()=>{mouseDown=true;setTimeout(()=>mouseDown=false,200);});
 press('bRun',()=>touchRun=true,()=>touchRun=false);
+const pitchHold=(dir)=>{if(pitchIv)clearInterval(pitchIv);pitchIv=setInterval(()=>{camPitch=clampPitch(camPitch+dir*0.06);},50);};
+const pitchStop=()=>{if(pitchIv){clearInterval(pitchIv);pitchIv=null;}};
+(function(){const u=document.getElementById('bUp'),dn=document.getElementById('bDn');
+if(u){u.addEventListener('touchstart',e=>{e.preventDefault();pitchHold(-1);},{passive:false});u.addEventListener('touchend',e=>{e.preventDefault();pitchStop();},{passive:false});}
+if(dn){dn.addEventListener('touchstart',e=>{e.preventDefault();pitchHold(1);},{passive:false});dn.addEventListener('touchend',e=>{e.preventDefault();pitchStop();},{passive:false});}})();
 })();
 function dispatchKey(code){addEventListener('keydown',{},{once:true});const ev=new KeyboardEvent('keydown',{code});dispatchEvent(ev);}
 if(/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)){document.getElementById('touch').style.display='flex';}
@@ -524,7 +531,11 @@ for(const e of enemies){if(e.hp<=0)continue;const d=dist(player,e.mesh);if(d<30)
 if(d<2.2){HP-=20*dt;document.getElementById('hp').textContent=Math.ceil(HP);if(HP<=0){HP=100;player.position.set(0,0,70);document.getElementById('hp').textContent=100;}}}}
 // камера
 const focus=inCar?car.position:player.position;
-cam.position.set(focus.x+Math.sin(camAng)*camDist,8,focus.z+Math.cos(camAng)*camDist);
+if(keys['ArrowLeft'])camAng-=2.2*dt;if(keys['ArrowRight'])camAng+=2.2*dt;
+if(keys['ArrowUp'])camPitch=clampPitch(camPitch-1.4*dt);if(keys['ArrowDown'])camPitch=clampPitch(camPitch+1.4*dt);
+{const cp=Math.cos(camPitch),sp=Math.sin(camPitch);
+cam.position.set(focus.x+Math.sin(camAng)*camDist*cp,2+sp*camDist,focus.z+Math.cos(camAng)*camDist*cp);}
+try{head.rotation.x=-(camPitch-0.45)*0.9;}catch(_){}
 try{fadeHouses();}catch(_){}
 cam.lookAt(focus.x,2,focus.z);
 // миникарта
