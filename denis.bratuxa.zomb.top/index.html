@@ -33,7 +33,7 @@ b.gold{color:gold}b.grn{color:#0f6}b.red{color:#f55}
 <canvas id="minimap" width="160" height="160"></canvas>
 <div id="hint">Метки: H — штаб • ! — цель • 🚗 — тачка • 💀 — враги</div>
 <div id="touch"><div id="joy"><div id="stick"></div></div><div id="btns"><button class="tbtn" id="bE">E</button><button class="tbtn" id="bF">🚗</button><button class="tbtn" id="bHit">БИТА</button><button class="tbtn" id="bRun">БЕГ</button></div></div>
-<div id="dialog" style="display:none"><div id="dtext"></div><button id="dnext">ДАЛЕЕ ➤</button></div>
+<audio id="anthem" src="anthem.mp3" loop preload="auto"></audio><div id="dialog" style="display:none"><div id="dtext"></div><button id="dnext">ДАЛЕЕ ➤</button></div>
 <div id="menu">
 <h1>42 • ДЕНИС БИТКОИН</h1>
 <h2 style="color:#0f6">ВОЗВРАЩЕНИЕ В БАТАЛЬОН</h2>
@@ -323,7 +323,8 @@ if(/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)){document.getElementB
 const AU={ctx:null,muted:false,station:0,stations:[
  {name:'VICE 42 FM 📼 синтвейв',bpm:102,bass:[45,41,48,43],pad:[57,60,64,67],leadScale:[57,60,62,64,67,69,72],wave:'sawtooth'},
  {name:'SLAY FUNK 🕺 фанк',bpm:94,bass:[38,38,41,43,45,43],pad:[50,53,57,60],leadScale:[50,53,55,57,60,62,65],wave:'square'},
- {name:'TORNADO LO-FI 🌴 ночь',bpm:76,bass:[43,40,36,38],pad:[55,59,62,66],leadScale:[55,59,60,62,66,67,71],wave:'triangle'}],
+ {name:'TORNADO LO-FI 🌴 ночь',bpm:76,bass:[43,40,36,38],pad:[55,59,62,66],leadScale:[55,59,60,62,66,67,71],wave:'triangle'},
+ {name:'ГИМН БАТАЛЬОНА 🌃 найт-сити',anthem:true,bpm:90,bass:[45,43,41,40],pad:[57,60,64],leadScale:[57,60,62,64,67],wave:'sawtooth'}],
  step:0,nextT:0,timer:null,eng:null,engGain:null,engFilter:null};
 AU.init=function(){
  if(AU.ctx)return;
@@ -397,7 +398,8 @@ AU.engineUpdate=function(speed,inCar){
 AU.scheduler=function(){
  const tick=()=>{
   if(!AU.ctx||AU.muted){AU.nextT=AU.ctx?AU.ctx.currentTime+.1:0;return;}
-  const st=AU.stations[AU.station],spb=60/st.bpm/4;
+  const st=AU.stations[AU.station];if(st.anthem){AU.nextT=AU.ctx.currentTime+.1;return;}
+ const spb=60/st.bpm/4;
   while(AU.nextT<AU.ctx.currentTime+.25){AU.playStep(AU.step,AU.nextT,st);AU.nextT+=spb;AU.step=(AU.step+1)%64;}
  };
  AU.nextT=AU.ctx.currentTime+.1;AU.timer=setInterval(tick,80);
@@ -434,8 +436,35 @@ AU.doorSfx=function(){AU.blip(180,.12,'square',.15);setTimeout(()=>AU.blip(120,.
 AU.spraySfx=function(){if(!AU.ctx||AU.muted)return;const x=AU.ctx,t=x.currentTime,s=x.createBufferSource();s.buffer=AU.noiseBuf();const f=x.createBiquadFilter();f.type='highpass';f.frequency.value=3000;const g=x.createGain();g.gain.setValueAtTime(.15,t);g.gain.exponentialRampToValueAtTime(.001,t+.6);s.connect(f);f.connect(g);g.connect(AU.sfx);s.start(t);s.stop(t+.65);AU.blip(880,.3,'sine',.12);};
 AU.missionDone=function(){if(!AU.ctx||AU.muted)return;[523,659,784,1046].forEach((f,i)=>setTimeout(()=>AU.blip(f,.35,'triangle',.2),i*130));};
 AU.viceSting=function(){if(!AU.ctx||AU.muted)return;[110,138,165,220,277].forEach(f=>AU.padNote(f,AU.ctx.currentTime,2.5));[440,554,659,880].forEach((f,i)=>setTimeout(()=>AU.blip(f,.4,'sawtooth',.1),i*160));AU.missionDone();};
+AU.anthemChain=function(){
+ const x=AU.ctx,el=document.getElementById('anthem');
+ if(!el)return null;
+ try{
+  if(!AU._antSrc){
+   const src=x.createMediaElementSource(el);
+   const lp=x.createBiquadFilter();lp.type='lowpass';lp.frequency.value=5200; // тёмный найт-сити верх
+   const lb=x.createBiquadFilter();lb.type='lowshelf';lb.frequency.value=160;lb.gain.value=5; // ночь-бас
+   const dl=x.createDelay(1);dl.delayTime.value=.31; // кибер-эхо
+   const fb=x.createGain();fb.gain.value=.28;
+   const wet=x.createGain();wet.gain.value=.22;
+   const g=x.createGain();g.gain.value=.9;
+   src.connect(lp);lp.connect(lb);lb.connect(g);g.connect(AU.master);g.connect(AU.busConv);
+   lb.connect(dl);dl.connect(fb);fb.connect(dl);dl.connect(wet);wet.connect(AU.master);
+   AU._antSrc=src;
+  }
+  return true;
+ }catch(_){return false;}
+};
+AU.playAnthem=function(){
+ const el=document.getElementById('anthem');if(!el)return;
+ try{el.playbackRate=.94;}catch(_){} // упрощённый найт-сити ремикс: темнее и медленнее
+ try{if(AU.ctx&&AU.anthemChain()){el.muted=false;} }catch(_){}
+ const pr=el.play();if(pr&&pr.catch)pr.catch(()=>{});
+};
+AU.stopAnthem=function(){const el=document.getElementById('anthem');if(!el)return;try{el.pause();}catch(_){}};
 AU.nextStation=function(){
  if(!AU.ctx)return;AU.station=(AU.station+1)%AU.stations.length;AU.step=0;
+ try{if(AU.stations[AU.station].anthem)AU.playAnthem();else AU.stopAnthem();}catch(_){}
  const n=AU.stations[AU.station].name;
  document.getElementById('radio').textContent=n;
  const p=document.getElementById('radiopop');p.style.display='block';document.getElementById('radiopop-t').textContent=n;
@@ -444,6 +473,7 @@ AU.nextStation=function(){
 AU.toggleMute=function(){
  if(!AU.ctx)return;AU.muted=!AU.muted;
  AU.master.gain.value=AU.muted?0:.9;
+ try{document.getElementById('anthem').muted=AU.muted;}catch(_){}
  document.getElementById('radio').textContent=AU.muted?'🔇 БЕЗ ЗВУКА (M)':AU.stations[AU.station].name;
 };
 addEventListener('keydown',e=>{
