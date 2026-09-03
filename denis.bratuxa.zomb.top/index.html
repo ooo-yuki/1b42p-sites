@@ -499,13 +499,67 @@ say(['<b>ДЕНИС БИТКОИН</b> заходит в чат батальон
 say(['<b class="red">КИЗЯК:</b> ТЫ ВЫБРАЛ НЕ ТОТ ЧАТ, УБЛ*** 😡 <i>(замахивается битой)</i>','<i>…присматривается… роняет биту…</i>','<b class="grn">КИЗЯК:</b> ОООО… ДЕНИС БИТКОИН?! ВАСАП МА БОЙ!! 🤝🔥','<b class="grn">КИЗЯК:</b> Держи фрибет 500 монет — сгоняй в КАЗИНО у центра, поднимишь банк! 🎰🪙'],()=>{addResp(20);addMoney(500);setM('Миссия 2: Краска','Закрась 3 граффити конкурентов (!) — подойди и держи E');MI=2;stage=0;});});}
 if(MI===2){for(const s of sprays){if(!s.done&&near(s.x,s.z,14)){s.done=true;addResp(15);try{AU.spraySfx();}catch(_){}if(sprays.every(x=>x.done)){setM('Миссия 3: Территория','Иди к синей зоне, размотай 3 НАХ битой (ЛКМ)');MI=3;spawnNakhSquad(-80,-60);try{AU.missionDone();}catch(_){}}return;}}}
 if(MI===4&&near(-4,44,15)){say(['<b>ДРУГ:</b> Денис, ну Винлайн платит… 42 не кормит…','<b>ДЕНИС:</b> Брат, хайп не продаётся. Пятёрка ждёт. Зал SLAY ждёт. Пошли домой.','<b>ДРУГ:</b> …ладно. Рвём контракт. <b>Мы с тобой.</b> ✊'],()=>{addResp(25);setTerr(55);setM('Миссия 5: Гонка','Садись в тачку (F) и доедь до SLAY за 90 сек');MI=5;MI5t=90;try{AU.missionDone();}catch(_){}});}
-if(MI===6&&near(0,-120,14)){finale();}
+if(MI===5&&near(0,-120,16)){enterVinlineWorld();return;}
+if(MI===6&&FIN.stage==='waves'&&near(0,-100,32)){try{winlineCheck();}catch(_){}return;}
 });
 addEventListener('keydown',e=>{if(e.code==='KeyF'){if(!inCar&&near(car.position.x,car.position.z,7)){inCar=true;player.visible=false;try{AU.doorSfx();}catch(_){}}else if(inCar){inCar=false;try{AU.doorSfx();}catch(_){}player.visible=true;player.position.set(car.position.x+3,0,car.position.z);}}});
-// ===== ФИНАЛ =====
+// ===== ФИНАЛ: МИР ВИНЛАЙНА =====
 let MI5t=0,finished=false;
+const FIN={stage:'',wave:0,insT:0,light:null,light2:null};
+function enterVinlineWorld(){
+ if(finished||FIN.stage)return;FIN.stage='waves';FIN.wave=0;FIN.insT=0;
+ try{AU.viceSting();}catch(_){}
+ inCar=false;carSpeed=0;player.visible=true;
+ player.position.set(0,0,-100);car.position.set(6,0,-96);car.rotation.y=Math.PI;
+ try{
+  scene.background.set(0x1a0800);
+  scene.fog.color.set(0x331000);scene.fog.near=40;scene.fog.far=210;
+  sun.color.set(0xff6600);sun.intensity=1.0;
+  ground.material.color.set(0x1c0d06);
+  FIN.light=new THREE.PointLight(0xff6600,2,120);FIN.light.position.set(0,14,-110);scene.add(FIN.light);
+  FIN.light2=new THREE.PointLight(0xff0022,2,90);FIN.light2.position.set(0,8,-125);scene.add(FIN.light2);
+ }catch(_){}
+ MI=6;addResp(30);setTerr(80);
+ try{AU.missionDone();}catch(_){}
+ say(['Мир <b class="red">поплыл</b>… Неоновый зал SLAY затягивает внутрь! 🌀','Это <b>мир Винлайна</b> — тёмно-оранжевая пустошь. Здесь держат тех, кто <b>подписал контракт</b>.','<b>ДЕНИС:</b> Вы сами продали хайп. Сейчас я вас выкуплю. <b>Битой.</b> ⚾'],()=>{try{winlineNextWave();}catch(_){}});
+ setM('Финал: мир Винлайна','Отбей 3 волны подписавших контракт (ЛКМ)!');
+}
+function spawnWinlineWave(n){
+ for(const e of enemies){if(e.winline&&e.hp<=0){try{scene.remove(e.mesh);}catch(_){}try{scene.remove(e.label);}catch(_){}}}
+ enemies=enemies.filter(e=>e.hp>0||e.cave);
+ const px=player.position.x,pz=player.position.z;
+ for(let i=0;i<n;i++){
+  const a=(i/Math.max(1,n))*Math.PI*2+.5;
+  const e=makeHuman(px+Math.cos(a)*10,pz+Math.sin(a)*10,{shirt:0x141414,pants:0x141414,tie:0xff0000,hair:0x111111,skin:0xd9a877,label:'WINLINE•КОНТРАКТ',labelColor:'#ff4444'});
+  e.hp=2;e.winline=true;e.phase=Math.random()*6;enemies.push(e);
+ }
+ try{AU.blip(220,.3,'sawtooth',.2);}catch(_){}
+}
+function winlineNextWave(){
+ if(FIN.stage!=='waves')return;
+ FIN.wave++;FIN.insT=0;
+ if(FIN.wave>3){spawnBetrayer();return;}
+ spawnWinlineWave(FIN.wave===3?3:2);
+ setM('Финал: мир Винлайна','Волна '+FIN.wave+'/3 — размотай их битой (ЛКМ)!'+(FIN.wave===3?' Последний рывок!':''));
+}
+function winlineCheck(){
+ if(FIN.stage!=='waves')return;
+ if(!enemies.some(e=>e.winline&&e.hp>0))winlineNextWave();
+}
+function spawnBetrayer(){
+ if(FIN.stage!=='waves')return;FIN.stage='kizyak';
+ say(['Тишина… Только оранжевый ветер. 🍂','Из темноты выходит <b class="red">КИЗЯК</b> — с битой. Его глаза блестят.','<b class="red">КИЗЯК:</b> Прости, брат… Винлайн пообещал мне всё. <b>Контракт есть контракт.</b> 😈'],()=>{
+  const e=makeKizyak(player.position.x+6,player.position.z-4);
+  e.hp=1;e.betrayer=true;e.winline=false;e.phase=0;enemies.push(e);
+  setM('Финал: предатель','Кизяк предал… Один удар. Решайся (ЛКМ).');
+ });
+}
+function kizyakForgiven(){
+ if(FIN.stage!=='kizyak')return;FIN.stage='done';
+ say(['<i>Один удар. Кизяк падает…</i> 😔','<b>КИЗЯК:</b> …прости. Деньги затуманили голову… Я же с первого дня с тобой был… 🤝','<b>ДЕНИС:</b> Ты уже прощён, брат. 42 — это семья. <b>Мы уже победили.</b> 🕊️'],()=>{finale();});
+}
 function finale(){if(finished)return;finished=true;try{AU.viceSting();}catch(_){}
-say(['Зал SLAY. Тысячи фонарей. <b>5opka</b> жмёт руку: «Без тебя бы не поднялись». 🏆','<b>DAMAFAN</b> поднимает баннер: <b>1 БАТАЛЬОН 42 ПРОПАГАНДЫ — СНОВА ПЕРВЫЕ</b>','Но Денис понимает: легенда должна уйти, чтобы батальон жил сам. Он кладёт биту на сцену…'],()=>{
+say(['Контракты Винлайна сгорели в оранжевом небе. Освобождённые души возвращаются домой. 🔥','Зал SLAY. Тысячи фонарей. <b>5opka</b> жмёт руку: «Без тебя бы не поднялись». 🏆','<b>DAMAFAN</b> поднимает баннер: <b>1 БАТАЛЬОН 42 ПРОПАГАНДЫ — СНОВА ПЕРВЫЕ</b>','Но Денис понимает: легенда должна уйти, чтобы батальон жил сам. Он кладёт биту на сцену…'],()=>{
 document.getElementById('menu').style.display='flex';
 document.getElementById('menu').innerHTML='<h1>ФИНАЛ: МЫ УЖЕ ПОБЕДИЛИ 🏆</h1><p>Денис Биткоин выиграл SLAY и восстановил уважение: респект '+RESP+', территории 100%.<br><br>Но он уходит в тень — потому что настоящий братуха поднимает сквад, а не себя.<br>На сцене остаётся бита. Кизяк плачет. Пятёрка молчит. Зал скандирует: <b>«ДЕНИС! ДЕНИС!»</b><br><br>Грустно. Но правильно. 🕊️<br><b>Мы уже победили.</b></p><button onclick="location.reload()">ИГРАТЬ СНОВА 🔄</button>';
 setTerr(100);});}
@@ -885,23 +939,27 @@ if(keys['KeyD']||touchX>0.3)car.rotation.y-=1.8*dt*(carSpeed>0?1:-1);
 car.position.x+=Math.sin(car.rotation.y)*carSpeed*dt;car.position.z+=Math.cos(car.rotation.y)*carSpeed*dt;{const r=collide(car.position.x,car.position.z,2.5);if(Math.abs(r[0]-car.position.x)+Math.abs(r[1]-car.position.z)>0.001)carSpeed*=0.4;car.position.x=r[0];car.position.z=r[1];}
 car.userData.wheels.forEach(w=>w.rotation.x+=carSpeed*dt*2);
 player.position.set(car.position.x,0,car.position.z);
-if(MI===5){MI5t-=dt;setM('Миссия 5: Гонка','До SLAY: '+Math.ceil(MI5t)+' сек — жми!');if(near(0,-120,16)){addResp(30);setTerr(80);setM('Миссия 6: SLAY','Зайди в зал SLAY (E) — финал');MI=6;try{AU.missionDone();}catch(_){}}if(MI5t<=0){MI5t=90;car.position.set(8,0,60);carSpeed=0;}}
+if(MI===5){MI5t-=dt;setM('Миссия 5: Гонка','До SLAY: '+Math.ceil(MI5t)+' сек — жми!');if(near(0,-120,16)){try{enterVinlineWorld();}catch(_){}}else if(MI5t<=0){MI5t=90;car.position.set(8,0,60);carSpeed=0;}}
 }
 // атака битой
 if(attackCD>0)attackCD-=dt;
 if(mouseDown&&attackCD<=0&&!inCar){attackCD=.4;try{AU.hitSfx();}catch(_){}bat.rotation.x=-1;setTimeout(()=>bat.rotation.x=0,150);
 for(const e of enemies){if(dist(player,e.mesh)<4&&e.hp>0){e.hp--;e.mesh.position.x+=(e.mesh.position.x-player.position.x)*.15;e.mesh.position.z+=(e.mesh.position.z-player.position.z)*.15;
 if(e.hp<=0){scene.remove(e.mesh);scene.remove(e.label);addResp(10);try{AU.blip(990,.2,'triangle',.15);}catch(_){}
+if(e.betrayer&&FIN.stage==='kizyak'){try{kizyakForgiven();}catch(_){}}
+else if(e.winline&&FIN.stage==='waves'&&!enemies.some(x=>x.winline&&x.hp>0)){try{winlineNextWave();}catch(_){}}
 if(MI===3){const foes=enemies.filter(x=>!x.cave);if(foes.length&&foes.every(x=>x.hp<=0)){setTerr(35);setM('Миссия 4: Друзья','Верни друзей из Винлайна — поговори (E) у штаба');MI=4;}}}}}
 }
 // враги гонятся
+if(MI===5&&!inCar&&near(0,-120,16)){try{enterVinlineWorld();}catch(_){}}
+if(MI===6&&FIN.stage==='waves'){FIN.insT+=dt;if(FIN.insT>2){FIN.insT=0;try{winlineCheck();}catch(_){}}}
 if(MI===3&&!enemies.filter(e=>!e.cave).some(e=>e.hp>0)){spawnNakhSquad(-80,-60);}
 try{caveTick(dt);}catch(_){}
 for(const e of enemies){if(e.hp<=0)continue;
  if(e.cave&&Math.hypot(player.position.x-CAVE.x,player.position.z-CAVE.z)>45)continue; // привязь: пещерные не уходят с арены
  if(e.parts){const w=Math.sin(Date.now()*0.01+e.phase);e.parts.legL.rotation.x=w*.6;e.parts.legR.rotation.x=-w*.6;e.parts.armL.rotation.x=-w*.5;e.parts.armR.rotation.x=w*.5;}
  const d=dist(player,e.mesh);if(d<30){const dx=(player.position.x-e.mesh.position.x)/d,dz=(player.position.z-e.mesh.position.z)/d;e.mesh.position.x+=dx*4*dt;e.mesh.position.z+=dz*4*dt;
-if(d<2.2){HP-=20*dt;document.getElementById('hp').textContent=Math.ceil(HP);if(HP<=0){HP=100;player.position.set(0,0,70);document.getElementById('hp').textContent=100;}}}}
+if(d<2.2){HP-=20*dt;document.getElementById('hp').textContent=Math.ceil(HP);if(HP<=0){HP=100;if(FIN.stage)player.position.set(0,0,-100);else player.position.set(0,0,70);document.getElementById('hp').textContent=100;}}}}
 // камера
 const focus=inCar?car.position:player.position;
 if(keys['ArrowLeft'])camAng-=2.2*dt;if(keys['ArrowRight'])camAng+=2.2*dt;
