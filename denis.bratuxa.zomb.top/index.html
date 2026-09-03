@@ -346,6 +346,34 @@ function speak(html){
  }catch(_){}}
 
 function spawnEnemies(x,z,n){for(let i=0;i<n;i++){const e=npc(x+Math.random()*14-7,z+Math.random()*14-7,0x2244ff,'НАХ');e.hp=3;enemies.push(e);}}
+// человек в фиолетовой шубе: ноги, шуба-трапеция, руки, голова, шапка
+function makeNakh(x,z){
+ const g=new THREE.Group();
+ const skin=new THREE.MeshStandardMaterial({color:0xe8b88a,roughness:.7});
+ const furM=new THREE.MeshStandardMaterial({color:0x6a1fb0,roughness:.9});
+ const furD=new THREE.MeshStandardMaterial({color:0x4a1480,roughness:.9});
+ const dark=new THREE.MeshStandardMaterial({color:0x1a1a1a,roughness:.8});
+ const legL=new THREE.Mesh(new THREE.BoxGeometry(.45,1.1,.45),dark);legL.position.set(-.3,.55,0);g.add(legL);
+ const legR=legL.clone();legR.position.x=.3;g.add(legR);
+ const coat=new THREE.Mesh(new THREE.CylinderGeometry(.85,1.15,2.2,10),furM);coat.position.y=2.2;coat.castShadow=true;g.add(coat);
+ const collar=new THREE.Mesh(new THREE.TorusGeometry(.5,.22,8,14),furD);collar.position.y=3.3;collar.rotation.x=Math.PI/2;g.add(collar);
+ const armL=new THREE.Mesh(new THREE.BoxGeometry(.4,1.8,.4),furM);armL.position.set(-1.1,2.3,0);g.add(armL);
+ const armR=armL.clone();armR.position.x=1.1;g.add(armR);
+ const head=new THREE.Mesh(new THREE.SphereGeometry(.5,14,12),skin);head.position.y=3.9;head.castShadow=true;g.add(head);
+ const hat=new THREE.Mesh(new THREE.CylinderGeometry(.45,.5,.4,10),furD);hat.position.y=4.35;g.add(hat);
+ const c=document.createElement('canvas');c.width=256;c.height=48;const gg=c.getContext('2d');
+ gg.fillStyle='#000';gg.fillRect(0,0,256,48);gg.fillStyle='#c88cff';gg.font='bold 26px Arial';gg.fillText('НАХ',100,32);
+ const label=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));label.scale.set(8,1.5,1);label.position.y=5.2;g.add(label);
+ const r=collide(x,z,1.2);g.position.set(r[0],0,r[1]);scene.add(g);
+ return {mesh:g,label:head,name:'НАХ',hp:3,parts:{legL,legR,armL,armR,head},phase:Math.random()*6};
+}
+// спавн сквада из 3 НАХов: фиксированные точки вне коллизий + страховка от пустого спавна
+function spawnNakhSquad(x,z){
+ for(const e of enemies){try{scene.remove(e.mesh);}catch(_){}}
+ enemies.length=0;
+ const offs=[[14,6],[18,0],[14,-6]];
+ for(const o of offs)enemies.push(makeNakh(x+o[0],z+o[1]));
+}
 // граффити-точки
 let sprays=[{x:-80,z:-60,done:false},{x:80,z:-70,done:false},{x:90,z:80,done:false}];
 sprays.forEach(s=>marker(s.x,s.z,0xff00ff,'!'));
@@ -378,7 +406,7 @@ for(const r of rare){if(near(r.n.mesh.position.x,r.n.mesh.position.z,6)){const r
 if(MI===1&&stage===0&&near(0,40,15)){stage=1;
 say(['<b>ДЕНИС БИТКОИН</b> заходит в чат батальона… тихо. Пыль. Старые скриншоты.<br><i>«Никого нет… 5 лет…»</i> 😔','Он листает: SLAY 2021, завозы Пятёрки, мопсы, самокаты. Ностальгия давит.','Вдруг из темноты — рык…'],()=>{kizyak.mesh.visible=true;kizyak.label.visible=true;
 say(['<b class="red">КИЗЯК:</b> ТЫ ВЫБРАЛ НЕ ТОТ ЧАТ, УБЛ*** 😡 <i>(замахивается битой)</i>','<i>…присматривается… роняет биту…</i>','<b class="grn">КИЗЯК:</b> ОООО… ДЕНИС БИТКОИН?! ВАСАП МА БОЙ!! 🤝🔥'],()=>{addResp(20);setM('Миссия 2: Краска','Закрась 3 граффити конкурентов (!) — подойди и держи E');MI=2;stage=0;});});}
-if(MI===2){for(const s of sprays){if(!s.done&&near(s.x,s.z,14)){s.done=true;addResp(15);try{AU.spraySfx();}catch(_){}if(sprays.every(x=>x.done)){setM('Миссия 3: Территория','Иди к синей зоне, размотай 3 НАХ битой (ЛКМ)');MI=3;spawnEnemies(-80,-60,3);try{AU.missionDone();}catch(_){}}return;}}}
+if(MI===2){for(const s of sprays){if(!s.done&&near(s.x,s.z,14)){s.done=true;addResp(15);try{AU.spraySfx();}catch(_){}if(sprays.every(x=>x.done)){setM('Миссия 3: Территория','Иди к синей зоне, размотай 3 НАХ битой (ЛКМ)');MI=3;spawnNakhSquad(-80,-60);try{AU.missionDone();}catch(_){}}return;}}}
 if(MI===4&&near(-4,44,15)){say(['<b>ДРУГ:</b> Денис, ну Винлайн платит… 42 не кормит…','<b>ДЕНИС:</b> Брат, хайп не продаётся. Пятёрка ждёт. Зал SLAY ждёт. Пошли домой.','<b>ДРУГ:</b> …ладно. Рвём контракт. <b>Мы с тобой.</b> ✊'],()=>{addResp(25);setTerr(55);setM('Миссия 5: Гонка','Садись в тачку (F) и доедь до SLAY за 90 сек');MI=5;MI5t=90;try{AU.missionDone();}catch(_){}});}
 if(MI===6&&near(0,-120,14)){finale();}
 });
@@ -617,7 +645,10 @@ if(e.hp<=0){scene.remove(e.mesh);scene.remove(e.label);addResp(10);try{AU.blip(9
 if(MI===3&&enemies.every(x=>x.hp<=0)){setTerr(35);setM('Миссия 4: Друзья','Верни друзей из Винлайна — поговори (E) у штаба');MI=4;}}}}
 }
 // враги гонятся
-for(const e of enemies){if(e.hp<=0)continue;const d=dist(player,e.mesh);if(d<30){const dx=(player.position.x-e.mesh.position.x)/d,dz=(player.position.z-e.mesh.position.z)/d;e.mesh.position.x+=dx*4*dt;e.mesh.position.z+=dz*4*dt;
+if(MI===3&&!enemies.some(e=>e.hp>0)){spawnNakhSquad(-80,-60);}
+for(const e of enemies){if(e.hp<=0)continue;
+ if(e.parts){const w=Math.sin(Date.now()*0.01+e.phase);e.parts.legL.rotation.x=w*.6;e.parts.legR.rotation.x=-w*.6;e.parts.armL.rotation.x=-w*.5;e.parts.armR.rotation.x=w*.5;}
+ const d=dist(player,e.mesh);if(d<30){const dx=(player.position.x-e.mesh.position.x)/d,dz=(player.position.z-e.mesh.position.z)/d;e.mesh.position.x+=dx*4*dt;e.mesh.position.z+=dz*4*dt;
 if(d<2.2){HP-=20*dt;document.getElementById('hp').textContent=Math.ceil(HP);if(HP<=0){HP=100;player.position.set(0,0,70);document.getElementById('hp').textContent=100;}}}}
 // камера
 const focus=inCar?car.position:player.position;
