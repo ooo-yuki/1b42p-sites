@@ -13,9 +13,12 @@ h1{margin:18px 0 4px;font-size:clamp(24px,5vw,44px);text-shadow:0 0 18px var(--g
 h1 span{color:var(--gold)}
 .sub{color:#bbb;margin-bottom:14px}
 .money{font-size:22px;background:#111;border:3px solid var(--gold);border-radius:14px;display:inline-block;padding:8px 26px;margin:6px}
+.lvl{font-size:17px;background:#111;border:3px solid #457b9d;border-radius:14px;display:inline-block;padding:8px 22px;margin:6px}
+.bar{width:220px;height:10px;background:#222;border-radius:6px;margin:6px auto;overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,#457b9d,var(--gold))}
+.balance{max-width:1000px;margin:8px auto;padding:8px 14px;background:#111;border:2px dashed var(--gold);border-radius:12px;font-size:14px;color:#ddd}
 .wrap{max-width:1000px;margin:0 auto;padding:0 12px;display:flex;flex-wrap:wrap;gap:14px;justify-content:center}
 .panel{background:#141414;border:3px solid var(--gold);border-radius:14px;padding:16px;width:310px;text-align:left}
-.panel h2{font-size:19px;margin-bottom:10px;text-align:center}
 .panel.red{border-color:var(--red)}.panel.green{border-color:#0f6}.panel.blue{border-color:#457b9d}
 .ing{display:flex;justify-content:space-between;align-items:center;background:#1e1e1e;border-radius:10px;padding:8px 10px;margin:6px 0;font-size:15px}
 .ing small{color:#999;display:block}
@@ -24,6 +27,9 @@ button:disabled{opacity:.35;cursor:default}
 button.red{background:var(--red);color:#fff}button.green{background:#0f6}button.blue{background:#457b9d;color:#fff}
 .flav{display:block;width:100%;text-align:left;margin:6px 0;padding:10px;border-radius:10px;border:2px solid #444;background:#1e1e1e;color:#fff;cursor:pointer;font-size:15px}
 .flav.sel{border-color:var(--gold);background:#2a2300}
+.flav.locked{opacity:.55;cursor:default}
+.hint{font-size:13px;color:#ffb3b3;margin-top:6px;text-align:center}
+.calc{font-size:13px;color:#ccc;background:#0d0d0d;border-radius:8px;padding:6px 8px;margin-top:6px;word-break:break-word}
 #log{background:#000;border:2px solid #333;border-radius:10px;height:150px;overflow-y:auto;padding:8px;font-size:14px;text-align:left;margin-top:10px}
 #log div{margin:2px 0}#log .good{color:#0f6}#log .bad{color:var(--red)}#log .gold{color:var(--gold)}
 .can{font-size:64px;text-align:center;animation:shake .3s}
@@ -36,6 +42,8 @@ a.home{color:var(--gold)}
 <h1>ВАРКА <span>TORNADO</span> ⚡🥫</h1>
 <p class="sub">Выбирай вкус, докупай ингредиенты, качай рецепт — и продавай ботам! <a class="home" href="/">← на главную</a></p>
 <div class="money">💰 <span id="coins">100</span> монет</div>
+<div class="lvl">⭐ Уровень <b id="level">1</b> • продано: <b id="sold">0</b> • до след.: <b id="tonext">5</b><div class="bar"><i id="barfill" style="width:0%"></i></div></div>
+<div class="balance">📊 <b>Баланс уровней:</b> первый уровень — за 5 проданных напитков, каждый следующий требует на 3 больше предыдущего. Формула порога: <b>NEED(level) = 5 + (level−1)×3</b> проданных с прошлого уровня (т.е. 5, 8, 11, 14…; то же что 5+level×3 при счёте с нуля). Вкус варится только с <b>≥3 компонентами</b>. <b>Цена вкуса = база вкуса + Σ цен компонентов + прокачка.</b> Прогресс (уровень, напитки, вкусы) хранится в localStorage.</div>
 <div class="wrap">
 <div class="panel gold">
 <h2>🥫 Рецепт банки</h2>
@@ -44,14 +52,16 @@ a.home{color:var(--gold)}
 <div id="mix"></div>
 <div class="can" id="can">🥫</div>
 <div style="text-align:center;font-size:15px">Вкус: <b id="taste">0</b> • Себестоимость: <b id="cost">0</b> • Цена продажи: <b id="price">0</b></div>
+<div class="calc" id="calc"></div>
 <button class="green" id="brew" style="width:100%;margin-top:10px;font-size:17px">СВАРИТЬ ⚡</button>
+<div class="hint" id="brewhint"></div>
 </div>
 <div class="panel red">
 <h2>🛒 Магазин ингредиентов</h2>
 <div id="shop"></div>
 <h2 style="margin-top:12px">⬆️ Улучшения</h2>
-<div class="ing"><span>🔥 Газировка Turbo<small>+1 к цене каждой продажи</small></span><button class="red" id="upPrice">150 🪙</button></div>
-<div class="ing"><span>👅 Вкусовой усилитель<small>+1 к вкусу каждой банки</small></span><button class="red" id="upTaste">150 🪙</button></div>
+<div class="ing"><span>🔥 Газировка Turbo<small>+10 к цене каждой продажи</small></span><button class="red" id="upPrice">150 🪙</button></div>
+<div class="ing"><span>👅 Вкусовой усилитель<small>+2 к вкусу каждой банки</small></span><button class="red" id="upTaste">150 🪙</button></div>
 <div class="ing"><span>📣 Реклама<small>богаче покупатели</small></span><button class="red" id="upAds">200 🪙</button></div>
 </div>
 <div class="panel blue">
@@ -62,10 +72,23 @@ a.home{color:var(--gold)}
 </div>
 </div>
 <script>
+// ===== БАЛАНС УРОВНЕЙ И ВКУСОВ (Сетден 42) =====
+// ФОРМУЛА УРОВНЕЙ: порог следующего уровня = 5 + (level-1)*3 проданных с прошлого уровня.
+// Т.е. уровень 1->2 требует 5 напитков, 2->3 требует 8, 3->4 требует 11, каждый следующий +3.
+// (Эквивалент: 5 + level*3 при нумерации уровней с нуля.)
+// ВКУСЫ (9): открываются по уровням 1, 5, 12, 25, 45, 70, 100, 120, 142; последний — 42 микс на 142.
+// ЦЕНА ВКУСА = база вкуса + сумма цен компонентов + upP*10. Варка только при >=3 компонентах.
+// Прогресс (уровень, напитки, открытые вкусы) сохраняется в localStorage (ключ tornado42).
 const FLAVS=[
- {id:'storm',name:'⛈️ Грозовой Шторм',base:20,desc:'классика: +0'},
- {id:'dragon',name:'🐉 Драконий Огонь',base:35,desc:'острее, дороже: +15 к цене'},
- {id:'ice',name:'🧊 Ледяной Вихрь',base:28,desc:'освежает: +7 к цене, +2 к вкусу'}
+ {id:'storm',name:'⛈️ Шторм',base:20,unlock:1,desc:'классика'},
+ {id:'black',name:'⬛ Блек',base:30,unlock:5,desc:'жжёная классика'},
+ {id:'apple',name:'🍏 Яблоко',base:40,unlock:12,desc:'кисло-сладкое'},
+ {id:'mango',name:'🥭 Манго',base:55,unlock:25,desc:'тропики'},
+ {id:'gum',name:'🫧 Жвачка',base:70,unlock:45,desc:'пузырьковый шторм'},
+ {id:'marmelad',name:'🍬 Мармеладыч',base:90,unlock:70,desc:'тягучий движ'},
+ {id:'banana',name:'🍌 Банан',base:115,unlock:100,desc:'мягкая мощь'},
+ {id:'lemonpie',name:'🥧 Лимонный пирог',base:150,unlock:120,desc:'десертный вихрь'},
+ {id:'mix42',name:'🏆 42 микс',base:420,unlock:142,desc:'легенда Сетдена, только для своих'}
 ];
 const SHOP=[
  {id:'kof',name:'☕ Кофеин',price:10,taste:3,cost:4},
@@ -75,17 +98,33 @@ const SHOP=[
  {id:'gold',name:'✨ Золотая пыль 42',price:50,taste:20,cost:22}
 ];
 const BUYERS=['Бот-Денис 🤖','Бот-Чаев 🦖','Бот-Свят 🎰','Фанат 42 🏆','Прохожий 🧍','Магнат 💎'];
+const MIN_COMP=3;
 let S;
-function def(){return {coins:100,stock:{},flav:'storm',upP:0,upT:0,upA:0,banks:0};}
-function load(){try{const r=localStorage.getItem('tornado42');if(r){S=Object.assign(def(),JSON.parse(r));return;}}catch(e){}S=def();}
+// ФОРМУЛА УРОВНЕЙ: NEED(level) = 5 + (level-1)*3 (5, 8, 11, 14, ...; каждый следующий +3)
+function needNext(level){return 5+(level-1)*3;}
+function def(){return {coins:100,stock:{},flav:'storm',upP:0,upT:0,upA:0,banks:0,level:1,soldTotal:0,soldProg:0};}
+function load(){try{const r=localStorage.getItem('tornado42');if(r){S=Object.assign(def(),JSON.parse(r));}}catch(e){}if(!S)S=def();if(!S.level)S.level=1;if(S.soldTotal==null)S.soldTotal=0;if(S.soldProg==null)S.soldProg=S.soldTotal>0?0:0;fixFlav();}
 function save(){localStorage.setItem('tornado42',JSON.stringify(S));}
+function isOpen(f){return S.level>=(f.unlock||1);}
+function fixFlav(){const cur=FLAVS.find(x=>x.id===S.flav);if(!cur||!isOpen(cur)){const open=FLAVS.filter(isOpen);S.flav=open.length?open[open.length-1].id:'storm';}}
 function log(t,c){const d=document.createElement('div');if(c)d.className=c;d.textContent=t;const L=document.getElementById('log');L.prepend(d);}
-function stock(){return S.banks;}
+function compCount(){let n=0;SHOP.forEach(g=>n+=S.stock[g.id]||0);return n;}
+function compSum(){let s=0;SHOP.forEach(g=>s+=(S.stock[g.id]||0)*g.price);return s;}
+function compParts(){const p=[];SHOP.forEach(g=>{const n=S.stock[g.id]||0;for(let i=0;i<n;i++)p.push(g.price);});return p;}
+// ЦЕНА ВКУСА = база вкуса + сумма цен компонентов + upP*10
+function curPriceDetail(){const f=FLAVS.find(x=>x.id===S.flav)||FLAVS[0];const cs=compSum();return {f,base:f.base,comp:cs,bonus:S.upP*10,price:Math.max(5,f.base+cs+S.upP*10)};}
+function curPrice(){return curPriceDetail().price;}
+function addSold(n){for(let k=0;k<n;k++){S.soldTotal++;S.soldProg++;while(S.soldProg>=needNext(S.level)){S.soldProg-=needNext(S.level);S.level++;fixFlav();const newly=FLAVS.filter(f=>f.unlock===S.level);log(`🎉 Уровень ${S.level}! Нужно дальше: ${needNext(S.level)} напитков.`,'gold');newly.forEach(f=>log(`🔓 Новый вкус: ${f.name} (база ${f.base} 🪙)!`,'gold'));}}}
 function render(){
  document.getElementById('coins').textContent=S.coins;
- let fh='';FLAVS.forEach(f=>{fh+=`<button class="flav${S.flav===f.id?' sel':''}" data-f="${f.id}"><b>${f.name}</b><br><small>${f.desc} (база ${f.base} 🪙)</small></button>`;});
+ document.getElementById('level').textContent=S.level;
+ document.getElementById('sold').textContent=S.soldTotal;
+ const need=needNext(S.level);
+ document.getElementById('tonext').textContent=(need-S.soldProg);
+ document.getElementById('barfill').style.width=Math.min(100,Math.round(S.soldProg/need*100))+'%';
+ let fh='';FLAVS.forEach(f=>{const open=isOpen(f);if(open){fh+=`<button class="flav${S.flav===f.id?' sel':''}" data-f="${f.id}"><b>${f.name}</b><br><small>${f.desc} (база ${f.base} 🪙)</small></button>`;}else{fh+=`<button class="flav locked" disabled>🔒 ${f.name}<br><small>откроется на ${f.unlock} уровне (база ${f.base} 🪙)</small></button>`;}});
  document.getElementById('flavs').innerHTML=fh;
- document.querySelectorAll('.flav').forEach(b=>b.onclick=()=>{S.flav=b.dataset.f;save();render();});
+ document.querySelectorAll('.flav[data-f]').forEach(b=>b.onclick=()=>{S.flav=b.dataset.f;save();render();});
  let sh='';SHOP.forEach(g=>{const n=S.stock[g.id]||0;sh+=`<div class="ing"><span>${g.name} <b>x${n}</b><small>${g.price} 🪙 • вкус +${g.taste}</small></span><button data-b="${g.id}" ${S.coins<g.price?'disabled':''}>Купить</button></div>`;});
  document.getElementById('shop').innerHTML=sh;
  document.querySelectorAll('[data-b]').forEach(b=>b.onclick=()=>buy(b.dataset.b));
@@ -93,26 +132,30 @@ function render(){
  if(!mx)mx='<p style="color:#888;font-size:14px">Пусто — купи ингредиенты!</p>';
  document.getElementById('mix').innerHTML=mx;
  document.querySelectorAll('[data-u]').forEach(b=>b.onclick=()=>{const id=b.dataset.u;if(S.stock[id]>0){S.stock[id]--;if(!S.stock[id])delete S.stock[id];save();render();}});
- const f=FLAVS.find(x=>x.id===S.flav);
- const price=Math.max(5,f.base+Math.floor(taste/2)+(S.flav==='dragon'?15:S.flav==='ice'?7:0)+S.upP*10);
- document.getElementById('taste').textContent=taste+(S.flav==='ice'?2:0);
+ const d=curPriceDetail();const n=compCount();
+ const fExtra=(S.flav==='dragon'||S.flav==='ice')?0:0;
+ document.getElementById('taste').textContent=taste;
  document.getElementById('cost').textContent=cost;
- document.getElementById('price').textContent=price+S.banks*0;
- document.getElementById('price').textContent=price;
- document.getElementById('brew').textContent=`СВАРИТЬ ⚡ (банок: ${S.banks})`;
+ document.getElementById('price').textContent=d.price;
+ const parts=compParts();
+ document.getElementById('calc').textContent=`Расчёт: ${d.base} (база «${d.f.name}») + ${parts.length?parts.join('+'):'0'} (компоненты) + ${d.bonus} (прокачка) = ${d.price} 🪙`;
+ const brew=document.getElementById('brew');
+ brew.textContent=`СВАРИТЬ ⚡ (банок: ${S.banks})`;
+ const hint=document.getElementById('brewhint');
+ if(n<MIN_COMP){brew.disabled=true;hint.textContent=`Нужно минимум ${MIN_COMP} компонента (сейчас ${n}) — докупи соков!`;}
+ else{brew.disabled=false;hint.textContent='';}
  document.getElementById('upPrice').textContent=(150+S.upP*150)+' 🪙';
  document.getElementById('upTaste').textContent=(150+S.upT*150)+' 🪙';
  document.getElementById('upAds').textContent=(200+S.upA*200)+' 🪙';
- let bh='';BUYERS.forEach((b,i)=>{const want=15+i*8+S.upA*15;const ok=S.banks>0&&price<=want+30;bh+=`<div class="ing"><span>${b}<small>платит до ${want+30} 🪙</small></span><button data-s="${i}" ${(S.banks<=0)?'disabled':''}>Продать</button></div>`;});
+ let bh='';BUYERS.forEach((b,i)=>{const want=15+i*8+S.upA*15;bh+=`<div class="ing"><span>${b}<small>платит до ${want+30} 🪙</small></span><button data-s="${i}" ${(S.banks<=0)?'disabled':''}>Продать</button></div>`;});
  document.getElementById('buyers').innerHTML=bh;
  document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>sell(+b.dataset.s));
 }
 function buy(id){const g=SHOP.find(x=>x.id===id);if(S.coins<g.price){log('Не хватает монет!','bad');return;}S.coins-=g.price;S.stock[id]=(S.stock[id]||0)+1;save();render();}
-function curPrice(){const f=FLAVS.find(x=>x.id===S.flav);let taste=S.upT;SHOP.forEach(g=>taste+=(S.stock[g.id]||0)*g.taste);return Math.max(5,f.base+Math.floor(taste/2)+(S.flav==='dragon'?15:S.flav==='ice'?7:0)+S.upP*10);}
-function brew(){let n=0;SHOP.forEach(g=>n+=S.stock[g.id]||0);if(n===0){log('Банка пустая! Купи ингредиенты.','bad');return;}S.banks++;S.stock={};const c=document.getElementById('can');c.style.animation='none';void c.offsetWidth;c.style.animation='';save();render();log(`Сварена банка #${S.banks}! Цена ~${curPrice()} 🪙`,'gold');}
-function sell(i){if(S.banks<=0){log('Нет готовых банок — свари!','bad');return;}const price=curPrice();const maxPay=15+i*8+S.upA*15+30;if(price>maxPay){log(`${BUYERS[i]}: дорого! (хочет до ${maxPay})`,'bad');return;}S.banks--;S.coins+=price;save();render();log(`${BUYERS[i]} купил за ${price} 🪙!`,'good');}
+function brew(){const n=compCount();if(n<MIN_COMP){log(`Нужно минимум ${MIN_COMP} компонента (сейчас ${n})!`,'bad');return;}S.banks++;S.stock={};const c=document.getElementById('can');c.style.animation='none';void c.offsetWidth;c.style.animation='';save();render();log(`Сварена банка #${S.banks}! Цена ~${curPrice()} 🪙`,'gold');}
+function sell(i){if(S.banks<=0){log('Нет готовых банок — свари!','bad');return;}const price=curPrice();const maxPay=15+i*8+S.upA*15+30;if(price>maxPay){log(`${BUYERS[i]}: дорого! (хочет до ${maxPay})`,'bad');return;}S.banks--;S.coins+=price;addSold(1);save();render();log(`${BUYERS[i]} купил за ${price} 🪙!`,'good');}
 document.getElementById('brew').onclick=brew;
-document.getElementById('sellAll').onclick=()=>{if(S.banks<=0){log('Нет банок!','bad');return;}let sold=0,earned=0;const price=curPrice();BUYERS.forEach((b,i)=>{if(S.banks>0&&price<=15+i*8+S.upA*15+30){S.banks--;S.coins+=price;sold++;earned+=price;}});save();render();log(sold?`Продано ${sold} банок, +${earned} 🪙!`:'Никто не купил — дорого. Качай рекламу или снизь вкус/цену.','gold');};
+document.getElementById('sellAll').onclick=()=>{if(S.banks<=0){log('Нет банок!','bad');return;}let sold=0,earned=0;const price=curPrice();BUYERS.forEach((b,i)=>{if(S.banks>0&&price<=15+i*8+S.upA*15+30){S.banks--;S.coins+=price;sold++;earned+=price;}});if(sold)addSold(sold);save();render();log(sold?`Продано ${sold} банок, +${earned} 🪙!`:'Никто не купил — дорого. Качай рекламу или снизь вкус/цену.','gold');};
 document.getElementById('upPrice').onclick=()=>{const c=150+S.upP*150;if(S.coins<c)return log('Не хватает монет!','bad');S.coins-=c;S.upP++;save();render();log('Цена прокачана! +10 к продаже.','good');};
 document.getElementById('upTaste').onclick=()=>{const c=150+S.upT*150;if(S.coins<c)return log('Не хватает монет!','bad');S.coins-=c;S.upT+=2;save();render();log('Вкус прокачан! +2 к вкусу.','good');};
 document.getElementById('upAds').onclick=()=>{const c=200+S.upA*200;if(S.coins<c)return log('Не хватает монет!','bad');S.coins-=c;S.upA++;save();render();log('Реклама запущена! Боты богаче.','good');};
