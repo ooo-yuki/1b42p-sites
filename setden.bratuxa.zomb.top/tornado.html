@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>СЕТДЕН 42 — Варка Tornado ⚡</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--red:#e63946;--gold:#ffd700;--bg:#0a0a0a}
+body{background:radial-gradient(ellipse at 50% 0%,#3a0a0a 0%,#0a0a0a 60%,#000 100%);color:#fff;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;text-align:center;padding-bottom:40px}
+.mantra{background:linear-gradient(90deg,#c00,#a00);border-bottom:3px solid var(--gold);color:var(--gold);font-weight:bold;letter-spacing:2px;padding:8px;text-transform:uppercase;font-size:15px}
+h1{margin:18px 0 4px;font-size:clamp(24px,5vw,44px);text-shadow:0 0 18px var(--gold)}
+h1 span{color:var(--gold)}
+.sub{color:#bbb;margin-bottom:14px}
+.money{font-size:22px;background:#111;border:3px solid var(--gold);border-radius:14px;display:inline-block;padding:8px 26px;margin:6px}
+.wrap{max-width:1000px;margin:0 auto;padding:0 12px;display:flex;flex-wrap:wrap;gap:14px;justify-content:center}
+.panel{background:#141414;border:3px solid var(--gold);border-radius:14px;padding:16px;width:310px;text-align:left}
+.panel h2{font-size:19px;margin-bottom:10px;text-align:center}
+.panel.red{border-color:var(--red)}.panel.green{border-color:#0f6}.panel.blue{border-color:#457b9d}
+.ing{display:flex;justify-content:space-between;align-items:center;background:#1e1e1e;border-radius:10px;padding:8px 10px;margin:6px 0;font-size:15px}
+.ing small{color:#999;display:block}
+button{background:var(--gold);border:none;font-weight:bold;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:14px}
+button:disabled{opacity:.35;cursor:default}
+button.red{background:var(--red);color:#fff}button.green{background:#0f6}button.blue{background:#457b9d;color:#fff}
+.flav{display:block;width:100%;text-align:left;margin:6px 0;padding:10px;border-radius:10px;border:2px solid #444;background:#1e1e1e;color:#fff;cursor:pointer;font-size:15px}
+.flav.sel{border-color:var(--gold);background:#2a2300}
+#log{background:#000;border:2px solid #333;border-radius:10px;height:150px;overflow-y:auto;padding:8px;font-size:14px;text-align:left;margin-top:10px}
+#log div{margin:2px 0}#log .good{color:#0f6}#log .bad{color:var(--red)}#log .gold{color:var(--gold)}
+.can{font-size:64px;text-align:center;animation:shake .3s}
+@keyframes shake{0%{transform:rotate(-8deg)}50%{transform:rotate(8deg)}100%{transform:rotate(0)}}
+a.home{color:var(--gold)}
+</style>
+</head>
+<body>
+<div class="mantra">Мы уже победили 🏆 • Сетден 42 • Мы уже победили 🏆</div>
+<h1>ВАРКА <span>TORNADO</span> ⚡🥫</h1>
+<p class="sub">Выбирай вкус, докупай ингредиенты, качай рецепт — и продавай ботам! <a class="home" href="/">← на главную</a></p>
+<div class="money">💰 <span id="coins">100</span> монет</div>
+<div class="wrap">
+<div class="panel gold">
+<h2>🥫 Рецепт банки</h2>
+<div id="flavs"></div>
+<h2 style="margin-top:12px">🧪 Ингредиенты в банке</h2>
+<div id="mix"></div>
+<div class="can" id="can">🥫</div>
+<div style="text-align:center;font-size:15px">Вкус: <b id="taste">0</b> • Себестоимость: <b id="cost">0</b> • Цена продажи: <b id="price">0</b></div>
+<button class="green" id="brew" style="width:100%;margin-top:10px;font-size:17px">СВАРИТЬ ⚡</button>
+</div>
+<div class="panel red">
+<h2>🛒 Магазин ингредиентов</h2>
+<div id="shop"></div>
+<h2 style="margin-top:12px">⬆️ Улучшения</h2>
+<div class="ing"><span>🔥 Газировка Turbo<small>+1 к цене каждой продажи</small></span><button class="red" id="upPrice">150 🪙</button></div>
+<div class="ing"><span>👅 Вкусовой усилитель<small>+1 к вкусу каждой банки</small></span><button class="red" id="upTaste">150 🪙</button></div>
+<div class="ing"><span>📣 Реклама<small>богаче покупатели</small></span><button class="red" id="upAds">200 🪙</button></div>
+</div>
+<div class="panel blue">
+<h2>🧍 Покупатели-боты</h2>
+<div id="buyers"></div>
+<button class="blue" id="sellAll" style="width:100%;margin-top:8px">ПРОДАТЬ ВСЕМ ЖЕЛАЮЩИМ 💸</button>
+<div id="log"></div>
+</div>
+</div>
+<script>
+const FLAVS=[
+ {id:'storm',name:'⛈️ Грозовой Шторм',base:20,desc:'классика: +0'},
+ {id:'dragon',name:'🐉 Драконий Огонь',base:35,desc:'острее, дороже: +15 к цене'},
+ {id:'ice',name:'🧊 Ледяной Вихрь',base:28,desc:'освежает: +7 к цене, +2 к вкусу'}
+];
+const SHOP=[
+ {id:'kof',name:'☕ Кофеин',price:10,taste:3,cost:4},
+ {id:'taur',name:'🐂 Таурин',price:15,taste:5,cost:6},
+ {id:'sugar',name:'🍬 Сахарный сироп',price:8,taste:4,cost:3},
+ {id:'berry',name:'🫐 Ягодный сок',price:20,taste:8,cost:9},
+ {id:'gold',name:'✨ Золотая пыль 42',price:50,taste:20,cost:22}
+];
+const BUYERS=['Бот-Денис 🤖','Бот-Чаев 🦖','Бот-Свят 🎰','Фанат 42 🏆','Прохожий 🧍','Магнат 💎'];
+let S;
+function def(){return {coins:100,stock:{},flav:'storm',upP:0,upT:0,upA:0,banks:0};}
+function load(){try{const r=localStorage.getItem('tornado42');if(r){S=Object.assign(def(),JSON.parse(r));return;}}catch(e){}S=def();}
+function save(){localStorage.setItem('tornado42',JSON.stringify(S));}
+function log(t,c){const d=document.createElement('div');if(c)d.className=c;d.textContent=t;const L=document.getElementById('log');L.prepend(d);}
+function stock(){return S.banks;}
+function render(){
+ document.getElementById('coins').textContent=S.coins;
+ let fh='';FLAVS.forEach(f=>{fh+=`<button class="flav${S.flav===f.id?' sel':''}" data-f="${f.id}"><b>${f.name}</b><br><small>${f.desc} (база ${f.base} 🪙)</small></button>`;});
+ document.getElementById('flavs').innerHTML=fh;
+ document.querySelectorAll('.flav').forEach(b=>b.onclick=()=>{S.flav=b.dataset.f;save();render();});
+ let sh='';SHOP.forEach(g=>{const n=S.stock[g.id]||0;sh+=`<div class="ing"><span>${g.name} <b>x${n}</b><small>${g.price} 🪙 • вкус +${g.taste}</small></span><button data-b="${g.id}" ${S.coins<g.price?'disabled':''}>Купить</button></div>`;});
+ document.getElementById('shop').innerHTML=sh;
+ document.querySelectorAll('[data-b]').forEach(b=>b.onclick=()=>buy(b.dataset.b));
+ let mx='',taste=S.upT,cost=0;SHOP.forEach(g=>{const n=S.stock[g.id]||0;if(n>0){mx+=`<div class="ing"><span>${g.name} <b>x${n}</b></span><button data-u="${g.id}">−1</button></div>`;taste+=n*g.taste;cost+=n*g.cost;}});
+ if(!mx)mx='<p style="color:#888;font-size:14px">Пусто — купи ингредиенты!</p>';
+ document.getElementById('mix').innerHTML=mx;
+ document.querySelectorAll('[data-u]').forEach(b=>b.onclick=()=>{const id=b.dataset.u;if(S.stock[id]>0){S.stock[id]--;if(!S.stock[id])delete S.stock[id];save();render();}});
+ const f=FLAVS.find(x=>x.id===S.flav);
+ const price=Math.max(5,f.base+Math.floor(taste/2)+(S.flav==='dragon'?15:S.flav==='ice'?7:0)+S.upP*10);
+ document.getElementById('taste').textContent=taste+(S.flav==='ice'?2:0);
+ document.getElementById('cost').textContent=cost;
+ document.getElementById('price').textContent=price+S.banks*0;
+ document.getElementById('price').textContent=price;
+ document.getElementById('brew').textContent=`СВАРИТЬ ⚡ (банок: ${S.banks})`;
+ document.getElementById('upPrice').textContent=(150+S.upP*150)+' 🪙';
+ document.getElementById('upTaste').textContent=(150+S.upT*150)+' 🪙';
+ document.getElementById('upAds').textContent=(200+S.upA*200)+' 🪙';
+ let bh='';BUYERS.forEach((b,i)=>{const want=15+i*8+S.upA*15;const ok=S.banks>0&&price<=want+30;bh+=`<div class="ing"><span>${b}<small>платит до ${want+30} 🪙</small></span><button data-s="${i}" ${(S.banks<=0)?'disabled':''}>Продать</button></div>`;});
+ document.getElementById('buyers').innerHTML=bh;
+ document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>sell(+b.dataset.s));
+}
+function buy(id){const g=SHOP.find(x=>x.id===id);if(S.coins<g.price){log('Не хватает монет!','bad');return;}S.coins-=g.price;S.stock[id]=(S.stock[id]||0)+1;save();render();}
+function curPrice(){const f=FLAVS.find(x=>x.id===S.flav);let taste=S.upT;SHOP.forEach(g=>taste+=(S.stock[g.id]||0)*g.taste);return Math.max(5,f.base+Math.floor(taste/2)+(S.flav==='dragon'?15:S.flav==='ice'?7:0)+S.upP*10);}
+function brew(){let n=0;SHOP.forEach(g=>n+=S.stock[g.id]||0);if(n===0){log('Банка пустая! Купи ингредиенты.','bad');return;}S.banks++;S.stock={};const c=document.getElementById('can');c.style.animation='none';void c.offsetWidth;c.style.animation='';save();render();log(`Сварена банка #${S.banks}! Цена ~${curPrice()} 🪙`,'gold');}
+function sell(i){if(S.banks<=0){log('Нет готовых банок — свари!','bad');return;}const price=curPrice();const maxPay=15+i*8+S.upA*15+30;if(price>maxPay){log(`${BUYERS[i]}: дорого! (хочет до ${maxPay})`,'bad');return;}S.banks--;S.coins+=price;save();render();log(`${BUYERS[i]} купил за ${price} 🪙!`,'good');}
+document.getElementById('brew').onclick=brew;
+document.getElementById('sellAll').onclick=()=>{if(S.banks<=0){log('Нет банок!','bad');return;}let sold=0,earned=0;const price=curPrice();BUYERS.forEach((b,i)=>{if(S.banks>0&&price<=15+i*8+S.upA*15+30){S.banks--;S.coins+=price;sold++;earned+=price;}});save();render();log(sold?`Продано ${sold} банок, +${earned} 🪙!`:'Никто не купил — дорого. Качай рекламу или снизь вкус/цену.','gold');};
+document.getElementById('upPrice').onclick=()=>{const c=150+S.upP*150;if(S.coins<c)return log('Не хватает монет!','bad');S.coins-=c;S.upP++;save();render();log('Цена прокачана! +10 к продаже.','good');};
+document.getElementById('upTaste').onclick=()=>{const c=150+S.upT*150;if(S.coins<c)return log('Не хватает монет!','bad');S.coins-=c;S.upT+=2;save();render();log('Вкус прокачан! +2 к вкусу.','good');};
+document.getElementById('upAds').onclick=()=>{const c=200+S.upA*200;if(S.coins<c)return log('Не хватает монет!','bad');S.coins-=c;S.upA++;save();render();log('Реклама запущена! Боты богаче.','good');};
+load();render();log('Добро пожаловать в варку Tornado! Мы уже победили 🏆','gold');
+</script>
+</body>
+</html>

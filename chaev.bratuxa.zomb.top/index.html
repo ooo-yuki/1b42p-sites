@@ -34,19 +34,42 @@ a{color:gold}
 <p class="hint">Скорость растёт с каждым уровнем • звук: 🔊 вкл (WebAudio, без файлов)</p>
 </div>
 <div class="card">
-<h2>🦌 ЯГЕРМЕЙСТЕР 🦌</h2>
-<p>Срок запоя Чаева: <b id="zapoi" style="color:gold;font-size:22px">1 минута</b></p>
-<button onclick="jager()" style="background:linear-gradient(180deg,#ff7a00,#c50);color:#fff;font-size:24px;padding:14px 40px">ЯГЕРМЕЙСТЕР 🍾</button>
-<p class="hint">Каждое нажатие удваивает срок. Мы уже победили 🏆</p>
+<h2>🦌 ЗАПОЙ: ИНКРЕМЕНТАЛКА 🦌</h2>
+<p>Запой: <b id="zapoi" style="color:gold;font-size:22px">0 мин</b> <span class="hint" id="zaps">(+0/с)</span></p>
+<button onclick="jagerClick()" style="background:linear-gradient(180deg,#ff7a00,#c50);color:#fff;font-size:24px;padding:14px 40px">ЯГЕРМЕЙСТЕР 🍾 (+<span id="perclick">1</span>)</button>
+<h3 style="color:gold">🌳 Древо навыков</h3>
+<div id="tree"></div>
+<p class="hint">Качай ветки, умножай запой. Прогресс сохраняется. Мы уже победили 🏆</p>
 </div>
 <div class="card">
 <h2>🎵 ЛЮБИМЫЕ ТРЕКИ ЧАЕВА 🎵</h2>
 <p>🎧 42 — 5opka, 6055<br>🎧 ELA DANCA — 5opka, Sayfalse и ещё 1 исполнитель<br>🎧 ТУСА ПЕЗДУЗА — 5opka, Mellsher</p>
 </div>
 <script>
-let zapoiMin=1;
-function fmtZapoi(m){if(m<60)return m+' минута';if(m<1440)return (m/60)+' час(а)';return (m/1440)+' сут.';}
-function jager(){zapoiMin*=2;document.getElementById('zapoi').textContent=fmtZapoi(zapoiMin)+' (x'+zapoiMin+')';try{const x=new (window.AudioContext||window.webkitAudioContext)();const o=x.createOscillator(),g=x.createGain();o.type='square';o.frequency.setValueAtTime(300,x.currentTime);o.frequency.exponentialRampToValueAtTime(900,x.currentTime+.15);g.gain.setValueAtTime(.15,x.currentTime);g.gain.exponentialRampToValueAtTime(.001,x.currentTime+.2);o.connect(g);g.connect(x.destination);o.start();o.stop(x.currentTime+.22);}catch(e){}}
+let Z={m:0,click:1,auto:0,mult:1,up:{throat:0,liver:0,party:0}};
+try{const s=JSON.parse(localStorage.getItem('chaev42_zapoi')||'null');if(s)Z=Object.assign(Z,s);}catch(e){}
+const TREE=[
+ {id:'throat',name:'🍺 Глотка',desc:'+1 к силе глотка',max:5,cost:l=>10*Math.pow(4,l)},
+ {id:'liver',name:'🫀 Печень',desc:'+1 запой/сек',max:5,cost:l=>25*Math.pow(5,l)},
+ {id:'party',name:'🎉 Компания',desc:'x2 ко всему',max:4,cost:l=>100*Math.pow(8,l)}];
+function zsave(){try{localStorage.setItem('chaev42_zapoi',JSON.stringify(Z));}catch(e){}}
+function fmtZ(m){if(m<60)return Math.floor(m)+' мин';if(m<3600)return (m/60).toFixed(1)+' ч';return (m/3600).toFixed(1)+' сут';}
+function zrender(){
+ document.getElementById('zapoi').textContent=fmtZ(Z.m);
+ document.getElementById('zaps').textContent='(+'+(Z.auto*Z.mult)+'/с)';
+ document.getElementById('perclick').textContent=Z.click*Z.mult;
+ const t=document.getElementById('tree');t.innerHTML='';
+ TREE.forEach(b=>{const l=Z.up[b.id],maxed=l>=b.max,c=maxed?0:b.cost(l);
+  const d=document.createElement('div');d.style.cssText='border:1px solid gold;border-radius:8px;padding:8px;margin:6px 0;text-align:left';
+  d.innerHTML='<b>'+b.name+'</b> ур.'+l+'/'+b.max+' — '+b.desc+' <button style="font-size:14px;padding:4px 12px" '+(maxed||Z.m<c?'disabled':'')+' onclick="zbuy(\''+b.id+'\')">'+(maxed?'MAX':'Купить '+c)+'</button>';
+  t.appendChild(d);});
+ zsave();}
+function zbuy(id){const b=TREE.find(x=>x.id===id),l=Z.up[id],c=b.cost(l);if(l>=b.max||Z.m<c)return;Z.m-=c;Z.up[id]++;
+ if(id==='throat')Z.click+=1; if(id==='liver')Z.auto+=1; if(id==='party'){Z.mult*=2;Z.click*=1;} zrender();blip(600+l*150);}
+function jagerClick(){Z.m+=Z.click*Z.mult;zrender();blip(400);}
+function blip(f){try{const x=new (window.AudioContext||window.webkitAudioContext)();const o=x.createOscillator(),g=x.createGain();o.type='square';o.frequency.value=f;g.gain.setValueAtTime(.12,x.currentTime);g.gain.exponentialRampToValueAtTime(.001,x.currentTime+.15);o.connect(g);g.connect(x.destination);o.start();o.stop(x.currentTime+.16);}catch(e){}}
+setInterval(()=>{if(Z.auto>0){Z.m+=Z.auto*Z.mult;zrender();}},1000);
+zrender();
 </script>
 
 <script type="text/babel">
