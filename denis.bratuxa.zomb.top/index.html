@@ -23,12 +23,23 @@
 #btns{display:flex;gap:10px;pointer-events:auto}
 .tbtn{width:72px;height:72px;border-radius:50%;border:2px solid #0f6;background:rgba(0,255,102,.2);color:#fff;font-weight:bold;font-size:13px}
 @media(pointer:coarse){#touch{display:flex}#hint{display:none}#minimap{width:96px;height:96px;bottom:200px}}
+.mobonly{display:none}.is-mob .mobonly{display:inline}.is-mob .pconly{display:none}
+@media(max-width:700px){
+#hud{font-size:11px;max-width:44vw;padding:6px 8px}
+#mission{font-size:11px;max-width:44vw;padding:6px 8px}
+#hint{display:none}
+.tbtn{width:54px;height:54px;font-size:11px}
+#btns{gap:6px;flex-wrap:wrap;max-width:60vw;justify-content:flex-end}
+#touch{padding:0 8px 170px}
+#dialog{font-size:14px;bottom:250px}
+#radiopop{bottom:330px;font-size:14px}
+}
 b.gold{color:gold}b.grn{color:#0f6}b.red{color:#f55}
 </style>
 </head>
 <body>
 <div id="ui">
-<div id="hud">❤️ <span id="hp">100</span> | 🏆 Респект: <span id="resp">0</span> | 🗺️ Территории 42: <span id="terr">15%</span><br>WASD — идти • Shift — бег • E — действие • F — тачка • ЛКМ — бита • C — камера • 🥫 магазин (E — энергетик за 10 респекта)<br>ПКМ-мышь/стрелки — взгляд (вверх/вниз) • колесо — зум • на телефоне: свайп + 🔼🔽<br>📻 <span id="radio">VICE 42 FM</span> (R — станция) • M — звук • V — озвучка (?) — редкие NPC • H — скрыть подсказки • <span id="gfx">⚡АВТО</span></div><div id="radiopop" style="position:absolute;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);border:2px solid magenta;border-radius:10px;padding:8px 18px;font-size:18px;display:none">📻 <span id="radiopop-t"></span></div>
+<div id="hud">❤️ <span id="hp">100</span> | 🏆 Респект: <span id="resp">0</span> | 🗺️ Территории 42: <span id="terr">15%</span><br>WASD — идти • Shift — бег • E — действие • F — тачка • ЛКМ — бита • C — камера • 🥫 магазин (E — энергетик за 10 респекта)<br><span class="pconly">ПКМ-мышь/стрелки — взгляд (вверх/вниз) • колесо — зум •</span> <span class="mobonly">свайп — взгляд • 🔼🔽 — вверх/вниз •</span><br>📻 <span id="radio">VICE 42 FM</span> <span class="pconly">(R — станция) • M — звук • V — озвучка • H — скрыть подсказки • </span><span id="gfx">⚡АВТО</span></div><div id="radiopop" style="position:absolute;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);border:2px solid magenta;border-radius:10px;padding:8px 18px;font-size:18px;display:none">📻 <span id="radiopop-t"></span></div>
 <div id="mission">📜 <b id="mtitle">Миссия 1: Возвращение</b><br><span id="mdesc">Иди в штаб (жёлтая метка H)</span></div>
 <canvas id="minimap" width="120" height="120"></canvas>
 <div id="hint">Метки: H — штаб • ! — цель • 🚗 — тачка • 💀 — враги</div>
@@ -417,7 +428,7 @@ dnext.onclick=nextLine;
 function setM(t,d){document.getElementById('mtitle').textContent=t;document.getElementById('mdesc').textContent=d;}
 function addResp(n){RESP+=n;document.getElementById('resp').textContent=RESP;}
 function setTerr(n){TERR=n;document.getElementById('terr').textContent=n+'%';}
-function startGame(mode){document.getElementById('menu').style.display='none';document.getElementById('touch').style.display=(mode==='mobile')?'flex':'none';try{window.__mode=mode;}catch(_){}setM('Миссия 1: Возвращение','Подойди к штабу (H) снаружи, нажми E — внутрь заходить не надо');try{AU.init();AU.viceSting();}catch(e){}}
+function startGame(mode){document.body.classList.add(mode==='mobile'?'is-mob':'is-pc');document.getElementById('menu').style.display='none';document.getElementById('touch').style.display=(mode==='mobile')?'flex':'none';try{window.__mode=mode;}catch(_){}setM('Миссия 1: Возвращение','Подойди к штабу (H) снаружи, нажми E — внутрь заходить не надо');try{AU.init();AU.viceSting();}catch(e){}}
 // ===== ВВОД =====
 const keys={};addEventListener('keydown',e=>keys[e.code]=true);addEventListener('keyup',e=>keys[e.code]=false);
 let mouseDown=false,attackCD=0;
