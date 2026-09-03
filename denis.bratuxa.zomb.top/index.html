@@ -313,6 +313,35 @@ car.userData.wheels=[];[[-1.5,1.8],[1.5,1.8],[-1.5,-1.8],[1.5,-1.8]].forEach(p=>
 car.position.set(8,0,60);scene.add(car);marker(8,60,0x00aaff,'🚗');
 let carSpeed=0;
 // NPC
+// универсальный человек: рубашка/штаны/волосы/головной убор/ярлык вместо куба
+function makeHuman(x,z,o){
+ o=o||{};
+ const g=new THREE.Group();
+ const skin=new THREE.MeshStandardMaterial({color:o.skin||0xe8b88a,roughness:.7});
+ const shirtM=new THREE.MeshStandardMaterial({color:o.shirt||0xdddddd,roughness:.85});
+ const pantsM=new THREE.MeshStandardMaterial({color:o.pants||0x2a2a35,roughness:.85});
+ const hairM=new THREE.MeshStandardMaterial({color:o.hair||0x3a2a1a,roughness:.7});
+ const legL=new THREE.Mesh(new THREE.BoxGeometry(.42,1.1,.42),pantsM);legL.position.set(-.28,.55,0);g.add(legL);
+ const legR=legL.clone();legR.position.x=.28;g.add(legR);
+ const torso=new THREE.Mesh(new THREE.BoxGeometry(1.3,1.7,.7),shirtM);torso.position.y=1.95;torso.castShadow=true;g.add(torso);
+ if(o.emblem42){const tg=document.createElement('canvas');tg.width=64;tg.height=64;const tgg=tg.getContext('2d');tgg.fillStyle='gold';tgg.fillRect(0,0,64,64);tgg.fillStyle='#000';tgg.font='bold 40px Arial';tgg.fillText('42',6,46);
+  const em=new THREE.Mesh(new THREE.PlaneGeometry(.6,.6),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(tg)}));em.position.set(0,2.2,.37);g.add(em);}
+ const armL=new THREE.Mesh(new THREE.BoxGeometry(.36,1.6,.36),shirtM);armL.position.set(-.85,1.95,0);g.add(armL);
+ const armR=armL.clone();armR.position.x=.85;g.add(armR);
+ const head=new THREE.Mesh(new THREE.SphereGeometry(.5,14,12),skin);head.position.y=3.35;head.castShadow=true;g.add(head);
+ const hair=new THREE.Mesh(new THREE.SphereGeometry(.56,14,10,0,Math.PI*2,0,Math.PI*.55),hairM);hair.position.y=3.42;g.add(hair);
+ if(o.hat==='cap'){const cp=new THREE.Mesh(new THREE.CylinderGeometry(.5,.52,.3,12),new THREE.MeshStandardMaterial({color:o.hatColor||0x111111}));cp.position.y=3.85;g.add(cp);
+  const brim=new THREE.Mesh(new THREE.BoxGeometry(.7,.08,.5),new THREE.MeshStandardMaterial({color:o.hatColor||0x111111}));brim.position.set(0,3.75,.55);g.add(brim);}
+ if(o.hat==='hood'){const hd=new THREE.Mesh(new THREE.TorusGeometry(.5,.2,8,14),new THREE.MeshStandardMaterial({color:o.hatColor||0x333333}));hd.position.y=3.35;g.add(hd);}
+ const eyeM=new THREE.MeshBasicMaterial({color:0x222222});
+ const eyeL=new THREE.Mesh(new THREE.SphereGeometry(.07,8,6),eyeM);eyeL.position.set(-.18,3.35,.45);g.add(eyeL);
+ const eyeR=eyeL.clone();eyeR.position.x=.18;g.add(eyeR);
+ const c=document.createElement('canvas');c.width=256;c.height=48;const gg=c.getContext('2d');
+ gg.fillStyle='#000';gg.fillRect(0,0,256,48);gg.fillStyle=o.labelColor||'#fff';gg.font='bold 24px Arial';gg.fillText(o.label||'',8,32);
+ const label=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));label.scale.set(8,1.5,1);label.position.y=4.6;g.add(label);
+ g.position.set(x,0,z);scene.add(g);
+ return {mesh:g,label:label,name:o.label||''};
+}
 function npc(x,z,color,name){const m=new THREE.Mesh(new THREE.BoxGeometry(1.3,2.4,1),new THREE.MeshStandardMaterial({color}));m.position.set(x,1.2,z);scene.add(m);
 const c=document.createElement('canvas');c.width=256;c.height=48;const g=c.getContext('2d');g.fillStyle='#000';g.fillRect(0,0,256,48);g.fillStyle='#fff';g.font='bold 26px Arial';g.fillText(name,10,32);
 const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));s.scale.set(8,1.5,1);s.position.set(x,3.6,z);scene.add(s);
@@ -348,16 +377,16 @@ function makeKizyak(x,z){
  return {mesh:g,label:head,name:'КИЗЯК'};
 }
 let kizyak=makeKizyak(3,52);kizyak.mesh.visible=false;kizyak.label.visible=false;
-let friends=[npc(-6,54,0x00ff66,'ДРУГ•WINLINE'),npc(6,54,0x00ff66,'ДРУГ•WINLINE')];
+let friends=[makeHuman(-6,54,{shirt:0x00aa55,hat:'cap',hatColor:0x003311,label:'ДРУГ•WINLINE',labelColor:'#7dffb0'}),makeHuman(6,54,{shirt:0x00aa55,hair:0x111111,hat:'cap',hatColor:0x003311,label:'ДРУГ•WINLINE',labelColor:'#7dffb0'})];
 let enemies=[];
-let bratukhi=[npc(-10,58,0xffd700,'БРАТУХА 42'),npc(10,58,0xffd700,'БРАТУХА 42'),npc(0,62,0xff5500,'БРАТУХА 42')];
+let bratukhi=[makeHuman(-10,58,{shirt:0xffd700,emblem42:1,hat:'cap',hatColor:0x111111,label:'БРАТУХА 42',labelColor:'gold'}),makeHuman(10,58,{shirt:0xffd700,emblem42:1,hair:0x774411,label:'БРАТУХА 42',labelColor:'gold'}),makeHuman(0,62,{shirt:0xff5500,emblem42:1,hat:'hood',hatColor:0x551100,label:'БРАТУХА 42',labelColor:'#ffb066'})];
 // редкие NPC со своими диалогами (E рядом)
 let rare=[
- {n:npc(-60,20,0x9933ff,'ШАМАН•42'),lines:['<b>ШАМАН:</b> Вижу ауру… твоя цепь светится, кот. 42 с тобой. 🌌','<b>ДЕНИС:</b> А по-простому?','<b>ШАМАН:</b> Иди к своим. И не слушай мобов.'],v:{p:.6,r:.85}},
- {n:npc(60,40,0x33cccc,'ДИЛЕР•TORNADO'),lines:['<b>ДИЛЕР:</b> Пс-с… Tornado нужен? Сетден одобряет. 🥫','<b>ДЕНИС:</b> Мне нужен батальон, а не банка.','<b>ДИЛЕР:</b> Уважаю. За это — держи респект.'],v:{p:1.3,r:1.05},resp:5},
- {n:npc(-120,-20,0x777777,'ВЕТЕРАН•SLAY'),lines:['<b>ВЕТЕРАН:</b> Я был на SLAY 2021… Пятёрка тогда завез на максимум.','<b>ДЕНИС:</b> Повторим?','<b>ВЕТЕРАН:</b> Ты и есть повтор. Иди.'],v:{p:.7,r:.8}},
- {n:npc(120,20,0xff8800,'МОП•СОМНЕВАЮЩИЙСЯ'),lines:['<b>МОП:</b> А 42 — это секта?..','<b>ДЕНИС:</b> 42 — это семья. Скибиди.','<b>МОП:</b> …йоу. Я почти понял.'],v:{p:1.5,r:1.1}},
- {n:npc(0,-80,0xff2255,'ФАН•DAMAFAN'),lines:['<b>ФАН:</b> DAMAFAN защищает! Ты его видел?!','<b>ДЕНИС:</b> Он рядом, когда батальон вместе.','<b>ФАН:</b> Мурашки!..'],v:{p:1.6,r:1.15}},
+ {n:makeHuman(-60,20,{shirt:0x5a2a8a,hat:'hood',hatColor:0x2a1050,hair:0xcccccc,label:'ШАМАН•42',labelColor:'#c88cff'}),lines:['<b>ШАМАН:</b> Вижу ауру… твоя цепь светится, кот. 42 с тобой. 🌌','<b>ДЕНИС:</b> А по-простому?','<b>ШАМАН:</b> Иди к своим. И не слушай мобов.'],v:{p:.6,r:.85}},
+ {n:makeHuman(60,40,{shirt:0x228888,hat:'cap',hatColor:0x00ffcc,label:'ДИЛЕР•TORNADO',labelColor:'#7dffff'}),lines:['<b>ДИЛЕР:</b> Пс-с… Tornado нужен? Сетден одобряет. 🥫','<b>ДЕНИС:</b> Мне нужен батальон, а не банка.','<b>ДИЛЕР:</b> Уважаю. За это — держи респект.'],v:{p:1.3,r:1.05},resp:5},
+ {n:makeHuman(-120,-20,{shirt:0x555555,hair:0x999999,skin:0xd9a877,label:'ВЕТЕРАН•SLAY',labelColor:'#cccccc'}),lines:['<b>ВЕТЕРАН:</b> Я был на SLAY 2021… Пятёрка тогда завез на максимум.','<b>ДЕНИС:</b> Повторим?','<b>ВЕТЕРАН:</b> Ты и есть повтор. Иди.'],v:{p:.7,r:.8}},
+ {n:makeHuman(120,20,{shirt:0xcc6600,hair:0x221100,label:'МОП•СОМНЕВАЮЩИЙСЯ',labelColor:'#ffcc88'}),lines:['<b>МОП:</b> А 42 — это секта?..','<b>ДЕНИС:</b> 42 — это семья. Скибиди.','<b>МОП:</b> …йоу. Я почти понял.'],v:{p:1.5,r:1.1}},
+ {n:makeHuman(0,-80,{shirt:0xcc2244,hair:0xffcc00,hat:'cap',hatColor:0xff2255,label:'ФАН•DAMAFAN',labelColor:'#ff88aa'}),lines:['<b>ФАН:</b> DAMAFAN защищает! Ты его видел?!','<b>ДЕНИС:</b> Он рядом, когда батальон вместе.','<b>ФАН:</b> Мурашки!..'],v:{p:1.6,r:1.15}},
 ];
 rare.forEach(r=>marker(r.n.mesh.position.x,r.n.mesh.position.z,0xffff00,'?'));
 // озвучка: Web Speech API, голоса на персонажа
