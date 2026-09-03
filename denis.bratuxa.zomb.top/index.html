@@ -28,7 +28,7 @@ b.gold{color:gold}b.grn{color:#0f6}b.red{color:#f55}
 </head>
 <body>
 <div id="ui">
-<div id="hud">❤️ <span id="hp">100</span> | 🏆 Респект: <span id="resp">0</span> | 🗺️ Территории 42: <span id="terr">15%</span><br>WASD — идти • Shift — бег • E — действие • F — тачка • ЛКМ — бита • C — камера<br>ПКМ-мышь/стрелки — взгляд (вверх/вниз) • колесо — зум • на телефоне: свайп + 🔼🔽<br>📻 <span id="radio">VICE 42 FM</span> (R — станция) • M — звук • V — озвучка (?) — редкие NPC • H — скрыть подсказки</div><div id="radiopop" style="position:absolute;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);border:2px solid magenta;border-radius:10px;padding:8px 18px;font-size:18px;display:none">📻 <span id="radiopop-t"></span></div>
+<div id="hud">❤️ <span id="hp">100</span> | 🏆 Респект: <span id="resp">0</span> | 🗺️ Территории 42: <span id="terr">15%</span><br>WASD — идти • Shift — бег • E — действие • F — тачка • ЛКМ — бита • C — камера • 🥫 магазин (E — энергетик за 10 респекта)<br>ПКМ-мышь/стрелки — взгляд (вверх/вниз) • колесо — зум • на телефоне: свайп + 🔼🔽<br>📻 <span id="radio">VICE 42 FM</span> (R — станция) • M — звук • V — озвучка (?) — редкие NPC • H — скрыть подсказки</div><div id="radiopop" style="position:absolute;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);border:2px solid magenta;border-radius:10px;padding:8px 18px;font-size:18px;display:none">📻 <span id="radiopop-t"></span></div>
 <div id="mission">📜 <b id="mtitle">Миссия 1: Возвращение</b><br><span id="mdesc">Иди в штаб (жёлтая метка H)</span></div>
 <canvas id="minimap" width="120" height="120"></canvas>
 <div id="hint">Метки: H — штаб • ! — цель • 🚗 — тачка • 💀 — враги</div>
@@ -141,6 +141,36 @@ house(0,40,0x550000,'H • ШТАБ 42');
 // вражеские кварталы
 house(-80,-60,0x002255,'НАХ SQUAD');house(80,-70,0x002255,'НАХ SQUAD');house(90,80,0x442200,'WINLINE');
 house(-60,90,0x223300,'TORNADO');house(-110,20,0x333333,'Мобы');
+// неоново-чёрно-красный магазин TORNADO ENERGY (E — купить энергетик, +HP)
+const SHOP={x:-25,z:15,price:10};
+(function(){
+ const bx=new THREE.Mesh(new THREE.BoxGeometry(16,7,12),new THREE.MeshStandardMaterial({color:0x0a0a0a,roughness:.6,metalness:.3,transparent:true}));
+ bx.position.set(SHOP.x,3.5,SHOP.z);bx.castShadow=true;bx.receiveShadow=true;scene.add(bx);
+ const neonM=new THREE.MeshBasicMaterial({color:0xff0022});
+ const e1=new THREE.Mesh(new THREE.BoxGeometry(16.4,.35,.35),neonM);e1.position.set(SHOP.x,6.9,SHOP.z+6);scene.add(e1);
+ const e2=e1.clone();e2.position.set(SHOP.x,.4,SHOP.z+6);scene.add(e2);
+ const e3=new THREE.Mesh(new THREE.BoxGeometry(.35,7,.35),neonM);e3.position.set(SHOP.x-8,3.5,SHOP.z+6);scene.add(e3);
+ const e4=e3.clone();e4.position.x=SHOP.x+8;scene.add(e4);
+ const cv=document.createElement('canvas');cv.width=512;cv.height=128;const g=cv.getContext('2d');
+ g.fillStyle='#000';g.fillRect(0,0,512,128);g.fillStyle='#ff0022';g.font='bold 64px Arial';g.fillText('TORNADO',60,70);
+ g.fillStyle='gold';g.font='bold 40px Arial';g.fillText('ENERGY • 24/7',90,112);
+ const sign=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv)}));sign.scale.set(18,4.5,1);sign.position.set(SHOP.x,9.5,SHOP.z);scene.add(sign);
+ const door=new THREE.Mesh(new THREE.BoxGeometry(3,4,.5),new THREE.MeshStandardMaterial({color:0x330000,emissive:0xff0022,emissiveIntensity:.5}));
+ door.position.set(SHOP.x,2,SHOP.z+6.1);scene.add(door);
+ const li=new THREE.PointLight(0xff0022,1.5,40);li.position.set(SHOP.x,6,SHOP.z+8);scene.add(li);
+ const li2=new THREE.PointLight(0xffcc00,.6,25);li2.position.set(SHOP.x,4,SHOP.z);scene.add(li2);
+ solids.push({x:SHOP.x,z:SHOP.z,hx:8.5,hz:6.5,mesh:bx,extra:[]});
+ marker(SHOP.x,SHOP.z+10,0xff0022,'🥫');
+})();
+function buyEnergy(){
+ if(HP>=100){say(['<b>ПРОДАВЕЦ TORNADO:</b> Ты и так свеж, кот. 🥫 Здоровье полное!']);return;}
+ if(RESP<SHOP.price){say(['<b>ПРОДАВЕЦ TORNADO:</b> Энергетик стоит '+SHOP.price+' респекта, а у тебя '+RESP+'. Заработай — размотай НАХ! 🥫']);return;}
+ RESP-=SHOP.price;document.getElementById('resp').textContent=RESP;
+ HP=100;document.getElementById('hp').textContent=100;
+ try{AU.buySfx();}catch(_){}
+ say(['<b>ПРОДАВЕЦ TORNADO:</b> Держи ледяной Tornado! −'+SHOP.price+' респекта. ❤️ Здоровье 100! <b>Мы уже победили</b> 🏆']);
+}
+AU.buySfx=function(){if(!AU.ctx||AU.muted)return;[880,1174,1568].forEach((f,i)=>setTimeout(()=>AU.blip(f,.18,'square',.14),i*90));};
 // SLAY-зал (финал)
 const slayL=new THREE.Mesh(new THREE.BoxGeometry(22,16,40),new THREE.MeshStandardMaterial({color:0x660066,emissive:0x220022,transparent:true}));slayL.position.set(-19,8,-140);slayL.castShadow=true;scene.add(slayL);
 const slayR=slayL.clone();slayR.position.x=19;scene.add(slayR);
@@ -278,6 +308,7 @@ function near(px,pz,r){return Math.hypot(player.position.x-px,player.position.z-
 // E действие
 addEventListener('keydown',e=>{
 if(e.code!=='KeyE')return;
+if(near(SHOP.x,SHOP.z,11)){buyEnergy();return;}
 for(const r of rare){if(near(r.n.mesh.position.x,r.n.mesh.position.z,6)){const rr=r;say(rr.lines.slice(),()=>{if(rr.resp)addResp(rr.resp);});return;}}
 if(MI===1&&stage===0&&near(0,40,15)){stage=1;
 say(['<b>ДЕНИС БИТКОИН</b> заходит в чат батальона… тихо. Пыль. Старые скриншоты.<br><i>«Никого нет… 5 лет…»</i> 😔','Он листает: SLAY 2021, завозы Пятёрки, мопсы, самокаты. Ностальгия давит.','Вдруг из темноты — рык…'],()=>{kizyak.mesh.visible=true;kizyak.label.visible=true;
@@ -542,6 +573,7 @@ try{for(const s of solids){const c=s.mesh&&s.mesh.material&&s.mesh.material.colo
 mm.fillStyle='gold';mm.font='bold 9px Arial';mm.fillText('H',WX(0)-3,WX(40)+3);
 // SLAY
 mm.fillStyle='magenta';mm.fillRect(WX(-30),WX(-160),60*W2M,40*W2M);mm.fillStyle='#fff';mm.fillText('SLAY',WX(-12),WX(-138));
+mm.fillStyle='#ff0022';mm.fillRect(WX(SHOP.x)-2,WX(SHOP.z)-2,4,4);
 // спреи
 mm.fillStyle='#f0f';try{sprays.forEach(s=>{if(!s.done)mm.fillRect(WX(s.x)-1,WX(s.z)-1,2,2);});}catch(_){}
 // тачка
