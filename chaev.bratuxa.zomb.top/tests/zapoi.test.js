@@ -4,6 +4,8 @@ import {
   dmgPerSip, heal1val, heal1cost, heal2val, heal2cost,
   buyUpgrade, buyArt, jagerClick, healSmall, healBig,
   tickZapoi, applyHangover, checkSyns,
+  CHARACTERS, isUnlocked, isAllBought, BOTTLE_COST, buyBottle, newRun, bet,
+  artCost, charDiscount, effMult,
 } from '../src/game/zapoiLogic.js';
 import { SYNS, hangoverRate } from '../src/game/synergies.js';
 
@@ -208,5 +210,86 @@ describe('новые синергии incl. дешёвые', () => {
     buyArt(z, 'goldshot');
     const syns = buyArt(z, 'heart42');
     expect(syns).toContain('legend');
+  });
+});
+
+describe('персонажи и бутылка', () => {
+  it('4 персонажа, стартовый только Владимир', () => {
+    expect(CHARACTERS).toHaveLength(4);
+    const z = createZapoiState();
+    expect(isUnlocked(z, 'vladimir')).toBe(true);
+    expect(isUnlocked(z, 'ghost')).toBe(false);
+    z.completed = { vladimir: 1 };
+    expect(isUnlocked(z, 'ghost')).toBe(true);
+    expect(isUnlocked(z, 'demon')).toBe(true);
+  });
+  it('Владимир: скидка растёт, кап 20%', () => {
+    const z = createZapoiState();
+    z.char = 'vladimir';
+    expect(charDiscount(z)).toBe(0);
+    z.sips = 50;
+    expect(charDiscount(z)).toBeCloseTo(0.1, 5);
+    z.sips = 5000;
+    expect(charDiscount(z)).toBe(0.2);
+  });
+  it('Владимир: глоток качает клик', () => {
+    const z = createZapoiState();
+    z.char = 'vladimir';
+    jagerClick(z);
+    expect(z.sips).toBe(1);
+    expect(z.click).toBeCloseTo(1.02, 5);
+  });
+  it('призрак: глоток ×3, душа тает, смерть = shattered без похмелья', () => {
+    const z = createZapoiState();
+    z.char = 'ghost';
+    z.m = 0;
+    jagerClick(z);
+    expect(z.m).toBeCloseTo(1 * 1.25 * 3, 5);
+    expect(z.soul).toBe(96);
+    expect(z.hp).toBe(100);
+    z.soul = 1;
+    expect(jagerClick(z)).toBe('shattered');
+  });
+  it('демон: на пол-ХП мульт ×2, форма на нуле', () => {
+    const z = createZapoiState();
+    z.char = 'demon';
+    z.hp = 50;
+    expect(effMult(z)).toBeCloseTo(2, 5);
+    z.hp = 0;
+    expect(jagerClick(z)).toBe('demonform');
+    expect(z.demonForm).toBe(10);
+  });
+  it('винлайн: глоток в пределах ×0.5…×2.5', () => {
+    const z = createZapoiState();
+    z.char = 'winline';
+    z.maxhp = 1e9; z.hp = 1e9;
+    for (let i = 0; i < 20; i++) {
+      const before = z.m;
+      jagerClick(z);
+      const g = z.m - before;
+      expect(g).toBeGreaterThanOrEqual(0.5 - 1e-9);
+      expect(g).toBeLessThanOrEqual(2.5 + 1e-9);
+    }
+  });
+  it('бутылка: 50000, только когда всё куплено', () => {
+    const z = createZapoiState();
+    z.char = 'vladimir';
+    z.m = 1e9;
+    expect(isAllBought(z)).toBe(false);
+    expect(buyBottle(z)).toBe(false);
+    TREE.forEach((b) => { z.up[b.id] = b.max; });
+    ARTS.forEach((a) => { z.arts[a.id] = 1; });
+    checkSyns(z);
+    expect(isAllBought(z)).toBe(true);
+    const before = z.m;
+    expect(buyBottle(z)).toBe(true);
+    expect(z.m).toBe(before - BOTTLE_COST);
+  });
+  it('newRun: чистый лист, completed живёт', () => {
+    const n = newRun({ vladimir: 1 }, 'ghost');
+    expect(n.char).toBe('ghost');
+    expect(n.completed).toEqual({ vladimir: 1 });
+    expect(n.m).toBe(0);
+    expect(n.soul).toBe(100);
   });
 });

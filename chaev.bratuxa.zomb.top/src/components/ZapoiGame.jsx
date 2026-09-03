@@ -4,6 +4,8 @@ import {
   dmgPerSip, heal1val, heal1cost, heal2val, heal2cost,
   buyUpgrade, buyArt, jagerClick, healSmall, healBig, tickZapoi,
   checkSyns, synReady, hangoverRate, fmtZ,
+  CHARACTERS, isUnlocked, isAllBought, BOTTLE_COST, buyBottle, newRun, bet,
+  artCost, charDiscount, effMult,
 } from '../game/zapoiLogic.js';
 import { blip } from './DinoGame.jsx';
 
@@ -18,11 +20,29 @@ function loadZapoi() {
       z.up = { ...(s.up || {}) };
       z.arts = { ...(s.arts || {}) };
       z.syn = { ...(s.syn || {}) };
+      z.completed = { ...(s.completed || {}) };
+      if (z.sips == null) z.sips = 0;
+      if (z.soul == null) z.soul = 100;
+      if (z.demonForm == null) z.demonForm = 0;
+      // Старые сейвы без персонажа: был прогресс — продолжаем Владимиром.
+      if (!z.char && (z.m > 0 || Object.keys(z.up).length > 0)) z.char = 'vladimir';
     }
   } catch (e) { /* тихо */ }
   if (z.hp == null || z.hp > z.maxhp) z.hp = z.maxhp || 100;
   checkSyns(z);
   return z;
+}
+
+function cloneZ(prev) {
+  return { ...prev, up: { ...prev.up }, arts: { ...prev.arts }, syn: { ...prev.syn }, completed: { ...(prev.completed || {}) } };
+}
+
+// Сколько даст глоток (для кнопки; у винлайна — среднее).
+function sipPreview(z) {
+  if (z.char === 'ghost') return Math.round(z.click * effMult(z) * 3);
+  if (z.char === 'demon') return Math.round(z.click * effMult(z) * 2);
+  if (z.char === 'winline') return Math.round(z.click * effMult(z) * 1.5);
+  return Math.round(z.click * effMult(z));
 }
 
 export default function ZapoiGame() {
@@ -36,11 +56,18 @@ export default function ZapoiGame() {
   useEffect(() => {
     const id = setInterval(() => {
       setZ((prev) => {
-        const next = { ...prev, up: { ...prev.up }, arts: { ...prev.arts }, syn: { ...prev.syn } };
+        if (!prev.char) return prev;
+        const next = cloneZ(prev);
         const ev = tickZapoi(next);
         if (ev === 'hangover') {
           const rate = hangoverRate(next);
           setLog(`🤢 Похмелье! −${Math.floor(prev.m * rate)} бухла (${Math.round(rate * 100)}%), здоровье 30%. Рассолу накати!`);
+        } else if (ev === 'shattered') {
+          setLog('💥 Бутылка разбилась! Забег окончен.');
+          blip(200);
+          return newRun(next.completed, null);
+        } else if (ev === 'demonform') {
+          setLog('😈 ДЕМОНИЧЕСКАЯ ФОРМА ×5 на 10 сек! ЖГИ!');
         }
         return next;
       });
@@ -50,12 +77,35 @@ export default function ZapoiGame() {
 
   const mutate = (fn, lvl = 500) => {
     setZ((prev) => {
-      const next = { ...prev, up: { ...prev.up }, arts: { ...prev.arts }, syn: { ...prev.syn } };
+      const next = cloneZ(prev);
       const msg = fn(next);
       if (typeof msg === 'string' && msg) setLog(msg);
       return next;
     });
     blip(lvl);
+  };
+
+  // Разбить бутылку: закрыть персонажа и вернуться к выбору.
+  const shatterBottle = () => {
+    setZ((prev) => {
+      const next = cloneZ(prev);
+      if (!buyBottle(next)) {
+        setLog('Бутылка ещё не готова: скупи всё и накопи 50 000 🍾');
+        return prev;
+      }
+      const completed = { ...next.completed, [next.char]: 1 };
+      setLog(`💥 Бутылка разбита! Персонаж закрыт. Так держать!`);
+      blip(200);
+      return newRun(completed, null);
+    });
+  };
+
+  const pickChar = (id) => {
+    setZ((prev) => {
+      if (!isUnlocked({ completed: prev.completed }, id)) return prev;
+      blip(700);
+      return newRun(prev.completed, id);
+    });
   };
 
   const branches = useMemo(() => {
@@ -77,14 +127,59 @@ export default function ZapoiGame() {
   const activeSyns = SYNS.filter((s) => z.syn[s.id]).length;
 
   const pct = Math.max(0, Math.min(100, (z.hp / z.maxhp) * 100));
+  const charDef = CHARACTERS.find((c) => c.id === z.char);
+  const readyForBottle = z.char && isAllBought(z);
+
+  // ЭКРАН ВЫБОРА ПЕРСОНАЖА
+  if (!z.char) {
+    const doneCount = CHARACTERS.filter((c) => z.completed && z.completed[c.id]).length;
+    return (
+      <div className="card">
+        <h2>🎭 ВЫБОР ПЕРСОНАЖА 🎭</h2>
+        <p className="hint">Закрыто персонажей: {doneCount}/{CHARACTERS.length}. Разбей бутылку за Владимира — откроются остальные!</p>
+        {CHARACTERS.map((c) => {
+          const open = isUnlocked(z, c.id);
+          const done = z.completed && z.completed[c.id];
+          return (
+            <div key={c.id} style={{ border: '2px solid ' + (done ? '#7f7' : 'gold'), borderRadius: 12, padding: 10, margin: '8px 0', textAlign: 'left', opacity: open ? 1 : 0.55 }}>
+              <b style={{ fontSize: 18 }}>{c.emoji} {c.name}</b>{' '}
+              {done ? <span style={{ color: '#7f7' }}>✅ ЗАКРЫТ</span> : open ? '' : <span>🔒 откроется за бутылку Владимира</span>}
+              <div className="hint">{c.desc}</div>
+              <div className="hint">{c.hint}</div>
+              {open && !done && <button onClick={() => pickChar(c.id)} style={{ marginTop: 6 }}>ИГРАТЬ ЗА НЕГО ▶</button>}
+              {open && done && <button onClick={() => pickChar(c.id)} style={{ marginTop: 6 }}>ЕЩЁ РАЗ ▶</button>}
+            </div>
+          );
+        })}
+        <p className="hint">Прогресс закрытий сохраняется. Мы уже победили 🏆</p>
+      </div>
+    );
+  }
 
   return (
     <div className="card">
       <h2>🦌 ЗАПОЙ 2.0: ПЕЧЕНЬ ПРОТИВ БУХЛА 🦌</h2>
+      <p><b style={{ fontSize: 18 }}>{charDef.emoji} {charDef.name}</b>{' '}
+        <button onClick={() => setZ((prev) => newRun(prev.completed, null))} style={{ fontSize: 12 }}>сменить</button>
+      </p>
+      <p className="hint">
+        {CHARACTERS.map((c) => (
+          <span key={c.id} style={{ marginRight: 8 }}>{c.emoji} {(z.completed && z.completed[c.id]) ? '✅' : (c.id === z.char ? '▶' : (isUnlocked(z, c.id) ? '○' : '🔒'))}</span>
+        ))}
+      </p>
       <p className="hint">Основа: Чаев гонит <b>Бухло</b> 🍾, но каждый глоток бьёт по <b>Здоровью</b> 🫀. Упал в 0 — похмелье: −20% бухла, здоровье 30%. Лечилки лечат, но жрут бухло. Качай древо, бери артефакты. Формулы цен прямо в описаниях, ня~</p>
       <p>Бухло: <b style={{ color: 'gold', fontSize: 26 }}>{Math.floor(z.m).toLocaleString('ru-RU')} 🍾</b> <span className="hint">(+{Math.round(z.auto * z.mult)}/с • это {fmtZ(z.m)} запоя)</span></p>
       <p>Здоровье: <b style={{ color: '#7f7', fontSize: 20 }}>{Math.ceil(z.hp)}/{z.maxhp}</b></p>
       <div className="hpbar-wrap"><div className="hpbar" style={{ width: pct + '%' }}></div></div>
+      {z.char === 'ghost' && (
+        <p>👻 Остатки души: <b style={{ color: '#c9f', fontSize: 20 }}>{Math.ceil(z.soul)}/100</b> <span className="hint">(тает само, глоток −4; в 0 — бутылка бьётся!)</span></p>
+      )}
+      {z.char === 'demon' && z.demonForm > 0 && (
+        <p style={{ color: 'red', fontWeight: 'bold', fontSize: 20 }}>😈 ДЕМОНИЧЕСКАЯ ФОРМА ×5: {z.demonForm} сек!</p>
+      )}
+      {z.char === 'vladimir' && charDiscount(z) > 0 && (
+        <p className="hint">🧔 Солидность: клик +{(z.sips * 0.02).toFixed(1)}, скидки −{(charDiscount(z) * 100).toFixed(0)}%</p>
+      )}
       <p className="hint">урон/глоток {dmgPerSip(z).toFixed(1)} HP • реген {z.regen.toFixed(1)}/с • toxic×{z.toxic.toFixed(2)} • mult×{z.mult.toFixed(2)}</p>
       <div style={{ margin: '10px 0' }}>
         <img src="jager.png" alt="Ягермейстер 42" style={{ width: 120, borderRadius: 12, border: '2px solid gold', verticalAlign: 'middle' }} />
@@ -95,11 +190,23 @@ export default function ZapoiGame() {
           const rate = hangoverRate(n);
           return `🤢 Похмелье! −${Math.floor(n.m * rate / (1 - rate))} бухла (${Math.round(rate * 100)}%), здоровье 30%. Рассолу накати!`;
         }
+        if (ev === 'shattered') {
+          setTimeout(() => setZ((prev) => newRun(prev.completed, null)), 50);
+          return '💥 Бутылка разбилась! Возвращаю к выбору персонажа…';
+        }
+        if (ev === 'demonform') return '😈 ДЕМОНИЧЕСКАЯ ФОРМА ×5 на 10 сек! ЖГИ!';
         return '';
       }, 400)} style={{ background: 'linear-gradient(180deg,#ff7a00,#c50)', color: '#fff', fontSize: 22, padding: '14px 30px' }}>
         <img src="jager.png" alt="" style={{ height: 34, verticalAlign: 'middle', borderRadius: 8, marginRight: 8 }} />
-        ЯГЕРМЕЙСТЕР (+{Math.round(z.click * z.mult)})
+        ЯГЕРМЕЙСТЕР (+{z.char === 'winline' ? '~' : ''}{sipPreview(z)})
       </button><br /><br />
+      {z.char === 'winline' && (
+        <button onClick={() => mutate((n) => {
+          const r = bet(n);
+          if (!r) return '';
+          return r.win ? `🎰 Ставка зашла! +${r.stake} бухла чистыми!` : `🎰 Ставка сгорела… −${r.stake} бухла. Рискуй ещё!`;
+        }, 650)} style={{ fontSize: 15 }}>🎲 СТАВКА: 10% бухла, 45% — возврат ×2</button>
+      )}
       <button onClick={() => mutate((n) => {
         const r = healSmall(n);
         return r ? `🥒 Рассол: +${r.v} HP за ${r.c} бухла` : '';
@@ -122,11 +229,12 @@ export default function ZapoiGame() {
               </div>
               {open && list.map((a) => {
               const owned = !!z.arts[a.id];
+              const price = artCost(z, a);
               return (
                 <div className="art" key={a.id}>
                   <img src={`arts/${a.id}.png`} alt={a.name} style={{ width: 44, height: 44, borderRadius: 10, border: '2px solid gold', verticalAlign: 'middle', marginRight: 8 }} />
                   <b>{a.name}</b> — {a.desc}{' '}
-                  <button disabled={owned || z.m < a.cost} onClick={() => mutate((n) => {
+                  <button disabled={owned || z.m < price} onClick={() => mutate((n) => {
                     const syns = buyArt(n, a.id);
                     if (syns === false) return '';
                     if (syns.length > 0) {
@@ -134,7 +242,7 @@ export default function ZapoiGame() {
                       return `${names} — синергия!`;
                     }
                     return `🏺 Артефакт: ${a.name} — имба активирована!`;
-                  }, 900)}>{owned ? 'ВЗЯТ ✅' : `Взять за ${a.cost}`}</button>
+                  }, 900)}>{owned ? 'ВЗЯТ ✅' : `Взять за ${price}`}</button>
                 </div>
               );
             })}
@@ -173,7 +281,7 @@ export default function ZapoiGame() {
               {open && g.defs.map((b) => {
                 const l = z.up[b.id] || 0;
                 const isMaxed = l >= b.max;
-                const c = upgradeCost(b, l);
+                const c = upgradeCost(b, l, charDiscount(z));
                 return (
                   <div className="upg" key={b.id}>
                     <b>{b.name}</b> ур.{l}/{b.max} — {b.desc}{' '}
@@ -189,6 +297,18 @@ export default function ZapoiGame() {
           );
         })}
       </div>
+      <h3 style={{ color: 'gold' }}>💥 ФИНАЛ ЗАБЕГА: РАЗБИТАЯ БУТЫЛКА</h3>
+      {readyForBottle ? (
+        <div style={{ border: '3px solid red', borderRadius: 12, padding: 12, margin: '8px 0' }}>
+          <p>Всё скуплено, все синергии собраны! Самый дорогой предмет ждёт…</p>
+          <button onClick={shatterBottle} disabled={z.m < BOTTLE_COST} style={{ fontSize: 20, background: 'linear-gradient(180deg,#c00,#700)', color: '#fff', padding: '12px 30px' }}>
+            🍾💥 РАЗБИТЬ БУТЫЛКУ за {BOTTLE_COST.toLocaleString('ru-RU')}
+          </button>
+          <p className="hint">Бутылка разобьётся, забег завершится, {charDef.name} будет закрыт ✅</p>
+        </div>
+      ) : (
+        <p className="hint">🔒 Бутылка появится, когда скупишь всё (древо MAX + {ARTS.length} артефактов + {SYNS.length} синергий) и накопишь {BOTTLE_COST.toLocaleString('ru-RU')} бухла.</p>
+      )}
       <p className="hint">Цена = база × рост^ур. Прогресс сохраняется. Мы уже победили 🏆</p>
     </div>
   );

@@ -6,7 +6,49 @@ export { SYNS, checkSyns, hangoverRate, synReady, hasArt };
 export const ZDEF = {
   m: 0, hp: 100, maxhp: 100, click: 1, auto: 0,
   mult: 1, regen: 0, toxic: 1, heals: 0, up: {}, arts: {}, syn: {},
+  char: null, sips: 0, soul: 100, demonForm: 0, completed: {},
 };
+
+// ===== ПЕРСОНАЖИ 42 =====
+// vladimir — стартовый, всегда открыт. Остальные открываются после первой
+// разбитой бутылки за Владимира. completed{} переживает сброс забега.
+export const CHARACTERS = [
+  { id: 'vladimir', name: 'Владимир Владимирович Чаев', emoji: '🧔',
+    desc: 'Стабильный и солидный. Каждый глоток навсегда +0.02 к клику и −0.2% к ценам (макс −20%). Хилки +25%. Пассивно +0.2 бухла/сек.',
+    hint: 'Медленно, надёжно, с постоянным ростом. Стартовый.' },
+  { id: 'ghost', name: 'Мёртвый Чаев', emoji: '👻',
+    desc: 'Нет похмелья! Вместо HP — душа (тает 0.3/сек, глоток −4). Глоток ×3, всё ×1.25. Душа в 0 — бутылка бьётся сразу, персонаж НЕ закрывается.',
+    hint: 'Хрупкий и быстрый. Игра на грани.' },
+  { id: 'winline', name: 'Винлайн Чаев', emoji: '🎰',
+    desc: 'Казино внутри кликера: глоток ×0.5…×2.5 случайно, артефакты 20% двойные / 10% пустышки. Кнопка «Ставка»: 10% бухла, 45% — возврат ×2.',
+    hint: 'Полный рандом и азарт.' },
+  { id: 'demon', name: 'Злой Демон Чаев', emoji: '😈',
+    desc: 'Чем ниже HP — тем сильнее: множитель ×1…×3. Глоток ×2, но урон ×2. На 0 HP — Демоническая форма ×5 на 10 сек, потом бутылка бьётся.',
+    hint: 'Максимальный риск / максимальная награда.' },
+];
+
+export function isUnlocked(Z, id) {
+  if (id === 'vladimir') return true;
+  return !!(Z.completed && Z.completed.vladimir);
+}
+
+// Скидка Владимира: −0.2% за глоток, макс −20%.
+export function charDiscount(Z) {
+  if (Z.char === 'vladimir') return Math.min(0.2, (Z.sips || 0) * 0.002);
+  return 0;
+}
+
+// Эффективный мульт с учётом персонажа.
+export function effMult(Z) {
+  let m = Z.mult;
+  if (Z.char === 'ghost') m *= 1.25;
+  if (Z.char === 'demon') {
+    const missing = 1 - Z.hp / Math.max(1, Z.maxhp);
+    m *= 1 + missing * 2;
+    if (Z.demonForm > 0) m *= 5;
+  }
+  return m;
+}
 
 // 12 апгрейдов в 4 ветках. Цена = base × growth^уровень.
 export const TREE = [
@@ -52,8 +94,8 @@ export function createZapoiState() {
   return JSON.parse(JSON.stringify(ZDEF));
 }
 
-export function upgradeCost(def, level) {
-  return Math.floor(def.base * Math.pow(def.g, level));
+export function upgradeCost(def, level, discount = 0) {
+  return Math.floor(def.base * Math.pow(def.g, level) * (1 - discount));
 }
 
 export function artCount(Z) {
@@ -67,25 +109,27 @@ export function dmgPerSip(Z) {
 export function heal1val(Z) {
   let v = Math.round(15 * (1 + 0.5 * (Z.up.rassol || 0)));
   if (Z.syn.balance) v = Math.round(v * 1.3);
+  if (Z.char === 'vladimir') v = Math.round(v * 1.25);
   return v;
 }
 
 export function heal1cost(Z) {
   let c = Math.floor(20 * Math.pow(1.35, Z.heals));
   if (Z.syn.balance) c = Math.floor(c * 0.8);
-  return c;
+  return Math.floor(c * (1 - charDiscount(Z)));
 }
 
 export function heal2val(Z) {
   let v = Math.round(60 * (1 + 0.4 * (Z.up.kapel || 0)));
   if (Z.syn.balance) v = Math.round(v * 1.3);
+  if (Z.char === 'vladimir') v = Math.round(v * 1.25);
   return v;
 }
 
 export function heal2cost(Z) {
   let c = Math.floor(150 * Math.pow(1.4, Z.heals) * Math.pow(0.9, Z.up.kapel || 0));
   if (Z.syn.balance) c = Math.floor(c * 0.8);
-  return c;
+  return Math.floor(c * (1 - charDiscount(Z)));
 }
 
 // Похмелье: −20% бухла (10% с богом), здоровье 30%. Возвращает потерянное бухло.
@@ -101,7 +145,7 @@ export function buyUpgrade(Z, id) {
   const b = TREE.find((x) => x.id === id);
   if (!b) return false;
   const l = Z.up[id] || 0;
-  const c = upgradeCost(b, l);
+  const c = upgradeCost(b, l, charDiscount(Z));
   if (l >= b.max || Z.m < c) return false;
   Z.m -= c;
   Z.up[id] = l + 1;
@@ -109,29 +153,77 @@ export function buyUpgrade(Z, id) {
   return true;
 }
 
+export function artCost(Z, a) {
+  return Math.floor(a.cost * (1 - charDiscount(Z)));
+}
+
 export function buyArt(Z, id) {
   const a = ARTS.find((x) => x.id === id);
-  if (!a || Z.arts[id] || Z.m < a.cost) return false;
-  Z.m -= a.cost;
+  if (!a || Z.arts[id]) return false;
+  const c = artCost(Z, a);
+  if (Z.m < c) return false;
+  Z.m -= c;
   Z.arts[id] = 1;
-  a.fx(Z);
+  const roll = Math.random();
+  if (Z.char === 'winline') {
+    if (roll < 0.1) {
+      const syns = checkSyns(Z);
+      return syns;
+    }
+    a.fx(Z);
+    if (roll > 0.8) a.fx(Z);
+  } else {
+    a.fx(Z);
+  }
   return checkSyns(Z);
 }
 
-// Глоток ягера. Возвращает событие: null | 'hangover'.
+// Глоток ягера. Возвращает событие: null | 'hangover' | 'shattered' | 'demonform'.
 export function jagerClick(Z) {
+  if (Z.char === 'ghost') {
+    if (Z.soul <= 0) return 'shattered';
+    Z.m += Z.click * effMult(Z) * 3;
+    Z.soul -= 4;
+    if (Z.soul <= 0) { Z.soul = 0; return 'shattered'; }
+    return null;
+  }
   if (Z.hp <= 0) {
+    if (Z.char === 'demon') { Z.demonForm = 10; return 'demonform'; }
     applyHangover(Z);
     return 'hangover';
   }
-  Z.m += Z.click * Z.mult;
-  Z.hp -= dmgPerSip(Z);
+  let gain = Z.click * effMult(Z);
+  if (Z.char === 'vladimir') {
+    Z.sips = (Z.sips || 0) + 1;
+    Z.click += 0.02;
+  }
+  if (Z.char === 'winline') gain *= 0.5 + Math.random() * 2;
+  if (Z.char === 'demon') gain *= 2;
+  Z.m += gain;
+  let dmg = dmgPerSip(Z);
+  if (Z.char === 'demon') dmg *= 2;
+  Z.hp -= dmg;
   if (Z.hp <= 0) {
     Z.hp = 0;
+    if (Z.char === 'demon') { Z.demonForm = 10; return 'demonform'; }
     applyHangover(Z);
     return 'hangover';
   }
   return null;
+}
+
+// Ставка Винлайна: 10% бухла (мин 50). 45% — возврат ×2, иначе потеря.
+// Возвращает null если нельзя, иначе {win, stake}.
+export function bet(Z) {
+  if (Z.char !== 'winline') return null;
+  const stake = Math.max(50, Math.floor(Z.m * 0.1));
+  if (Z.m < stake) return null;
+  Z.m -= stake;
+  if (Math.random() < 0.45) {
+    Z.m += stake * 2;
+    return { win: true, stake };
+  }
+  return { win: false, stake };
 }
 
 // Лечилки. Возвращают {v, c} или null если нельзя.
@@ -155,19 +247,58 @@ export function healBig(Z) {
   return { v, c };
 }
 
-// Тик 1 сек. Возвращает 'hangover' если случилось похмелье.
+// Тик 1 сек. Возвращает null | 'hangover' | 'shattered' | 'demonform' | 'demonend'.
 export function tickZapoi(Z) {
   if (Z.auto > 0) {
-    Z.m += Z.auto * Z.mult;
-    Z.hp -= Z.auto * 0.05 * Z.toxic;
+    Z.m += Z.auto * effMult(Z);
+    if (Z.char !== 'ghost') Z.hp -= Z.auto * 0.05 * Z.toxic;
   }
+  if (Z.char === 'vladimir') Z.m += 0.2 * Z.mult;
   if (Z.regen > 0) Z.hp += Z.regen;
+  if (Z.char === 'ghost') {
+    Z.soul = Math.max(0, (Z.soul ?? 100) - 0.3);
+    if (Z.soul <= 0) return 'shattered';
+  }
+  if (Z.char === 'demon' && Z.demonForm > 0) {
+    Z.demonForm -= 1;
+    if (Z.demonForm <= 0) { Z.demonForm = 0; return 'shattered'; }
+  }
   Z.hp = Math.max(0, Math.min(Z.maxhp, Z.hp));
   if (Z.hp <= 0 && Z.m > 0) {
+    if (Z.char === 'demon' && Z.demonForm <= 0) { Z.demonForm = 10; return 'demonform'; }
+    if (Z.char === 'ghost') return 'shattered';
     applyHangover(Z);
     return 'hangover';
   }
   return null;
+}
+
+// Финал забега: всё куплено (древо MAX + все артефакты + все синергии)?
+export function isAllBought(Z) {
+  const treeDone = TREE.every((b) => (Z.up[b.id] || 0) >= b.max);
+  const artsDone = ARTS.every((a) => Z.arts[a.id]);
+  const synsDone = SYNS.every((s) => Z.syn && Z.syn[s.id]);
+  return treeDone && artsDone && synsDone;
+}
+
+export const BOTTLE_COST = 50000;
+
+// Разбитая бутылка: самый дорогой предмет. Только когда всё куплено.
+// Возвращает false если нельзя, иначе списывает и возвращает true.
+export function buyBottle(Z) {
+  if (!isAllBought(Z) || Z.m < BOTTLE_COST) return false;
+  Z.m -= BOTTLE_COST;
+  return true;
+}
+
+// Новый забег: чистый лист, completed и выбор персонажа сохраняются.
+export function newRun(completed, char) {
+  const z = JSON.parse(JSON.stringify(ZDEF));
+  z.completed = { ...(completed || {}) };
+  z.char = char;
+  z.hp = z.maxhp;
+  z.soul = 100;
+  return z;
 }
 
 export function fmtZ(m) {
