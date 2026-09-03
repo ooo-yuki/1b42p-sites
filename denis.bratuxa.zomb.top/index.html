@@ -28,7 +28,7 @@ b.gold{color:gold}b.grn{color:#0f6}b.red{color:#f55}
 </head>
 <body>
 <div id="ui">
-<div id="hud">❤️ <span id="hp">100</span> | 🏆 Респект: <span id="resp">0</span> | 🗺️ Территории 42: <span id="terr">15%</span><br>WASD — идти • Shift — бег • E — действие • F — тачка • ЛКМ — бита • C — камера<br>📻 <span id="radio">VICE 42 FM</span> (R — станция) • M — звук</div><div id="radiopop" style="position:absolute;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);border:2px solid magenta;border-radius:10px;padding:8px 18px;font-size:18px;display:none">📻 <span id="radiopop-t"></span></div>
+<div id="hud">❤️ <span id="hp">100</span> | 🏆 Респект: <span id="resp">0</span> | 🗺️ Территории 42: <span id="terr">15%</span><br>WASD — идти • Shift — бег • E — действие • F — тачка • ЛКМ — бита • C — камера<br>📻 <span id="radio">VICE 42 FM</span> (R — станция) • M — звук • V — озвучка (?) — редкие NPC</div><div id="radiopop" style="position:absolute;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);border:2px solid magenta;border-radius:10px;padding:8px 18px;font-size:18px;display:none">📻 <span id="radiopop-t"></span></div>
 <div id="mission">📜 <b id="mtitle">Миссия 1: Возвращение</b><br><span id="mdesc">Иди в штаб (жёлтая метка H)</span></div>
 <canvas id="minimap" width="160" height="160"></canvas>
 <div id="hint">Метки: H — штаб • ! — цель • 🚗 — тачка • 💀 — враги</div>
@@ -213,6 +213,40 @@ let kizyak=npc(3,52,0x885522,'КИЗЯК');kizyak.mesh.visible=false;kizyak.labe
 let friends=[npc(-6,54,0x00ff66,'ДРУГ•WINLINE'),npc(6,54,0x00ff66,'ДРУГ•WINLINE')];
 let enemies=[];
 let bratukhi=[npc(-10,58,0xffd700,'БРАТУХА 42'),npc(10,58,0xffd700,'БРАТУХА 42'),npc(0,62,0xff5500,'БРАТУХА 42')];
+// редкие NPC со своими диалогами (E рядом)
+let rare=[
+ {n:npc(-60,20,0x9933ff,'ШАМАН•42'),lines:['<b>ШАМАН:</b> Вижу ауру… твоя цепь светится, кот. 42 с тобой. 🌌','<b>ДЕНИС:</b> А по-простому?','<b>ШАМАН:</b> Иди к своим. И не слушай мобов.'],v:{p:.6,r:.85}},
+ {n:npc(60,40,0x33cccc,'ДИЛЕР•TORNADO'),lines:['<b>ДИЛЕР:</b> Пс-с… Tornado нужен? Сетден одобряет. 🥫','<b>ДЕНИС:</b> Мне нужен батальон, а не банка.','<b>ДИЛЕР:</b> Уважаю. За это — держи респект.'],v:{p:1.3,r:1.05},resp:5},
+ {n:npc(-120,-20,0x777777,'ВЕТЕРАН•SLAY'),lines:['<b>ВЕТЕРАН:</b> Я был на SLAY 2021… Пятёрка тогда завез на максимум.','<b>ДЕНИС:</b> Повторим?','<b>ВЕТЕРАН:</b> Ты и есть повтор. Иди.'],v:{p:.7,r:.8}},
+ {n:npc(120,20,0xff8800,'МОП•СОМНЕВАЮЩИЙСЯ'),lines:['<b>МОП:</b> А 42 — это секта?..','<b>ДЕНИС:</b> 42 — это семья. Скибиди.','<b>МОП:</b> …йоу. Я почти понял.'],v:{p:1.5,r:1.1}},
+ {n:npc(0,-80,0xff2255,'ФАН•DAMAFAN'),lines:['<b>ФАН:</b> DAMAFAN защищает! Ты его видел?!','<b>ДЕНИС:</b> Он рядом, когда батальон вместе.','<b>ФАН:</b> Мурашки!..'],v:{p:1.6,r:1.15}},
+];
+rare.forEach(r=>marker(r.n.mesh.position.x,r.n.mesh.position.z,0xffff00,'?'));
+// озвучка: Web Speech API, голоса на персонажа
+let VOICE_ON=true;
+addEventListener('keydown',e=>{if(e.code==='KeyV'){VOICE_ON=!VOICE_ON;try{speechSynthesis.cancel();}catch(_){}}});
+function voiceFor(speaker){
+ if(/КИЗЯК/.test(speaker))return{p:.5,r:.9};
+ if(/ДЕНИС/.test(speaker))return{p:.8,r:1};
+ if(/ШАМАН|ВЕТЕРАН/.test(speaker))return{p:.6,r:.85};
+ if(/ДИЛЕР/.test(speaker))return{p:1.3,r:1.05};
+ if(/МОП/.test(speaker))return{p:1.5,r:1.1};
+ if(/ФАН/.test(speaker))return{p:1.6,r:1.15};
+ if(/ДРУГ/.test(speaker))return{p:1,r:1};
+ if(/5opka|DAMAFAN/.test(speaker))return{p:.7,r:.9};
+ return{p:1,r:1};}
+function speak(html){
+ if(!VOICE_ON)return;
+ try{
+  speechSynthesis.cancel();
+  const div=document.createElement('div');div.innerHTML=html;
+  const txt=(div.textContent||'').slice(0,220);
+  if(!txt.trim())return;
+  const u=new SpeechSynthesisUtterance(txt);u.lang='ru-RU';
+  const v=voiceFor(html);u.pitch=v.p;u.rate=v.r;
+  speechSynthesis.speak(u);
+ }catch(_){}}
+
 function spawnEnemies(x,z,n){for(let i=0;i<n;i++){const e=npc(x+Math.random()*14-7,z+Math.random()*14-7,0x2244ff,'BRO');e.hp=3;enemies.push(e);}}
 // граффити-точки
 let sprays=[{x:-80,z:-60,done:false},{x:80,z:-70,done:false},{x:90,z:80,done:false}];
@@ -222,7 +256,7 @@ let MI=1,stage=0;
 const dlg=document.getElementById('dialog'),dtext=document.getElementById('dtext'),dnext=document.getElementById('dnext');
 let queue=[],onDone=null;
 function say(lines,done){queue=lines.slice();onDone=done||null;dlg.style.display='block';nextLine();}
-function nextLine(){if(!queue.length){dlg.style.display='none';if(onDone){const f=onDone;onDone=null;f();}return;}dtext.innerHTML=queue.shift();}
+function nextLine(){if(!queue.length){dlg.style.display='none';if(onDone){const f=onDone;onDone=null;f();}return;}const line=queue.shift();dtext.innerHTML=line;try{speak(line);}catch(_){}}
 dnext.onclick=nextLine;
 function setM(t,d){document.getElementById('mtitle').textContent=t;document.getElementById('mdesc').textContent=d;}
 function addResp(n){RESP+=n;document.getElementById('resp').textContent=RESP;}
@@ -240,6 +274,7 @@ function near(px,pz,r){return Math.hypot(player.position.x-px,player.position.z-
 // E действие
 addEventListener('keydown',e=>{
 if(e.code!=='KeyE')return;
+for(const r of rare){if(near(r.n.mesh.position.x,r.n.mesh.position.z,6)){const rr=r;say(rr.lines.slice(),()=>{if(rr.resp)addResp(rr.resp);});return;}}
 if(MI===1&&stage===0&&near(0,40,15)){stage=1;
 say(['<b>ДЕНИС БИТКОИН</b> заходит в чат батальона… тихо. Пыль. Старые скриншоты.<br><i>«Никого нет… 5 лет…»</i> 😔','Он листает: SLAY 2021, завозы Пятёрки, мопсы, самокаты. Ностальгия давит.','Вдруг из темноты — рык…'],()=>{kizyak.mesh.visible=true;kizyak.label.visible=true;
 say(['<b class="red">КИЗЯК:</b> ТЫ ВЫБРАЛ НЕ ТОТ ЧАТ, УБЛ*** 😡 <i>(замахивается битой)</i>','<i>…присматривается… роняет биту…</i>','<b class="grn">КИЗЯК:</b> ОООО… ДЕНИС БИТКОИН?! ВАСАП МА БОЙ!! 🤝🔥'],()=>{addResp(20);setM('Миссия 2: Краска','Закрась 3 граффити конкурентов (!) — подойди и держи E');MI=2;stage=0;});});}
@@ -465,6 +500,7 @@ mm.fillStyle='#000';mm.fillRect(0,0,160,160);
 mm.fillStyle='gold';mm.fillRect(80+(player.position.x/400*160)-2,80+(player.position.z/400*160)-2,4,4);
 mm.fillStyle='#0f6';mm.fillRect(80,80-40/400*160-2,5,5);
 mm.fillStyle='magenta';mm.fillRect(80,80+140/400*160-2,6,6);
+mm.fillStyle='yellow';try{rare.forEach(r=>{mm.fillRect(80+(r.n.mesh.position.x/400*160)-1,80+(r.n.mesh.position.z/400*160)-1,2,2);});}catch(_){}
 mm.fillStyle='red';enemies.forEach(e=>{if(e.hp>0)mm.fillRect(80+(e.mesh.position.x/400*160)-1,80+(e.mesh.position.z/400*160)-1,2,2);});
 ren.render(scene,cam);
 }
