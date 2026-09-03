@@ -7,7 +7,7 @@
 <style>
 *{box-sizing:border-box}body{margin:0;background:#000;color:#fff;font-family:Arial,sans-serif;overflow:hidden}
 #ui{position:fixed;inset:0;pointer-events:none}
-#hud{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.7);border:2px solid gold;border-radius:10px;padding:8px 12px;font-size:14px}
+#stats{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.7);border:2px solid gold;border-radius:20px;padding:6px 12px;font-size:15px;font-weight:bold;white-space:nowrap}#guideBtn{background:gold;border:none;border-radius:50%;width:24px;height:24px;font-size:13px;cursor:pointer;margin-left:4px;pointer-events:auto}#guide{position:absolute;top:52px;left:10px;max-width:300px;background:rgba(0,0,0,.7);border:1px solid #888;border-radius:10px;padding:6px 10px;font-size:12px;line-height:1.5}#mission{font-size:13px;max-width:260px}
 #mission{position:absolute;top:10px;right:10px;max-width:320px;background:rgba(0,0,0,.75);border:2px solid #0f6;border-radius:10px;padding:8px 12px;font-size:14px}
 #dialog{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);width:min(640px,92vw);background:#111;border:3px solid gold;border-radius:12px;padding:14px;font-size:16px;pointer-events:auto}
 #dialog button{background:gold;border:none;font-weight:bold;padding:8px 16px;border-radius:8px;cursor:pointer;margin-top:8px}
@@ -24,7 +24,7 @@
 .tbtn{width:72px;height:72px;border-radius:50%;border:2px solid #0f6;background:rgba(0,255,102,.2);color:#fff;font-weight:bold;font-size:13px}
 @media(pointer:coarse){#touch{display:flex}#hint{display:none}#minimap{width:96px;height:96px;bottom:200px}}
 @media(max-width:700px){
-#hud{font-size:11px;max-width:44vw;padding:6px 8px}
+#stats{font-size:12px;max-width:92vw;white-space:normal}#guide{font-size:11px;max-width:60vw;top:48px}
 #mission{font-size:11px;max-width:44vw;padding:6px 8px}
 #hint{display:none}
 .tbtn{width:54px;height:54px;font-size:11px}
@@ -38,7 +38,9 @@ b.gold{color:gold}b.grn{color:#0f6}b.red{color:#f55}
 </head>
 <body>
 <div id="ui">
-<div id="hud">❤️ <span id="hp">100</span> | 🏆 Респект: <span id="resp">0</span> | 🗺️ Территории 42: <span id="terr">15%</span><br>WASD — идти • Shift — бег • E — действие • F — тачка • ЛКМ — бита • C — камера • 🥫 магазин (E — энергетик за 10 респекта)<br><span class="pconly">ПКМ-мышь/стрелки — взгляд (вверх/вниз) • колесо — зум •</span> <span class="mobonly">свайп — взгляд • 🔼🔽 — вверх/вниз •</span><br>📻 <span id="radio">VICE 42 FM</span> <span class="pconly">(R — станция) • M — звук • V — озвучка • H — скрыть подсказки • </span><span id="gfx">⚡АВТО</span></div><div id="radiopop" style="position:absolute;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);border:2px solid magenta;border-radius:10px;padding:8px 18px;font-size:18px;display:none">📻 <span id="radiopop-t"></span></div>
+<div id="stats">❤️ <span id="hp">100</span> 🏆 <span id="resp">0</span> 🗺️ <span id="terr">15%</span> 📻 <span id="radio">VICE 42 FM</span> <button id="guideBtn" title="подсказки (H)">❓</button></div>
+<div id="guide">WASD — идти • Shift — бег • E — действие • F — тачка • ЛКМ — бита • C — камера<br><span class="pconly">ПКМ/стрелки — взгляд • колесо — зум • R — радио • M — звук • V — озвучка • H — скрыть •</span> <span class="mobonly">свайп — взгляд • 🔼🔽 — вверх/вниз •</span> 🥫 энергетик за 10 респекта • <span id="gfx">⚡АВТО</span></div>
+<div id="radiopop" style="position:absolute;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);border:2px solid magenta;border-radius:10px;padding:8px 18px;font-size:18px;display:none">📻 <span id="radiopop-t"></span></div>
 <div id="mission">📜 <b id="mtitle">Миссия 1: Возвращение</b><br><span id="mdesc">Иди в штаб (жёлтая метка H)</span></div>
 <canvas id="minimap" width="120" height="120"></canvas>
 <div id="hint">Метки: H — штаб • ! — цель • 🚗 — тачка • 💀 — враги</div>
@@ -297,7 +299,9 @@ let HP=100,RESP=0,TERR=15,inCar=false,camDist=12,camAng=0,camPitch=0.45;
 function clampPitch(v){return Math.max(0.08,Math.min(1.25,v));}
 addEventListener('keydown',e=>{if(e.code==='KeyC')camDist=camDist===12?18:(camDist===18?8:12);});
 let HIDE_HELP=false;
-addEventListener('keydown',e=>{if(e.code==='KeyH'){HIDE_HELP=!HIDE_HELP;for(const id of ['hud','mission','hint']){const el=document.getElementById(id);if(el)el.style.display=HIDE_HELP?'none':'';}}});
+
+document.getElementById('guideBtn').addEventListener('click',()=>{HIDE_HELP=!HIDE_HELP;for(const id of ['guide','mission','hint']){const el=document.getElementById(id);if(el)el.style.display=HIDE_HELP?'none':'';}});
+addEventListener('keydown',e=>{if(e.code==='KeyH'){HIDE_HELP=!HIDE_HELP;for(const id of ['guide','mission','hint']){const el=document.getElementById(id);if(el)el.style.display=HIDE_HELP?'none':'';}}});
 // тачка
 const car=new THREE.Group();
 const cb=new THREE.Mesh(new THREE.BoxGeometry(3,1.2,5.5),new THREE.MeshPhysicalMaterial({color:0x00aaff,metalness:.7,roughness:.25,clearcoat:1,clearcoatRoughness:.1,envMapIntensity:1.2}));cb.position.y=1;cb.castShadow=true;car.add(cb);
@@ -338,13 +342,13 @@ function makeHuman(x,z,o){
  const eyeR=eyeL.clone();eyeR.position.x=.18;g.add(eyeR);
  const c=document.createElement('canvas');c.width=256;c.height=48;const gg=c.getContext('2d');
  gg.fillStyle='#000';gg.fillRect(0,0,256,48);gg.fillStyle=o.labelColor||'#fff';gg.font='bold 24px Arial';gg.fillText(o.label||'',8,32);
- const label=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));label.scale.set(8,1.5,1);label.position.y=4.6;g.add(label);
+ const label=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));label.scale.set(4.2,0.8,1);label.position.y=4.6;g.add(label);
  g.position.set(x,0,z);scene.add(g);
  return {mesh:g,label:label,name:o.label||''};
 }
 function npc(x,z,color,name){const m=new THREE.Mesh(new THREE.BoxGeometry(1.3,2.4,1),new THREE.MeshStandardMaterial({color}));m.position.set(x,1.2,z);scene.add(m);
 const c=document.createElement('canvas');c.width=256;c.height=48;const g=c.getContext('2d');g.fillStyle='#000';g.fillRect(0,0,256,48);g.fillStyle='#fff';g.font='bold 26px Arial';g.fillText(name,10,32);
-const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));s.scale.set(8,1.5,1);s.position.set(x,3.6,z);scene.add(s);
+const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));s.scale.set(4.2,0.8,1);s.position.set(x,3.6,z);scene.add(s);
 return {mesh:m,label:s,name};}
 // КИЗЯК по референсу: блондин в белой рубашке с красным галстуком
 function makeKizyak(x,z){
@@ -372,7 +376,7 @@ function makeKizyak(x,z){
  const eyeR=eyeL.clone();eyeR.position.x=.2;g.add(eyeR);
  const c=document.createElement('canvas');c.width=256;c.height=48;const gg=c.getContext('2d');
  gg.fillStyle='#000';gg.fillRect(0,0,256,48);gg.fillStyle='#ffd24a';gg.font='bold 26px Arial';gg.fillText('КИЗЯК',80,32);
- const label=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));label.scale.set(8,1.5,1);label.position.y=4.6;g.add(label);
+ const label=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));label.scale.set(4.2,0.8,1);label.position.y=4.6;g.add(label);
  g.position.set(x,0,z);scene.add(g);
  return {mesh:g,label:head,name:'КИЗЯК'};
 }
@@ -432,7 +436,7 @@ function makeNakh(x,z){
  const hat=new THREE.Mesh(new THREE.CylinderGeometry(.45,.5,.4,10),furD);hat.position.y=4.35;g.add(hat);
  const c=document.createElement('canvas');c.width=256;c.height=48;const gg=c.getContext('2d');
  gg.fillStyle='#000';gg.fillRect(0,0,256,48);gg.fillStyle='#c88cff';gg.font='bold 26px Arial';gg.fillText('НАХ',100,32);
- const label=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));label.scale.set(8,1.5,1);label.position.y=5.2;g.add(label);
+ const label=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));label.scale.set(4.2,0.8,1);label.position.y=5.2;g.add(label);
  const r=collide(x,z,1.2);g.position.set(r[0],0,r[1]);scene.add(g);
  return {mesh:g,label:head,name:'НАХ',hp:3,parts:{legL,legR,armL,armR,head},phase:Math.random()*6};
 }
