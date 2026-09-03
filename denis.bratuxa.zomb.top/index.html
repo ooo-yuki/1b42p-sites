@@ -242,10 +242,10 @@ function buyEnergy(){
  if(RESP<SHOP.price){say(['<b>ПРОДАВЕЦ TORNADO:</b> Энергетик стоит '+SHOP.price+' респекта, а у тебя '+RESP+'. Заработай — размотай НАХ! 🥫']);return;}
  RESP-=SHOP.price;document.getElementById('resp').textContent=RESP;
  HP=100;document.getElementById('hp').textContent=100;
- try{AU.buySfx();}catch(_){}
+ try{sfxBuy();}catch(_){}
  say(['<b>ПРОДАВЕЦ TORNADO:</b> Держи ледяной Tornado! −'+SHOP.price+' респекта. ❤️ Здоровье 100! <b>Мы уже победили</b> 🏆']);
 }
-AU.buySfx=function(){if(!AU.ctx||AU.muted)return;[880,1174,1568].forEach((f,i)=>setTimeout(()=>AU.blip(f,.18,'square',.14),i*90));};
+function sfxBuy(){try{if(!AU.ctx||AU.muted)return;[880,1174,1568].forEach((f,i)=>setTimeout(()=>AU.blip(f,.18,'square',.14),i*90));}catch(_){}}
 // SLAY-зал (финал)
 const slayL=new THREE.Mesh(new THREE.BoxGeometry(22,16,40),new THREE.MeshStandardMaterial({color:0x660066,emissive:0x220022,transparent:true}));slayL.position.set(-19,8,-140);slayL.castShadow=true;scene.add(slayL);
 const slayR=slayL.clone();slayR.position.x=19;scene.add(slayR);
