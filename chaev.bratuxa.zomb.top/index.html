@@ -84,8 +84,9 @@ function blip(f){try{const x=new (window.AudioContext||window.webkitAudioContext
 setInterval(()=>{if(Z.auto>0){Z.m+=Z.auto*Z.mult;zrender();}},1000);
 zrender();
 // --- Любовники Чаева 42 ❤️ ---
-let LOVERS=[];
-try{LOVERS=JSON.parse(localStorage.getItem('chaev42_lovers')||'[]');if(!Array.isArray(LOVERS))LOVERS=[];}catch(e){LOVERS=[];}
+const DEFAULT_LOVERS=["тюленька"];
+let LOVERS=[...DEFAULT_LOVERS];
+try{const s=JSON.parse(localStorage.getItem('chaev42_lovers')||'[]');if(Array.isArray(s))LOVERS=[...DEFAULT_LOVERS,...s.filter(n=>!DEFAULT_LOVERS.includes(n))];}catch(e){LOVERS=[...DEFAULT_LOVERS];}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function renderLovers(){
   const ul=document.getElementById('lovers');
