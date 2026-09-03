@@ -110,6 +110,7 @@ export default function ZapoiGame() {
               const owned = !!z.arts[a.id];
               return (
                 <div className="art" key={a.id}>
+                  <img src={`arts/${a.id}.png`} alt={a.name} style={{ width: 44, height: 44, borderRadius: 10, border: '2px solid gold', verticalAlign: 'middle', marginRight: 8 }} />
                   <b>{a.name}</b> — {a.desc}{' '}
                   <button disabled={owned || z.m < a.cost} onClick={() => mutate((n) => {
                     const syns = buyArt(n, a.id);
