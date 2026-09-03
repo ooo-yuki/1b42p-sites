@@ -4,12 +4,23 @@
 
 // ---- Техника: 3 танка + корабль + самолёт ----
 export const VEHICLES = {
-  t42:     { id: 't42',     name: 'Т-42 «Братуха»',    type: 'tank',  hp: 100, speed: 14, turn: 2.2, damage: 25, reload: 1.1, range: 120, desc: 'Сбалансированный средний танк батальона.' },
-  pyat:    { id: 'pyat',    name: 'ИС «Пятёрка»',      type: 'tank',  hp: 165, speed: 9,  turn: 1.6, damage: 42, reload: 1.9, range: 110, desc: 'Тяжёлая броня. Медленный, но бьёт как Пятёрка.' },
-  vihr:    { id: 'vihr',    name: 'БТ «Вихрь»',        type: 'tank',  hp: 70,  speed: 21, turn: 2.9, damage: 16, reload: 0.7, range: 100, desc: 'Лёгкий и дерзкий. Успей первым.' },
-  avrora:  { id: 'avrora',  name: '«Аврора-42»',       type: 'ship',  hp: 230, speed: 7,  turn: 1.2, damage: 58, reload: 2.5, range: 150, desc: 'Плавучая крепость. Дом-корабль на суше.' },
-  yastreb: { id: 'yastreb', name: '«Ястреб»',          type: 'plane', hp: 60,  speed: 27, turn: 3.4, damage: 20, reload: 0.9, range: 130, fly: 8, desc: 'Штурмовик. Высота 8, скорость — жизнь.' },
+  t42:     { id: 't42',     name: 'Т-42 «Братуха»',    type: 'tank',  hp: 100, speed: 14, turn: 2.2, turretTurn: 2.4, damage: 25, reload: 1.1, range: 120, desc: 'Сбалансированный средний танк батальона.' },
+  pyat:    { id: 'pyat',    name: 'ИС «Пятёрка»',      type: 'tank',  hp: 165, speed: 9,  turn: 1.6, turretTurn: 1.7, damage: 42, reload: 1.9, range: 110, desc: 'Тяжёлая броня. Медленный, но бьёт как Пятёрка.' },
+  vihr:    { id: 'vihr',    name: 'БТ «Вихрь»',        type: 'tank',  hp: 70,  speed: 21, turn: 2.9, turretTurn: 3.2, damage: 16, reload: 0.7, range: 100, desc: 'Лёгкий и дерзкий. Успей первым.' },
+  avrora:  { id: 'avrora',  name: '«Аврора-42»',       type: 'ship',  hp: 230, speed: 7,  turn: 1.2, turretTurn: 1.3, damage: 58, reload: 2.5, range: 150, desc: 'Плавучая крепость. Дом-корабль на суше.' },
+  yastreb: { id: 'yastreb', name: '«Ястреб»',          type: 'plane', hp: 60,  speed: 27, turn: 3.4, turretTurn: 2.6, damage: 20, reload: 0.9, range: 130, fly: 8, desc: 'Штурмовик. Высота 8, скорость — жизнь.' },
 };
+
+// ---- Детерминированный ГСЧ (mulberry32) — общий сид даёт одинаковую арену на сервере и клиенте ----
+export function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 export function vehicleList() {
   return Object.values(VEHICLES);

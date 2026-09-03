@@ -1,15 +1,67 @@
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-import os, ssl, threading, urllib.request
+import os, socket, ssl, threading, urllib.request
 
 BASE = "/root/sites"
 CERT = "/etc/letsencrypt/live/chaev.bratuxa.zomb.top/fullchain.pem"
 KEY = "/etc/letsencrypt/live/chaev.bratuxa.zomb.top/privkey.pem"
 # Хосты, отдаваемые из подпапки сборки (Vite dist/ как корень сайта).
 STATIC_ROOTS = {"chaev.bratuxa.zomb.top": "dist"}
-# локальные API-бэкенды: host -> порт (прокси /api/*)
+# локальные API-бэкенды: host -> порт (прокси /api/*, включая WS-апгрейд /api/ws)
 API_BACKENDS = {"miqqil.bratuxa.zomb.top": 8091}
 
 class VHostHandler(SimpleHTTPRequestHandler):
+    def _ws_proxy(self):
+        # прозрачный TCP-туннель для WebSocket-апгрейда: TLS терминируется тут,
+        # дальше — сырой поток байт до Bun (127.0.0.1:8091), который сам ведёт WS-рукопожатие.
+        if self.headers.get("Upgrade", "").lower() != "websocket":
+            return False
+        if self.path not in ("/api/ws", "/ws") and not self.path.startswith("/api/ws?"):
+            return False
+        host = self.headers.get("Host", "").split(":")[0].lower()
+        port = API_BACKENDS.get(host)
+        if not port:
+            return False
+        try:
+            upstream = socket.create_connection(("127.0.0.1", port), timeout=10)
+        except OSError:
+            self.send_response(502); self.end_headers()
+            return True
+        try:
+            req_line = f"{self.command} {self.path} {self.request_version}\r\n"
+            upstream.sendall(req_line.encode("latin-1", "replace"))
+            for k, v in self.headers.items():
+                upstream.sendall(f"{k}: {v}\r\n".encode("latin-1", "replace"))
+            upstream.sendall(b"\r\n")
+            # Клиент по протоколу WS ждёт 101-ответ прежде чем слать фреймы, так что
+            # тела запроса тут не бывает — не трогаем rfile дальше (peek() на пустом
+            # буфере блокируется в ожидании байт, которых не будет, и вешает рукопожатие).
+        except OSError:
+            upstream.close()
+            return True
+        client_sock = self.connection
+        self.close_connection = True
+
+        def pipe(src, dst):
+            try:
+                while True:
+                    data = src.recv(65536)
+                    if not data:
+                        break
+                    dst.sendall(data)
+            except OSError:
+                pass
+            finally:
+                try: dst.shutdown(socket.SHUT_WR)
+                except OSError: pass
+
+        t1 = threading.Thread(target=pipe, args=(client_sock, upstream), daemon=True)
+        t2 = threading.Thread(target=pipe, args=(upstream, client_sock), daemon=True)
+        t1.start(); t2.start()
+        t1.join(); t2.join()
+        try: upstream.close()
+        except OSError: pass
+        return True
+
     def _api_proxy(self):
         host = self.headers.get("Host", "").split(":")[0].lower()
         port = API_BACKENDS.get(host)
@@ -41,6 +93,8 @@ class VHostHandler(SimpleHTTPRequestHandler):
         return True
 
     def do_GET(self):
+        if self._ws_proxy():
+            return
         if self._api_proxy():
             return
         return super().do_GET()
