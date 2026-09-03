@@ -41,7 +41,7 @@ b.gold{color:gold}b.grn{color:#0f6}b.red{color:#f55}
 Тебе надо поднять <b class="gold">1 батальон 42 пропаганды</b> с колен.<br>
 Миссий: 6. Финал — зал SLAY. Концовка грустная, но правильная.<br><br>
 Управление: WASD + мышь (зажми ПКМ чтобы крутить), E — говорить/красить, F — тачка, ЛКМ — бита.</p>
-<button onclick="startGame()">НАЧАТЬ ЗАВОЗ 🔥</button>
+<p>С чего играешь?</p><button onclick="startGame('pc')">🖥️ С ПК</button> <button onclick="startGame('mobile')">📱 С ТЕЛЕФОНА</button>
 </div>
 </div>
 <script>
@@ -294,7 +294,7 @@ dnext.onclick=nextLine;
 function setM(t,d){document.getElementById('mtitle').textContent=t;document.getElementById('mdesc').textContent=d;}
 function addResp(n){RESP+=n;document.getElementById('resp').textContent=RESP;}
 function setTerr(n){TERR=n;document.getElementById('terr').textContent=n+'%';}
-function startGame(){document.getElementById('menu').style.display='none';setM('Миссия 1: Возвращение','Подойди к штабу (H) снаружи, нажми E — внутрь заходить не надо');try{AU.init();AU.viceSting();}catch(e){}}
+function startGame(mode){document.getElementById('menu').style.display='none';document.getElementById('touch').style.display=(mode==='mobile')?'flex':'none';try{window.__mode=mode;}catch(_){}setM('Миссия 1: Возвращение','Подойди к штабу (H) снаружи, нажми E — внутрь заходить не надо');try{AU.init();AU.viceSting();}catch(e){}}
 // ===== ВВОД =====
 const keys={};addEventListener('keydown',e=>keys[e.code]=true);addEventListener('keyup',e=>keys[e.code]=false);
 let mouseDown=false,attackCD=0;
@@ -358,7 +358,7 @@ if(u){u.addEventListener('touchstart',e=>{e.preventDefault();pitchHold(-1);},{pa
 if(dn){dn.addEventListener('touchstart',e=>{e.preventDefault();pitchHold(1);},{passive:false});dn.addEventListener('touchend',e=>{e.preventDefault();pitchStop();},{passive:false});}})();
 })();
 function dispatchKey(code){addEventListener('keydown',{},{once:true});const ev=new KeyboardEvent('keydown',{code});dispatchEvent(ev);}
-if(/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)){document.getElementById('touch').style.display='flex';}
+
 
 // ===== АТМОСФЕРНЫЙ САУНД — VICE CITY 42 =====
 // Всё процедурное на WebAudio, без внешних файлов. Старт после клика (autoplay-policy).
@@ -521,7 +521,9 @@ const dt=Math.min(.05,(Date.now()-last)/1000);last=Date.now();
 touchX+=(jTX-touchX)*Math.min(1,dt*12);touchY+=(jTY-touchY)*Math.min(1,dt*12);
 const run=(keys['ShiftLeft']||touchRun||jMag>0.92)?2.2:1;
 if(!inCar&&finished===false){
-let mx=((keys['KeyD']?1:0)-(keys['KeyA']?1:0))+touchX,mz=((keys['KeyS']?1:0)-(keys['KeyW']?1:0))+touchY;
+let ix=((keys['KeyD']?1:0)-(keys['KeyA']?1:0))+touchX,iy=((keys['KeyW']?1:0)-(keys['KeyS']?1:0))-touchY;
+const _cs=Math.cos(camAng),_sn=Math.sin(camAng);
+let mx=ix*_cs-iy*_sn,mz=-ix*_sn-iy*_cs;
 const sp=10*run*dt;
 player.position.x+=mx*sp;player.position.z+=mz*sp;
 player.position.x=Math.max(-190,Math.min(190,player.position.x));player.position.z=Math.max(-190,Math.min(190,player.position.z));{const r=collide(player.position.x,player.position.z,1);player.position.x=r[0];player.position.z=r[1];}
