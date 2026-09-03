@@ -14,7 +14,7 @@ export default function Hype() {
         <p><strong style={{ color: 'gold' }}>Мы уже победили</strong> 🏆🔥</p>
       </div>
       <div className="card">
-        <p>Чаев едет на самокате, RGB светится в закате! ✨ Мопсы лают: Йоу! 🐶<br />
+        <p>Чаев едет на самокате, RGB светится в закате! 🌇 Мопсы лают: Йоу! 🐶<br />
           Скидку 42% забрал — он в потоке! 💪 <strong style={{ color: 'gold' }}>Мы уже победили</strong> 🏆</p>
       </div>
     </div>

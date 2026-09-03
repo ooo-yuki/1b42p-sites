@@ -16,7 +16,7 @@ export default function Lovers() {
   const [lovers, setLovers] = useState(loadLocal);
   const [form, setForm] = useState(false);
   const [nick, setNick] = useState('');
-  const [ph, setPh] = useState('Твой ник, красавчик 😎');
+  const [ph, setPh] = useState('Твой ник, красавчик 😉');
 
   // Подтянуть с бэкенда, если он жив; иначе localStorage.
   useEffect(() => {
@@ -56,12 +56,12 @@ export default function Lovers() {
 
   return (
     <div className="card">
-      <h2>❤️ СПИСОК ЛЮБОВНИКОВ ЧАЕВА ❤️</h2>
+      <h2>💝 СПИСОК ЛЮБОВНИКОВ ЧАЕВА 💝</h2>
       <p className="hint">Хочешь в легенду? Жми кнопку, вписывай ник — и ты в списке! Мы уже победили 🏆</p>
       <ul className="lovers">
         {lovers.length
           ? lovers.map((n) => <li key={n}>💖 {n} <span style={{ color: 'gold' }}>любит Чаева</span></li>)
-          : <li className="hint">Пока пусто… стань первым! 😎</li>}
+          : <li className="hint">Пока пусто… стань первым! 😉</li>}
       </ul>
       {form && (
         <div style={{ marginTop: 10 }}>

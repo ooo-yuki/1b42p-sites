@@ -40,7 +40,7 @@ export default function ZapoiGame() {
         const ev = tickZapoi(next);
         if (ev === 'hangover') {
           const rate = hangoverRate(next);
-          setLog(`💀 Похмелье! −${Math.floor(prev.m * rate)} бухла (${Math.round(rate * 100)}%), здоровье 30%. Рассолу накати!`);
+          setLog(`🤢 Похмелье! −${Math.floor(prev.m * rate)} бухла (${Math.round(rate * 100)}%), здоровье 30%. Рассолу накати!`);
         }
         return next;
       });
@@ -85,7 +85,7 @@ export default function ZapoiGame() {
         const ev = jagerClick(n);
         if (ev === 'hangover') {
           const rate = hangoverRate(n);
-          return `💀 Похмелье! −${Math.floor(n.m * rate / (1 - rate))} бухла (${Math.round(rate * 100)}%), здоровье 30%. Рассолу накати!`;
+          return `🤢 Похмелье! −${Math.floor(n.m * rate / (1 - rate))} бухла (${Math.round(rate * 100)}%), здоровье 30%. Рассолу накати!`;
         }
         return '';
       }, 400)} style={{ background: 'linear-gradient(180deg,#ff7a00,#c50)', color: '#fff', fontSize: 22, padding: '14px 30px' }}>
