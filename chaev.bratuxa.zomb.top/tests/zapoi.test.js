@@ -5,7 +5,7 @@ import {
   buyUpgrade, buyArt, jagerClick, healSmall, healBig,
   tickZapoi, applyHangover, checkSyns,
   CHARACTERS, isUnlocked, isAllBought, BOTTLE_COST, buyBottle, newRun, bet,
-  artCost, charDiscount, effMult,
+  artCost, charDiscount, effMult, cleanseDemon,
 } from '../src/game/zapoiLogic.js';
 import { SYNS, hangoverRate } from '../src/game/synergies.js';
 
@@ -304,5 +304,37 @@ describe('персонажи и бутылка', () => {
     expect(n.completed).toEqual({ vladimir: 1 });
     expect(n.m).toBe(0);
     expect(n.soul).toBe(100);
+  });
+});
+
+describe('очищение демона', () => {
+  it('снимает форму за цену капельницы, HP 30%', () => {
+    const z = createZapoiState();
+    z.char = 'demon';
+    z.m = 10000;
+    z.demonForm = 7;
+    const cost = heal2cost(z);
+    const r = cleanseDemon(z);
+    expect(r && r.cleansed).toBe(true);
+    expect(r.c).toBe(cost);
+    expect(z.demonForm).toBe(0);
+    expect(z.hp).toBe(Math.round(z.maxhp * 0.3));
+    expect(z.m).toBe(10000 - cost);
+  });
+  it('вне формы работает как капельница', () => {
+    const z = createZapoiState();
+    z.char = 'demon';
+    z.m = 10000;
+    z.hp = 10;
+    const r = cleanseDemon(z);
+    expect(r && !r.cleansed).toBe(true);
+    expect(z.hp).toBe(10 + r.v);
+  });
+  it('без денег — отказ', () => {
+    const z = createZapoiState();
+    z.char = 'demon';
+    z.demonForm = 5;
+    expect(cleanseDemon(z)).toBeNull();
+    expect(z.demonForm).toBe(5);
   });
 });

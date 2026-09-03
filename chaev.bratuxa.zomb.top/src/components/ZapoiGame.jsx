@@ -5,7 +5,7 @@ import {
   buyUpgrade, buyArt, jagerClick, healSmall, healBig, tickZapoi,
   checkSyns, synReady, hangoverRate, fmtZ,
   CHARACTERS, isUnlocked, isAllBought, BOTTLE_COST, buyBottle, newRun, bet,
-  artCost, charDiscount, effMult,
+  artCost, charDiscount, effMult, cleanseDemon,
 } from '../game/zapoiLogic.js';
 import { blip } from './DinoGame.jsx';
 
@@ -212,9 +212,14 @@ export default function ZapoiGame() {
         return r ? `🥒 Рассол: +${r.v} HP за ${r.c} бухла` : '';
       }, 500)} style={{ fontSize: 15 }}>🥒 РАССОЛ: +{heal1val(z)} HP за {heal1cost(z)} бухла</button>{' '}
       <button onClick={() => mutate((n) => {
+        if (n.char === 'demon') {
+          const r = cleanseDemon(n);
+          if (!r) return '';
+          return r.cleansed ? `😇 Очищение! Форма снята за ${r.c} бухла, HP 30%. Живи!` : `💉 Капельница: +${r.v} HP за ${r.c} бухла`;
+        }
         const r = healBig(n);
         return r ? `💉 Капельница: +${r.v} HP за ${r.c} бухла` : '';
-      }, 700)} style={{ fontSize: 15 }}>💉 КАПЕЛЬНИЦА: +{heal2val(z)} HP за {heal2cost(z)} бухла</button>
+      }, 700)} style={{ fontSize: 15 }}>{z.char === 'demon' ? `😇 ОЧИЩЕНИЕ: снять форму за ${heal2cost(z)} бухла` : `💉 КАПЕЛЬНИЦА: +${heal2val(z)} HP за ${heal2cost(z)} бухла`}</button>
       <div className="zlog">{log}</div>
       <h3 style={{ color: 'gold' }}>🏺 Артефакты по качествам ({ownedArts}/{ARTS.length})</h3>
       <div>
