@@ -59,14 +59,22 @@ export default function ZapoiGame() {
   };
 
   const branches = useMemo(() => {
-    const out = [];
-    let last = '';
+    const groups = [];
     for (const b of TREE) {
-      if (b.br !== last) { last = b.br; out.push({ header: last }); }
-      out.push({ def: b });
+      let g = groups.find((x) => x.header === b.br);
+      if (!g) { g = { header: b.br, defs: [] }; groups.push(g); }
+      g.defs.push(b);
     }
-    return out;
+    return groups;
   }, []);
+
+  // Складывающиеся секции, чтобы не занимали место. По умолчанию всё свернуто.
+  const [openBr, setOpenBr] = useState({});
+  const [openQ, setOpenQ] = useState({});
+  const [openSyn, setOpenSyn] = useState(false);
+  const toggle = (set, k) => set((p) => ({ ...p, [k]: !p[k] }));
+  const ownedArts = ARTS.filter((a) => z.arts[a.id]).length;
+  const activeSyns = SYNS.filter((s) => z.syn[s.id]).length;
 
   const pct = Math.max(0, Math.min(100, (z.hp / z.maxhp) * 100));
 
@@ -101,12 +109,18 @@ export default function ZapoiGame() {
         return r ? `💉 Капельница: +${r.v} HP за ${r.c} бухла` : '';
       }, 700)} style={{ fontSize: 15 }}>💉 КАПЕЛЬНИЦА: +{heal2val(z)} HP за {heal2cost(z)} бухла</button>
       <div className="zlog">{log}</div>
-      <h3 style={{ color: 'gold' }}>🏺 Артефакты по качествам (чем выше — тем дороже и имбовее)</h3>
+      <h3 style={{ color: 'gold' }}>🏺 Артефакты по качествам ({ownedArts}/{ARTS.length})</h3>
       <div>
-        {[1, 2, 3, 4].map((q) => (
-          <div key={q}>
-            <div style={{ color: 'gold', fontWeight: 'bold', margin: '8px 0 4px', fontSize: 14 }}>{QUALITY_NAMES[q]}</div>
-            {ARTS.filter((a) => (a.q || 3) === q).map((a) => {
+        {[1, 2, 3, 4].map((q) => {
+          const list = ARTS.filter((a) => (a.q || 3) === q);
+          const owned = list.filter((a) => z.arts[a.id]).length;
+          const open = !!openQ[q];
+          return (
+            <div key={q}>
+              <div onClick={() => toggle(setOpenQ, q)} style={{ color: 'gold', fontWeight: 'bold', margin: '8px 0 4px', fontSize: 14, cursor: 'pointer', userSelect: 'none' }}>
+                {open ? '▼' : '▶'} {QUALITY_NAMES[q]} <span className="hint">({owned}/{list.length})</span>
+              </div>
+              {open && list.map((a) => {
               const owned = !!z.arts[a.id];
               return (
                 <div className="art" key={a.id}>
@@ -125,9 +139,14 @@ export default function ZapoiGame() {
               );
             })}
           </div>
-        ))}
+        );
+        })}
       </div>
-      <h3 style={{ color: 'gold' }}>✨ Синергии артефактов</h3>
+      <h3 style={{ color: 'gold' }}>✨ Синергии артефактов ({activeSyns}/{SYNS.length})</h3>
+      <div onClick={() => setOpenSyn((v) => !v)} style={{ color: 'gold', fontSize: 14, cursor: 'pointer', userSelect: 'none', marginBottom: 4 }}>
+        {openSyn ? '▼ Скрыть список' : '▶ Показать список'}
+      </div>
+      {openSyn && (
       <div style={{ fontSize: 14 }}>
         {SYNS.map((s) => {
           const on = !!z.syn[s.id];
@@ -140,26 +159,35 @@ export default function ZapoiGame() {
           );
         })}
       </div>
+      )}
       <h3 style={{ color: 'gold' }}>🌳 Огромное древо прокачки</h3>
       <div>
-        {branches.map((row, i) => row.header
-          ? <div className="branch" key={'h' + i}>{row.header}</div>
-          : (() => {
-            const b = row.def;
-            const l = z.up[b.id] || 0;
-            const maxed = l >= b.max;
-            const c = upgradeCost(b, l);
-            return (
-              <div className="upg" key={b.id}>
-                <b>{b.name}</b> ур.{l}/{b.max} — {b.desc}{' '}
-                <span className="hint">[{b.base}×{b.g}^ур]</span>{' '}
-                <button disabled={maxed || z.m < c} onClick={() => mutate((n) => {
-                  buyUpgrade(n, b.id);
-                  return '';
-                }, 600 + l * 150)}>{maxed ? 'MAX' : `Купить ${c}`}</button>
+        {branches.map((g) => {
+          const maxed = g.defs.filter((d) => (z.up[d.id] || 0) >= d.max).length;
+          const open = !!openBr[g.header];
+          return (
+            <div key={g.header}>
+              <div className="branch" onClick={() => toggle(setOpenBr, g.header)} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                {open ? '▼' : '▶'} {g.header} <span className="hint">(MAX {maxed}/{g.defs.length})</span>
               </div>
-            );
-          })())}
+              {open && g.defs.map((b) => {
+                const l = z.up[b.id] || 0;
+                const isMaxed = l >= b.max;
+                const c = upgradeCost(b, l);
+                return (
+                  <div className="upg" key={b.id}>
+                    <b>{b.name}</b> ур.{l}/{b.max} — {b.desc}{' '}
+                    <span className="hint">[{b.base}×{b.g}^ур]</span>{' '}
+                    <button disabled={isMaxed || z.m < c} onClick={() => mutate((n) => {
+                      buyUpgrade(n, b.id);
+                      return '';
+                    }, 600 + l * 150)}>{isMaxed ? 'MAX' : `Купить ${c}`}</button>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
       </div>
       <p className="hint">Цена = база × рост^ур. Прогресс сохраняется. Мы уже победили 🏆</p>
     </div>
