@@ -767,9 +767,32 @@ function spawnCaveShards(){
 }
 function spawnBoss(){
  if(CAVE.boss)return;
- const b=makeHuman(CAVE.x,CAVE.z+14,{shirt:0x111111,pants:0x111111,hair:0x000000,skin:0xcccccc,label:'САСАБОТ',labelColor:'#ff3333'});
- b.mesh.scale.set(2,2,2);
- const r=collide(CAVE.x,CAVE.z+14,2);b.mesh.position.set(r[0],0,r[1]);
+ const g=new THREE.Group();
+ const skinB=new THREE.MeshStandardMaterial({color:0xf2c9a8,roughness:.6});
+ const blk=new THREE.MeshStandardMaterial({color:0x111111,roughness:.7});
+ const legs=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.6,1),new THREE.MeshStandardMaterial({color:0x222228}));legs.position.y=.8;g.add(legs);
+ const torsoB=new THREE.Mesh(new THREE.BoxGeometry(2.6,2.6,1.4),blk);torsoB.position.y=2.9;torsoB.castShadow=true;g.add(torsoB);
+ const armL=new THREE.Mesh(new THREE.BoxGeometry(.7,2.4,.7),blk);armL.position.set(-1.7,2.9,0);g.add(armL);
+ // правая рука-лайк: кулак + большой палец вверх
+ const armR=new THREE.Mesh(new THREE.BoxGeometry(.7,2,.7),blk);armR.position.set(1.7,3.4,0);armR.rotation.z=-.5;g.add(armR);
+ const fist=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),skinB);fist.position.set(2.6,4.9,0);g.add(fist);
+ const thumb=new THREE.Mesh(new THREE.CylinderGeometry(.28,.32,1.6,10),skinB);thumb.position.set(2.6,6.1,0);g.add(thumb);
+ // башка + ухмылка + наушники
+ const headB=new THREE.Mesh(new THREE.SphereGeometry(1.05,18,14),skinB);headB.position.y=5.4;headB.castShadow=true;g.add(headB);
+ const hairB=new THREE.Mesh(new THREE.SphereGeometry(1.1,18,12,0,Math.PI*2,0,Math.PI*.45),new THREE.MeshStandardMaterial({color:0x2a1c10}));hairB.position.y=5.5;g.add(hairB);
+ const eyeMB=new THREE.MeshBasicMaterial({color:0x1a1a1a});
+ const eL=new THREE.Mesh(new THREE.BoxGeometry(.32,.12,.1),eyeMB);eL.position.set(-.38,5.5,.95);eL.rotation.z=.15;g.add(eL);
+ const eR=eL.clone();eR.position.x=.38;eR.rotation.z=-.15;g.add(eR);
+ const grin=new THREE.Mesh(new THREE.BoxGeometry(.9,.32,.1),new THREE.MeshBasicMaterial({color:0xffffff}));grin.position.set(0,4.85,1);g.add(grin);
+ const band=new THREE.Mesh(new THREE.TorusGeometry(1.15,.16,8,20,Math.PI),blk);band.position.y=5.6;g.add(band);
+ const cupL=new THREE.Mesh(new THREE.CylinderGeometry(.42,.42,.5,12),blk);cupL.rotation.z=Math.PI/2;cupL.position.set(-1.2,5.4,0);g.add(cupL);
+ const cupR=cupL.clone();cupR.position.x=1.2;g.add(cupR);
+ const cb=document.createElement('canvas');cb.width=256;cb.height=48;const cbg=cb.getContext('2d');
+ cbg.fillStyle='#000';cbg.fillRect(0,0,256,48);cbg.fillStyle='#ff3333';cbg.font='bold 26px Arial';cbg.fillText('САСАБОТ',70,32);
+ const lab=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cb)}));lab.scale.set(4.2,0.8,1);lab.position.y=7.6;g.add(lab);
+ g.scale.set(2,2,2);
+ const b={mesh:g,label:lab,name:'САСАБОТ'};
+ const r=collide(CAVE.x,CAVE.z+14,2);b.mesh.position.set(r[0],0,r[1]);scene.add(g);
  b.hp=20;b.maxhp=20;b.cave=true;b.isBoss=true;b.phase=Math.random()*6;
  enemies.push(b);CAVE.boss=b;
 }
