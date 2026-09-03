@@ -139,7 +139,7 @@ for(let i=0;i<14;i++)palm(-140+Math.random()*280,-140+Math.random()*280);
 // штаб 42
 house(0,40,0x550000,'H • ШТАБ 42');
 // вражеские кварталы
-house(-80,-60,0x002255,'BRO SQUAD');house(80,-70,0x002255,'BRO SQUAD');house(90,80,0x442200,'WINLINE');
+house(-80,-60,0x002255,'НАХ SQUAD');house(80,-70,0x002255,'НАХ SQUAD');house(90,80,0x442200,'WINLINE');
 house(-60,90,0x223300,'TORNADO');house(-110,20,0x333333,'Мобы');
 // SLAY-зал (финал)
 const slayL=new THREE.Mesh(new THREE.BoxGeometry(22,16,40),new THREE.MeshStandardMaterial({color:0x660066,emissive:0x220022,transparent:true}));slayL.position.set(-19,8,-140);slayL.castShadow=true;scene.add(slayL);
@@ -247,7 +247,7 @@ function speak(html){
   speechSynthesis.speak(u);
  }catch(_){}}
 
-function spawnEnemies(x,z,n){for(let i=0;i<n;i++){const e=npc(x+Math.random()*14-7,z+Math.random()*14-7,0x2244ff,'BRO');e.hp=3;enemies.push(e);}}
+function spawnEnemies(x,z,n){for(let i=0;i<n;i++){const e=npc(x+Math.random()*14-7,z+Math.random()*14-7,0x2244ff,'НАХ');e.hp=3;enemies.push(e);}}
 // граффити-точки
 let sprays=[{x:-80,z:-60,done:false},{x:80,z:-70,done:false},{x:90,z:80,done:false}];
 sprays.forEach(s=>marker(s.x,s.z,0xff00ff,'!'));
@@ -278,7 +278,7 @@ for(const r of rare){if(near(r.n.mesh.position.x,r.n.mesh.position.z,6)){const r
 if(MI===1&&stage===0&&near(0,40,15)){stage=1;
 say(['<b>ДЕНИС БИТКОИН</b> заходит в чат батальона… тихо. Пыль. Старые скриншоты.<br><i>«Никого нет… 5 лет…»</i> 😔','Он листает: SLAY 2021, завозы Пятёрки, мопсы, самокаты. Ностальгия давит.','Вдруг из темноты — рык…'],()=>{kizyak.mesh.visible=true;kizyak.label.visible=true;
 say(['<b class="red">КИЗЯК:</b> ТЫ ВЫБРАЛ НЕ ТОТ ЧАТ, УБЛ*** 😡 <i>(замахивается битой)</i>','<i>…присматривается… роняет биту…</i>','<b class="grn">КИЗЯК:</b> ОООО… ДЕНИС БИТКОИН?! ВАСАП МА БОЙ!! 🤝🔥'],()=>{addResp(20);setM('Миссия 2: Краска','Закрась 3 граффити конкурентов (!) — подойди и держи E');MI=2;stage=0;});});}
-if(MI===2){for(const s of sprays){if(!s.done&&near(s.x,s.z,14)){s.done=true;addResp(15);try{AU.spraySfx();}catch(_){}if(sprays.every(x=>x.done)){setM('Миссия 3: Территория','Иди к синей зоне, размотай 3 BRO битой (ЛКМ)');MI=3;spawnEnemies(-80,-60,3);try{AU.missionDone();}catch(_){}}return;}}}
+if(MI===2){for(const s of sprays){if(!s.done&&near(s.x,s.z,14)){s.done=true;addResp(15);try{AU.spraySfx();}catch(_){}if(sprays.every(x=>x.done)){setM('Миссия 3: Территория','Иди к синей зоне, размотай 3 НАХ битой (ЛКМ)');MI=3;spawnEnemies(-80,-60,3);try{AU.missionDone();}catch(_){}}return;}}}
 if(MI===4&&near(-4,44,15)){say(['<b>ДРУГ:</b> Денис, ну Винлайн платит… 42 не кормит…','<b>ДЕНИС:</b> Брат, хайп не продаётся. Пятёрка ждёт. Зал SLAY ждёт. Пошли домой.','<b>ДРУГ:</b> …ладно. Рвём контракт. <b>Мы с тобой.</b> ✊'],()=>{addResp(25);setTerr(55);setM('Миссия 5: Гонка','Садись в тачку (F) и доедь до SLAY за 90 сек');MI=5;MI5t=90;try{AU.missionDone();}catch(_){}});}
 if(MI===6&&near(0,-120,14)){finale();}
 });
