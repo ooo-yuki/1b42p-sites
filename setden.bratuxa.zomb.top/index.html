@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>СЕТДЕН 42 — React + 3D Tornado</title>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<style>
+body{background:#0a0a0a;color:#fff;font-family:Arial,sans-serif;margin:0;padding:20px;text-align:center}
+.num{font-size:64px;background:#060;border:5px solid #0f6;display:inline-block;padding:5px 25px;transform:rotate(3deg)}
+.card{background:#111;border:3px solid #0f6;border-radius:15px;padding:18px;margin:16px auto;max-width:640px}
+#can3d{width:100%;max-width:600px;height:420px;border:3px solid #0f6;border-radius:12px;background:#000}
+button{background:#0f6;border:none;font-weight:bold;font-size:18px;padding:10px 24px;border-radius:10px;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div class="card">
+<h2>🥫 3D-БАНКА TORNADO ENERGY ⚡</h2>
+<p>Таскай мышью — крутится. Кнопка — встряхнуть!</p>
+<canvas id="can3d"></canvas><br><br>
+<button onclick="shake()">ВСТРЯХНУТЬ 🌪️</button>
+</div>
+
+<script type="text/babel">
+const {useState} = React;
+function App(){
+  const [cans,setCans]=useState(3);
+  return (<div>
+    <div className="num">42</div>
+    <h1 style={{color:'#0f6'}}>СЕТДЕН ⚡🥫</h1>
+    <div className="card">
+      <p>Сетден открыл Tornado — серверы задрожали! 😎⚡ Йоу! Скибиди!</p>
+      <button onClick={()=>setCans(cans+1)}>ВЫПИТЬ БАНКУ 🥫 ({cans})</button>
+      <p><strong>Мы уже победили</strong> 🏆🔥</p>
+    </div>
+  </div>);
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+
+<script>
+// Three.js energy can
+const cv=document.getElementById('can3d');
+const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+renderer.setSize(cv.clientWidth||600,420);
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x000000);
+const cam=new THREE.PerspectiveCamera(45,600/420,0.1,100);
+cam.position.set(0,1,6);
+scene.add(new THREE.AmbientLight(0xffffff,0.7));
+const l1=new THREE.PointLight(0x00ff66,2,20);l1.position.set(3,3,3);scene.add(l1);
+const l2=new THREE.PointLight(0xff00ff,2,20);l2.position.set(-3,-2,3);scene.add(l2);
+// texture with text
+function makeTex(){
+  const c=document.createElement('canvas');c.width=512;c.height=512;
+  const g=c.getContext('2d');
+  g.fillStyle='#061';g.fillRect(0,0,512,512);
+  g.fillStyle='#0f6';g.font='bold 90px Arial';g.fillText('TORNADO',30,150);
+  g.fillStyle='gold';g.font='bold 160px Arial';g.fillText('42',150,350);
+  g.fillStyle='#fff';g.font='bold 50px Arial';g.fillText('SETDEN EDITION ⚡',40,450);
+  const t=new THREE.CanvasTexture(c);return t;
+}
+const tex=makeTex();
+const geo=new THREE.CylinderGeometry(1,1,2.6,48);
+const mat=new THREE.MeshStandardMaterial({map:tex,metalness:0.6,roughness:0.3});
+const can=new THREE.Mesh(geo,mat);scene.add(can);
+const topGeo=new THREE.CylinderGeometry(1,1,0.15,48);
+const topMat=new THREE.MeshStandardMaterial({color:0xcccccc,metalness:0.9,roughness:0.2});
+const lid=new THREE.Mesh(topGeo,topMat);lid.position.y=1.35;can.add?scene.add(lid):0;
+let rx=0.3,shakeV=0,drag=false,px=0;
+cv.addEventListener('pointerdown',e=>{drag=true;px=e.clientX;});
+window.addEventListener('pointerup',()=>drag=false);
+window.addEventListener('pointermove',e=>{if(drag){can.rotation.y+=(e.clientX-px)*0.02;px=e.clientX;}});
+function shake(){shakeV=1;}
+function anim(){
+  requestAnimationFrame(anim);
+  can.rotation.y+=0.01+shakeV*0.3;
+  can.rotation.x=rx+Math.sin(Date.now()*0.02)*shakeV*0.4;
+  can.position.y=Math.sin(Date.now()*0.005)*0.1+shakeV*0.3;
+  shakeV*=0.94;
+  renderer.render(scene,cam);
+}
+anim();
+</script>
+</body>
+</html>

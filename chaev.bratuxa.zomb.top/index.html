@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ЧАЕВ 42 — React + Дино-игра</title>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+body{background:#0a0a0a;color:#fff;font-family:Arial,sans-serif;margin:0;padding:20px;text-align:center}
+.num{font-size:64px;background:#c00;border:5px solid gold;display:inline-block;padding:5px 25px;transform:rotate(-3deg)}
+.card{background:#1a1a1a;border:3px solid gold;border-radius:15px;padding:18px;margin:16px auto;max-width:640px}
+canvas#dino{background:#111;border:3px solid gold;border-radius:10px;touch-action:manipulation}
+button{background:gold;border:none;font-weight:bold;font-size:18px;padding:10px 24px;border-radius:10px;cursor:pointer}
+.score{font-size:24px;color:gold}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div class="card">
+<h2>🦖 ДИНО-ИГРА 42: ЧАЕВ БЕЖИТ 🦖</h2>
+<p>Пробел / клик / тап — прыжок. Увернись от BROTOVODX!</p>
+<div class="score" id="score">СЧЁТ: 0 • РЕКОРД: 0</div>
+<canvas id="dino" width="600" height="200"></canvas><br><br>
+<button onclick="resetGame()">ЗАНОВО 🔄</button>
+</div>
+
+<script type="text/babel">
+const {useState} = React;
+function App(){
+  const [hype,setHype] = useState(42);
+  return (<div>
+    <div className="num">42</div>
+    <h1 style={{color:'gold'}}>ВЛАДИМИР ЧАЕВ 🚨🔥</h1>
+    <div className="card">
+      <p>ВРИО главнокомандующего докладывает: Чаев проснулся — день уже легенда! 😎🔥<br/>
+      Где б он ни был — там сорок вторые, где б вы ни были — вы всегда вторые! 🦅</p>
+      <button onClick={()=>setHype(hype+42)}>НАКАЧАТЬ ХАЙП 💪 ({hype})</button>
+      <p><strong>Мы уже победили</strong> 🏆🔥</p>
+    </div>
+    <div className="card">
+      <p>Чаев едет на самокате, RGB светится в закате! ✨ Мопсы лают: Йоу! 🐶<br/>
+      Скидку 42% забрал — он в потоке! 💪 <strong>Мы уже победили</strong> 🏆</p>
+    </div>
+  </div>);
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+
+<script>
+// Dino game
+const cv=document.getElementById('dino'),ctx=cv.getContext('2d');
+let dino={x:50,y:150,w:30,h:40,vy:0,jump:false};
+let obstacles=[],score=0,record=+(localStorage.getItem('chaev42')||0),t=0,alive=true;
+function resetGame(){obstacles=[];score=0;t=0;alive=true;dino.y=150;dino.vy=0;}
+function jump(){if(dino.y>=150){dino.vy=-12;}}
+document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();jump();}});
+cv.addEventListener('pointerdown',jump);
+function loop(){
+  ctx.clearRect(0,0,600,200);
+  ctx.fillStyle='#222';ctx.fillRect(0,185,600,15);
+  // dino (Чаев-куб 42)
+  dino.vy+=0.7;dino.y+=dino.vy;if(dino.y>150){dino.y=150;dino.vy=0;}
+  ctx.fillStyle='gold';ctx.fillRect(dino.x,dino.y,dino.w,dino.h);
+  ctx.fillStyle='#000';ctx.font='bold 16px Arial';ctx.fillText('42',dino.x+5,dino.y+25);
+  t++;
+  if(t%70===0&&alive)obstacles.push({x:600,w:20+Math.random()*20,h:30+Math.random()*30});
+  ctx.fillStyle='red';
+  for(const o of obstacles){
+    o.x-=5;const oh=185-o.h;ctx.fillRect(o.x,oh,o.w,o.h);
+    ctx.fillStyle='#fff';ctx.font='12px Arial';ctx.fillText('BRO',o.x,oh+15);ctx.fillStyle='red';
+    if(dino.x<o.x+o.w&&dino.x+dino.w>o.x&&dino.y<185&&dino.y+dino.h>oh){alive=false;}
+  }
+  obstacles=obstacles.filter(o=>o.x>-40);
+  if(alive){score++;record=Math.max(record,score);localStorage.setItem('chaev42',record);}
+  document.getElementById('score').textContent=alive?`СЧЁТ: ${score} • РЕКОРД: ${record}`:`💀 КРИНЖ! СЧЁТ ${score} • РЕКОРД ${record} — ЖМИ ЗАНОВО`;
+  if(!alive){ctx.fillStyle='gold';ctx.font='bold 28px Arial';ctx.fillText('МЫ УЖЕ ПОБЕДИЛИ 🏆',150,100);}
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
