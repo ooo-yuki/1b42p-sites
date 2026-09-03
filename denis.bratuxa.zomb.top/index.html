@@ -328,6 +328,7 @@ function makeHuman(x,z,o){
  const legL=new THREE.Mesh(new THREE.BoxGeometry(.42,1.1,.42),pantsM);legL.position.set(-.28,.55,0);g.add(legL);
  const legR=legL.clone();legR.position.x=.28;g.add(legR);
  const torso=new THREE.Mesh(new THREE.BoxGeometry(1.3,1.7,.7),shirtM);torso.position.y=1.95;torso.castShadow=true;g.add(torso);
+ if(o.tie){const tm=new THREE.MeshStandardMaterial({color:o.tie,roughness:.6});const tt=new THREE.Mesh(new THREE.BoxGeometry(.26,1,.1),tm);tt.position.set(0,1.95,.37);g.add(tt);const kn=new THREE.Mesh(new THREE.BoxGeometry(.3,.26,.12),tm);kn.position.set(0,2.55,.37);g.add(kn);}
  if(o.emblem42){const tg=document.createElement('canvas');tg.width=64;tg.height=64;const tgg=tg.getContext('2d');tgg.fillStyle='gold';tgg.fillRect(0,0,64,64);tgg.fillStyle='#000';tgg.font='bold 40px Arial';tgg.fillText('42',6,46);
   const em=new THREE.Mesh(new THREE.PlaneGeometry(.6,.6),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(tg)}));em.position.set(0,2.2,.37);g.add(em);}
  const armL=new THREE.Mesh(new THREE.BoxGeometry(.36,1.6,.36),shirtM);armL.position.set(-.85,1.95,0);g.add(armL);
@@ -381,7 +382,7 @@ function makeKizyak(x,z){
  return {mesh:g,label:head,name:'КИЗЯК'};
 }
 let kizyak=makeKizyak(3,52);kizyak.mesh.visible=false;kizyak.label.visible=false;
-let friends=[makeHuman(-6,54,{shirt:0x00aa55,hat:'cap',hatColor:0x003311,label:'ДРУГ•WINLINE',labelColor:'#7dffb0'}),makeHuman(6,54,{shirt:0x00aa55,hair:0x111111,hat:'cap',hatColor:0x003311,label:'ДРУГ•WINLINE',labelColor:'#7dffb0'})];
+let friends=[makeHuman(-6,54,{shirt:0x141414,pants:0x141414,tie:0xff6600,hair:0x222222,skin:0xe8b88a,label:'ДРУГ•WINLINE',labelColor:'#ffaa55'}),makeHuman(6,54,{shirt:0x141414,pants:0x141414,tie:0xff6600,hair:0x111111,skin:0xd9a877,label:'ДРУГ•WINLINE',labelColor:'#ffaa55'})];
 let enemies=[];
 let bratukhi=[makeHuman(-10,58,{shirt:0xffd700,emblem42:1,hat:'cap',hatColor:0x111111,label:'БРАТУХА 42',labelColor:'gold'}),makeHuman(10,58,{shirt:0xffd700,emblem42:1,hair:0x774411,label:'БРАТУХА 42',labelColor:'gold'}),makeHuman(0,62,{shirt:0xff5500,emblem42:1,hat:'hood',hatColor:0x551100,label:'БРАТУХА 42',labelColor:'#ffb066'})];
 // редкие NPC со своими диалогами (E рядом)
