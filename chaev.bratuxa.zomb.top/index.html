@@ -143,6 +143,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 const cv=document.getElementById('dino'),ctx=cv.getContext('2d');
 let dino={x:50,y:150,w:30,h:40,vy:0,jumps:0};
 let obstacles=[],score=0,record=+(localStorage.getItem('chaev42')||0),t=0,alive=true,level=1,speed=5,flash=0;
+// --- спрайт прыгуна 42 ---
+const dinoImg=new Image();dinoImg.src='dino.png';let dinoImgOk=false;dinoImg.onload=()=>{dinoImgOk=true;};
 // --- звук без файлов (WebAudio) ---
 let AC=null;
 function beep(f0,f1,dur,type,vol){
@@ -177,8 +179,9 @@ function loop(){
   }
   // Чаев-куб 42 (красное свечение на высоких уровнях)
   if(level>=4){ctx.fillStyle='rgba(204,0,0,.5)';ctx.fillRect(dino.x-3,dino.y-3,dino.w+6,dino.h+6);}
-  ctx.fillStyle='gold';ctx.fillRect(dino.x,dino.y,dino.w,dino.h);
-  ctx.fillStyle='#000';ctx.font='bold 16px Arial';ctx.fillText('42',dino.x+5,dino.y+25);
+  if(dinoImgOk){ctx.drawImage(dinoImg,dino.x-5,dino.y-5,dino.w+10,dino.h+10);}
+  else{ctx.fillStyle='gold';ctx.fillRect(dino.x,dino.y,dino.w,dino.h);
+  ctx.fillStyle='#000';ctx.font='bold 16px Arial';ctx.fillText('42',dino.x+5,dino.y+25);}
   t++;
   // нарастающая сложность: скорость и частота растут со счётом
   const newLevel=1+Math.floor(score/400);
