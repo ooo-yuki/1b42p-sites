@@ -78,6 +78,9 @@ export default function ZapoiGame() {
       <p>Здоровье: <b style={{ color: '#7f7', fontSize: 20 }}>{Math.ceil(z.hp)}/{z.maxhp}</b></p>
       <div className="hpbar-wrap"><div className="hpbar" style={{ width: pct + '%' }}></div></div>
       <p className="hint">урон/глоток {dmgPerSip(z).toFixed(1)} HP • реген {z.regen.toFixed(1)}/с • toxic×{z.toxic.toFixed(2)} • mult×{z.mult.toFixed(2)}</p>
+      <div style={{ margin: '10px 0' }}>
+        <img src="jager.png" alt="Ягермейстер 42" style={{ width: 120, borderRadius: 12, border: '2px solid gold', verticalAlign: 'middle' }} />
+      </div>
       <button onClick={() => mutate((n) => {
         const ev = jagerClick(n);
         if (ev === 'hangover') {
@@ -86,7 +89,8 @@ export default function ZapoiGame() {
         }
         return '';
       }, 400)} style={{ background: 'linear-gradient(180deg,#ff7a00,#c50)', color: '#fff', fontSize: 22, padding: '14px 30px' }}>
-        ЯГЕРМЕЙСТЕР 🍾 (+{Math.round(z.click * z.mult)})
+        <img src="jager.png" alt="" style={{ height: 34, verticalAlign: 'middle', borderRadius: 8, marginRight: 8 }} />
+        ЯГЕРМЕЙСТЕР (+{Math.round(z.click * z.mult)})
       </button><br /><br />
       <button onClick={() => mutate((n) => {
         const r = healSmall(n);
