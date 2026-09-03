@@ -46,6 +46,8 @@ a{color:gold}
 <div id="zlog" style="min-height:20px;color:#ffb3b3;font-size:13px;margin-top:6px"></div>
 <h3 style="color:gold">🏺 Артефакты (разовые, имбовые)</h3>
 <div id="arts"></div>
+<h3 style="color:gold">✨ Синергии артефактов</h3>
+<div id="syns" style="font-size:14px"></div>
 <h3 style="color:gold">🌳 Огромное древо прокачки</h3>
 <div id="tree"></div>
 <p class="hint">Цена = база × рост^ур. Прогресс сохраняется. Мы уже победили 🏆</p>
@@ -72,9 +74,9 @@ a{color:gold}
 // Основа: Бухло (m) — валюта. Здоровье (hp/maxhp) — жизнь.
 // Глоток: +click*mult бухла, −урон по HP: dmg=(0.6+m/4000)*toxic. HP 0 → похмелье: −20% бухла, HP=30%.
 // Тик/сек: +auto*mult бухла, −auto*0.05*toxic HP, +regen HP. Лечилки лечат HP за бухло.
-const ZDEF={m:0,hp:100,maxhp:100,click:1,auto:0,mult:1,regen:0,toxic:1,heals:0,up:{},arts:{}};
+const ZDEF={m:0,hp:100,maxhp:100,click:1,auto:0,mult:1,regen:0,toxic:1,heals:0,up:{},arts:{},syn:{}};
 let Z=JSON.parse(JSON.stringify(ZDEF));
-try{const s=JSON.parse(localStorage.getItem('chaev42_zapoi')||'null');if(s){Z=Object.assign(JSON.parse(JSON.stringify(ZDEF)),s);Z.up=Object.assign({},s.up||{});Z.arts=Object.assign({},s.arts||{});}}catch(e){}
+try{const s=JSON.parse(localStorage.getItem('chaev42_zapoi')||'null');if(s){Z=Object.assign(JSON.parse(JSON.stringify(ZDEF)),s);Z.up=Object.assign({},s.up||{});Z.arts=Object.assign({},s.arts||{});Z.syn=Object.assign({},s.syn||{});}}catch(e){}
 if(Z.hp==null||Z.hp>Z.maxhp)Z.hp=Z.maxhp||100;
 // Ветки древа: цена=base*рост^ур. Эффекты подписаны.
 const TREE=[
@@ -98,16 +100,29 @@ const ARTS=[
  {id:'titan',name:'🛡️ Титановая Печень',desc:'+100 к макс. здоровью',cost:6000,fx(){Z.maxhp+=100;Z.hp+=100;}},
  {id:'barrel',name:'🛢️ Бочка Бесконечности',desc:'+10 бухла/сек',cost:8000,fx(){Z.auto+=10;}},
 ];
+// ===== СИНЕРГИИ АРТЕФАКТОВ 42 =====
+// Пара/набор артефактов = новый эффект. Проверяется после каждой покупки (checkSyns).
+const SYNS=[
+ {id:'flow',name:'🌊 Золотой Поток',need:['goldshot','barrel'],desc:'Рюмка+Бочка: mult×1.5 и +5 бухла/сек',fx(){Z.mult*=1.5;Z.auto+=5;}},
+ {id:'heart',name:'💚 Второе Сердце',need:['amulet','titan'],desc:'Амулет+Титан: +100 maxHP, +1 HP/сек, toxic×0.8',fx(){Z.maxhp+=100;Z.hp+=100;Z.regen+=1;Z.toxic*=0.8;}},
+ {id:'balance',name:'⚖️ Баланс 42',need:['goldshot','amulet'],desc:'Рюмка+Амулет: лечилки +30% сильнее и −20% цены',fx(){}},
+ {id:'press',name:'🏭 Пресс-Хаус',need:['titan','barrel'],desc:'Титан+Бочка: +10 к клику, +5/сек, но toxic×1.1',fx(){Z.click+=10;Z.auto+=5;Z.toxic*=1.1;}},
+ {id:'god',name:'🏆 РЕЖИМ БОГА 42',need:['goldshot','amulet','titan','barrel'],desc:'Все 4: mult×2, +200 maxHP, похмелье −10% вместо −20%',fx(){Z.mult*=2;Z.maxhp+=200;Z.hp+=200;}},
+];
+if(!Z.syn)Z.syn={};
+function hasArt(id){return !!Z.arts[id];}
+function synReady(s){return s.need.every(hasArt);}
+function checkSyns(silent){let n=0;SYNS.forEach(s=>{if(!Z.syn[s.id]&&synReady(s)){Z.syn[s.id]=1;s.fx();n++;if(!silent)zlog(s.name+': '+s.desc+' — синергия!');}});return n;}
 function artCount(){return ARTS.filter(a=>Z.arts[a.id]).length;}
 function zsave(){try{localStorage.setItem('chaev42_zapoi',JSON.stringify(Z));}catch(e){}}
 function fmtZ(m){if(m<60)return Math.floor(m)+' мин';if(m<3600)return (m/60).toFixed(1)+' ч';return (m/3600).toFixed(1)+' сут';}
 function zlog(t){const el=document.getElementById('zlog');if(el){el.textContent=t;}}
 function dmgPerSip(){return (0.6+Z.m/4000)*Z.toxic;}
-function heal1val(){return Math.round(15*(1+0.5*(Z.up.rassol||0)));}
-function heal1cost(){return Math.floor(20*Math.pow(1.35,Z.heals));}
-function heal2val(){return Math.round(60*(1+0.4*(Z.up.kapel||0)));}
-function heal2cost(){return Math.floor(150*Math.pow(1.4,Z.heals)*Math.pow(0.9,Z.up.kapel||0));}
-function hangover(){const lost=Math.floor(Z.m*0.2);Z.m-=lost;Z.hp=Math.round(Z.maxhp*0.3);zlog('💀 Похмелье! −'+lost+' бухла, здоровье 30%. Рассолу накати!');sndLose();}
+function heal1val(){let v=Math.round(15*(1+0.5*(Z.up.rassol||0)));if(Z.syn.balance)v=Math.round(v*1.3);return v;}
+function heal1cost(){let c=Math.floor(20*Math.pow(1.35,Z.heals));if(Z.syn.balance)c=Math.floor(c*0.8);return c;}
+function heal2val(){let v=Math.round(60*(1+0.4*(Z.up.kapel||0)));if(Z.syn.balance)v=Math.round(v*1.3);return v;}
+function heal2cost(){let c=Math.floor(150*Math.pow(1.4,Z.heals)*Math.pow(0.9,Z.up.kapel||0));if(Z.syn.balance)c=Math.floor(c*0.8);return c;}
+function hangover(){const rate=Z.syn.god?0.1:0.2;const lost=Math.floor(Z.m*rate);Z.m-=lost;Z.hp=Math.round(Z.maxhp*0.3);zlog('💀 Похмелье! −'+lost+' бухла ('+Math.round(rate*100)+'%), здоровье 30%. Рассолу накати!');sndLose();}
 function zrender(){
  document.getElementById('zapoi').textContent=fmtZ(Z.m);
  document.getElementById('zaps').textContent='(+'+Math.round(Z.auto*Z.mult)+'/с)';
@@ -129,9 +144,13 @@ function zrender(){
   const d=document.createElement('div');d.style.cssText='border:1px dashed gold;border-radius:8px;padding:8px;margin:6px 0;text-align:left;font-size:14px';
   d.innerHTML='<b>'+a.name+'</b> — '+a.desc+' <button style="font-size:14px;padding:4px 12px" '+(owned||Z.m<a.cost?'disabled':'')+' onclick="buyArt(\''+a.id+'\')">'+(owned?'ВЗЯТ ✅':'Взять за '+a.cost)+'</button>';
   ar.appendChild(d);});
+ const sy=document.getElementById('syns');
+ if(sy){sy.innerHTML=SYNS.map(s=>{const on=!!Z.syn[s.id],rdy=synReady(s);
+  return '<div style="border:1px solid '+(on?'#7f7':'#666')+';border-radius:8px;padding:6px;margin:4px 0;color:'+(on?'#7f7':'#aaa')+'">'+(on?'✅ ':'🔒 ')+'<b>'+s.name+'</b> — '+s.desc+(on?'':' <span class="hint">['+s.need.join('+')+']</span>')+'</div>';}).join('');}
  zsave();}
 function zbuy(id){const b=TREE.find(x=>x.id===id),l=Z.up[id]||0,c=b.cost(l);if(l>=b.max||Z.m<c)return;Z.m-=c;Z.up[id]=l+1;b.fx();zrender();blip(600+l*150);}
-function buyArt(id){const a=ARTS.find(x=>x.id===id);if(Z.arts[id]||Z.m<a.cost)return;Z.m-=a.cost;Z.arts[id]=1;a.fx();zlog('🏺 Артефакт: '+a.name+' — имба активирована!');zrender();blip(900);}
+function buyArt(id){const a=ARTS.find(x=>x.id===id);if(Z.arts[id]||Z.m<a.cost)return;Z.m-=a.cost;Z.arts[id]=1;a.fx();const n=checkSyns(false);if(n===0)zlog('🏺 Артефакт: '+a.name+' — имба активирована!');zrender();blip(900);}
+checkSyns(true);
 function jagerClick(){if(Z.hp<=0){hangover();zrender();return;}Z.m+=Z.click*Z.mult;Z.hp-=dmgPerSip();if(Z.hp<=0){Z.hp=0;hangover();}zrender();blip(400);}
 function healSmall(){const c=heal1cost(),v=heal1val();if(Z.m<c||Z.hp>=Z.maxhp)return;Z.m-=c;Z.hp=Math.min(Z.maxhp,Z.hp+v);Z.heals++;zlog('🥒 Рассол: +'+v+' HP за '+c+' бухла');zrender();blip(500);}
 function healBig(){const c=heal2cost(),v=heal2val();if(Z.m<c||Z.hp>=Z.maxhp)return;Z.m-=c;Z.hp=Math.min(Z.maxhp,Z.hp+v);Z.heals++;zlog('💉 Капельница: +'+v+' HP за '+c+' бухла');zrender();blip(700);}
