@@ -23,6 +23,13 @@ nav a:hover{color:#fff}
 #hero h1 span{color:var(--gold)}
 .slogan{color:#ccc;margin:12px auto 0;max-width:640px;font-size:clamp(15px,2.6vw,20px)}
 .slogan b{color:var(--gold)}
+/* BIG DENIS TIMER — BRATUXA neon */
+#denisHeroTimer{margin:22px auto 0;max-width:640px;padding:16px 18px;border:2px solid var(--neon);border-radius:16px;background:#001414cc;box-shadow:0 0 25px #00ffff66,0 0 60px #ff2fb344}
+#denisHeroTimer .t-label{font-weight:bold;letter-spacing:2px;font-size:clamp(14px,2.6vw,19px);color:var(--gold);text-shadow:0 0 12px #ffd700}
+#denisHeroTimer .t-digits{font-family:'Courier New',monospace;font-weight:bold;font-size:clamp(34px,8vw,64px);letter-spacing:3px;color:var(--neon);text-shadow:0 0 10px var(--neon),0 0 30px var(--neon),0 0 60px var(--pink);margin-top:6px;font-variant-numeric:tabular-nums}
+#denisHeroTimer.open{border-color:#0f6;box-shadow:0 0 30px #00ff66aa}
+#denisHeroTimer.open .t-digits{color:#0f6;text-shadow:0 0 10px #0f6,0 0 40px #0f6}
+#denisHeroTimer a.play{display:inline-block;margin-top:10px;background:#0f6;color:#000;font-weight:bold;text-decoration:none;padding:12px 34px;border-radius:12px;font-size:19px;box-shadow:0 0 25px #00ff6688}
 .cta{display:inline-block;margin-top:24px;background:var(--gold);color:#000;font-weight:bold;text-decoration:none;padding:14px 40px;border-radius:12px;font-size:19px;box-shadow:0 0 25px #ffd70088}
 .cta:hover{background:#fff}
 .stats{display:flex;gap:14px;justify-content:center;margin-top:26px;flex-wrap:wrap}
@@ -65,6 +72,7 @@ footer{padding:18px;color:var(--gold);border-top:2px solid var(--gold);font-weig
 <div id="logo">🏆</div>
 <h1>ИГРЫ <span>1Б42П</span> GAMES</h1>
 <p class="slogan">Студия батальона <b>1Б42П</b>: делаем дерзкие браузерные игры. <b>Мы уже победили 🏆</b> — теперь играем!</p>
+<div id="denisHeroTimer"><div class="t-label">ДЕНИС 42 ОТКРОЕТСЯ ЧЕРЕЗ:</div><div class="t-digits" id="denisHeroDigits">--:--:--</div></div>
 <p><a class="cta" href="#games">🎮 Наши игры</a></p>
 <div class="stats">
 <div class="stat"><b>5</b>игр в строю</div>
@@ -122,25 +130,57 @@ footer{padding:18px;color:var(--gold);border-top:2px solid var(--gold);font-weig
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 <script>
-// Денис 42 скрыт до 10:40 МСК: до времени показываем заглушку с обратным отсчётом. НЕ ТРОГАТЬ.
+// ЕДИНАЯ метка открытия ДЕНИС 42 — 10:40 МСК (07:40 UTC). Большой hero-таймер и карточка используют её синхронно. НЕ ТРОГАТЬ время.
+window.DENIS_REVEAL_HOUR_MSK=10;window.DENIS_REVEAL_MIN_MSK=40;
+window.denisPartsInMsk=function(d){
+  const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Moscow',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).formatToParts(d);
+  const g={};p.forEach(x=>g[x.type]=x.value);return g;
+};
+window.denisRevealTs=function(){
+  const g=window.denisPartsInMsk(new Date());
+  return Date.UTC(+g.year,+g.month-1,+g.day,7,40,0); // 10:40 МСК = 07:40 UTC, сегодня
+};
+window.denisMsLeft=function(){return window.denisRevealTs()-Date.now();};
+// Денис 42 скрыт до 10:40 МСК: до времени показываем заглушку с обратным отсчётом. Мелкий таймер — как был.
 (function(){
-  function partsInMsk(d){
-    const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Moscow',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).formatToParts(d);
-    const g={};p.forEach(x=>g[x.type]=x.value);return g;
-  }
-  function revealTarget(){
-    const g=partsInMsk(new Date());
-    let t=Date.UTC(+g.year,+g.month-1,+g.day,7,40,0); // 10:40 МСК = 07:40 UTC
-    if(Date.now()>=t)t+=86400000;
-    return t;
-  }
+  function revealTarget(){return window.denisRevealTs();}
+  function partsInMsk(d){return window.denisPartsInMsk(d);}
   const card=document.getElementById('denisCard'),lock=document.getElementById('denisLock'),tm=document.getElementById('denisTimer');
   if(!card||!lock)return;
   function tick(){
-    const left=revealTarget()-Date.now();
+    const left=window.denisMsLeft();
     if(left<=0){card.style.display='';lock.style.display='none';return;}
     const h=Math.floor(left/3600000),m=Math.floor(left%3600000/60000),s=Math.floor(left%60000/1000);
     if(tm)tm.textContent=h+' ч '+m+' мин '+s+' сек';
+    setTimeout(tick,1000);
+  }
+  tick();
+})();
+// БОЛЬШОЙ hero-таймер: та же метка, тикает каждую секунду; по нулям — «ОТКРЫТ! ЖМИ ИГРАТЬ» + GSAP-вспышка.
+(function(){
+  const box=document.getElementById('denisHeroTimer'),dg=document.getElementById('denisHeroDigits');
+  if(!box||!dg)return;
+  function pad(n){return String(n).padStart(2,'0');}
+  function fmt(left){
+    const d=Math.floor(left/86400000),h=Math.floor(left%86400000/3600000),m=Math.floor(left%3600000/60000),s=Math.floor(left%60000/1000);
+    return (d>0?pad(d)+':':'')+pad(h)+':'+pad(m)+':'+pad(s);
+  }
+  function opened(){
+    box.classList.add('open');
+    box.innerHTML='<div class="t-label">🎮 ДЕНИС 42 ОТКРЫТ! ЖМИ ИГРАТЬ</div><div><a class="play" href="https://denis.bratuxa.zomb.top">🎮 Играть →</a></div>';
+    try{
+      if(window.gsap){
+        gsap.fromTo(box,{scale:.7,autoAlpha:0},{scale:1,autoAlpha:1,duration:.7,ease:'elastic.out(1,0.45)'});
+        gsap.fromTo(box,{boxShadow:'0 0 0px #00ff66'},{boxShadow:'0 0 60px #00ff66',duration:.5,yoyo:true,repeat:3});
+        const c=document.getElementById('denisCard');
+        if(c)c.scrollIntoView({behavior:'smooth',block:'center'});
+      }
+    }catch(_){}
+  }
+  function tick(){
+    const left=window.denisMsLeft();
+    if(left<=0){opened();return;}
+    dg.textContent=fmt(left);
     setTimeout(tick,1000);
   }
   tick();
