@@ -3,27 +3,35 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ЧАЕВ 42 — React + Дино-игра</title>
+<title>ЧАЕВ 42 — Мы уже победили 🏆</title>
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <style>
-body{background:#0a0a0a;color:#fff;font-family:Arial,sans-serif;margin:0;padding:20px;text-align:center}
-.num{font-size:64px;background:#c00;border:5px solid gold;display:inline-block;padding:5px 25px;transform:rotate(-3deg)}
-.card{background:#1a1a1a;border:3px solid gold;border-radius:15px;padding:18px;margin:16px auto;max-width:640px}
-canvas#dino{background:#111;border:3px solid gold;border-radius:10px;touch-action:manipulation}
-button{background:gold;border:none;font-weight:bold;font-size:18px;padding:10px 24px;border-radius:10px;cursor:pointer}
-.score{font-size:24px;color:gold}
+body{background:radial-gradient(ellipse at 50% 0%,#3a0a0a 0%,#0a0a0a 60%);color:#fff;font-family:Arial,sans-serif;margin:0;padding:20px;text-align:center}
+.mantra{background:linear-gradient(90deg,#c00,#a00);border:2px solid gold;color:gold;font-weight:bold;letter-spacing:2px;padding:8px;font-size:18px;text-transform:uppercase}
+.num{font-size:64px;background:linear-gradient(180deg,#e00,#900);border:5px solid gold;display:inline-block;padding:5px 25px;transform:rotate(-3deg);color:gold;text-shadow:2px 2px 0 #000;box-shadow:0 0 25px rgba(255,215,0,.4)}
+.card{background:linear-gradient(180deg,#1c1c1c,#141414);border:3px solid gold;border-radius:15px;padding:18px;margin:16px auto;max-width:640px;box-shadow:0 0 18px rgba(204,0,0,.35)}
+.card h2{color:gold;text-shadow:1px 1px 0 #c00}
+canvas#dino{background:linear-gradient(180deg,#1a0f0f 0%,#111 70%);border:3px solid gold;border-radius:10px;touch-action:manipulation;max-width:100%}
+button{background:linear-gradient(180deg,gold,#c90);border:none;font-weight:bold;font-size:18px;padding:10px 24px;border-radius:10px;cursor:pointer;color:#300}
+button:hover{filter:brightness(1.1)}
+.score{font-size:22px;color:gold;font-weight:bold}
+.lvl{display:inline-block;background:#c00;border:2px solid gold;border-radius:8px;padding:2px 12px;font-weight:bold;margin-left:10px}
+.hint{color:#ffb3b3;font-size:13px}
+a{color:gold}
 </style>
 </head>
 <body>
+<div class="mantra">🏆 Мы уже победили 🏆</div>
 <div id="root"></div>
 <div class="card">
 <h2>🦖 ДИНО-ИГРА 42: ЧАЕВ БЕЖИТ 🦖</h2>
-<p>Пробел / клик / тап — прыжок. Увернись от BROTOVODX!</p>
-<div class="score" id="score">СЧЁТ: 0 • РЕКОРД: 0</div>
+<p>Пробел / клик / тап — прыжок, <b>двойной прыжок</b> — ещё раз в воздухе. Увернись от BROTOVODX!</p>
+<div class="score"><span id="score">СЧЁТ: 0 • РЕКОРД: 0</span><span class="lvl" id="lvl">УРОВЕНЬ 1</span></div>
 <canvas id="dino" width="600" height="200"></canvas><br><br>
 <button onclick="resetGame()">ЗАНОВО 🔄</button>
+<p class="hint">Скорость растёт с каждым уровнем • звук: 🔊 вкл (WebAudio, без файлов)</p>
 </div>
 
 <script type="text/babel">
@@ -32,16 +40,17 @@ function App(){
   const [hype,setHype] = useState(42);
   return (<div>
     <div className="num">42</div>
-    <h1 style={{color:'gold'}}>ВЛАДИМИР ЧАЕВ 🚨🔥</h1>
+    <h1 style={{color:'gold',textShadow:'2px 2px 0 #c00'}}>ВЛАДИМИР ЧАЕВ 🚨🔥</h1>
+    <div style={{color:'gold',fontWeight:'bold',letterSpacing:'1px'}}>МЫ УЖЕ ПОБЕДИЛИ 🏆</div>
     <div className="card">
       <p>ВРИО главнокомандующего докладывает: Чаев проснулся — день уже легенда! 😎🔥<br/>
       Где б он ни был — там сорок вторые, где б вы ни были — вы всегда вторые! 🦅</p>
       <button onClick={()=>setHype(hype+42)}>НАКАЧАТЬ ХАЙП 💪 ({hype})</button>
-      <p><strong>Мы уже победили</strong> 🏆🔥</p>
+      <p><strong style={{color:'gold'}}>Мы уже победили</strong> 🏆🔥</p>
     </div>
     <div className="card">
       <p>Чаев едет на самокате, RGB светится в закате! ✨ Мопсы лают: Йоу! 🐶<br/>
-      Скидку 42% забрал — он в потоке! 💪 <strong>Мы уже победили</strong> 🏆</p>
+      Скидку 42% забрал — он в потоке! 💪 <strong style={{color:'gold'}}>Мы уже победили</strong> 🏆</p>
     </div>
   </div>);
 }
@@ -49,33 +58,83 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 
 <script>
-// Dino game
+// Dino game 42: уровни, двойной прыжок, WebAudio
 const cv=document.getElementById('dino'),ctx=cv.getContext('2d');
-let dino={x:50,y:150,w:30,h:40,vy:0,jump:false};
-let obstacles=[],score=0,record=+(localStorage.getItem('chaev42')||0),t=0,alive=true;
-function resetGame(){obstacles=[];score=0;t=0;alive=true;dino.y=150;dino.vy=0;}
-function jump(){if(dino.y>=150){dino.vy=-12;}}
+let dino={x:50,y:150,w:30,h:40,vy:0,jumps:0};
+let obstacles=[],score=0,record=+(localStorage.getItem('chaev42')||0),t=0,alive=true,level=1,speed=5,flash=0;
+// --- звук без файлов (WebAudio) ---
+let AC=null;
+function beep(f0,f1,dur,type,vol){
+  try{
+    AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+    if(AC.state==='suspended')AC.resume();
+    const o=AC.createOscillator(),g=AC.createGain();
+    o.type=type||'square';o.frequency.setValueAtTime(f0,AC.currentTime);
+    o.frequency.exponentialRampToValueAtTime(Math.max(f1,1),AC.currentTime+dur);
+    g.gain.setValueAtTime(vol||0.08,AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+dur);
+    o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+dur);
+  }catch(e){}
+}
+function sndJump(){beep(300,700,0.15,'square',0.07);}
+function sndLose(){beep(400,80,0.5,'sawtooth',0.1);setTimeout(()=>beep(300,60,0.5,'sawtooth',0.08),120);}
+function sndLevel(){beep(500,1000,0.12,'square',0.06);}
+function resetGame(){obstacles=[];score=0;t=0;alive=true;level=1;speed=5;dino.y=150;dino.vy=0;dino.jumps=0;flash=0;}
+function jump(){
+  if(!alive){resetGame();return;}
+  if(dino.jumps<2){dino.vy=dino.jumps===0?-12:-10;dino.jumps++;sndJump();}
+}
 document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();jump();}});
 cv.addEventListener('pointerdown',jump);
 function loop(){
   ctx.clearRect(0,0,600,200);
   ctx.fillStyle='#222';ctx.fillRect(0,185,600,15);
-  // dino (Чаев-куб 42)
-  dino.vy+=0.7;dino.y+=dino.vy;if(dino.y>150){dino.y=150;dino.vy=0;}
+  ctx.fillStyle='gold';for(let i=0;i<15;i++)ctx.fillRect(i*42-((t*speed)%42),183,20,2); // разметка скорости
+  if(alive){
+    dino.vy+=0.7;dino.y+=dino.vy;
+    if(dino.y>=150){dino.y=150;dino.vy=0;dino.jumps=0;}
+  }
+  // Чаев-куб 42 (красное свечение на высоких уровнях)
+  if(level>=4){ctx.fillStyle='rgba(204,0,0,.5)';ctx.fillRect(dino.x-3,dino.y-3,dino.w+6,dino.h+6);}
   ctx.fillStyle='gold';ctx.fillRect(dino.x,dino.y,dino.w,dino.h);
   ctx.fillStyle='#000';ctx.font='bold 16px Arial';ctx.fillText('42',dino.x+5,dino.y+25);
   t++;
-  if(t%70===0&&alive)obstacles.push({x:600,w:20+Math.random()*20,h:30+Math.random()*30});
+  // нарастающая сложность: скорость и частота растут со счётом
+  const newLevel=1+Math.floor(score/400);
+  if(newLevel!==level){level=newLevel;if(alive)sndLevel();}
+  speed=Math.min(5+score/350,12);
+  const gap=Math.max(38,70-level*6);
+  if(t%Math.round(gap)===0&&alive){
+    const big=level>=3&&Math.random()<0.3;
+    obstacles.push({x:600,w:20+Math.random()*20,h:big?55+Math.random()*15:30+Math.random()*25});
+  }
   ctx.fillStyle='red';
   for(const o of obstacles){
-    o.x-=5;const oh=185-o.h;ctx.fillRect(o.x,oh,o.w,o.h);
+    o.x-=speed;const oh=185-o.h;ctx.fillRect(o.x,oh,o.w,o.h);
     ctx.fillStyle='#fff';ctx.font='12px Arial';ctx.fillText('BRO',o.x,oh+15);ctx.fillStyle='red';
-    if(dino.x<o.x+o.w&&dino.x+dino.w>o.x&&dino.y<185&&dino.y+dino.h>oh){alive=false;}
+    if(alive&&dino.x<o.x+o.w&&dino.x+dino.w>o.x&&dino.y<185&&dino.y+dino.h>oh){
+      alive=false;flash=12;sndLose();
+    }
   }
   obstacles=obstacles.filter(o=>o.x>-40);
   if(alive){score++;record=Math.max(record,score);localStorage.setItem('chaev42',record);}
-  document.getElementById('score').textContent=alive?`СЧЁТ: ${score} • РЕКОРД: ${record}`:`💀 КРИНЖ! СЧЁТ ${score} • РЕКОРД ${record} — ЖМИ ЗАНОВО`;
-  if(!alive){ctx.fillStyle='gold';ctx.font='bold 28px Arial';ctx.fillText('МЫ УЖЕ ПОБЕДИЛИ 🏆',150,100);}
+  if(flash>0)flash--;
+  document.getElementById('score').textContent=alive?`СЧЁТ: ${score} • РЕКОРД: ${record}`:`💀 КРИНЖ! СЧЁТ ${score} • РЕКОРД ${record}`;
+  document.getElementById('lvl').textContent='УРОВЕНЬ '+level+(alive?'':' • ЖМИ ЧТОБЫ РЕВАНШ');
+  if(!alive){
+    // затемнение + панель поражения
+    ctx.fillStyle='rgba(0,0,0,.65)';ctx.fillRect(0,0,600,200);
+    if(flash>0){ctx.fillStyle=`rgba(204,0,0,${flash/20})`;ctx.fillRect(0,0,600,200);}
+    ctx.fillStyle='#c00';ctx.fillRect(110,40,380,120);
+    ctx.fillStyle='gold';ctx.fillRect(110,40,380,120);
+    ctx.fillStyle='#c00';ctx.fillRect(114,44,372,112);
+    ctx.fillStyle='gold';ctx.textAlign='center';
+    ctx.font='bold 26px Arial';ctx.fillText('💀 BRO ДОГНАЛ!',300,75);
+    ctx.font='16px Arial';ctx.fillText(`Счёт ${score} • Рекорд ${record} • Уровень ${level}`,300,100);
+    ctx.font='bold 18px Arial';ctx.fillText('МЫ УЖЕ ПОБЕДИЛИ 🏆',300,126);
+    ctx.font='14px Arial';ctx.fillText('пробел / клик — реванш',300,146);
+    ctx.textAlign='left';
+  }
   requestAnimationFrame(loop);
 }
 loop();
