@@ -45,6 +45,19 @@ a{color:gold}
 <h2>🎵 ЛЮБИМЫЕ ТРЕКИ ЧАЕВА 🎵</h2>
 <p>🎧 42 — 5opka, 6055<br>🎧 ELA DANCA — 5opka, Sayfalse и ещё 1 исполнитель<br>🎧 ТУСА ПЕЗДУЗА — 5opka, Mellsher</p>
 </div>
+<div class="card">
+<h2>❤️ СПИСОК ЛЮБОВНИКОВ ЧАЕВА ❤️</h2>
+<p class="hint">Хочешь в легенду? Жми кнопку, вписывай ник — и ты в списке! Мы уже победили 🏆</p>
+<ul id="lovers" style="list-style:none;padding:0;font-size:18px"></ul>
+<div id="loveForm" style="display:none;margin-top:10px">
+<input id="loverNick" maxlength="30" placeholder="Твой ник, красавчик 😎"
+ style="font-size:17px;padding:9px 14px;border-radius:10px;border:2px solid gold;background:#111;color:gold;text-align:center;max-width:90%">
+<br><br>
+<button onclick="confirmLove()">ПОДТВЕРДИТЬ 💖</button>
+</div>
+<button id="loveBtn" onclick="showLoveForm()" style="font-size:20px;margin-top:8px">ПОЛЮБИТЬ ЧАЕВА 💖</button>
+<p class="hint" id="loveCount"></p>
+</div>
 <script>
 let Z={m:0,click:1,auto:0,mult:1,up:{throat:0,liver:0,party:0}};
 try{const s=JSON.parse(localStorage.getItem('chaev42_zapoi')||'null');if(s)Z=Object.assign(Z,s);}catch(e){}
@@ -70,6 +83,35 @@ function jagerClick(){Z.m+=Z.click*Z.mult;zrender();blip(400);}
 function blip(f){try{const x=new (window.AudioContext||window.webkitAudioContext)();const o=x.createOscillator(),g=x.createGain();o.type='square';o.frequency.value=f;g.gain.setValueAtTime(.12,x.currentTime);g.gain.exponentialRampToValueAtTime(.001,x.currentTime+.15);o.connect(g);g.connect(x.destination);o.start();o.stop(x.currentTime+.16);}catch(e){}}
 setInterval(()=>{if(Z.auto>0){Z.m+=Z.auto*Z.mult;zrender();}},1000);
 zrender();
+// --- Любовники Чаева 42 ❤️ ---
+let LOVERS=[];
+try{LOVERS=JSON.parse(localStorage.getItem('chaev42_lovers')||'[]');if(!Array.isArray(LOVERS))LOVERS=[];}catch(e){LOVERS=[];}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function renderLovers(){
+  const ul=document.getElementById('lovers');
+  if(!ul)return;
+  ul.innerHTML=LOVERS.length?LOVERS.map(n=>'<li>💖 '+esc(n)+' <span style="color:gold">любит Чаева</span></li>').join(''):'<li class="hint">Пока пусто… стань первым! 😎</li>';
+  const c=document.getElementById('loveCount');
+  if(c)c.textContent=LOVERS.length?('Всего любовников: '+LOVERS.length+' 🏆'):'';
+}
+function showLoveForm(){
+  document.getElementById('loveForm').style.display='block';
+  document.getElementById('loveBtn').style.display='none';
+  setTimeout(()=>document.getElementById('loverNick').focus(),50);
+}
+function confirmLove(){
+  const inp=document.getElementById('loverNick');
+  const nick=(inp.value||'').trim().slice(0,30);
+  if(!nick){inp.focus();inp.placeholder='Сначала впиши ник! 😏';return;}
+  if(!LOVERS.includes(nick)){LOVERS.push(nick);}
+  try{localStorage.setItem('chaev42_lovers',JSON.stringify(LOVERS));}catch(e){}
+  inp.value='';
+  document.getElementById('loveForm').style.display='none';
+  document.getElementById('loveBtn').style.display='';
+  renderLovers();
+  try{blip(800);}catch(e){}
+}
+renderLovers();
 </script>
 
 <script type="text/babel">
