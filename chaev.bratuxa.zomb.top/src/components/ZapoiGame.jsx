@@ -133,6 +133,7 @@ export default function ZapoiGame() {
           const on = !!z.syn[s.id];
           return (
             <div className={on ? 'syn on' : 'syn'} key={s.id}>
+              <img src={`syns/${s.id}.png`} alt={s.name} style={{ width: 40, height: 40, borderRadius: 10, border: on ? '2px solid #7f7' : '2px solid #666', verticalAlign: 'middle', marginRight: 8, opacity: on ? 1 : 0.55 }} />
               {on ? '✅ ' : '🔒 '}<b>{s.name}</b> — {s.desc}
               {!on && <span className="hint"> [{s.need.join('+')}]</span>}
             </div>
