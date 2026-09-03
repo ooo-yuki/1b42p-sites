@@ -15,14 +15,14 @@
 #menu h1{color:gold;font-size:42px;margin:10px}
 #menu p{max-width:640px;line-height:1.5;color:#ddd}
 #menu button{background:gold;font-size:20px;font-weight:bold;padding:12px 30px;border:none;border-radius:12px;cursor:pointer;margin-top:12px}
-#minimap{position:absolute;bottom:20px;right:20px;border:2px solid gold;border-radius:8px;background:#000}
+#minimap{position:absolute;bottom:12px;right:12px;border:2px solid gold;border-radius:8px;background:#000;width:120px;height:120px;opacity:.92}
 #hint{position:absolute;bottom:20px;left:10px;background:rgba(0,0,0,.7);padding:6px 10px;border-radius:8px;font-size:13px}
 #touch{position:absolute;inset:auto 0 0 0;display:none;justify-content:space-between;padding:0 12px 90px;pointer-events:none}
 #joy{width:130px;height:130px;border:2px solid gold;border-radius:50%;background:rgba(255,215,0,.12);pointer-events:auto;position:relative}
 #stick{width:56px;height:56px;background:gold;border-radius:50%;position:absolute;left:37px;top:37px}
 #btns{display:flex;gap:10px;pointer-events:auto}
 .tbtn{width:72px;height:72px;border-radius:50%;border:2px solid #0f6;background:rgba(0,255,102,.2);color:#fff;font-weight:bold;font-size:13px}
-@media(pointer:coarse){#touch{display:flex}#hint{display:none}#minimap{width:110px;height:110px;bottom:170px}}
+@media(pointer:coarse){#touch{display:flex}#hint{display:none}#minimap{width:96px;height:96px;bottom:200px}}
 b.gold{color:gold}b.grn{color:#0f6}b.red{color:#f55}
 </style>
 </head>
@@ -30,7 +30,7 @@ b.gold{color:gold}b.grn{color:#0f6}b.red{color:#f55}
 <div id="ui">
 <div id="hud">❤️ <span id="hp">100</span> | 🏆 Респект: <span id="resp">0</span> | 🗺️ Территории 42: <span id="terr">15%</span><br>WASD — идти • Shift — бег • E — действие • F — тачка • ЛКМ — бита • C — камера<br>ПКМ-мышь/стрелки — взгляд (вверх/вниз) • колесо — зум • на телефоне: свайп + 🔼🔽<br>📻 <span id="radio">VICE 42 FM</span> (R — станция) • M — звук • V — озвучка (?) — редкие NPC • H — скрыть подсказки</div><div id="radiopop" style="position:absolute;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);border:2px solid magenta;border-radius:10px;padding:8px 18px;font-size:18px;display:none">📻 <span id="radiopop-t"></span></div>
 <div id="mission">📜 <b id="mtitle">Миссия 1: Возвращение</b><br><span id="mdesc">Иди в штаб (жёлтая метка H)</span></div>
-<canvas id="minimap" width="160" height="160"></canvas>
+<canvas id="minimap" width="120" height="120"></canvas>
 <div id="hint">Метки: H — штаб • ! — цель • 🚗 — тачка • 💀 — враги</div>
 <div id="touch"><div id="joy"><div id="stick"></div></div><div id="btns"><button class="tbtn" id="bE">E</button><button class="tbtn" id="bF">🚗</button><button class="tbtn" id="bHit">БИТА</button><button class="tbtn" id="bRun">БЕГ</button><button class="tbtn" id="bUp">🔼</button><button class="tbtn" id="bDn">🔽</button></div></div>
 <audio id="anthem" src="anthem.mp3" loop preload="auto"></audio><div id="dialog" style="display:none"><div id="dtext"></div><button id="dnext">ДАЛЕЕ ➤</button></div>
@@ -539,12 +539,28 @@ try{head.rotation.x=-(camPitch-0.45)*0.9;}catch(_){}
 try{fadeHouses();}catch(_){}
 cam.lookAt(focus.x,2,focus.z);
 // миникарта
-mm.fillStyle='#000';mm.fillRect(0,0,160,160);
-mm.fillStyle='gold';mm.fillRect(80+(player.position.x/400*160)-2,80+(player.position.z/400*160)-2,4,4);
-mm.fillStyle='#0f6';mm.fillRect(80,80-40/400*160-2,5,5);
-mm.fillStyle='magenta';mm.fillRect(80,80+140/400*160-2,6,6);
-mm.fillStyle='yellow';try{rare.forEach(r=>{mm.fillRect(80+(r.n.mesh.position.x/400*160)-1,80+(r.n.mesh.position.z/400*160)-1,2,2);});}catch(_){}
-mm.fillStyle='red';enemies.forEach(e=>{if(e.hp>0)mm.fillRect(80+(e.mesh.position.x/400*160)-1,80+(e.mesh.position.z/400*160)-1,2,2);});
+{const S=120,W2M=S/400,WX=x=>(x+200)*W2M;
+mm.fillStyle='#000';mm.fillRect(0,0,S,S);
+// дороги-сетка
+mm.strokeStyle='#2a2a2a';mm.lineWidth=1;
+for(let i=-150;i<=150;i+=50){mm.beginPath();mm.moveTo(WX(i),0);mm.lineTo(WX(i),S);mm.stroke();mm.beginPath();mm.moveTo(0,WX(i));mm.lineTo(S,WX(i));mm.stroke();}
+// все здания из коллизий
+try{for(const s of solids){const c=s.mesh&&s.mesh.material&&s.mesh.material.color;mm.fillStyle=c?('#'+c.getHexString()):'#666';mm.fillRect(WX(s.x-s.hx),WX(s.z-s.hz),(s.hx*2)*W2M,(s.hz*2)*W2M);}}catch(_){}
+// штаб H
+mm.fillStyle='gold';mm.font='bold 9px Arial';mm.fillText('H',WX(0)-3,WX(40)+3);
+// SLAY
+mm.fillStyle='magenta';mm.fillRect(WX(-30),WX(-160),60*W2M,40*W2M);mm.fillStyle='#fff';mm.fillText('SLAY',WX(-12),WX(-138));
+// спреи
+mm.fillStyle='#f0f';try{sprays.forEach(s=>{if(!s.done)mm.fillRect(WX(s.x)-1,WX(s.z)-1,2,2);});}catch(_){}
+// тачка
+try{mm.fillStyle='cyan';mm.fillRect(WX(car.position.x)-2,WX(car.position.z)-2,4,4);}catch(_){}
+// редкие
+mm.fillStyle='yellow';try{rare.forEach(r=>{mm.fillRect(WX(r.n.mesh.position.x)-1,WX(r.n.mesh.position.z)-1,2,2);});}catch(_){}
+// враги
+mm.fillStyle='red';enemies.forEach(e=>{if(e.hp>0)mm.fillRect(WX(e.mesh.position.x)-1,WX(e.mesh.position.z)-1,2,2);});
+// игрок + направление
+mm.fillStyle='#fff';mm.fillRect(WX(player.position.x)-2,WX(player.position.z)-2,4,4);
+try{mm.strokeStyle='gold';mm.beginPath();mm.moveTo(WX(player.position.x),WX(player.position.z));mm.lineTo(WX(player.position.x+Math.sin(player.rotation.y)*12),WX(player.position.z+Math.cos(player.rotation.y)*12));mm.stroke();}catch(_){}}
 ren.render(scene,cam);
 }
 loop();
