@@ -145,6 +145,7 @@ let dino={x:50,y:150,w:30,h:40,vy:0,jumps:0};
 let obstacles=[],score=0,record=+(localStorage.getItem('chaev42')||0),t=0,alive=true,level=1,speed=5,flash=0;
 // --- спрайт прыгуна 42 ---
 const dinoImg=new Image();dinoImg.src='dino.png';let dinoImgOk=false;dinoImg.onload=()=>{dinoImgOk=true;};
+const naxImg=new Image();naxImg.src='nax.png';let naxImgOk=false;naxImg.onload=()=>{naxImgOk=true;};
 // --- звук без файлов (WebAudio) ---
 let AC=null;
 function beep(f0,f1,dur,type,vol){
@@ -194,8 +195,10 @@ function loop(){
   }
   ctx.fillStyle='red';
   for(const o of obstacles){
-    o.x-=speed;const oh=185-o.h;ctx.fillRect(o.x,oh,o.w,o.h);
-    ctx.fillStyle='#fff';ctx.font='12px Arial';ctx.fillText('НАХ',o.x,oh+15);ctx.fillStyle='red';
+    o.x-=speed;const oh=185-o.h;
+    if(naxImgOk){ctx.drawImage(naxImg,o.x,oh,o.w,o.h);}
+    else{ctx.fillRect(o.x,oh,o.w,o.h);
+    ctx.fillStyle='#fff';ctx.font='12px Arial';ctx.fillText('НАХ',o.x,oh+15);ctx.fillStyle='red';}
     if(alive&&dino.x<o.x+o.w&&dino.x+dino.w>o.x&&dino.y<185&&dino.y+dino.h>oh){
       alive=false;flash=12;sndLose();
     }
