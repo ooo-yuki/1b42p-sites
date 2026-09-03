@@ -23,7 +23,6 @@
 #btns{display:flex;gap:10px;pointer-events:auto}
 .tbtn{width:72px;height:72px;border-radius:50%;border:2px solid #0f6;background:rgba(0,255,102,.2);color:#fff;font-weight:bold;font-size:13px}
 @media(pointer:coarse){#touch{display:flex}#hint{display:none}#minimap{width:96px;height:96px;bottom:200px}}
-.mobonly{display:none}.is-mob .mobonly{display:inline}.is-mob .pconly{display:none}
 @media(max-width:700px){
 #hud{font-size:11px;max-width:44vw;padding:6px 8px}
 #mission{font-size:11px;max-width:44vw;padding:6px 8px}
@@ -52,7 +51,7 @@ b.gold{color:gold}b.grn{color:#0f6}b.red{color:#f55}
 Тебе надо поднять <b class="gold">1 батальон 42 пропаганды</b> с колен.<br>
 Миссий: 6. Финал — зал SLAY. Концовка грустная, но правильная.<br><br>
 Управление: WASD + мышь (зажми ПКМ чтобы крутить), E — говорить/красить, F — тачка, ЛКМ — бита.</p>
-<p>С чего играешь?</p><button onclick="startGame('pc')">🖥️ С ПК</button> <button onclick="startGame('mobile')">📱 С ТЕЛЕФОНА</button>
+<button onclick="startGame()">НАЧАТЬ ЗАВОЗ 🔥</button>
 </div>
 </div>
 <script>
@@ -428,7 +427,7 @@ dnext.onclick=nextLine;
 function setM(t,d){document.getElementById('mtitle').textContent=t;document.getElementById('mdesc').textContent=d;}
 function addResp(n){RESP+=n;document.getElementById('resp').textContent=RESP;}
 function setTerr(n){TERR=n;document.getElementById('terr').textContent=n+'%';}
-function startGame(mode){document.body.classList.add(mode==='mobile'?'is-mob':'is-pc');document.getElementById('menu').style.display='none';document.getElementById('touch').style.display=(mode==='mobile')?'flex':'none';try{window.__mode=mode;}catch(_){}setM('Миссия 1: Возвращение','Подойди к штабу (H) снаружи, нажми E — внутрь заходить не надо');try{AU.init();AU.viceSting();}catch(e){}}
+function startGame(){document.getElementById('menu').style.display='none';if(/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent))document.getElementById('touch').style.display='flex';setM('Миссия 1: Возвращение','Подойди к штабу (H) снаружи, нажми E — внутрь заходить не надо');try{AU.init();AU.viceSting();}catch(e){}}
 // ===== ВВОД =====
 const keys={};addEventListener('keydown',e=>keys[e.code]=true);addEventListener('keyup',e=>keys[e.code]=false);
 let mouseDown=false,attackCD=0;
