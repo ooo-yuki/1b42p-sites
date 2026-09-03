@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>НОВОСТИ 42 — Чаев батальон 🏆</title>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+<style>
+body{background:radial-gradient(ellipse at 50% 0%,#3a0a0a 0%,#0a0a0a 60%);color:#fff;font-family:Arial,sans-serif;margin:0;padding:20px;text-align:center;min-height:100vh}
+.mantra{background:linear-gradient(90deg,#c00,#a00);border:2px solid gold;color:gold;font-weight:bold;letter-spacing:2px;padding:8px;font-size:18px;text-transform:uppercase}
+.num{font-size:64px;background:linear-gradient(180deg,#e00,#900);border:5px solid gold;display:inline-block;padding:5px 25px;transform:rotate(-3deg);color:gold;text-shadow:2px 2px 0 #000;box-shadow:0 0 25px rgba(255,215,0,.4);margin-top:16px}
+.card{background:linear-gradient(180deg,#1c1c1c,#141414);border:3px solid gold;border-radius:15px;padding:18px;margin:16px auto;max-width:720px;box-shadow:0 0 18px rgba(204,0,0,.35);text-align:left}
+.card h2{color:gold;text-shadow:1px 1px 0 #c00;margin:0 0 8px}
+.tag{display:inline-block;font-size:12px;font-weight:bold;padding:3px 10px;border-radius:20px;margin:2px;border:1px solid gold;cursor:pointer;letter-spacing:1px}
+.tag.active,.tag:hover{background:gold;color:#300}
+.tagbar{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:14px auto;max-width:720px}
+.tagbar button{background:#1c1c1c;border:2px solid gold;color:gold;font-weight:bold;padding:6px 14px;border-radius:20px;cursor:pointer;font-size:13px}
+.tagbar button.on{background:gold;color:#300}
+.like{background:linear-gradient(180deg,gold,#c90);border:none;font-weight:bold;font-size:15px;padding:6px 16px;border-radius:10px;cursor:pointer;color:#300;margin-top:10px}
+.meta{color:#ffb3b3;font-size:12px;margin-bottom:6px}
+.news-text{line-height:1.5}
+.hero-sub{color:gold;font-weight:bold;letter-spacing:1px}
+a{color:gold}
+input,textarea,select{width:100%;box-sizing:border-box;background:#111;border:2px solid gold;border-radius:8px;color:#fff;padding:8px;margin:6px 0;font-size:14px}
+.send{background:linear-gradient(180deg,gold,#c90);border:none;font-weight:bold;font-size:16px;padding:10px 24px;border-radius:10px;cursor:pointer;color:#300;width:100%}
+.marquee{overflow:hidden;white-space:nowrap;border-top:2px solid gold;border-bottom:2px solid gold;margin:14px 0;color:gold;font-weight:bold}
+.marquee span{display:inline-block;padding:8px 0}
+</style>
+</head>
+<body>
+<div class="mantra">🏆 Мы уже победили 🏆</div>
+<div id="root"></div>
+<p><a href="/">← На главную 42</a></p>
+
+<script type="text/babel" data-presets="react">
+const {useState, useEffect, useRef} = React;
+gsap.registerPlugin(ScrollTrigger);
+gsap.defaults({duration:0.6, ease:"power2.out"});
+
+const BASE_NEWS = [
+ {id:"zavoz42", tag:"ЗАВОЗ", date:"2026-09-01", title:"🚚 ЗАВОЗ 42: фура хайпа прибыла", text:"Чаев пригнал фуру: 42 ящика RGB-самокатов, скидка 42% каждому бойцу. Очередь заняли ещё вчера. Мопсы охраняют склад и лают: Йоу! 🐶 Мы уже победили 🏆"},
+ {id:"slay1", tag:"SLAY", date:"2026-08-28", title:"💅 SLAY-ОПЕРАЦИЯ: Чаев разнёс плац", text:"ВРИО вышел на плац в золотом бомбере — строй лёг от SLAY-урона. Комиссия засчитала: стиль 42/42, харизма запредельная. Сквид НАХ отступил сам 😎🔥"},
+ {id:"mopsy1", tag:"МОПСЫ", date:"2026-08-25", title:"🐶 Мопсы 42 приняты на довольствие", text:"Отряд боевых мопсов официально зачислен в батальон. Паёк: сосиски х2. Обязанности: лаять Йоу по команде, охранять самокат Чаева. Звание: младший SLAY-сержант 🐾"},
+ {id:"front1", tag:"ФРОНТ", date:"2026-08-20", title:"🦅 Фронт: Чаев проснулся — день уже легенда", text:"Доклад главнокомандующего: Чаев проснулся в 06:42 — противник деморализован. Где б он ни был — там сорок вторые, где б вы ни были — вы всегда вторые! 🏆"},
+ {id:"dino1", tag:"ДИНО", date:"2026-08-15", title:"🦖 Дино-забег 42: новый рекорд плаца", text:"Чаев пробежал дино-полосу с двойным прыжком через сквад НАХ. Счёт 4200, уровень 7. Секрет: RGB-подсветка самоката даёт +42 к скорости ✨💪"},
+ {id:"hype1", tag:"ХАЙП", date:"2026-08-10", title:"📣 Хайп-накачка: счётчик пробил 4200", text:"Кнопка НАКАЧАТЬ ХАЙП не выдержала: батальон накачал 4200 единиц за сутки. Чаев едет на самокате, RGB светится в закате! ✨ Мы уже победили 🏆"},
+ {id:"zavoz2", tag:"ЗАВОЗ", date:"2026-08-05", title:"🎁 Второй завоз: золотые цепи 42", text:"Завоз номер два: каждому бойцу — золотая цепь с кулоном 42 и стикер SLAY на каску. Мопсам — золотые ошейники. Склад трещит, дух растёт! 🔥"},
+];
+
+const TAGS = ["ВСЕ","ЗАВОЗ","SLAY","МОПСЫ","ФРОНТ","ДИНО","ХАЙП","НАРОДНАЯ"];
+
+function load(k, fb){ try{ const v = JSON.parse(localStorage.getItem(k)); return v ?? fb; }catch(e){ return fb; } }
+
+function App(){
+  const [filter, setFilter] = useState("ВСЕ");
+  const [likes, setLikes] = useState(()=>load("chaev42_news_likes", {}));
+  const [custom, setCustom] = useState(()=>load("chaev42_news_custom", []));
+  const [form, setForm] = useState({title:"", tag:"НАРОДНАЯ", text:""});
+  const heroRef = useRef(null);
+  const listRef = useRef(null);
+
+  const all = [...custom, ...BASE_NEWS];
+  const shown = filter==="ВСЕ" ? all : all.filter(n=>n.tag===filter);
+
+  // Hero entrance (gsap-core: from + back ease)
+  useEffect(()=>{
+    const mm = gsap.matchMedia();
+    mm.add({ok:"(prefers-reduced-motion: no-preference)"}, ()=>{
+      gsap.from(".hero-anim", {y:-40, autoAlpha:0, duration:0.8, ease:"back.out(1.7)", stagger:0.12});
+      gsap.fromTo(".marquee span", {xPercent:20}, {xPercent:-20, duration:8, repeat:-1, ease:"none"});
+    });
+    return ()=>mm.revert();
+  },[]);
+
+  // ScrollTrigger batch entrance for cards
+  useEffect(()=>{
+    ScrollTrigger.getAll().forEach(t=>{ if(t.vars && t.vars.id && String(t.vars.id).startsWith("news")) t.kill(); });
+    const mm = gsap.matchMedia();
+    mm.add({ok:"(prefers-reduced-motion: no-preference)"}, ()=>{
+      gsap.set(".news-card", {y:40, autoAlpha:0});
+      ScrollTrigger.batch(".news-card", {
+        start:"top 88%",
+        onEnter: batch => gsap.to(batch, {y:0, autoAlpha:1, duration:0.6, ease:"power3.out", stagger:0.1, overwrite:true}),
+        onLeaveBack: batch => gsap.set(batch, {y:40, autoAlpha:0, overwrite:true}),
+        once:false
+      });
+      ScrollTrigger.refresh();
+    }, );
+    return ()=>mm.revert();
+  },[filter, custom.length]);
+
+  // Filter transition: quick pop on list change
+  useEffect(()=>{
+    if(!listRef.current) return;
+    gsap.fromTo(listRef.current.children,
+      {scale:0.97, autoAlpha:0.3},
+      {scale:1, autoAlpha:1, duration:0.35, ease:"power1.out", stagger:0.05, overwrite:"auto", clearProps:"scale"});
+  },[filter]);
+
+  useEffect(()=>{ localStorage.setItem("chaev42_news_likes", JSON.stringify(likes)); },[likes]);
+  useEffect(()=>{ localStorage.setItem("chaev42_news_custom", JSON.stringify(custom)); },[custom]);
+
+  const like = (id, e)=>{
+    setLikes(p=>({...p, [id]:(p[id]||0)+1}));
+    gsap.fromTo(e.currentTarget, {scale:1}, {scale:1.3, duration:0.12, yoyo:true, repeat:1, ease:"power2.out"});
+  };
+
+  const submit = (e)=>{
+    e.preventDefault();
+    if(!form.title.trim() || !form.text.trim()) return;
+    const n = {id:"u"+Date.now(), tag: form.tag==="ВСЕ"?"НАРОДНАЯ":form.tag, date:new Date().toISOString().slice(0,10),
+      title: form.title.trim().slice(0,120), text: form.text.trim().slice(0,600)};
+    setCustom(p=>[n, ...p]);
+    setForm({title:"", tag:"НАРОДНАЯ", text:""});
+    gsap.fromTo(".form-ok", {scale:0.8, autoAlpha:0}, {scale:1, autoAlpha:1, duration:0.4, ease:"back.out(2)"});
+  };
+
+  return (<div ref={heroRef}>
+    <div className="num hero-anim">42</div>
+    <h1 className="hero-anim" style={{color:'gold',textShadow:'2px 2px 0 #c00'}}>НОВОСТИ БАТАЛЬОНА 📰🔥</h1>
+    <div className="hero-sub hero-anim">ЗАВОЗЫ • SLAY • МОПСЫ • МЫ УЖЕ ПОБЕДИЛИ 🏆</div>
+    <div className="marquee hero-anim"><span>🚚 ЗАВОЗ 42 • 💅 SLAY • 🐶 МОПСЫ ЛАЮТ ЙОУ • 🦖 ДИНО-ЗАБЕГ • 🏆 МЫ УЖЕ ПОБЕДИЛИ •&nbsp;</span></div>
+    <div className="tagbar">
+      {TAGS.map(t=><button key={t} className={filter===t?"on":""} onClick={()=>setFilter(t)}>{t}</button>)}
+    </div>
+    <div ref={listRef}>
+    {shown.map(n=>(
+      <div key={n.id} className="card news-card">
+        <span className="tag" onClick={()=>setFilter(n.tag)}>{n.tag}</span>
+        <div className="meta">{n.date}{n.id.startsWith("u")?" • народная":" • штаб 42"}</div>
+        <h2>{n.title}</h2>
+        <div className="news-text">{n.text}</div>
+        <button className="like" onClick={(e)=>like(n.id,e)}>🔥 {(n.id==="zavoz42"?42:7)+(likes[n.id]||0)}</button>
+      </div>
+    ))}
+    </div>
+    {shown.length===0 && <div className="card"><h2>Пусто, боец 😅</h2><p>В этой рубрике пока тихо. Предложи новость ниже!</p></div>}
+    <div className="card">
+      <h2>📮 Предложить новость</h2>
+      <p className="meta">Сохраняется локально в твоём браузере (localStorage)</p>
+      <form onSubmit={submit}>
+        <input placeholder="Заголовок (например: Чаев завёз RGB-тапки)" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} maxLength="120"/>
+        <select value={form.tag} onChange={e=>setForm({...form,tag:e.target.value})}>
+          {TAGS.filter(t=>t!=="ВСЕ").map(t=><option key={t}>{t}</option>)}
+        </select>
+        <textarea rows="3" placeholder="Текст новости..." value={form.text} onChange={e=>setForm({...form,text:e.target.value})} maxLength="600"/>
+        <button className="send" type="submit">ОТПРАВИТЬ В ШТАБ 42 🚀</button>
+      </form>
+      <p className="form-ok" style={{color:'gold',fontWeight:'bold',visibility:'hidden'}}>✅ Принято! Мы уже победили 🏆</p>
+      {custom.length>0 && <p className="meta">Твоих новостей: {custom.length} <button className="like" onClick={()=>{setCustom([]);localStorage.removeItem("chaev42_news_custom");}}>очистить</button></p>}
+    </div>
+  </div>);
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
