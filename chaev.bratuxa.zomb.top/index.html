@@ -27,7 +27,7 @@ a{color:gold}
 <div id="root"></div>
 <div class="card">
 <h2>🦖 ДИНО-ИГРА 42: ЧАЕВ БЕЖИТ 🦖</h2>
-<p>Пробел / клик / тап — прыжок, <b>двойной прыжок</b> — ещё раз в воздухе. Увернись от BROTOVODX!</p>
+<p>Пробел / клик / тап — прыжок, <b>двойной прыжок</b> — ещё раз в воздухе. Увернись от сквада НАХ!</p>
 <div class="score"><span id="score">СЧЁТ: 0 • РЕКОРД: 0</span><span class="lvl" id="lvl">УРОВЕНЬ 1</span></div>
 <canvas id="dino" width="600" height="200"></canvas><br><br>
 <button onclick="resetGame()">ЗАНОВО 🔄</button>
@@ -111,7 +111,7 @@ function loop(){
   ctx.fillStyle='red';
   for(const o of obstacles){
     o.x-=speed;const oh=185-o.h;ctx.fillRect(o.x,oh,o.w,o.h);
-    ctx.fillStyle='#fff';ctx.font='12px Arial';ctx.fillText('BRO',o.x,oh+15);ctx.fillStyle='red';
+    ctx.fillStyle='#fff';ctx.font='12px Arial';ctx.fillText('НАХ',o.x,oh+15);ctx.fillStyle='red';
     if(alive&&dino.x<o.x+o.w&&dino.x+dino.w>o.x&&dino.y<185&&dino.y+dino.h>oh){
       alive=false;flash=12;sndLose();
     }
@@ -129,7 +129,7 @@ function loop(){
     ctx.fillStyle='gold';ctx.fillRect(110,40,380,120);
     ctx.fillStyle='#c00';ctx.fillRect(114,44,372,112);
     ctx.fillStyle='gold';ctx.textAlign='center';
-    ctx.font='bold 26px Arial';ctx.fillText('💀 BRO ДОГНАЛ!',300,75);
+    ctx.font='bold 26px Arial';ctx.fillText('💀 НАХ ДОГНАЛ!',300,75);
     ctx.font='16px Arial';ctx.fillText(`Счёт ${score} • Рекорд ${record} • Уровень ${level}`,300,100);
     ctx.font='bold 18px Arial';ctx.fillText('МЫ УЖЕ ПОБЕДИЛИ 🏆',300,126);
     ctx.font='14px Arial';ctx.fillText('пробел / клик — реванш',300,146);
