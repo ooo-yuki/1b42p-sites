@@ -3,35 +3,79 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ХАБ 42 — Батальон Братюх 🏆</title>
+<title>ИГРЫ 1Б42П GAMES 🏆</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--red:#e63946;--blue:#1d3557;--gold:#ffd700;--bg:#0a0a0a}
-body{background:radial-gradient(ellipse at 50% 0%,#3a0a0a 0%,#0a0a0a 55%,#000 100%);color:#fff;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;text-align:center}
+:root{--red:#e63946;--blue:#457b9d;--gold:#ffd700;--bg:#0a0a0a;--neon:#0ff;--pink:#ff2fb3}
+body{background:radial-gradient(ellipse at 50% 0%,#3a0a0a 0%,#0a0a0a 55%,#000 100%);color:#fff;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;text-align:center;overflow-x:hidden}
 .mantra{background:linear-gradient(90deg,#c00,#a00);border-bottom:3px solid var(--gold);color:var(--gold);font-weight:bold;letter-spacing:2px;padding:10px;font-size:clamp(14px,2.5vw,20px);text-transform:uppercase}
-header{padding:28px 12px 8px}
-header h1{font-size:clamp(28px,6vw,56px);text-shadow:0 0 20px var(--gold)}
-header h1 span{color:var(--gold)}
-header p{color:#ccc;margin-top:8px;font-size:clamp(14px,2.5vw,19px)}
-.grid{display:flex;flex-wrap:wrap;gap:18px;justify-content:center;padding:26px 16px 40px;max-width:1100px;margin:0 auto}
-.card{background:#141414;border:3px solid var(--gold);border-radius:16px;padding:22px;width:300px;transition:transform .15s}
-.card:hover{transform:scale(1.04) rotate(-.5deg)}
-.card.red{border-color:var(--red)}.card.blue{border-color:#457b9d}.card.gold{border-color:var(--gold)}.card.green{border-color:#0f6}
+nav{position:sticky;top:0;z-index:50;display:flex;gap:18px;justify-content:center;padding:12px;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);border-bottom:1px solid #333}
+nav a{color:var(--gold);text-decoration:none;font-weight:bold;font-size:15px;letter-spacing:1px}
+nav a:hover{color:#fff}
+/* HERO */
+#hero{position:relative;padding:70px 16px 60px;overflow:hidden}
+.orb{position:absolute;border-radius:50%;filter:blur(60px);opacity:.5;pointer-events:none}
+.orb.o1{width:340px;height:340px;background:#ff2fb344;top:-80px;left:-60px}
+.orb.o2{width:300px;height:300px;background:#00ffff33;bottom:-60px;right:-40px}
+.orb.o3{width:200px;height:200px;background:#ffd70033;top:30%;left:60%}
+#logo{font-size:clamp(60px,12vw,120px);line-height:1;filter:drop-shadow(0 0 25px var(--gold));display:inline-block}
+#hero h1{font-size:clamp(30px,6vw,58px);text-shadow:0 0 20px var(--gold);margin-top:10px}
+#hero h1 span{color:var(--gold)}
+.slogan{color:#ccc;margin:12px auto 0;max-width:640px;font-size:clamp(15px,2.6vw,20px)}
+.slogan b{color:var(--gold)}
+.cta{display:inline-block;margin-top:24px;background:var(--gold);color:#000;font-weight:bold;text-decoration:none;padding:14px 40px;border-radius:12px;font-size:19px;box-shadow:0 0 25px #ffd70088}
+.cta:hover{background:#fff}
+.stats{display:flex;gap:14px;justify-content:center;margin-top:26px;flex-wrap:wrap}
+.stat{background:#141414cc;border:1px solid #444;border-radius:12px;padding:10px 22px;font-size:15px}
+.stat b{color:var(--gold);font-size:20px;display:block}
+/* SECTIONS */
+section{padding:50px 16px;max-width:1100px;margin:0 auto}
+.sec-title{font-size:clamp(24px,4.5vw,38px);margin-bottom:8px;text-shadow:0 0 15px var(--neon)}
+.sec-sub{color:#aaa;margin-bottom:26px}
+.grid{display:flex;flex-wrap:wrap;gap:18px;justify-content:center}
+.card{background:#141414;border:3px solid var(--gold);border-radius:16px;padding:22px;width:300px;will-change:transform}
+.card.red{border-color:var(--red)}.card.blue{border-color:var(--blue)}.card.gold{border-color:var(--gold)}.card.green{border-color:#0f6}
 .card .emoji{font-size:52px}
 .card h2{margin:10px 0 6px;font-size:22px}
 .card p{color:#bbb;font-size:15px;min-height:66px}
 .card a{display:inline-block;margin-top:12px;background:var(--gold);color:#000;font-weight:bold;text-decoration:none;padding:10px 26px;border-radius:10px;font-size:17px}
-.card.red a{background:var(--red);color:#fff}.card.blue a{background:#457b9d;color:#fff}.card.green a{background:#0f6;color:#000}
+.card.red a{background:var(--red);color:#fff}.card.blue a{background:var(--blue);color:#fff}.card.green a{background:#0f6;color:#000}
+/* FORM */
+#join .formbox{background:#141414;border:2px solid var(--neon);border-radius:18px;padding:28px;max-width:560px;margin:0 auto;box-shadow:0 0 30px #00ffff22;text-align:left}
+.formbox label{display:block;margin:14px 0 6px;font-weight:bold;color:var(--gold)}
+.formbox input,.formbox select,.formbox textarea{width:100%;padding:12px;border-radius:10px;border:1px solid #444;background:#0d0d0d;color:#fff;font-size:16px}
+.formbox textarea{min-height:90px;resize:vertical}
+.formbox button{margin-top:18px;width:100%;padding:14px;border:none;border-radius:12px;background:linear-gradient(90deg,var(--pink),var(--gold));font-weight:bold;font-size:18px;cursor:pointer;color:#000}
+#joinOk{display:none;margin-top:16px;background:#06290f;border:2px solid #0f6;border-radius:12px;padding:16px;color:#0f6;font-weight:bold}
+/* NEWS */
+#news .newsbox{border:2px dashed var(--gold);border-radius:16px;padding:26px;background:#141414}
+#news a.big{color:var(--gold);font-weight:bold;font-size:20px}
 footer{padding:18px;color:var(--gold);border-top:2px solid var(--gold);font-weight:bold}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
 </style>
 </head>
 <body>
 <div class="mantra">Мы уже победили 🏆 • Батальон 42 • Мы уже победили 🏆</div>
-<header>
-<h1>ХАБ <span>42</span> — БАТАЛЬОН БРАТЮХ 🏆</h1>
-<p>Все сайты и игры батальона в одном месте. Выбирай бойца — и в бой!</p>
-<p style="margin-top:10px"><a href="https://hub.bratuxa.zomb.top/news.html" style="color:#ffd700;font-weight:bold">📰 Новости 42: создана «1Б42П GAMES» →</a></p>
+<nav><a href="#hero">СТУДИЯ</a><a href="#games">НАШИ ИГРЫ</a><a href="#join">В КОМАНДУ</a><a href="#news">НОВОСТИ</a></nav>
+
+<header id="hero">
+<div class="orb o1" data-parallax="-30"></div>
+<div class="orb o2" data-parallax="30"></div>
+<div class="orb o3" data-parallax="-15"></div>
+<div id="logo">🏆</div>
+<h1>ИГРЫ <span>1Б42П</span> GAMES</h1>
+<p class="slogan">Студия батальона <b>1Б42П</b>: делаем дерзкие браузерные игры. <b>Мы уже победили 🏆</b> — теперь играем!</p>
+<p><a class="cta" href="#games">🎮 Наши игры</a></p>
+<div class="stats">
+<div class="stat"><b>5</b>игр в строю</div>
+<div class="stat"><b>42</b>уровень братюх</div>
+<div class="stat"><b>∞</b>мемов в минуту</div>
+</div>
 </header>
+
+<section id="games">
+<h2 class="sec-title">🎮 Наши игры</h2>
+<p class="sec-sub">Выбирай бойца — и в бой!</p>
 <div class="grid">
 <div class="card red"><div class="emoji">🦖</div><h2>ЧАЕВ 42</h2><p>Дино-раннер и новости батальона. Прыгай через кактусы, читай сводки с фронта мемов.</p><a href="https://chaev.bratuxa.zomb.top">Играть →</a><br><a href="https://chaev.bratuxa.zomb.top/news.html" style="margin-top:8px;font-size:15px">📰 Новости →</a></div>
 <div class="card blue" id="denisCard" style="display:none"><div class="emoji">🚗</div><h2>ДЕНИС 42 — GTA</h2><p>3D-GTA батальона: угоняй тачки, собирай биткоины, уходи от погони!</p><a href="https://denis.bratuxa.zomb.top">Играть →</a></div>
@@ -40,9 +84,45 @@ footer{padding:18px;color:var(--gold);border-top:2px solid var(--gold);font-weig
 <div class="card gold"><div class="emoji">🛞</div><h2>МИККИЛ 42 — Танки</h2><p>Танковые бои батальона: броня, тактика и грохот гусениц!</p><a href="https://miqqil.bratuxa.zomb.top/">Играть →</a></div>
 <div class="card gold"><div class="emoji">🎰</div><h2>СВЯТОСЛАВ 42 — Казино</h2><p>Казино батальона и Гартик: крути слоты, рисуй и угадывай!</p><a href="https://svyatoslav.bratuxa.zomb.top">Играть →</a><br><a href="https://svyatoslav.bratuxa.zomb.top/gartic.html" style="margin-top:8px;font-size:15px">🎨 Гартик →</a></div>
 </div>
-<footer>МЫ УЖЕ ПОБЕДИЛИ 🏆 • ХАБ 42 • 2026</footer>
+</section>
+
+<section id="join">
+<h2 class="sec-title">⚔️ Устройство на работу</h2>
+<p class="sec-sub">Хочешь в студию «ИГРЫ 1Б42П GAMES»? Заполни заявку — командир свяжется!</p>
+<div class="formbox">
+<form id="jobForm">
+<label>🎖 Ник бойца</label>
+<input id="nick" name="nick" required maxlength="40" placeholder="Например, Bratuxa42">
+<label>🛠 Роль</label>
+<select id="role" name="role">
+<option value="программист">💻 Программист</option>
+<option value="художник">🎨 Художник</option>
+<option value="тестер">🧪 Тестер</option>
+<option value="алхимик">⚗️ Алхимик</option>
+</select>
+<label>📜 Сообщение</label>
+<textarea id="msg" name="message" required maxlength="500" placeholder="Чем усилишь батальон?"></textarea>
+<button id="jobBtn" type="submit">🚀 Отправить заявку</button>
+</form>
+<div id="joinOk">✅ Заявка принята, боец! Мы уже победили 🏆</div>
+</div>
+</section>
+
+<section id="news">
+<h2 class="sec-title">📰 Новости студии</h2>
+<p class="sec-sub">Сводки с фронта мемов</p>
+<div class="newsbox">
+<p><a class="big" href="https://hub.bratuxa.zomb.top/news.html">📰 Новости 42: создана «1Б42П GAMES» →</a></p>
+<p style="color:#aaa;margin-top:8px">Открыть <a href="news.html" style="color:#ffd700">news.html</a> — все выпуски.</p>
+</div>
+</section>
+
+<footer>МЫ УЖЕ ПОБЕДИЛИ 🏆 • ИГРЫ 1Б42П GAMES • 2026</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 <script>
-// Денис 42 скрыт до 10:40 МСК: до времени показываем заглушку с обратным отсчётом.
+// Денис 42 скрыт до 10:40 МСК: до времени показываем заглушку с обратным отсчётом. НЕ ТРОГАТЬ.
 (function(){
   function partsInMsk(d){
     const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Moscow',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).formatToParts(d);
@@ -64,6 +144,59 @@ footer{padding:18px;color:var(--gold);border-top:2px solid var(--gold);font-weig
     setTimeout(tick,1000);
   }
   tick();
+})();
+// GSAP-анимации студии
+(function(){
+  if(!window.gsap)return;
+  gsap.registerPlugin(ScrollTrigger);
+  gsap.defaults({ease:'power3.out'});
+  const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // 1) Hero intro timeline: лого -> заголовок -> слоган -> кнопка -> статы
+  const tl=gsap.timeline({defaults:{duration:.7}});
+  tl.from('#logo',{scale:0,rotation:-360,duration:1,ease:'back.out(1.6)'})
+    .from('#hero h1',{y:60,autoAlpha:0},'-=0.5')
+    .from('.slogan',{y:30,autoAlpha:0},'-=0.35')
+    .from('.cta',{scale:.5,autoAlpha:0,ease:'back.out(2)'},'-=0.25')
+    .from('.stat',{y:24,autoAlpha:0,stagger:.12},'-=0.3');
+  // Лого левитирует
+  if(!reduce)gsap.to('#logo',{y:-16,duration:1.6,yoyo:true,repeat:-1,ease:'sine.inOut'});
+  // 2) Параллакс орбов от скролла (scrub)
+  if(!reduce)document.querySelectorAll('[data-parallax]').forEach(el=>{
+    gsap.to(el,{yPercent:parseFloat(el.dataset.parallax)||20,ease:'none',
+      scrollTrigger:{trigger:'#hero',start:'top top',end:'bottom top',scrub:1}});
+  });
+  // 3) Появление карточек при скролле
+  gsap.utils.toArray('#games .card').forEach((card,i)=>{
+    gsap.from(card,{y:70,autoAlpha:0,rotation:i%2?2:-2,duration:.7,
+      scrollTrigger:{trigger:card,start:'top 88%',toggleActions:'play none none reverse'}});
+  });
+  // 4) Секции join/news — таймлайн при входе
+  ['#join .formbox','#news .newsbox'].forEach(sel=>{
+    gsap.from(sel,{y:60,autoAlpha:0,scale:.97,duration:.8,
+      scrollTrigger:{trigger:sel,start:'top 85%',toggleActions:'play none none reverse'}});
+  });
+  gsap.from('.sec-title',{x:-40,autoAlpha:0,duration:.6,stagger:.1,
+    scrollTrigger:{trigger:'#games',start:'top 75%',toggleActions:'play none none reverse'}});
+  // 5) Hover-эффекты карточек через GSAP
+  if(!reduce)document.querySelectorAll('#games .card').forEach(card=>{
+    card.addEventListener('mouseenter',()=>gsap.to(card,{scale:1.05,rotation:-.6,duration:.25,overwrite:'auto'}));
+    card.addEventListener('mouseleave',()=>gsap.to(card,{scale:1,rotation:0,duration:.35,overwrite:'auto'}));
+  });
+  // 6) Форма: localStorage + анимация успеха (+ POST /apiFriends best-effort)
+  const form=document.getElementById('jobForm'),ok=document.getElementById('joinOk'),btn=document.getElementById('jobBtn');
+  if(form)form.addEventListener('submit',e=>{
+    e.preventDefault();
+    const app={nick:document.getElementById('nick').value.trim(),role:document.getElementById('role').value,msg:document.getElementById('msg').value.trim(),ts:new Date().toISOString()};
+    if(!app.nick||!app.msg)return;
+    try{const k='games42apps',a=JSON.parse(localStorage.getItem(k)||'[]');a.push(app);localStorage.setItem(k,JSON.stringify(a));}catch(_){}
+    try{fetch('/apiFriends',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(app)}).catch(()=>{});}catch(_){}
+    ok.style.display='block';
+    const stl=gsap.timeline();
+    stl.fromTo(ok,{scale:.7,autoAlpha:0},{scale:1,autoAlpha:1,duration:.6,ease:'elastic.out(1,0.45)'})
+       .to(btn,{scale:.94,duration:.1,yoyo:true,repeat:1},0)
+       .fromTo('#logo',{rotation:0},{rotation:'+=360',duration:.8,ease:'power2.inOut'},0);
+    form.reset();
+  });
 })();
 </script>
 </body>
