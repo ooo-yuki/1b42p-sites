@@ -39,7 +39,7 @@ b.gold{color:gold}b.grn{color:#0f6}b.red{color:#f55}
 <body>
 <div id="ui">
 <div id="stats">❤️ <span id="hp">100</span> 🏆 <span id="resp">0</span> 🗺️ <span id="terr">15%</span> 📻 <span id="radio">VICE 42 FM</span> <button id="guideBtn" title="подсказки (H)">❓</button></div>
-<div id="guide">WASD — идти • Shift — бег • E — действие • F — тачка • ЛКМ — бита • C — камера<br><span class="pconly">ПКМ/стрелки — взгляд • колесо — зум • R — радио • M — звук • V — озвучка • H — скрыть •</span> <span class="mobonly">свайп — взгляд • 🔼🔽 — вверх/вниз •</span> 🥫 энергетик за 10 респекта • <span id="gfx">⚡АВТО</span></div>
+<div id="guide">WASD — идти • Shift — бег • E — действие • F — тачка • ЛКМ — бита • C — камера<br><span class="pconly">ПКМ/колесо(зажать)/стрелки — взгляд • колесо — зум • R — радио • M — звук • V — озвучка • H — скрыть •</span> <span class="mobonly">свайп — взгляд • 🔼🔽 — вверх/вниз •</span> 🥫 энергетик за 10 респекта • <span id="gfx">⚡АВТО</span></div>
 <div id="radiopop" style="position:absolute;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);border:2px solid magenta;border-radius:10px;padding:8px 18px;font-size:18px;display:none">📻 <span id="radiopop-t"></span></div>
 <div id="mission">📜 <b id="mtitle">Миссия 1: Возвращение</b><br><span id="mdesc">Иди в штаб (жёлтая метка H)</span></div>
 <canvas id="minimap" width="120" height="120"></canvas>
@@ -465,8 +465,8 @@ function startGame(){document.getElementById('menu').style.display='none';if(/An
 // ===== ВВОД =====
 const keys={};addEventListener('keydown',e=>keys[e.code]=true);addEventListener('keyup',e=>keys[e.code]=false);
 let mouseDown=false,attackCD=0;
-addEventListener('mousedown',e=>{if(e.button===0)mouseDown=true;if(e.button===2)rmb=true;});
-addEventListener('mouseup',e=>{if(e.button===0)mouseDown=false;if(e.button===2)rmb=false;});
+addEventListener('mousedown',e=>{if(e.button===0)mouseDown=true;if(e.button===2)rmb=true;if(e.button===1){rmb=true;e.preventDefault();}});
+addEventListener('mouseup',e=>{if(e.button===0)mouseDown=false;if(e.button===2||e.button===1)rmb=false;});
 let rmb=false;addEventListener('mousemove',e=>{if(rmb){camAng+=e.movementX*0.005;camPitch=clampPitch(camPitch+e.movementY*0.003);}});
 addEventListener('wheel',e=>{camDist=Math.max(6,Math.min(26,camDist+(e.deltaY>0?1:-1)));},{passive:true});
 addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();ren.setSize(innerWidth,innerHeight);});
