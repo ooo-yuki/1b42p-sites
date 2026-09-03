@@ -172,7 +172,7 @@ export default function ZapoiGame() {
       <p>Здоровье: <b style={{ color: '#7f7', fontSize: 20 }}>{Math.ceil(z.hp)}/{z.maxhp}</b></p>
       <div className="hpbar-wrap"><div className="hpbar" style={{ width: pct + '%' }}></div></div>
       {z.char === 'ghost' && (
-        <p>👻 Остатки души: <b style={{ color: '#c9f', fontSize: 20 }}>{Math.ceil(z.soul)}/100</b> <span className="hint">(тает само, глоток −4; в 0 — бутылка бьётся!)</span></p>
+        <p>👻 Остатки души: <b style={{ color: '#c9f', fontSize: 20 }}>{Math.ceil(z.soul)}/100</b> <span className="hint">(реген +2/сек, глоток −5; в 0 — бутылка бьётся!)</span></p>
       )}
       {z.char === 'demon' && z.demonForm > 0 && (
         <p style={{ color: 'red', fontWeight: 'bold', fontSize: 20 }}>😈 ДЕМОНИЧЕСКАЯ ФОРМА ×5: {z.demonForm} сек!</p>

@@ -34,11 +34,37 @@ footer{padding:18px;color:var(--gold);border-top:2px solid var(--gold);font-weig
 </header>
 <div class="grid">
 <div class="card red"><div class="emoji">🦖</div><h2>ЧАЕВ 42</h2><p>Дино-раннер и новости батальона. Прыгай через кактусы, читай сводки с фронта мемов.</p><a href="https://chaev.bratuxa.zomb.top">Играть →</a><br><a href="https://chaev.bratuxa.zomb.top/news.html" style="margin-top:8px;font-size:15px">📰 Новости →</a></div>
-<div class="card blue"><div class="emoji">🚗</div><h2>ДЕНИС 42 — GTA</h2><p>3D-GTA батальона: угоняй тачки, собирай биткоины, уходи от погони!</p><a href="https://denis.bratuxa.zomb.top">Играть →</a></div>
+<div class="card blue" id="denisCard" style="display:none"><div class="emoji">🚗</div><h2>ДЕНИС 42 — GTA</h2><p>3D-GTA батальона: угоняй тачки, собирай биткоины, уходи от погони!</p><a href="https://denis.bratuxa.zomb.top">Играть →</a></div>
+<div class="card" id="denisLock"><div class="emoji">🔒</div><h2>СЕКРЕТНАЯ ИГРА</h2><p>Релиз рассекретится в <b>10:40 МСК</b>! До открытия: <b id="denisTimer">…</b></p></div>
 <div class="card green"><div class="emoji">🥫</div><h2>СЕТДЕН 42 — Tornado</h2><p>3D-банка Tornado Energy + игра алхимика: вари энергетики, качай вкус и цену!</p><a href="https://setden.bratuxa.zomb.top">Играть →</a><br><a href="https://setden.bratuxa.zomb.top/tornado.html" style="margin-top:8px;font-size:15px">⚡ Варить Tornado →</a></div>
 <div class="card gold"><div class="emoji">🛞</div><h2>МИККИЛ 42 — Танки</h2><p>Танковые бои батальона: броня, тактика и грохот гусениц!</p><a href="https://miqqil.bratuxa.zomb.top/">Играть →</a></div>
 <div class="card gold"><div class="emoji">🎰</div><h2>СВЯТОСЛАВ 42 — Казино</h2><p>Казино батальона и Гартик: крути слоты, рисуй и угадывай!</p><a href="https://svyatoslav.bratuxa.zomb.top">Играть →</a><br><a href="https://svyatoslav.bratuxa.zomb.top/gartic.html" style="margin-top:8px;font-size:15px">🎨 Гартик →</a></div>
 </div>
 <footer>МЫ УЖЕ ПОБЕДИЛИ 🏆 • ХАБ 42 • 2026</footer>
+<script>
+// Денис 42 скрыт до 10:40 МСК: до времени показываем заглушку с обратным отсчётом.
+(function(){
+  function partsInMsk(d){
+    const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Moscow',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).formatToParts(d);
+    const g={};p.forEach(x=>g[x.type]=x.value);return g;
+  }
+  function revealTarget(){
+    const g=partsInMsk(new Date());
+    let t=Date.UTC(+g.year,+g.month-1,+g.day,7,40,0); // 10:40 МСК = 07:40 UTC
+    if(Date.now()>=t)t+=86400000;
+    return t;
+  }
+  const card=document.getElementById('denisCard'),lock=document.getElementById('denisLock'),tm=document.getElementById('denisTimer');
+  if(!card||!lock)return;
+  function tick(){
+    const left=revealTarget()-Date.now();
+    if(left<=0){card.style.display='';lock.style.display='none';return;}
+    const h=Math.floor(left/3600000),m=Math.floor(left%3600000/60000),s=Math.floor(left%60000/1000);
+    if(tm)tm.textContent=h+' ч '+m+' мин '+s+' сек';
+    setTimeout(tick,1000);
+  }
+  tick();
+})();
+</script>
 </body>
 </html>

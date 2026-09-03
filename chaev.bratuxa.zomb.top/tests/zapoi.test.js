@@ -245,9 +245,22 @@ describe('персонажи и бутылка', () => {
     z.m = 0;
     jagerClick(z);
     expect(z.m).toBeCloseTo(1 * 1.25 * 3, 5);
-    expect(z.soul).toBe(96);
+    expect(z.soul).toBe(95);
     expect(z.hp).toBe(100);
     z.soul = 1;
+    expect(jagerClick(z)).toBe('shattered');
+  });
+  it('призрак: душа регенит +2/сек, спам глотками убивает', () => {
+    const z = createZapoiState();
+    z.char = 'ghost';
+    z.soul = 50;
+    tickZapoi(z);
+    expect(z.soul).toBe(52);
+    z.soul = 99;
+    tickZapoi(z);
+    expect(z.soul).toBe(100);
+    z.soul = 10;
+    expect(jagerClick(z)).toBeNull();
     expect(jagerClick(z)).toBe('shattered');
   });
   it('демон: на пол-ХП мульт ×2, форма на нуле', () => {

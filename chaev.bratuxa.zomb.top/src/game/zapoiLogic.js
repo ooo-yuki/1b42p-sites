@@ -17,7 +17,7 @@ export const CHARACTERS = [
     desc: 'Стабильный и солидный. Каждый глоток навсегда +0.02 к клику и −0.2% к ценам (макс −20%). Хилки +25%. Пассивно +0.2 бухла/сек.',
     hint: 'Медленно, надёжно, с постоянным ростом. Стартовый.' },
   { id: 'ghost', name: 'Мёртвый Чаев', emoji: '👻',
-    desc: 'Нет похмелья! Вместо HP — душа (тает 0.3/сек, глоток −4). Глоток ×3, всё ×1.25. Душа в 0 — бутылка бьётся сразу, персонаж НЕ закрывается.',
+    desc: 'Нет похмелья! Вместо HP — душа: регенит +2/сек, глоток −5 и ×3, всё ×1.25. Пей быстро — душа в 0 и бутылка бьётся сразу, персонаж НЕ закрывается.',
     hint: 'Хрупкий и быстрый. Игра на грани.' },
   { id: 'winline', name: 'Винлайн Чаев', emoji: '🎰',
     desc: 'Казино внутри кликера: глоток ×0.5…×2.5 случайно, артефакты 20% двойные / 10% пустышки. Кнопка «Ставка»: 10% бухла, 45% — возврат ×2.',
@@ -183,7 +183,7 @@ export function jagerClick(Z) {
   if (Z.char === 'ghost') {
     if (Z.soul <= 0) return 'shattered';
     Z.m += Z.click * effMult(Z) * 3;
-    Z.soul -= 4;
+    Z.soul -= 5;
     if (Z.soul <= 0) { Z.soul = 0; return 'shattered'; }
     return null;
   }
@@ -256,7 +256,7 @@ export function tickZapoi(Z) {
   if (Z.char === 'vladimir') Z.m += 0.2 * Z.mult;
   if (Z.regen > 0) Z.hp += Z.regen;
   if (Z.char === 'ghost') {
-    Z.soul = Math.max(0, (Z.soul ?? 100) - 0.3);
+    Z.soul = Math.min(100, (Z.soul ?? 100) + 2);
     if (Z.soul <= 0) return 'shattered';
   }
   if (Z.char === 'demon' && Z.demonForm > 0) {
