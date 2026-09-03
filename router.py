@@ -4,6 +4,8 @@ import os, ssl, threading, urllib.request
 BASE = "/root/sites"
 CERT = "/etc/letsencrypt/live/chaev.bratuxa.zomb.top/fullchain.pem"
 KEY = "/etc/letsencrypt/live/chaev.bratuxa.zomb.top/privkey.pem"
+# Хосты, отдаваемые из подпапки сборки (Vite dist/ как корень сайта).
+STATIC_ROOTS = {"chaev.bratuxa.zomb.top": "dist"}
 # локальные API-бэкенды: host -> порт (прокси /api/*)
 API_BACKENDS = {"miqqil.bratuxa.zomb.top": 8091}
 
@@ -51,6 +53,9 @@ class VHostHandler(SimpleHTTPRequestHandler):
         host = self.headers.get("Host", "").split(":")[0].lower()
         for cand in [host, "chaev.bratuxa.zomb.top"]:
             d = os.path.join(BASE, cand)
+            sub = STATIC_ROOTS.get(cand)
+            if sub and os.path.isdir(os.path.join(d, sub)):
+                d = os.path.join(d, sub)
             if os.path.isdir(d):
                 rel = path.lstrip("/").split("?")[0].split("#")[0]
                 if rel == "":

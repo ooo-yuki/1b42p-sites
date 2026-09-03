@@ -1,0 +1,23 @@
+{
+  "name": "chaev-42",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Сайт Чаева 42 — Node.js + React (Vite). Мы уже победили 🏆",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "serve": "node server/server.js"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^6.0.0",
+    "vitest": "^2.1.0"
+  }
+}
