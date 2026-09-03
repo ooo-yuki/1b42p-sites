@@ -443,8 +443,8 @@ function makeNakh(x,z){
 }
 // спавн сквада из 3 НАХов: фиксированные точки вне коллизий + страховка от пустого спавна
 function spawnNakhSquad(x,z){
- for(const e of enemies){try{scene.remove(e.mesh);}catch(_){}}
- enemies.length=0;
+ for(const e of enemies){if(e.cave)continue;try{scene.remove(e.mesh);}catch(_){}}
+ enemies=enemies.filter(e=>e.cave); // пещерных НЕ трогаем (анти-софтлок)
  const offs=[[14,6],[18,0],[14,-6]];
  for(const o of offs)enemies.push(makeNakh(x+o[0],z+o[1]));
 }
@@ -679,6 +679,40 @@ addEventListener('keydown',e=>{
 });
 dnext.addEventListener('click',()=>{try{AU.blip(500+Math.random()*200,.07,'square',.08);}catch(_){}});
 
+// ===== ПАСХАЛКА: ПЕЩЕРА-ЛАБИРИНТ (скрытая, без маркеров) =====
+const CAVE={x:150,z:150,r:34,done:false,shardN:0,boss:null,bossState:0,bossDead:false,proj:[],shards:[],normiesSpawned:false,wings:null,flyT:0};
+QUEST.CAVE={x:CAVE.x,z:CAVE.z}; // тихо в реестр, БЕЗ marker() — пасхалка скрытая
+(function(){
+ const rockM=new THREE.MeshStandardMaterial({color:0x3a3a46,roughness:1,metalness:.05,transparent:true});
+ function rockWall(x,z,hx,hz,h){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(hx*2,h||8,hz*2),rockM);
+  m.position.set(x,(h||8)/2,z);m.receiveShadow=true;scene.add(m);
+  solids.push({x,z,hx,hz,mesh:m,extra:[]});
+ }
+ // внешний периметр; вход-разрыв с севера (x 146..154 на z=125), лицом к центру карты
+ rockWall(135.5,125,10.5,1);rockWall(164.5,125,10.5,1);
+ rockWall(150,175,25,1);rockWall(125,150,1,25);rockWall(175,150,1,25);
+ // внутренние стены лабиринта (проходы между ними)
+ rockWall(140,142,7,1,7);rockWall(162,158,7,1,7);rockWall(150,150,1,8,7);
+ // вход-арка БЕЗ маркера
+ const stM=new THREE.MeshStandardMaterial({color:0x55555f,roughness:.9});
+ [[146],[154]].forEach(p=>{const pil=new THREE.Mesh(new THREE.BoxGeometry(1.5,7,1.5),stM);pil.position.set(p[0],3.5,125);scene.add(pil);});
+ const beam=new THREE.Mesh(new THREE.BoxGeometry(10,1.5,2),stM);beam.position.set(150,7.2,125);scene.add(beam);
+ // темнота: чёрный навес + ОДИН точечный свет внутри (перф в норме)
+ const dark=new THREE.Mesh(new THREE.BoxGeometry(54,1,54),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.55}));dark.position.set(150,9.5,150);scene.add(dark);
+ const pl=new THREE.PointLight(0xffaa55,1.2,65);pl.position.set(150,6,150);scene.add(pl);
+})();
+function inCave(px,pz){return Math.abs(px-CAVE.x)<26&&Math.abs(pz-CAVE.z)<26;}
+// дикие нормисы: серые гуманоиды попроще, по шаблону enemies[]
+function makeNormis(x,z){
+ const n=makeHuman(x,z,{shirt:0x777777,pants:0x444444,hair:0x666666,skin:0xbbbbbb,label:'НОРМИС',labelColor:'#aaaaaa'});
+ const r=collide(x,z,1.2);n.mesh.position.set(r[0],0,r[1]);
+ n.hp=3;n.cave=true;n.phase=Math.random()*6;enemies.push(n);return n;
+}
+function spawnCaveNormies(){
+ if(enemies.some(e=>e.cave&&!e.isBoss&&!e.minion&&e.hp>0))return; // страховка от дублей
+ for(let i=0;i<4;i++)makeNormis(CAVE.x+(Math.random()*30-15),CAVE.z+(Math.random()*30-15));
+}
 // ===== ЦИКЛ =====
 const mm=document.getElementById('minimap').getContext('2d');
 let last=Date.now();
@@ -716,11 +750,12 @@ if(attackCD>0)attackCD-=dt;
 if(mouseDown&&attackCD<=0&&!inCar){attackCD=.4;try{AU.hitSfx();}catch(_){}bat.rotation.x=-1;setTimeout(()=>bat.rotation.x=0,150);
 for(const e of enemies){if(dist(player,e.mesh)<4&&e.hp>0){e.hp--;e.mesh.position.x+=(e.mesh.position.x-player.position.x)*.15;e.mesh.position.z+=(e.mesh.position.z-player.position.z)*.15;
 if(e.hp<=0){scene.remove(e.mesh);scene.remove(e.label);addResp(10);try{AU.blip(990,.2,'triangle',.15);}catch(_){}
-if(MI===3&&enemies.every(x=>x.hp<=0)){setTerr(35);setM('Миссия 4: Друзья','Верни друзей из Винлайна — поговори (E) у штаба');MI=4;}}}}
+if(MI===3){const foes=enemies.filter(x=>!x.cave);if(foes.length&&foes.every(x=>x.hp<=0)){setTerr(35);setM('Миссия 4: Друзья','Верни друзей из Винлайна — поговори (E) у штаба');MI=4;}}}}}
 }
 // враги гонятся
-if(MI===3&&!enemies.some(e=>e.hp>0)){spawnNakhSquad(-80,-60);}
+if(MI===3&&!enemies.filter(e=>!e.cave).some(e=>e.hp>0)){spawnNakhSquad(-80,-60);}
 for(const e of enemies){if(e.hp<=0)continue;
+ if(e.cave&&Math.hypot(player.position.x-CAVE.x,player.position.z-CAVE.z)>45)continue; // привязь: пещерные не уходят с арены
  if(e.parts){const w=Math.sin(Date.now()*0.01+e.phase);e.parts.legL.rotation.x=w*.6;e.parts.legR.rotation.x=-w*.6;e.parts.armL.rotation.x=-w*.5;e.parts.armR.rotation.x=w*.5;}
  const d=dist(player,e.mesh);if(d<30){const dx=(player.position.x-e.mesh.position.x)/d,dz=(player.position.z-e.mesh.position.z)/d;e.mesh.position.x+=dx*4*dt;e.mesh.position.z+=dz*4*dt;
 if(d<2.2){HP-=20*dt;document.getElementById('hp').textContent=Math.ceil(HP);if(HP<=0){HP=100;player.position.set(0,0,70);document.getElementById('hp').textContent=100;}}}}
