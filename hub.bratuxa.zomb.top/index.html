@@ -87,7 +87,7 @@ footer{padding:18px;color:var(--gold);border-top:2px solid var(--gold);font-weig
 <div class="grid">
 <div class="card red"><div class="emoji">🦖</div><h2>ЧАЕВ 42</h2><p>Дино-раннер и новости батальона. Прыгай через кактусы, читай сводки с фронта мемов.</p><a href="https://chaev.bratuxa.zomb.top">Играть →</a><br><a href="https://chaev.bratuxa.zomb.top/news.html" style="margin-top:8px;font-size:15px">📰 Новости →</a></div>
 <div class="card blue" id="denisCard" style="display:none"><div class="emoji">🚗</div><h2>ДЕНИС 42 — GTA</h2><p>3D-GTA батальона: угоняй тачки, собирай биткоины, уходи от погони!</p><a href="https://denis.bratuxa.zomb.top">Играть →</a></div>
-<div class="card" id="denisLock"><div class="emoji">🔒</div><h2>СЕКРЕТНАЯ ИГРА</h2><p>Релиз рассекретится в <b>10:40 МСК</b>! До открытия: <b id="denisTimer">…</b></p></div>
+<div class="card" id="denisLock"><div class="emoji">🔒</div><h2>СЕКРЕТНАЯ ИГРА</h2><p>Релиз рассекретится в <b>16:40 МСК</b>! До открытия: <b id="denisTimer">…</b></p></div>
 <div class="card green"><img src="setden-ambassador.jpg" alt="Амбассадор Торнадо SetDen42" style="width:100%;border-radius:12px;border:2px solid #0f6"><h2>Амбасадор Торнадо SetDen42</h2><p>3D-банка Tornado Energy + игра алхимика: вари энергетики, качай вкус и цену!</p><a href="https://setden.bratuxa.zomb.top">Играть →</a><br><a href="https://setden.bratuxa.zomb.top/tornado.html" style="margin-top:8px;font-size:15px">⚡ Варить Tornado →</a><div style="margin-top:8px;font-size:13px;line-height:1.7;text-align:left">🥫 <a href="https://setden.bratuxa.zomb.top" style="font-size:13px">3D-банка</a><br>⚡ <a href="https://setden.bratuxa.zomb.top/tornado.html" style="font-size:13px">Торнадо-варка</a><br>🌸 <a href="https://setden.bratuxa.zomb.top/sakura.html" style="font-size:13px">Сад вихрей</a><br>🌀 <a href="https://setden.bratuxa.zomb.top/mix.html" style="font-size:13px">Слияние стихий</a><br>🛗 <a href="https://setden.bratuxa.zomb.top/lift.html" style="font-size:13px">Лифт</a></div></div>
 <div class="card gold"><div class="emoji">🛞</div><h2>МИККИЛ 42 — Танки</h2><p>Танковые бои батальона: броня, тактика и грохот гусениц!</p><a href="https://miqqil.bratuxa.zomb.top/">Играть →</a></div>
 <div class="card gold"><div class="emoji">🎰</div><h2>СВЯТОСЛАВ 42 — Казино</h2><p>Казино батальона и Гартик: крути слоты, рисуй и угадывай!</p><a href="https://svyatoslav.bratuxa.zomb.top">Играть →</a><br><a href="https://svyatoslav.bratuxa.zomb.top/gartic.html" style="margin-top:8px;font-size:15px">🎨 Гартик →</a></div>
@@ -130,18 +130,18 @@ footer{padding:18px;color:var(--gold);border-top:2px solid var(--gold);font-weig
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 <script>
-// ЕДИНАЯ метка открытия ДЕНИС 42 — 10:40 МСК (07:40 UTC). Большой hero-таймер и карточка используют её синхронно. НЕ ТРОГАТЬ время.
-window.DENIS_REVEAL_HOUR_MSK=10;window.DENIS_REVEAL_MIN_MSK=40;
+// ЕДИНАЯ метка открытия ДЕНИС 42 — 16:40 МСК (13:40 UTC). Большой hero-таймер и карточка используют её синхронно. НЕ ТРОГАТЬ время.
+window.DENIS_REVEAL_HOUR_MSK=16;window.DENIS_REVEAL_MIN_MSK=40;
 window.denisPartsInMsk=function(d){
   const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Moscow',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).formatToParts(d);
   const g={};p.forEach(x=>g[x.type]=x.value);return g;
 };
 window.denisRevealTs=function(){
   const g=window.denisPartsInMsk(new Date());
-  return Date.UTC(+g.year,+g.month-1,+g.day,7,40,0); // 10:40 МСК = 07:40 UTC, сегодня
+  return Date.UTC(+g.year,+g.month-1,+g.day,13,40,0); // 16:40 МСК = 13:40 UTC, сегодня
 };
 window.denisMsLeft=function(){return window.denisRevealTs()-Date.now();};
-// Денис 42 скрыт до 10:40 МСК: до времени показываем заглушку с обратным отсчётом. Мелкий таймер — как был.
+// Денис 42 скрыт до 16:40 МСК: до времени показываем заглушку с обратным отсчётом. Мелкий таймер — как был.
 (function(){
   function revealTarget(){return window.denisRevealTs();}
   function partsInMsk(d){return window.denisPartsInMsk(d);}
