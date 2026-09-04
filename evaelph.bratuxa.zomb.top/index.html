@@ -113,6 +113,27 @@ text-align:center;color:var(--ink);box-shadow:0 3px 0 rgba(47,93,58,.25)}
 .shopCard small{display:block;font-size:12px;margin-top:4px;min-height:30px}
 .shopCard .cost{color:#d63d6e;font-weight:bold;font-size:13px;margin-top:6px}
 @media(max-width:640px){#shop{bottom:172px;max-height:44vh}#shopGrid{max-height:calc(44vh - 52px)}}
+/* сальтухи 42 */
+#saltoBtn{position:fixed;left:12px;bottom:168px;z-index:10;border:3px solid var(--ink);background:#e8d5ff;color:#4a2b7a;
+font-weight:bold;font-size:15px;border-radius:999px;padding:12px 18px;cursor:pointer;box-shadow:0 4px 0 #8a6ab8}
+#saltoBtn:active{transform:translateY(2px);box-shadow:none}
+#flipCompBtn{position:fixed;left:12px;bottom:228px;z-index:10;border:3px solid var(--ink);background:#ff9f43;color:#5d2e00;
+font-weight:bold;font-size:15px;border-radius:999px;padding:12px 18px;cursor:pointer;box-shadow:0 4px 0 #b86a00}
+#flipCompBtn:active{transform:translateY(2px);box-shadow:none}
+#flipBtnFp{position:absolute;right:12px;bottom:344px;pointer-events:auto;display:none;
+border:3px solid var(--ink);background:#e8d5ff;color:#4a2b7a;font-weight:bold;font-size:22px;
+border-radius:50%;width:72px;height:72px;cursor:pointer;box-shadow:0 4px 0 #8a6ab8}
+#flipBtnFp:active{transform:scale(.92)}
+#compBtnFp{position:absolute;left:12px;bottom:180px;pointer-events:auto;display:none;
+border:3px solid var(--ink);background:#ff9f43;color:#5d2e00;font-weight:bold;font-size:14px;
+border-radius:999px;padding:12px 16px;cursor:pointer;box-shadow:0 4px 0 #b86a00}
+#flipComp{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:rgba(20,15,40,.8)}
+#flipCompBox{background:var(--cream);border:4px solid #ff9f43;border-radius:22px;padding:20px;max-width:360px;text-align:center;box-shadow:0 0 30px #ff9f43;font-size:15px}
+#flipCompBox button{border:3px solid var(--ink);border-radius:12px;padding:10px 16px;font-weight:bold;font-size:15px;cursor:pointer;margin:4px}
+#flipTap{background:#e8d5ff !important;font-size:22px !important;padding:14px 26px !important}
+#flipStart{background:var(--gold) !important}
+#flipClose{background:#eef5e6 !important}
+@media(max-width:640px){#saltoBtn{bottom:230px;font-size:13px;padding:10px 14px}#flipCompBtn{bottom:288px;font-size:13px;padding:10px 14px}}
 /* победа */
 #win{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(47,93,58,.45);z-index:20}
 #winBox{background:var(--cream);border:4px solid var(--gold);border-radius:26px;padding:28px;max-width:340px;text-align:center;
@@ -169,6 +190,8 @@ transition:transform 1.1s ease-out,opacity 1.1s}
  <button id="glockBtn">🔫 Глок (G)</button>
  <button id="fireBtn">🔥</button>
  <button id="jumpBtn">⬆️</button>
+ <button id="flipBtnFp">🤸</button>
+ <button id="compBtnFp">🤸🏆 Соревы!</button>
  <button id="runBtn">🏃 Бежать!</button>
  <div id="fpHint">WASD — ходить · мышь — осмотр · ESC — выйти</div>
  <div id="joy"><div id="stick"></div></div>
@@ -178,6 +201,9 @@ transition:transform 1.1s ease-out,opacity 1.1s}
 <div id="surfBtns"><button id="surfL">⬅️</button><button id="surfU">⬆️</button><button id="surfD">⬇️</button><button id="surfR">➡️</button><button id="surfQuit">🏳️ Сдаться</button></div></div></div>
 <button id="ticketBtn">🎟️ Билет 50🪙</button>
 <button id="giftBtn">🎁 Дар леса</button>
+<button id="saltoBtn">🤸 Сальтуха (R)</button>
+<button id="flipCompBtn">🏆 Соревы по сальтухам!</button>
+<div id="flipComp"><div id="flipCompBox">🤸 <b>СОРЕВНОВАНИЯ ПО САЛЬТУХАМ!</b> 🤸<br><small id="flipCompText">Тапай САЛЬТУХА быстрее соперника за 5 сек! Проигрыш = −70% всех ресурсов 😱</small><div id="flipScore" style="font-weight:bold;font-size:18px;margin:8px 0">ТЫ 0 : 0 СОПЕРНИК</div><div id="flipTimer" style="font-weight:bold">5.0с</div><div><button id="flipTap">🤸 САЛЬТУХА!</button></div><div><button id="flipStart">▶️ Старт!</button><button id="flipClose">✖️ Закрыть</button></div></div></div>
 <div id="win"><div id="winBox">🏆 <b>МЫ УЖЕ ПОБЕДИЛИ!</b> 🏆<br>Эввград достиг 42 жителей! Город сияет, лес поёт! 🧝🌲✨<br><button onclick="document.getElementById('win').style.display='none'">Ура! 🎉</button></div></div>
 <div id="miqAd"><div id="miqAdBox">🛞 <b>МИККИЛ 42 — ТАНКИ!</b> 🛞<br>Броня, тактика и грохот гусениц! Батальонный танкодром уже ждёт!<br><a href="https://miqqil.bratuxa.zomb.top/" target="_blank">Играть →</a><div id="miqAdBtns"><button onclick="closeMiqAd(false)">Позже</button><button onclick="closeMiqAd(true)">Не показывать</button></div></div></div>
 <script>
@@ -826,6 +852,7 @@ function clickCell(i){
 function buyTicket(){var now=Date.now();
  if(now<ticketCd){toast('Кассы печатают билеты... жди '+Math.ceil((ticketCd-now)/1000)+'с 🎟️');return;}
  if(S.gold<50){toast('Билет стоит 50 🪙 💸');blip(200);return;}
+ if(S.pop>=42){toast('Эввград полон: 42 жителя! Новые не едут 🏆');return;}
  if(S.pop>=cap()){toast('Нет жилья для отдыхающих! Построй дома 🏠');return;}
  S.gold-=50;S.pop=Math.min(cap(),S.pop+2);ticketCd=now+45000;
  toast('🎟️ +2 отдыхающих приехали на пляж!');blip(760);save();renderHUD();}
@@ -1535,6 +1562,7 @@ function shootGlock(){if(!fpMode||!glockOut||Date.now()<shootCd)return;shootCd=D
  curIn.add(m);fpShots.push({m:m,vx:dir.x*11,vy:dir.y*11,vz:dir.z*11,life:1.4});
  fpAvatar.rotation.y+=0;}
 function enterBuilding(i){var c=S.cells[i];if(!c||!scene)return;
+ flipAnim=0;
  fpMode=true;fpType=c.t;fpLvl=c.l;buildInterior(c.t);
  document.getElementById('dock').style.display='none';
  document.getElementById('shop').style.display='none';
@@ -1545,9 +1573,13 @@ function enterBuilding(i){var c=S.cells[i];if(!c||!scene)return;
  document.getElementById('npcBubble').style.display='none';
  document.getElementById('glockBtn').textContent='🔫 Глок (G)';
  document.getElementById('fireBtn').style.display='none';
- document.getElementById('fpHint').textContent=IS_TOUCH?'Стик — ходить · ⬆️ — прыжок · свайп — камера · 💬 — болтать':'WASD — ходить · Space — прыжок · E — поговорить · G — глок · F — выстрел · мышь — камера · ESC — выйти';
+ document.getElementById('fpHint').textContent=IS_TOUCH?'Стик — ходить · ⬆️ — прыжок · 🤸 — сальтуха · свайп — камера · 💬 — болтать':'WASD — ходить · Space — прыжок · R — сальтуха 🤸 · T — соревы 🏆 · E — поговорить · G — глок · F — выстрел · мышь — камера · ESC — выйти';
  document.getElementById('joy').style.display=IS_TOUCH?'block':'none';
  document.getElementById('jumpBtn').style.display=IS_TOUCH?'block':'none';
+ document.getElementById('flipBtnFp').style.display=IS_TOUCH?'block':'none';
+ document.getElementById('compBtnFp').style.display='block';
+ document.getElementById('saltoBtn').style.display='none';
+ document.getElementById('flipCompBtn').style.display='none';
  camera.rotation.order='XYZ';selIdx=-1;closeShop();
  toast('Ты внутри: '+B[fpType].n+'! Тут живут братухи 🤝');blip(700);}
 function exitBuilding(){if(!fpMode)return;fpMode=false;fpClear();fpNPCs=[];fpAvatar=null;glockOut=false;fpShots=[];glockMesh=null;fpBlood=[];wanted=0;jailT=0;scamCd=0;
@@ -1562,6 +1594,10 @@ function exitBuilding(){if(!fpMode)return;fpMode=false;fpClear();fpNPCs=[];fpAva
  document.getElementById('npcBubble').style.display='none';
  document.getElementById('fireBtn').style.display='none';
  document.getElementById('jumpBtn').style.display='none';
+ document.getElementById('flipBtnFp').style.display='none';
+ document.getElementById('compBtnFp').style.display='none';
+ document.getElementById('saltoBtn').style.display='';
+ document.getElementById('flipCompBtn').style.display='';
  camera.rotation.order='XYZ';camera.rotation.set(0,0,0);updateCam();renderHUD();
  toast('Снова в городе! 🏙️');}
 function fpPress(e){fpLast={x:e.clientX,y:e.clientY};
@@ -1579,6 +1615,8 @@ window.addEventListener('keydown',function(e){
   else if(e.code==='ArrowDown'||e.code==='KeyS'){surfDuck();}
   else if(e.code==='Escape'){surfEnd(false);}
   e.preventDefault();return;}
+ if(e.code==='KeyR'){doSalto();if(fpMode)keys[e.code]=true;return;}
+ if(e.code==='KeyT'){openFlipComp();return;}
  if(!fpMode)return;keys[e.code]=true;
  if(e.code==='KeyE'){talkToBratuha();}
  if(e.code==='KeyG'){toggleGlock();}
@@ -1629,6 +1667,7 @@ function loop(){requestAnimationFrame(loop);
   if(fpAir){avY+=fpVy*dt;fpVy-=11*dt;if(avY<=0){avY=0;fpAir=false;fpVy=0;}}
   fpJumpH=avY;
   if(fpAvatar){fpAvatar.position.set(fpPos.x,avY,fpPos.z);
+   if(flipAnim>0){flipAnim+=dt*1.9;if(flipAnim>=1){flipAnim=0;if(fpAvatar)fpAvatar.rotation.x=0;}else if(fpAvatar)fpAvatar.rotation.x=-flipAnim*Math.PI*2;}
    if(Math.hypot(mx,mz)>0.05){var want=Math.atan2(mx,mz);
     var cur=fpAvatar.rotation.y,df=want-cur;
     while(df>Math.PI)df-=Math.PI*2;while(df<-Math.PI)df+=Math.PI*2;
@@ -1711,6 +1750,83 @@ function showMiqAd(){try{if(localStorage.getItem('evv_miqad_hide'))return;}catch
  document.getElementById('miqAd').style.display='flex';blip(660);}
 function closeMiqAd(hide){document.getElementById('miqAd').style.display='none';
  if(hide){try{localStorage.setItem('evv_miqad_hide','1');}catch(e){}}}
+/* ===== САЛЬТУХИ 42 + СОРЕВНОВАНИЯ ===== */
+var flipAnim=0,flipTotal=0,flipBest=0;
+try{flipTotal=parseInt(localStorage.getItem('evv_flip_total')||'0',10)||0;flipBest=parseInt(localStorage.getItem('evv_flip_best')||'0',10)||0;}catch(e){}
+function doSalto(){
+ flipTotal++;try{localStorage.setItem('evv_flip_total',String(flipTotal));}catch(e){}
+ if(fpMode&&fpAvatar){
+  if(!fpAir){fpVy=4.6;fpAir=true;blip(440);}
+  if(!flipAnim)flipAnim=0.0001;
+  try{floater('🤸 САЛЬТУХА!',FPX+fpPos.x,2.6,fpPos.z);}catch(e){}
+  toast('🤸 Сальтуха! Всего: '+flipTotal+' 🔥');blip(760);
+  setTimeout(function(){blip(990);},140);
+ }else{
+  toast('🤸 Сальтуха на площади! Всего: '+flipTotal+' (зайди в здание — там круче!)');blip(760);
+ }
+ return flipTotal;
+}
+var compOn=false,compMe=0,compRival=0,compRivalName='Чаев',compT=0,compTimer=null;
+var RIVALS=['Чаев 🤸','Миккил 🛞','Торнадо ⚡','Денис 🚗','Святослав ⚡','Смольград 🏰'];
+function openFlipComp(){
+ document.getElementById('flipComp').style.display='flex';
+ document.getElementById('flipScore').textContent='ТЫ 0 : 0 СОПЕРНИК';
+ document.getElementById('flipTimer').textContent='5.0с — жми СТАРТ!';
+ document.getElementById('flipCompText').textContent='Тапай САЛЬТУХА быстрее соперника за 5 сек! Проигрыш = −70% всех ресурсов 😱';
+ blip(600);
+}
+function closeFlipComp(){compOn=false;if(compTimer){clearInterval(compTimer);compTimer=null;}document.getElementById('flipComp').style.display='none';}
+function startFlipComp(){
+ compRivalName=RIVALS[Math.floor(Math.random()*RIVALS.length)];
+ compMe=0;compRival=0;compOn=true;compT=50;
+ document.getElementById('flipCompText').textContent='Соперник: '+compRivalName+'! Тапай 🤸 как можно быстрее! 5 сек!';
+ document.getElementById('flipScore').textContent='ТЫ 0 : 0 '+compRivalName;
+ blip(800);
+ if(compTimer)clearInterval(compTimer);
+ compTimer=setInterval(function(){
+  compT--;
+  document.getElementById('flipTimer').textContent=(compT/10).toFixed(1)+'с';
+  if(Math.random()<0.75)compRival+=(Math.random()<0.25?2:1);
+  document.getElementById('flipScore').textContent='ТЫ '+compMe+' : '+compRival+' '+compRivalName;
+  if(compT<=0)endFlipComp();
+ },100);
+}
+function compTap(){
+ if(!compOn)return;
+ compMe++;
+ doSaltoQuiet();
+ document.getElementById('flipScore').textContent='ТЫ '+compMe+' : '+compRival+' '+compRivalName;
+ blip(500+Math.min(600,compMe*30));
+}
+function doSaltoQuiet(){
+ flipTotal++;try{localStorage.setItem('evv_flip_total',String(flipTotal));}catch(e){}
+ if(fpMode&&fpAvatar){if(!fpAir){fpVy=4.6;fpAir=true;}if(!flipAnim)flipAnim=0.0001;}
+}
+function endFlipComp(){
+ if(!compOn)return;compOn=false;if(compTimer){clearInterval(compTimer);compTimer=null;}
+ var win=compMe>compRival,draw=compMe===compRival;
+ if(compMe>flipBest){flipBest=compMe;try{localStorage.setItem('evv_flip_best',String(flipBest));}catch(e){}}
+ if(draw){
+  document.getElementById('flipTimer').textContent='НИЧЬЯ '+compMe+':'+compRival+'!';
+  document.getElementById('flipCompText').textContent='Ничья с '+compRivalName+'! Ресурсы целы, реванш? 🤝';
+  toast('🤝 Ничья по сальтухам '+compMe+':'+compRival+'!');blip(600);
+ }else if(win){
+  var prize=20+compMe*3;
+  S.gold+=prize;S.wood+=Math.floor(prize/2);S.mana+=Math.floor(prize/2);
+  save();renderHUD();
+  document.getElementById('flipTimer').textContent='ПОБЕДА '+compMe+':'+compRival+'! 🏆';
+  document.getElementById('flipCompText').textContent='Ты уделал '+compRivalName+'! Приз +'+prize+'🪙! МЫ УЖЕ ПОБЕДИЛИ 🏆';
+  toast('🏆 Победа по сальтухам! +'+prize+'🪙');blip(880);setTimeout(function(){blip(1100);},150);
+ }else{
+  var lg=Math.floor(S.gold*0.7),lm=Math.floor(S.mana*0.7),lw=Math.floor(S.wood*0.7);
+  S.gold-=lg;S.mana-=lm;S.wood-=lw;
+  if(S.gold<0)S.gold=0;if(S.mana<0)S.mana=0;if(S.wood<0)S.wood=0;
+  save();renderHUD();
+  document.getElementById('flipTimer').textContent='ПОРАЖЕНИЕ '+compMe+':'+compRival+' 😱';
+  document.getElementById('flipCompText').textContent=compRivalName+' круче! −70% ресурсов: −'+lg+'🪙 −'+lw+'🌲 −'+lm+'💧. Тренируйся!';
+  toast('😱 Проигрыш! −70% всех ресурсов!');blip(200);setTimeout(function(){blip(150);},250);
+ }
+}
 /* --- старт --- */
 load();
 document.getElementById('giftBtn').onclick=gather;
@@ -1728,6 +1844,13 @@ document.getElementById('talkBtn').onclick=function(){talkToBratuha();};
 document.getElementById('glockBtn').onclick=function(){toggleGlock();};
 document.getElementById('fireBtn').onclick=function(){shootGlock();};
 document.getElementById('jumpBtn').onclick=function(){jumpQueued=true;};
+document.getElementById('flipBtnFp').onclick=function(){doSalto();};
+document.getElementById('compBtnFp').onclick=function(){openFlipComp();};
+document.getElementById('saltoBtn').onclick=function(){doSalto();};
+document.getElementById('flipCompBtn').onclick=function(){openFlipComp();};
+document.getElementById('flipTap').onclick=function(){compTap();};
+document.getElementById('flipStart').onclick=function(){startFlipComp();};
+document.getElementById('flipClose').onclick=function(){closeFlipComp();};
 document.getElementById('runBtn').onclick=function(){startSurfEscape();};
 document.getElementById('surfL').onclick=function(){surfMove(-1);};
 document.getElementById('surfR').onclick=function(){surfMove(1);};
@@ -1742,7 +1865,7 @@ document.getElementById('surfQuit').onclick=function(){surfEnd(false);};
 if(initThree()){refreshAll();renderHUD();loop();
  setInterval(function(){var p=prod();S.gold+=p.gold;S.mana+=p.mana;S.wood+=p.wood;
   var c=cap(),g=gardens();
-  if(S.pop<c&&Math.random()<0.25*(1+g*0.5)*(1+countT('tavern')*0.5+countT('glade')*0.25+countT('theatre')*0.4+countT('cinema')*0.3+countT('barber')*0.2+countT('hospital')*0.6+countT('park')*0.3+countT('railway')*0.4+countT('bus')*0.3+countT('stadium')*0.5)){S.pop++;
+  if(S.pop<c&&S.pop<42&&Math.random()<0.25*(1+g*0.5)*(1+countT('tavern')*0.5+countT('glade')*0.25+countT('theatre')*0.4+countT('cinema')*0.3+countT('barber')*0.2+countT('hospital')*0.6+countT('park')*0.3+countT('railway')*0.4+countT('bus')*0.3+countT('stadium')*0.5)){S.pop++;
    if(S.pop>=42&&!S.win){S.win=true;document.getElementById('win').style.display='flex';toast('🏆 42 ЖИТЕЛЯ! МЫ УЖЕ ПОБЕДИЛИ! 🏆');}}
   S.lastSeen=Date.now();save();renderHUD();},1000);}
 else{renderHUD();}
@@ -1762,6 +1885,11 @@ window.__elf={get:function(){return S;},tool:function(){return tool;},build:func
  surfState:function(){return surf?{on:surfOn,dist:Math.floor(surf.dist),lives:surf.lives,copD:Math.round(surf.copD*10)/10}:{on:surfOn};},
  surfWin:function(){surfEnd(true);return wanted;},
  ad:function(){showMiqAd();return document.getElementById('miqAd').style.display;},
+ salto:function(){return doSalto();},
+ comp:function(){openFlipComp();startFlipComp();return true;},
+ compTap:function(){compTap();return compMe;},
+ compEnd:function(){endFlipComp();return {me:compMe,rival:compRival,gold:Math.floor(S.gold)};},
+ flips:function(){return {total:flipTotal,best:flipBest,anim:flipAnim};},
  fp:function(){return {mode:fpMode,type:fpType,x:Math.round(fpPos.x*100)/100,z:Math.round(fpPos.z*100)/100};}};
 </script>
 </body>
