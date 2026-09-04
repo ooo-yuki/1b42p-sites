@@ -678,10 +678,11 @@ async function enterBattle(vid) {
   $('end').classList.add('hidden');
   $('hud').classList.remove('hidden');
   if (isTouchDevice) {
-    // Best-effort: без ожидания и без шума при отказе — не у всех браузеров это
-    // вообще доступно, а мы уже внутри обработчика клика (нужен user gesture).
-    document.documentElement.requestFullscreen?.().catch(() => {});
-    screen.orientation?.lock?.('landscape').catch(() => {});
+    // Best-effort и не должно уметь сорвать вход в бой: на разных браузерах
+    // API либо кидает синхронно (SecurityError вне фуллскрина), либо отдаёт
+    // отклонённый промис — ловим оба варианта, отдельным try на каждый вызов.
+    try { document.documentElement.requestFullscreen?.()?.catch(() => {}); } catch {}
+    try { screen.orientation?.lock?.('landscape')?.catch(() => {}); } catch {}
   }
   resetBattleState();
   const ok = await connectOnline(vid);
@@ -753,9 +754,13 @@ function frame(dt) {
   if (mmAcc >= 1 / MM_HZ) { mmAcc = 0; drawMinimap(lastUnitsArr, zone); }
 }
 function animate() {
+  // document.hidden НЕ используем как стоп-кран: в части браузеров/контекстов
+  // (замечено в автоматизации, но не только) он держится true, пока вкладка
+  // всё ещё видна и rAF продолжает тикать нормально — самопальная проверка тогда
+  // просто вешает игру на чёрном экране. requestAnimationFrame и так троттлится
+  // браузером в фоне сам по себе, отдельная проверка не нужна.
   const rawDt = clock.getDelta();
   const dt = Math.min(rawDt, 0.05);
-  if (document.hidden) return; // вкладка в фоне — не грузим GPU/CPU впустую
   trackPerf(rawDt);
   frame(dt);
   if (mode) renderer.render(scene, camera); // в ангаре/на логине рисовать нечего
