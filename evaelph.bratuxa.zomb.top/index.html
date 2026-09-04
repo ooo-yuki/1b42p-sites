@@ -61,6 +61,10 @@ border-radius:999px;padding:12px 16px;cursor:pointer;box-shadow:0 4px 0 #111}
 #fireBtn{position:absolute;right:12px;bottom:180px;pointer-events:auto;display:none;
 border:3px solid var(--ink);background:#c00040;color:#fff;font-weight:bold;font-size:16px;
 border-radius:50%;width:72px;height:72px;cursor:pointer;box-shadow:0 4px 0 #7a0028}
+#jumpBtn{position:absolute;right:12px;bottom:262px;pointer-events:auto;display:none;
+border:3px solid var(--ink);background:var(--cream);color:var(--ink);font-weight:bold;font-size:24px;
+border-radius:50%;width:72px;height:72px;cursor:pointer;box-shadow:0 4px 0 rgba(47,93,58,.35)}
+#jumpBtn:active{transform:scale(.92)}
 #npcBubble{position:absolute;left:50%;transform:translateX(-50%);bottom:118px;pointer-events:none;display:none;
 background:var(--cream);border:3px solid var(--ink);border-radius:16px;padding:10px 14px;max-width:88vw;
 font-size:14px;font-weight:bold;color:var(--ink);box-shadow:0 4px 0 rgba(47,93,58,.35);text-align:center}
@@ -159,6 +163,7 @@ transition:transform 1.1s ease-out,opacity 1.1s}
  <button id="talkBtn">💬 Поговорить (E)</button>
  <button id="glockBtn">🔫 Глок (G)</button>
  <button id="fireBtn">🔥</button>
+ <button id="jumpBtn">⬆️</button>
  <button id="runBtn">🏃 Бежать!</button>
  <div id="fpHint">WASD — ходить · мышь — осмотр · ESC — выйти</div>
  <div id="joy"><div id="stick"></div></div>
@@ -890,6 +895,7 @@ var fpMode=false,fpType=null,fpLvl=1,fpYaw=0,fpPitch=0;
 var fpPos={x:0,z:0},fpBounds={x:[-4,4],z:[-3,3]},fpObstacles=[];
 var interiorRoot=null,curIn=null,keys={},joyVec={x:0,y:0},joyId=null,lookId=null,lookLast=null,fpLast=null;
 var fpAvatar=null,fpNPCs=[],fpVy=0,fpAir=false,talkCd=0,npcTalkIx=0;
+var fpJumpH=0,jumpQueued=false;
 var glockOut=false,fpShots=[],shootCd=0,glockMesh=null;
 var fpBlood=[];
 var wanted=0,jailT=0,scamCd=0;
@@ -1435,7 +1441,7 @@ function buildInterior(type){fpClear();fpObstacles.length=0;fpAvatar=null;
  curIn=new THREE.Group();interiorRoot.add(curIn);
  (IN[type]||inHouse)();
  var rl=new THREE.PointLight(0xfff2d0,14,22,2);rl.position.set(0,2.6,0.5);curIn.add(rl);
- fpPos={x:0,z:fpBounds.z[1]-1.0};fpYaw=0;fpPitch=0.25;fpVy=0;fpAir=false;npcTalkIx=0;talkCd=0;
+ fpPos={x:0,z:fpBounds.z[1]-1.0};fpYaw=0;fpPitch=0.25;fpVy=0;fpAir=false;npcTalkIx=0;talkCd=0;fpJumpH=0;jumpQueued=false;
  glockOut=false;fpShots=[];shootCd=0;glockMesh=null;fpBlood=[];
  spawnBratuhi(type);
  if(fpAvatar)fpAvatar.position.set(fpPos.x,0,fpPos.z);}
@@ -1505,8 +1511,9 @@ function enterBuilding(i){var c=S.cells[i];if(!c||!scene)return;
  document.getElementById('npcBubble').style.display='none';
  document.getElementById('glockBtn').textContent='🔫 Глок (G)';
  document.getElementById('fireBtn').style.display='none';
- document.getElementById('fpHint').textContent=IS_TOUCH?'Стик — ходить · свайп — камера · 💬 — болтать · 🔫 — глок':'WASD — ходить · Space — прыжок · E — поговорить · G — глок · F — выстрел · мышь — камера · ESC — выйти';
+ document.getElementById('fpHint').textContent=IS_TOUCH?'Стик — ходить · ⬆️ — прыжок · свайп — камера · 💬 — болтать':'WASD — ходить · Space — прыжок · E — поговорить · G — глок · F — выстрел · мышь — камера · ESC — выйти';
  document.getElementById('joy').style.display=IS_TOUCH?'block':'none';
+ document.getElementById('jumpBtn').style.display=IS_TOUCH?'block':'none';
  camera.rotation.order='XYZ';selIdx=-1;closeShop();
  toast('Ты внутри: '+B[fpType].n+'! Тут живут братухи 🤝');blip(700);}
 function exitBuilding(){if(!fpMode)return;fpMode=false;fpClear();fpNPCs=[];fpAvatar=null;glockOut=false;fpShots=[];glockMesh=null;fpBlood=[];wanted=0;jailT=0;scamCd=0;
@@ -1520,6 +1527,7 @@ function exitBuilding(){if(!fpMode)return;fpMode=false;fpClear();fpNPCs=[];fpAva
  document.getElementById('talkBtn').style.display='none';
  document.getElementById('npcBubble').style.display='none';
  document.getElementById('fireBtn').style.display='none';
+ document.getElementById('jumpBtn').style.display='none';
  camera.rotation.order='XYZ';camera.rotation.set(0,0,0);updateCam();renderHUD();
  toast('Снова в городе! 🏙️');}
 function fpPress(e){fpLast={x:e.clientX,y:e.clientY};
@@ -1581,16 +1589,18 @@ function loop(){requestAnimationFrame(loop);
    if(d<min&&d>0.001){fpPos.x=ob.x+dx/d*min;fpPos.z=ob.z+dz/d*min;}}
   fpPos.x=Math.min(fpBounds.x[1],Math.max(fpBounds.x[0],fpPos.x));
   fpPos.z=Math.min(fpBounds.z[1],Math.max(fpBounds.z[0],fpPos.z));
-  if((keys['Space'])&&!fpAir){fpVy=4.2;fpAir=true;blip(440);}
-  var avY=fpAvatar?fpAvatar.position.y:0;
+  if((keys['Space']||jumpQueued)&&!fpAir){fpVy=4.2;fpAir=true;blip(440);}
+  jumpQueued=false;
+  var avY=fpJumpH;
   if(fpAir){avY+=fpVy*dt;fpVy-=11*dt;if(avY<=0){avY=0;fpAir=false;fpVy=0;}}
+  fpJumpH=avY;
   if(fpAvatar){fpAvatar.position.set(fpPos.x,avY,fpPos.z);
    if(Math.hypot(mx,mz)>0.05){var want=Math.atan2(mx,mz);
     var cur=fpAvatar.rotation.y,df=want-cur;
     while(df>Math.PI)df-=Math.PI*2;while(df<-Math.PI)df+=Math.PI*2;
     fpAvatar.rotation.y=cur+df*Math.min(1,dt*12);
-    fpAvatar.position.y=avY+Math.abs(Math.sin(t*11))*0.06;}
-   else fpAvatar.position.y=avY+Math.sin(t*2.2)*0.015;}
+    fpAvatar.position.y=avY+Math.abs(Math.sin(t*8))*0.04;}
+   else fpAvatar.position.y=avY+Math.abs(Math.sin(t*3))*0.02;}
   for(var ni=0;ni<fpNPCs.length;ni++){var npc=fpNPCs[ni],np=npc.g.position;
    if(npc.down){npc.resp-=dt;
     npc.g.rotation.x+=(-Math.PI/2-npc.g.rotation.x)*Math.min(1,dt*8);
@@ -1678,6 +1688,7 @@ document.getElementById('exitFp').onclick=exitBuilding;
 document.getElementById('talkBtn').onclick=function(){talkToBratuha();};
 document.getElementById('glockBtn').onclick=function(){toggleGlock();};
 document.getElementById('fireBtn').onclick=function(){shootGlock();};
+document.getElementById('jumpBtn').onclick=function(){jumpQueued=true;};
 document.getElementById('runBtn').onclick=function(){startSurfEscape();};
 document.getElementById('surfL').onclick=function(){surfMove(-1);};
 document.getElementById('surfR').onclick=function(){surfMove(1);};
