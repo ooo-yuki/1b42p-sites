@@ -6,11 +6,11 @@ import type { MutateFn } from '../../hooks/useZapoiState';
 
 // Иконки веток от Дениса Биткоина 🍺 (public/tree/*.jpg, 256px, q86).
 export const BRANCH_ICON: Record<string, string> = {
-  '🍺 Ветка Глотки — только бухло': 'tree/glotka.jpg',
-  '🧬 Ветка Печени — бухло/сек + тело': 'tree/pechen.jpg',
-  '🩹 Ветка Трезвости — лечат HP, жрут бухло': 'tree/trezvost.jpg',
-  '🎉 Ветка Кутежа — мульты': 'tree/kutezh.jpg',
-  '🍀 Ветка Удачи — ставки и джекпоты': 'tree/udacha.jpg',
+  'Ветка Глотки — только бухло': 'tree/glotka.jpg',
+  'Ветка Печени — бухло/сек + тело': 'tree/pechen.jpg',
+  'Ветка Трезвости — лечат HP, жрут бухло': 'tree/trezvost.jpg',
+  'Ветка Кутежа — мульты': 'tree/kutezh.jpg',
+  'Ветка Удачи — ставки и джекпоты': 'tree/udacha.jpg',
 };
 
 export function branchIcon(header: string): string {
