@@ -95,7 +95,7 @@ export function botReactionTime(rng) {
   return BOT_AIM.reactMin + rng() * (BOT_AIM.reactMax - BOT_AIM.reactMin);
 }
 
-const BOT_NICKS = ['Кизяк', 'Чаев', 'Свят', 'Денчик', 'Бротовод', 'Слай', 'Винлайн', 'Дамафан', 'Триавзерос', 'Хасан'];
+const BOT_NICKS = ['Бот1', 'Бот2', 'Бот3', 'Бот4', 'Бот5', 'Бот6', 'Бот7', 'Бот8', 'Бот9', 'Бот10'];
 
 export function pickBots(n, seedFn = Math.random) {
   const pool = [...BOT_NICKS];
