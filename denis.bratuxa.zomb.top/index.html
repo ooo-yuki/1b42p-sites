@@ -886,6 +886,43 @@ function billboard(x,y,z){const m=new THREE.Mesh(new THREE.PlaneGeometry(15,4.5)
  const lineM=new THREE.MeshBasicMaterial({color:0xf5f5f0});
  for(const av of [-100,-50,0]){for(const s of [-5,5]){const c=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.22,200),curbM);c.position.set(av+s,0.11,0);scene.add(c);}const ln=new THREE.Mesh(new THREE.PlaneGeometry(0.5,200),lineM);ln.rotation.x=-Math.PI/2;ln.position.set(av,0.05,0);scene.add(ln);}
  for(const av of [-100,-50,0,50,100]){for(const s of [-5,5]){const c=new THREE.Mesh(new THREE.BoxGeometry(150,0.22,0.6),curbM);c.position.set(-50,0.11,av);scene.add(c);}const ln=new THREE.Mesh(new THREE.PlaneGeometry(150,0.5),lineM);ln.rotation.x=-Math.PI/2;ln.position.set(-50,0.05,av);scene.add(ln);}
+ // ===== ПРИРОДА И ПЛЯЖ: густой лес, лавочки, костёр, шезлонги, зонтики, ларьки (база y=0 — liftIsland поднимет) =====
+ function bush(x,z,s){const m=new THREE.Mesh(new THREE.IcosahedronGeometry(s,0),new THREE.MeshStandardMaterial({color:0x1d6e35,roughness:1,flatShading:true}));m.position.set(x,s*0.6,z);m.scale.y=0.7;scene.add(m);}
+ function umbrella(x,z,c){const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,3,6),new THREE.MeshStandardMaterial({color:0xeeeeee}));pole.position.y=1.5;g.add(pole);
+  const top=new THREE.Mesh(new THREE.ConeGeometry(2.2,1.2,8),new THREE.MeshStandardMaterial({color:c,roughness:.8,side:THREE.DoubleSide}));top.position.y=3.4;top.castShadow=true;g.add(top);}
+ function lounger(x,z,ry,c){const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=ry;scene.add(g);
+  const seat=new THREE.Mesh(new THREE.BoxGeometry(1,0.35,2.2),new THREE.MeshStandardMaterial({color:0x8a6a3a,roughness:.85}));seat.position.y=0.35;seat.castShadow=true;g.add(seat);
+  const back=new THREE.Mesh(new THREE.BoxGeometry(1,0.3,1.1),new THREE.MeshStandardMaterial({color:0x8a6a3a,roughness:.85}));back.position.set(0,0.8,-1.4);back.rotation.x=-0.6;g.add(back);
+  const towel=new THREE.Mesh(new THREE.PlaneGeometry(0.9,1.8),new THREE.MeshStandardMaterial({color:c,roughness:.9}));towel.rotation.x=-Math.PI/2;towel.position.y=0.54;g.add(towel);}
+ function beachSign(x,z,txt){const c=document.createElement('canvas');c.width=512;c.height=96;const g=c.getContext('2d');g.fillStyle='#000';g.fillRect(0,0,512,96);g.fillStyle='#ffd700';g.font='bold 52px Arial';g.fillText(txt,20,64);const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));s.scale.set(12,2.2,1);s.position.set(x,6.5,z);scene.add(s);}
+ (function(){
+  let placed=0,guard=0;
+  while(placed<18&&guard++<160){const x=45+Math.random()*140,z=-20+Math.random()*130;if(!decorFree(x,z,5))continue;pine(x,z);placed++;}
+  placed=0;guard=0;
+  while(placed<14&&guard++<120){const x=45+Math.random()*140,z=-20+Math.random()*130;if(!decorFree(x,z,2.5))continue;bush(x,z,0.7+Math.random()*0.7);placed++;}
+  for(const bz of [-20,5,30,55,80,105]){if(decorFree(93,bz,3))bench(93,bz,Math.PI/2);if(decorFree(107,bz,3))bench(107,bz,-Math.PI/2);}
+  for(const bx of [60,80,120,140,160]){if(decorFree(bx,43,3))bench(bx,43,0);if(decorFree(bx,57,3))bench(bx,57,Math.PI);}
+  const CFX=120,CFZ=60;
+  if(decorFree(CFX,CFZ,8)){
+   for(let i=0;i<8;i++){const a=i/8*Math.PI*2;const st=new THREE.Mesh(new THREE.DodecahedronGeometry(0.35),new THREE.MeshStandardMaterial({color:0x777788,roughness:1}));st.position.set(CFX+Math.cos(a)*2,0.3,CFZ+Math.sin(a)*2);scene.add(st);}
+   const logM=new THREE.MeshStandardMaterial({color:0x5a3a1a,roughness:.9});
+   const l1=new THREE.Mesh(new THREE.CylinderGeometry(.25,.25,2.6,7),logM);l1.rotation.z=Math.PI/2;l1.rotation.y=0.5;l1.position.set(CFX,0.4,CFZ);scene.add(l1);
+   const l2=new THREE.Mesh(new THREE.CylinderGeometry(.25,.25,2.6,7),logM);l2.rotation.z=Math.PI/2;l2.rotation.y=-0.5;l2.position.set(CFX,0.4,CFZ);scene.add(l2);
+   const fire=new THREE.Mesh(new THREE.ConeGeometry(0.7,1.6,7),new THREE.MeshBasicMaterial({color:0xff7722}));fire.position.set(CFX,1.2,CFZ);scene.add(fire);window.campfire=fire;
+   const fl=new THREE.PointLight(0xff8830,1.2,25);fl.position.set(CFX,2,CFZ);scene.add(fl);
+   bench(CFX+4,CFZ,Math.PI/2);bench(CFX-4,CFZ,-Math.PI/2);
+  }
+  const UC=[0xff4444,0xffd700,0x2299ff,0xff8800,0x44dd77,0xcc66ff];
+  let ui=0;guard=0;
+  while(ui<6&&guard++<80){const x=-120+Math.random()*240,z=140+Math.random()*35;if(!decorFree(x,z,4))continue;
+   umbrella(x,z,UC[ui%UC.length]);
+   if(decorFree(x-2.5,z+1,2))lounger(x-2.5,z+1,Math.PI,UC[(ui+2)%UC.length]);
+   if(decorFree(x+2.5,z+1,2))lounger(x+2.5,z+1,Math.PI,UC[(ui+4)%UC.length]);
+   ui++;}
+  if(decorFree(-40,150,6)){kiosk(-40,150);beachSign(-40,150,'🍦 МОРОЖЕНОЕ');}
+  if(decorFree(60,155,6)){kiosk(60,155);beachSign(60,155,'🍹 КОКТЕЙЛИ');}
+ })();
 })();
 function gamble(){
  if(MONEY<50){say(['<b>КРУПЬЕ КАЗИНО:</b> Ставка 50 монет, а у тебя '+MONEY+'. Загляни к Кизяку за фрибетом! 🎰']);try{AU.blip(200,.15,'square',.12);}catch(_){}return;}
@@ -1075,6 +1112,7 @@ try{head.rotation.x=-(camPitch-0.45)*0.9;}catch(_){}
 try{fadeHouses();}catch(_){}
 try{for(const c of CLOUDS){c.m.position.x+=c.sp*dt;if(c.m.position.x>380)c.m.position.x=-380;}}catch(_){}
 try{if(window.markers)for(const mk of window.markers){const _s=1+0.18*Math.sin(Date.now()*0.004+mk.position.x);mk.scale.set(_s,1,_s);}}catch(_){}
+try{if(window.campfire){const _f=1+0.25*Math.sin(Date.now()*0.01);window.campfire.scale.set(_f,1+0.3*Math.sin(Date.now()*0.013),_f);}}catch(_){}
 cam.lookAt(focus.x,cam.userData.lookY||2,focus.z);
 // миникарта (S=ширина канваса: 120 малая / 360 большая, k=масштаб маркеров)
 {const S=mm.canvas.width,W2M=S/400,WX=x=>(x+200)*W2M,k=S/120;
