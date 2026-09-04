@@ -144,6 +144,12 @@ box-shadow:0 0 40px var(--gold);font-size:17px}
 #miqAdBox a{display:inline-block;margin-top:12px;background:var(--gold);color:#5d4a00;font-weight:bold;text-decoration:none;padding:10px 28px;border-radius:12px;font-size:17px}
 #miqAdBtns{margin-top:10px;display:flex;gap:8px;justify-content:center}
 #miqAdBtns button{border:none;border-radius:10px;padding:8px 16px;font-weight:bold;font-size:13px;cursor:pointer;background:#eef5e6;color:var(--ink)}
+#travel{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(10,20,15,.6);z-index:30}
+#travelBox{background:var(--cream);border:4px solid var(--leaf);border-radius:22px;padding:20px;max-width:360px;text-align:center;box-shadow:0 0 30px var(--leaf);font-size:15px}
+#travelBox .city{display:block;margin-top:10px;border:3px solid var(--ink);border-radius:16px;padding:10px;background:#f3f9ec;color:var(--ink);text-decoration:none;font-weight:bold}
+#travelBox .city small{display:block;font-weight:normal;font-size:12px;opacity:.8}
+#travelBox .city:active{transform:scale(.96)}
+#travelClose{margin-top:10px;border:none;border-radius:10px;padding:8px 22px;font-weight:bold;font-size:14px;cursor:pointer;background:#eef5e6;color:var(--ink)}
 /* всплывающие +N */
 .floater{position:fixed;z-index:9;font-weight:bold;font-size:16px;color:#d63d6e;pointer-events:none;text-shadow:0 2px 0 #fff;
 transition:transform 1.1s ease-out,opacity 1.1s}
@@ -206,6 +212,7 @@ transition:transform 1.1s ease-out,opacity 1.1s}
 <div id="flipComp"><div id="flipCompBox">🤸 <b>СОРЕВНОВАНИЯ ПО САЛЬТУХАМ!</b> 🤸<br><small id="flipCompText">Тапай САЛЬТУХА быстрее соперника за 5 сек! Проигрыш = −70% всех ресурсов 😱</small><div id="flipScore" style="font-weight:bold;font-size:18px;margin:8px 0">ТЫ 0 : 0 СОПЕРНИК</div><div id="flipTimer" style="font-weight:bold">5.0с</div><div><button id="flipTap">🤸 САЛЬТУХА!</button></div><div><button id="flipStart">▶️ Старт!</button><button id="flipClose">✖️ Закрыть</button></div></div></div>
 <div id="win"><div id="winBox">🏆 <b>МЫ УЖЕ ПОБЕДИЛИ!</b> 🏆<br>Эввград достиг 42 жителей! Город сияет, лес поёт! 🧝🌲✨<br><button onclick="document.getElementById('win').style.display='none'">Ура! 🎉</button></div></div>
 <div id="miqAd"><div id="miqAdBox">🛞 <b>МИККИЛ 42 — ТАНКИ!</b> 🛞<br>Броня, тактика и грохот гусениц! Батальонный танкодром уже ждёт!<br><a href="https://miqqil.bratuxa.zomb.top/" target="_blank">Играть →</a><div id="miqAdBtns"><button onclick="closeMiqAd(false)">Позже</button><button onclick="closeMiqAd(true)">Не показывать</button></div></div></div>
+<div id="travel"><div id="travelBox">🧳 <b>ГОРОДА БРАТУХ</b> 🧳<br><small>Куда едем? Сейв Эввграда уже записан!</small><a class="city" href="https://smolgrad.bratuxa.zomb.top">👑 Смолград<small>королевство царя smolskie</small></a><a class="city" href="https://denis.bratuxa.zomb.top">🏝️ Остров Дениса<small>пляж, город, WINLINE и пещера</small></a><a class="city" href="https://hub.bratuxa.zomb.top">🏠 Хаб 1Б42П<small>все игры батальона</small></a><button id="travelClose" onclick="closeTravel()">Остаюсь дома</button></div></div>
 <script>
 /* ================= ЭКОНОМИКА (сейвы совместимы со старой версией) ================= */
 var KEY='elfograd42_v1';
@@ -878,6 +885,8 @@ function backupMenu(){save();
  var ans=prompt('💾 Твой город: '+n+' построек. Скопируй код и храни его! Чтобы ЗАГРУЗИТЬ город из кода — вставь код сюда и жми ОК:',code);
  if(ans===null||ans===code){if(ans===code)toast('Храни код, братуха! 🏆');return;}
  if(importSave(ans))blip(880);}
+function openTravel(){save();document.getElementById('travel').style.display='flex';blip(620);}
+function closeTravel(){document.getElementById('travel').style.display='none';}
 function after(){
  if(S.pop>=42&&!S.win){S.win=true;document.getElementById('win').style.display='flex';toast('🏆 42 ЖИТЕЛЯ! МЫ УЖЕ ПОБЕДИЛИ! 🏆');blip(880);}
  save();}
@@ -912,6 +921,9 @@ function renderHUD(){
  var sv=document.createElement('button');
  sv.className='tool';sv.innerHTML='<span class="em">💾</span>Сейв<small>бэкап города</small>';
  sv.onclick=backupMenu;dock.appendChild(sv);
+ var tv=document.createElement('button');
+ tv.className='tool';tv.innerHTML='<span class="em">🧳</span>Города<small>к братухам!</small>';
+ tv.onclick=openTravel;dock.appendChild(tv);
  if(selIdx>=0)fillInspector();}
 function openShop(gid){openGroup=gid;closeInspector();
  var gr=null;GROUPS.forEach(function(x){if(x.id===gid)gr=x;});if(!gr)return;
@@ -1885,6 +1897,7 @@ window.__elf={get:function(){return S;},tool:function(){return tool;},build:func
  surfState:function(){return surf?{on:surfOn,dist:Math.floor(surf.dist),lives:surf.lives,copD:Math.round(surf.copD*10)/10}:{on:surfOn};},
  surfWin:function(){surfEnd(true);return wanted;},
  ad:function(){showMiqAd();return document.getElementById('miqAd').style.display;},
+ travel:function(){openTravel();return document.getElementById('travel').style.display;},
  salto:function(){return doSalto();},
  comp:function(){openFlipComp();startFlipComp();return true;},
  compTap:function(){compTap();return compMe;},
