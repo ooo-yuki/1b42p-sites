@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import Casino from './Casino';
+import './tw.out.css';
 
 document.body.classList.add('casino');
 // общий style.css ставит html{overflow:hidden} — для скролла казино снимаем инлайном (сильнее любого бандла)

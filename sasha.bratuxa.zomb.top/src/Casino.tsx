@@ -2,6 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { useBeacon } from './hooks';
 import './casino.css';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 const LS = 'sasha_casino';
 const START_BALANCE = 1000;
@@ -451,17 +457,18 @@ export default function Casino(): JSX.Element {
   return (
     <>
       <div className="cbar">
-        <a className="cbtn ghost" href="index.html" style={{ textDecoration: 'none' }} title="На главную">🏠</a>
-        <span>🪙</span><span className="bal">{balance}</span>
+        <Button variant="outline" size="sm" asChild><a href="index.html" title="На главную" className="no-underline">🏠</a></Button>
+        <Badge variant="secondary" className="tabular-nums">🪙 {balance}</Badge>
         <span className="sp" />
-        <button className="cbtn ghost" onClick={takeBonus}>+500 фишек</button>
-        <a
-          className="cbtn"
-          href="https://finance.ozon.ru/apps/sbp/ozonbankpay/019fa8eb-037e-75f9-a3d9-fe258db9e911"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ textDecoration: 'none' }}
-        >💳 Пополнить</a>
+        <Button variant="outline" size="sm" onClick={takeBonus}>+500 фишек</Button>
+        <Button size="sm" asChild>
+          <a
+            href="https://finance.ozon.ru/apps/sbp/ozonbankpay/019fa8eb-037e-75f9-a3d9-fe258db9e911"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="no-underline"
+          >💳 Пополнить</a>
+        </Button>
       </div>
       <main><div className="cwrap">
         <div className="chead">
@@ -470,133 +477,177 @@ export default function Casino(): JSX.Element {
         </div>
         <div className="clog">{msg}</div>
 
-        <section className="csec">
-          <h2>📈 Краш</h2>
-          <p className="hint">Множитель растёт, пока ракета летит. Забирай до крэша — иначе ставка сгорает.</p>
-          <div className={dead ? 'crashnum dead' : 'crashnum'}>×{mult.toFixed(2)}</div>
-          <canvas id="crashCv" ref={cvRef} />
-          <div className="crow" style={{ marginTop: 12 }}>
-            <input className="cin" value={bet} onChange={e => setBet(e.target.value)} inputMode="numeric" aria-label="Ставка на краш" />
-            {!crashOn
-              ? <button className="cbtn" onClick={startCrash}>Погнали 🚀</button>
-              : <button className="cbtn" onClick={cashOut}>Забрать ✅</button>}
-          </div>
-        </section>
-
-        <section className="csec">
-          <h2>📦 Кейсы</h2>
-          <p className="hint">Платишь за кейс — лента крутится, что выпало, то твоё.</p>
-          <div className="cases">
-            {CASES.map(c => (
-              <div className="case" key={c.id}>
-                <div className="em">{c.em}</div><b>{c.name}</b>
-                <small>{c.desc}</small>
-                <div className="price">{c.price} фишек</div>
-                <button className="cbtn" disabled={caseBusy} onClick={() => openCase(c)}>Открыть</button>
-              </div>
-            ))}
-          </div>
-          <div id="stripWrap"><div id="strip" /></div>
-        </section>
-
-        <section className="csec">
-          <h2>🐎 Лошади</h2>
-          <p className="hint">Выбери лошадь, поставь фишки. Кто первый до финиша — тот и прав.</p>
-          <div className="hpick">
-            {HORSES.map(h => (
-              <button key={h.id} className={horse === h.id ? 'sel' : ''} onClick={() => setHorse(h.id)}>
-                {h.em} {h.name} ×{h.odds}
-              </button>
-            ))}
-          </div>
-          {HORSES.map((h, i) => (
-            <div className="horse" key={h.id}>
-              <div className="nm"><b>{h.em} {h.name}</b> · ×{h.odds}</div>
-              <div className="track">
-                <span className="run" style={{ left: `calc(${Math.min(96, pos[i])}% )` }}>{h.em}</span>
-                <span className="fin">🏁</span>
-              </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>📈 Краш</CardTitle>
+            <CardDescription>Множитель растёт, пока ракета летит. Забирай до крэша — иначе ставка сгорает.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className={dead ? 'crashnum dead' : 'crashnum'}>×{mult.toFixed(2)}</div>
+            <canvas id="crashCv" ref={cvRef} />
+            <div className="crow" style={{ marginTop: 12 }}>
+              <Input className="cin" value={bet} onChange={e => setBet(e.target.value)} inputMode="numeric" aria-label="Ставка на краш" />
+              {!crashOn
+                ? <Button onClick={startCrash}>Погнали 🚀</Button>
+                : <Button variant="secondary" onClick={cashOut}>Забрать ✅</Button>}
             </div>
-          ))}
-          <div className="crow" style={{ marginTop: 12 }}>
-            <input className="cin" value={hbet} onChange={e => setHbet(e.target.value)} inputMode="numeric" aria-label="Ставка на лошадь" />
-            <button className="cbtn" disabled={racing} onClick={startRace}>{racing ? 'Скачут…' : 'Старт 🐎'}</button>
-          </div>
-        </section>
+          </CardContent>
+        </Card>
 
-        <section className="csec">
-          <h2>🎡 Рулетка</h2>
-          <p className="hint">Европейская: красное/чёрное ×2, зеро ×14, точное число ×35.</p>
-          <div className="rnum">{rnum === null ? '?' : rnum}</div>
-          <div className="hpick">
-            <button className={rchoice === 'red' ? 'sel' : ''} onClick={() => setRchoice('red')}>🔴 Красное ×2</button>
-            <button className={rchoice === 'black' ? 'sel' : ''} onClick={() => setRchoice('black')}>⚫ Чёрное ×2</button>
-            <button className={rchoice === 'green' ? 'sel' : ''} onClick={() => setRchoice('green')}>🟢 Зеро ×14</button>
-          </div>
-          <div className="crow">
-            <input className="cin" value={rbet} onChange={e => setRbet(e.target.value)} inputMode="numeric" aria-label="Ставка на рулетку" />
-            <button className="cbtn" disabled={rspinning} onClick={spinRoulette}>{rspinning ? 'Крутится…' : 'Крутить 🎡'}</button>
-          </div>
-        </section>
-
-        <section className="csec">
-          <h2>💣 Мины</h2>
-          <p className="hint">Открывай клетки. Кристалл растит множитель, мина сжигает ставку.</p>
-          <div className="crow">
-            <input className="cin" value={mbet} onChange={e => setMbet(e.target.value)} inputMode="numeric" aria-label="Ставка на мины" />
-            <div className="hpick" style={{ margin: 0 }}>
-              {[1, 3, 5].map(n => (
-                <button key={n} className={mmines === n ? 'sel' : ''} onClick={() => { if (!mfield || mdead) setMmines(n); }}>{n} {n === 1 ? 'мина' : 'мины'}</button>
+        <Card>
+          <CardHeader>
+            <CardTitle>📦 Кейсы</CardTitle>
+            <CardDescription>Платишь за кейс — лента крутится, что выпало, то твоё.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="cases">
+              {CASES.map(c => (
+                <Card key={c.id} className="case">
+                  <CardHeader>
+                    <div className="em">{c.em}</div>
+                    <CardTitle>{c.name}</CardTitle>
+                    <CardDescription>{c.desc}</CardDescription>
+                  </CardHeader>
+                  <CardFooter className="casefoot">
+                    <Badge variant="secondary">{c.price} фишек</Badge>
+                    <Button size="sm" disabled={caseBusy} onClick={() => openCase(c)}>Открыть</Button>
+                  </CardFooter>
+                </Card>
               ))}
             </div>
-            {!mfield || mdead
-              ? <button className="cbtn" onClick={startMines}>Начать 💣</button>
-              : <button className="cbtn" onClick={cashMines}>Забрать ×{mmult.toFixed(2)} ✅</button>}
-          </div>
-          <div id="minefield">
-            {mopen.map((op, i) => (
-              <button key={i} className={op ? (mfield && mfield[i] ? 'cell boom' : 'cell gem') : 'cell'}
-                onClick={() => openCell(i)} disabled={!mfield || op}>
-                {op ? (mfield && mfield[i] ? '💥' : '💎') : ''}
-              </button>
+            <div id="stripWrap"><div id="strip" /></div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>🐎 Лошади</CardTitle>
+            <CardDescription>Выбери лошадь, поставь фишки. Кто первый до финиша — тот и прав.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ToggleGroup type="single" value={horse} onValueChange={(v) => { if (v) setHorse(v); }} disabled={racing} className="flex-wrap justify-start">
+              {HORSES.map(h => (
+                <ToggleGroupItem key={h.id} value={h.id}>
+                  {h.em} {h.name} ×{h.odds}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+            {HORSES.map((h, i) => (
+              <div className="horse" key={h.id}>
+                <div className="nm"><b>{h.em} {h.name}</b> <Badge variant="secondary">×{h.odds}</Badge></div>
+                <div className="track">
+                  <span className="run" style={{ left: `calc(${Math.min(96, pos[i])}% )` }}>{h.em}</span>
+                  <span className="fin">🏁</span>
+                </div>
+              </div>
             ))}
-          </div>
-        </section>
+            <div className="crow" style={{ marginTop: 12 }}>
+              <Input className="cin" value={hbet} onChange={e => setHbet(e.target.value)} inputMode="numeric" aria-label="Ставка на лошадь" />
+              <Button disabled={racing} onClick={startRace}>{racing ? 'Скачут…' : 'Старт 🐎'}</Button>
+            </div>
+          </CardContent>
+        </Card>
 
-        <section className="csec">
-          <h2>🃏 Блэкджек</h2>
-          <p className="hint">Набери 21, но не больше. Дилер тянет до 17. Блэкджек с раздачи платит ×2.5.</p>
-          <div className="bjrow"><span>Дилер {bjd.length > 0 && bjphase === 'player' ? '' : bjd.length > 0 ? handValue(bjd) : ''}</span></div>
-          <div className="bjcards">
-            {bjd.map((c, i) => <span className="bjcard" key={i}>{i === 1 && bjphase === 'player' ? '🂠' : cardLabel(c)}</span>)}
-          </div>
-          <div className="bjrow"><span>Ты: {bjp.length > 0 ? handValue(bjp) : ''}</span></div>
-          <div className="bjcards">
-            {bjp.map((c, i) => <span className="bjcard me" key={i}>{cardLabel(c)}</span>)}
-          </div>
-          <div className="crow" style={{ marginTop: 12 }}>
-            <input className="cin" value={bjbet} onChange={e => setBjbet(e.target.value)} inputMode="numeric" aria-label="Ставка на блэкджек" />
-            {bjphase === 'player'
-              ? <><button className="cbtn" onClick={hitBj}>Ещё 🃏</button><button className="cbtn ghost" onClick={standBj}>Хватит ✋</button></>
-              : <button className="cbtn" onClick={dealBj}>Раздать 🃏</button>}
-          </div>
-        </section>
+        <Card>
+          <CardHeader>
+            <CardTitle>🎡 Рулетка</CardTitle>
+            <CardDescription>Европейская: красное/чёрное ×2, зеро ×14, точное число ×35.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="rnum">{rnum === null ? '?' : rnum}</div>
+            <ToggleGroup type="single" value={/^\d+$/.test(rchoice) ? '' : rchoice} onValueChange={(v) => { if (v) setRchoice(v); }} disabled={rspinning} className="flex-wrap justify-start">
+              <ToggleGroupItem value="red">🔴 Красное ×2</ToggleGroupItem>
+              <ToggleGroupItem value="black">⚫ Чёрное ×2</ToggleGroupItem>
+              <ToggleGroupItem value="green">🟢 Зеро ×14</ToggleGroupItem>
+            </ToggleGroup>
+            <div className="crow" style={{ marginTop: 12 }}>
+              <Input className="cin" value={rbet} onChange={e => setRbet(e.target.value)} inputMode="numeric" aria-label="Ставка на рулетку" />
+              <Input
+                className="cin" placeholder="Число 0–36"
+                value={/^\d+$/.test(rchoice) ? rchoice : ''}
+                onChange={e => {
+                  const v = e.target.value.replace(/\D/g, '').slice(0, 2);
+                  if (v === '') setRchoice('red');
+                  else if (Number(v) <= 36) setRchoice(String(Number(v)));
+                }}
+                inputMode="numeric" aria-label="Точное число"
+              />
+              <Button disabled={rspinning} onClick={spinRoulette}>{rspinning ? 'Крутится…' : 'Крутить 🎡'}</Button>
+            </div>
+          </CardContent>
+        </Card>
 
-        <section className="csec">
-          <h2>🎰 Слоты</h2>
-          <p className="hint">Спин — 50 фишек. Три семёрки — джекпот 1000, три одинаковых — 250, пара — 100.</p>
-          <div id="slots">
-            {reels.map((r, i) => <div className="reel" key={i}>{r}</div>)}
-          </div>
-          <div className="crow" style={{ justifyContent: 'center' }}>
-            <button className="cbtn" disabled={spinning} onClick={spin}>{spinning ? 'Крутится…' : 'Крутить за 50'}</button>
-          </div>
-        </section>
+        <Card>
+          <CardHeader>
+            <CardTitle>💣 Мины</CardTitle>
+            <CardDescription>Открывай клетки. Кристалл растит множитель, мина сжигает ставку.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="crow">
+              <Input className="cin" value={mbet} onChange={e => setMbet(e.target.value)} inputMode="numeric" aria-label="Ставка на мины" />
+              <ToggleGroup type="single" value={String(mmines)} onValueChange={(v) => { if (v && (!mfield || mdead)) setMmines(Number(v)); }} disabled={!!mfield && !mdead}>
+                {[1, 3, 5].map(n => (
+                  <ToggleGroupItem key={n} value={String(n)}>{n} {n === 1 ? 'мина' : 'мины'}</ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+              {!mfield || mdead
+                ? <Button onClick={startMines}>Начать 💣</Button>
+                : <Button variant="secondary" onClick={cashMines}>Забрать ×{mmult.toFixed(2)} ✅</Button>}
+            </div>
+            <div id="minefield">
+              {mopen.map((op, i) => (
+                <button key={i} className={op ? (mfield && mfield[i] ? 'cell boom' : 'cell gem') : 'cell'}
+                  onClick={() => openCell(i)} disabled={!mfield || op}>
+                  {op ? (mfield && mfield[i] ? '💥' : '💎') : ''}
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>🃏 Блэкджек</CardTitle>
+            <CardDescription>Набери 21, но не больше. Дилер тянет до 17. Блэкджек с раздачи платит ×2.5.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="bjrow"><span>Дилер {bjd.length > 0 && bjphase === 'player' ? '' : bjd.length > 0 ? handValue(bjd) : ''}</span></div>
+            <div className="bjcards">
+              {bjd.map((c, i) => <span className="bjcard" key={i}>{i === 1 && bjphase === 'player' ? '🂠' : cardLabel(c)}</span>)}
+            </div>
+            <div className="bjrow"><span>Ты: {bjp.length > 0 ? <Badge variant="secondary">{handValue(bjp)}</Badge> : ''}</span></div>
+            <div className="bjcards">
+              {bjp.map((c, i) => <span className="bjcard me" key={i}>{cardLabel(c)}</span>)}
+            </div>
+            <div className="crow" style={{ marginTop: 12 }}>
+              <Input className="cin" value={bjbet} onChange={e => setBjbet(e.target.value)} inputMode="numeric" aria-label="Ставка на блэкджек" />
+              {bjphase === 'player'
+                ? <><Button onClick={hitBj}>Ещё 🃏</Button><Button variant="outline" onClick={standBj}>Хватит ✋</Button></>
+                : <Button onClick={dealBj}>Раздать 🃏</Button>}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>🎰 Слоты</CardTitle>
+            <CardDescription>Спин — 50 фишек. Три семёрки — джекпот 1000, три одинаковых — 250, пара — 100.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div id="slots">
+              {reels.map((r, i) => <div className="reel" key={i}>{r}</div>)}
+            </div>
+            <div className="crow" style={{ justifyContent: 'center' }}>
+              <Button disabled={spinning} onClick={spin}>{spinning ? 'Крутится…' : 'Крутить за 50'}</Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Separator className="csep" />
         <div className="cnav">
-          <a className="cbtn ghost" href="game.html" style={{ textDecoration: 'none' }}>🎮 Игра</a>
-          <a className="cbtn ghost" href="index.html" style={{ textDecoration: 'none' }}>🏠 Главная</a>
-          <a className="cbtn ghost" href="https://hub.bratuxa.zomb.top" style={{ textDecoration: 'none' }}>🏆 Хаб</a>
+          <Button variant="outline" asChild><a href="game.html" className="no-underline">🎮 Игра</a></Button>
+          <Button variant="outline" asChild><a href="index.html" className="no-underline">🏠 Главная</a></Button>
+          <Button variant="outline" asChild><a href="https://hub.bratuxa.zomb.top" className="no-underline">🏆 Хаб</a></Button>
         </div>
         <p className="cfoot">Фишки ничего не стоят и ни на что не меняются. Мы уже победили 🏆</p>
       </div></main>
