@@ -641,6 +641,45 @@ function initThree(){
    puff.castShadow=false;cg.add(puff);}
   cg.position.set(-26+rnd()*52,9+rnd()*3,-20+rnd()*32);
   cg.userData.speed=0.2+rnd()*0.3;scene.add(cg);clouds.push(cg);}
+/* --- СТАТУЯ ЦАРЯ smolskie: хромовый майнкрафт-перс, женская модель Alex --- */
+function buildSmolStatue(){
+ var g=new THREE.Group();
+ var chrome=new THREE.MeshStandardMaterial({color:0xe8eef4,metalness:0.9,roughness:0.28,flatShading:true});
+ var chromeRed=new THREE.MeshStandardMaterial({color:0xd92020,metalness:0.85,roughness:0.3,flatShading:true});
+ function part(w,h,d,m){var x=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);x.castShadow=true;return x;}
+ var px=0.09;
+ // постамент: камень + светлая плита + золотая окантовка
+ g.add(put(part(1.7,0.35,1.7,mat(0x8f9aa3)),0,0.17,0));
+ g.add(put(part(1.4,0.25,1.4,mat(0xd9d2c2)),0,0.47,0));
+ g.add(put(part(1.5,0.08,1.5,mat(0xffd23f,0x6b4e00,0.4)),0,0.62,0));
+ // табличка царя
+ var pc=document.createElement('canvas');pc.width=256;pc.height=64;
+ var pg=pc.getContext('2d');pg.fillStyle='#2b3440';pg.fillRect(0,0,256,64);
+ pg.strokeStyle='#ffd23f';pg.lineWidth=6;pg.strokeRect(4,4,248,56);
+ pg.fillStyle='#ffd23f';pg.font='bold 30px Trebuchet MS,Arial';pg.textAlign='center';
+ pg.fillText('smolskie',128,42);
+ var pt=new THREE.CanvasTexture(pc);pt.colorSpace=THREE.SRGBColorSpace;
+ var plq=new THREE.Mesh(new THREE.PlaneGeometry(1.15,0.29),new THREE.MeshBasicMaterial({map:pt}));
+ plq.position.set(0,0.32,0.86);g.add(plq);
+ // фигура крутится как трофей, постамент стоит
+ var hero=new THREE.Group();hero.userData={spinY:true,spinSp:0.4};g.add(hero);
+ function hpart(w,h,d,m,x,y,z){var mm=part(w,h,d,m);mm.position.set(x,y,z);hero.add(mm);return mm;}
+ var y0=0.66;
+ hpart(4*px,12*px,4*px,chrome,-2*px,y0+6*px,0);
+ hpart(4*px,12*px,4*px,chrome,2*px,y0+6*px,0);
+ var torsoY=y0+12*px+6*px;
+ hpart(8*px,12*px,4*px,chrome,0,torsoY,0);
+ hpart(2*px,5*px,0.5*px,chromeRed,0,torsoY+2*px,2.2*px);
+ var armL=hpart(3*px,12*px,4*px,chrome,-5.5*px,torsoY+1*px,0);armL.rotation.z=0.12;
+ var armR=hpart(3*px,12*px,4*px,chrome,5.5*px,torsoY+1*px,0);armR.rotation.z=-0.12;
+ var headY=torsoY+6*px+4*px;
+ hpart(8*px,8*px,8*px,chrome,0,headY,0);
+ var eyeM=new THREE.MeshBasicMaterial({color:0xffffff});
+ var e1=new THREE.Mesh(new THREE.BoxGeometry(1.6*px,1.2*px,0.3*px),eyeM);e1.position.set(-1.6*px,headY+0.5*px,4.1*px);hero.add(e1);
+ var e2=e1.clone();e2.position.x=1.6*px;hero.add(e2);
+ spark(g,0.9,2.4,3,0xfff6b8);
+ g.position.set(0,0.3,0);scene.add(g);}
+buildSmolStatue();
  raycaster=new THREE.Raycaster();mouseV=new THREE.Vector2();
  bindInput();updateCam();fit();
  window.addEventListener('resize',fit);
