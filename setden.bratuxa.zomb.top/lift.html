@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Торнадо-Лифт: Подъём до 242 🛗🌪️ — Игры Сетдена</title>
+<style>
+:root{--bg:#07070f;--neon:#00ff88;--pink:#ff2fd6;--cyan:#00e5ff;--gold:#ffd23f;--panel:#0d0d1a}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:var(--bg);color:#eafff3;font-family:'Courier New',monospace;margin:0;padding:12px;min-height:100vh;
+background-image:linear-gradient(rgba(0,255,136,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,136,.06) 1px,transparent 1px);background-size:32px 32px}
+.wrap{max-width:900px;margin:0 auto}
+header{text-align:center;border:3px solid var(--neon);border-radius:14px;padding:14px;background:var(--panel);box-shadow:0 0 24px rgba(0,255,136,.35),inset 0 0 30px rgba(0,255,136,.06)}
+h1{margin:6px 0;font-size:clamp(20px,4.5vw,34px);color:var(--neon);text-shadow:0 0 12px var(--neon)}
+.slogan{color:var(--gold);font-weight:bold;font-size:clamp(13px,3vw,17px);text-shadow:0 0 8px rgba(255,210,63,.7)}
+a.back{color:var(--cyan)}
+.stats{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:10px 0}
+.stat{background:#111;border:2px solid var(--cyan);border-radius:10px;padding:6px 12px;font-weight:bold;font-size:15px}
+.stat b{color:var(--gold)}
+.grid{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:760px){.grid{grid-template-columns:280px 1fr}}
+.card{background:var(--panel);border:2px solid var(--neon);border-radius:12px;padding:12px;box-shadow:0 0 14px rgba(0,255,136,.2)}
+.card h2{margin:4px 0 8px;color:var(--cyan);font-size:17px;text-shadow:0 0 8px var(--cyan)}
+.shaft{position:relative;height:300px;border:2px solid var(--pink);border-radius:10px;overflow:hidden;background:linear-gradient(#0a0a18,#141428)}
+.shaft .floor-line{position:absolute;left:0;right:0;border-top:1px dashed rgba(255,47,214,.4)}
+.cabin{position:absolute;left:50%;width:110px;margin-left:-55px;height:56px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:bold;transition:bottom 1s cubic-bezier(.3,1.4,.4,1);border:3px solid var(--neon);background:#06130c;box-shadow:0 0 16px rgba(0,255,136,.6)}
+.cabin.move{animation:shake .5s}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.storm{position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(115deg,transparent 0 18px,rgba(0,229,255,.07) 18px 20px);animation:storm 2s linear infinite}
+@keyframes storm{to{transform:translateX(30px)}}
+.range{font-size:20px;color:var(--gold);font-weight:bold;text-align:center;margin:8px 0}
+.sum{font-size:18px;text-align:center;margin:6px 0}
+.sum b{color:var(--neon);font-size:24px}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
+.nbtn{font-family:inherit;font-size:26px;font-weight:bold;padding:14px;border-radius:12px;border:3px solid var(--cyan);background:#0a1a22;color:#fff;cursor:pointer;transition:.15s}
+.nbtn.sel{background:var(--neon);color:#031;border-color:var(--neon);box-shadow:0 0 14px var(--neon);transform:scale(1.05)}
+.nbtn:active{transform:scale(.96)}
+.row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:8px 0}
+button.act{font-family:inherit;background:var(--neon);border:none;font-weight:bold;font-size:16px;padding:10px 18px;border-radius:10px;cursor:pointer;color:#031}
+button.act.ghost{background:transparent;border:2px solid var(--neon);color:var(--neon)}
+button.act.pink{background:var(--pink);color:#fff}
+button.act.gold{background:var(--gold);color:#331a00}
+button.act:disabled{opacity:.4;cursor:default}
+.timerbar{height:12px;background:#222;border-radius:6px;overflow:hidden;border:1px solid var(--cyan)}
+.timerbar i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--neon));transition:width .2s linear}
+.doors{display:flex;gap:10px;justify-content:center;margin:10px 0}
+.door{font-size:44px;padding:14px 18px;border-radius:12px;border:3px solid var(--pink);background:#1a0a18;cursor:pointer}
+.door:hover{transform:scale(1.08)}
+.shop button,.skins button{margin:4px}
+.log{max-height:130px;overflow:auto;font-size:13px;background:#000;border:1px solid #333;border-radius:8px;padding:8px;text-align:left}
+.log div{margin:2px 0}
+.win{border-color:var(--gold);box-shadow:0 0 20px var(--gold)}
+small{color:#8affc9}
+.skin0{border-color:var(--neon)}.skin42{border-color:#00e5ff;background:#06222a}.skin100{border-color:#b537ff;background:#1c0a2a}.skin180{border-color:var(--gold);background:#2a2006}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<h1>🛗 ТОРНАДО-ЛИФТ: ПОДЪЁМ ДО 242 🌪️</h1>
+<div class="slogan">Подними лифт до 242 этажа, не упади в бурю!</div>
+<div><a class="back" href="index.html">← Игры Сетдена</a> · <b style="color:#ffd23f">Мы уже победили 🏆</b></div>
+</header>
+<div class="stats">
+<div class="stat">🏢 Этаж <b id="stFloor">1</b>/242</div>
+<div class="stat">🪙 <b id="stCoins">0</b></div>
+<div class="stat">⭐ <b id="stStars">0</b></div>
+<div class="stat">🏆 Рекорд <b id="stMax">1</b></div>
+<div class="stat">🛡️ <b id="stShield">0</b></div>
+</div>
+<div class="grid">
+<div class="card">
+<h2>🌪️ ШАХТА</h2>
+<div class="shaft" id="shaft"><div class="storm"></div><div class="cabin skin0" id="cabin">🛗</div></div>
+<div class="timerbar"><i id="tbar" style="width:100%"></i></div>
+<div style="text-align:center"><small id="timerTxt">⏱ 10.0 сек</small></div>
+<div class="log" id="log"></div>
+</div>
+<div>
+<div class="card" id="playCard">
+<h2 id="modeTitle">🎯 Набери сумму в диапазоне</h2>
+<div class="range" id="rangeTxt">42–46</div>
+<div class="sum">Сумма: <b id="sumTxt">0</b> <small id="hint"></small></div>
+<div class="btns" id="btns"></div>
+<div class="row">
+<button class="act" id="goBtn">ЕХАТЬ ⬆</button>
+<button class="act ghost" id="clearBtn">СБРОС ✖</button>
+</div>
+<div class="doors" id="doors" style="display:none"></div>
+</div>
+<div class="card shop">
+<h2>🛠️ БУСТЫ (за ⭐)</h2>
+<div class="row">
+<button class="act gold" id="buySoft">Мягкое падение −1 (5⭐)</button>
+<button class="act gold" id="buyTime">+5 сек времени (3⭐)</button>
+</div>
+<small id="boostTxt"></small>
+<div class="row"><button class="act pink" id="lootBtn">🎰 МЕХАНИЗМ 242 — 242 🪙</button></div>
+<small>30% 🪙100–300 · 25% ⭐3–10 · 20% 🛡️защита · 15% +2 к диапазону×3 эт. · 10% +2 этажа</small>
+</div>
+<div class="card skins">
+<h2>🎨 СКИНЫ ЛИФТА (бесплатно)</h2>
+<div class="row" id="skins"></div>
+<div class="row"><button class="act ghost" id="resetBtn">↺ заново с 1 этажа</button></div>
+</div>
+</div>
+</div>
+</div>
+<script>
+(function(){
+"use strict";
+var K='lift242_v1';
+var S={floor:1,coins:0,stars:0,max:1,skin:'0',soft:false,extraT:false,shield:0,wide:0};
+try{var l=JSON.parse(localStorage.getItem(K));if(l)for(var k in S)if(k in l)S[k]=l[k];}catch(e){}
+function save(){try{localStorage.setItem(K,JSON.stringify(S));}catch(e){}}
+function tier(){return Math.floor((S.floor-1)/10);}
+function width(){return Math.max(1,4-tier());}
+function range(){var w=width(),c=44,lo=c-Math.floor(w/2),hi=lo+w;if(S.wide>0)hi+=2;return{lo:lo,hi:hi};}
+function timeLimit(){var t=10-tier()*0.5;if(S.extraT)t+=5;return Math.max(4,t);}
+function isBoss(){return S.floor%10===0&&S.floor<242;}
+var nums=[],sel=[],locked=false,tLeft=0,tId=null,center=0,R={lo:42,hi:46};
+var $=function(id){return document.getElementById(id);};
+function log(m){var d=document.createElement('div');d.textContent=m;$('log').prepend(d);}
+function paint(){
+$('stFloor').textContent=S.floor;$('stCoins').textContent=S.coins;$('stStars').textContent=S.stars;
+$('stMax').textContent=S.max;$('stShield').textContent=S.shield;
+$('boostTxt').textContent='Бусты: мягкое падение '+(S.soft?'ВКЛ ✅':'выкл')+' · +5сек '+(S.extraT?'ВКЛ ✅':'выкл')+' · шир.диапазон: '+S.wide+' эт.';
+var c=$('cabin');c.className='cabin skin'+S.skin;
+c.textContent=S.skin==='0'?'🛗':S.skin==='42'?'🚡':S.skin==='100'?'🚀':'🌀';
+var pct=Math.min(100,S.floor/242*100);c.style.bottom='calc('+pct+'% - 10px)';
+paintSkins();
+}
+function paintSkins(){
+var defs=[['0','Стандарт 🛗',1],['42','Неон-42 🚡',42],['100','Кибер-100 🚀',100],['180','Буреносец-180 🌀',180]];
+var h=$('skins');h.innerHTML='';
+defs.forEach(function(d){
+var b=document.createElement('button');b.className='act'+(S.skin===d[0]?'':' ghost');
+var ok=S.max>=d[2];
+b.textContent=d[1]+(ok?'':' 🔒'+d[2]);
+b.disabled=!ok;
+b.onclick=function(){if(S.max>=d[2]){S.skin=d[0];save();paint();log('🎨 Скин: '+d[1]);}};
+if(S.skin===d[0])b.textContent='✅ '+b.textContent;
+h.appendChild(b);
+});
+}
+function sum(){var s=0;for(var i=0;i<sel.length;i++)if(sel[i])s+=nums[i];return s;}
+function drawBtns(){
+var b=$('btns');b.innerHTML='';
+for(var i=0;i<4;i++)(function(i){
+var x=document.createElement('button');x.className='nbtn'+(sel[i]?' sel':'');x.textContent=nums[i];
+x.onclick=function(){if(locked||isBoss())return;sel[i]=!sel[i];drawBtns();checkOver();};b.appendChild(x);
+})(i);
+$('sumTxt').textContent=sum();
+var r=R;$('hint').textContent='(цель '+r.lo+'–'+r.hi+', центр '+center+')';
+}
+function checkOver(){var s=sum();if(s>R.hi){fail('💥 ПЕРЕБОР '+s+' > '+R.hi);} }
+function stopT(){if(tId){clearInterval(tId);tId=null;}}
+function startT(){
+stopT();tLeft=timeLimit();
+tId=setInterval(function(){
+tLeft-=0.1;$('tbar').style.width=Math.max(0,tLeft/timeLimit()*100)+'%';
+$('timerTxt').textContent='⏱ '+Math.max(0,tLeft).toFixed(1)+' сек';
+if(tLeft<=0){stopT();fail('⏰ Время вышло — недобор!');}
+},100);
+}
+function newFloor(){
+if(S.floor>=242)return victory();
+R=range();center=Math.round((R.lo+R.hi)/2);
+$('rangeTxt').textContent=R.lo+'–'+R.hi+(S.wide>0?' (+широкий!)':'');
+$('modeTitle').textContent=isBoss()?'👹 БОСС-ЭТАЖ '+S.floor+' — выбери дверь с лестницей!':'🎯 Этаж '+S.floor+': набери сумму '+R.lo+'–'+R.hi;
+if(isBoss()){bossMode();}else{
+$('doors').style.display='none';$('btns').style.display='grid';
+locked=false;sel=[false,false,false,false];nums=[];
+for(var i=0;i<4;i++)nums.push(1+Math.floor(Math.random()*50));
+drawBtns();startT();paint();
+}
+}
+function success(){
+stopT();locked=true;var s=sum(),gain=S.floor*5;S.coins+=gain;
+var msg='✅ Этаж '+S.floor+': '+s+' в ['+R.lo+'–'+R.hi+']! +'+gain+'🪙';
+if(s===center){S.stars++;msg+=' · ⭐ ИДЕАЛЬНО (центр '+center+')!';}
+if(S.wide>0)S.wide--;
+S.floor++;S.max=Math.max(S.max,S.floor);save();
+var c=$('cabin');c.classList.remove('move');void c.offsetWidth;c.classList.add('move');
+log(msg);paint();
+if(S.floor>=242){paint();return victory();}
+setTimeout(newFloor,900);
+}
+function fail(why){
+if(locked)return;locked=true;stopT();
+if(S.shield>0){S.shield--;save();log('🛡️ Защита поглотила падение! '+why);paint();setTimeout(function(){locked=false;if(!isBoss())startT();},600);return;}
+var drop=S.soft?1:2;S.floor=Math.max(1,S.floor-drop);
+log('❌ '+why+' Падение −'+drop+' → этаж '+S.floor);
+save();var c=$('cabin');c.classList.remove('move');void c.offsetWidth;c.classList.add('move');
+paint();setTimeout(newFloor,900);
+}
+function bossMode(){
+stopT();locked=true;$('btns').style.display='none';$('rangeTxt').textContent='👹 БОСС';
+var d=$('doors');d.style.display='flex';d.innerHTML='';
+var win=Math.floor(Math.random()*3);
+for(var i=0;i<3;i++)(function(i){
+var b=document.createElement('button');b.className='door';b.textContent='🚪';
+b.onclick=function(){
+if(i===win){S.floor+=3;S.coins+=S.floor*5;S.max=Math.max(S.max,S.floor);
+log('🪜 Лестница! +3 этажа → '+S.floor+' · +'+(S.floor*5)+'🪙');}
+else{if(S.shield>0){S.shield--;log('🛡️ Защита спасла от босса!');}
+else{S.floor=Math.max(1,S.floor-5);log('👹 Мимо! −5 → этаж '+S.floor);}}
+save();paint();
+if(S.floor>=242)return victory();
+setTimeout(newFloor,900);};
+d.appendChild(b);})(i);
+paint();
+}
+function victory(){
+stopT();$('modeTitle').textContent='🏆 242! ТЫ ПОДНЯЛСЯ СКВОЗЬ БУРЮ!';
+$('rangeTxt').textContent='🏆🏆🏆 242 🏆🏆🏆';
+$('btns').style.display='none';$('doors').style.display='none';
+log('🏆 ПОБЕДА! Лифт на 242! Мы уже победили 🏆 Можно играть дальше или начать заново.');
+paint();
+}
+$('goBtn').onclick=function(){if(locked||isBoss())return;var s=sum();if(s<R.lo)fail('📉 НЕДОБОР '+s+' < '+R.lo);else if(s>R.hi)fail('💥 ПЕРЕБОР '+s+' > '+R.hi);else success();};
+$('clearBtn').onclick=function(){if(locked)return;sel=[false,false,false,false];drawBtns();};
+$('buySoft').onclick=function(){if(S.soft){log('Буст уже куплен ✅');return;}if(S.stars<5){log('Не хватает ⭐ (надо 5)');return;}S.stars-=5;S.soft=true;save();paint();log('🛠️ Куплено: мягкое падение −1 ✅');};
+$('buyTime').onclick=function(){if(S.extraT){log('Буст уже куплен ✅');return;}if(S.stars<3){log('Не хватает ⭐ (надо 3)');return;}S.stars-=3;S.extraT=true;save();paint();log('🛠️ Куплено: +5 сек ✅');};
+$('lootBtn').onclick=function(){
+if(S.coins<242){log('Нужно 242 🪙, а у тебя '+S.coins);return;}
+S.coins-=242;var r=Math.random()*100,msg='🎰 Механизм 242: ';
+if(r<30){var c=100+Math.floor(Math.random()*201);S.coins+=c;msg+='+'+c+' 🪙!';}
+else if(r<55){var st=3+Math.floor(Math.random()*8);S.stars+=st;msg+='+'+st+' ⭐!';}
+else if(r<75){S.shield++;msg+='🛡️ защита от падения!';}
+else if(r<90){S.wide+=3;msg+='+2 к диапазону на 3 этажа!';}
+else{S.floor=Math.min(242,S.floor+2);S.max=Math.max(S.max,S.floor);msg+='+2 этажа бесплатно → '+S.floor+'!';}
+log(msg);save();paint();
+};
+$('resetBtn').onclick=function(){if(confirm('Начать заново с 1 этажа? Ресурсы сохранятся.')){S.floor=1;save();paint();newFloor();}};
+// shaft lines
+(function(){var sh=$('shaft');for(var i=1;i<10;i++){var l=document.createElement('div');l.className='floor-line';l.style.bottom=(i*10)+'%';sh.appendChild(l);}})();
+paint();newFloor();
+})();
+</script>
+</body>
+</html>
