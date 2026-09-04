@@ -217,12 +217,17 @@ var GROUPS=[
 ];
 var ticketCd=0;
 function def(){return{gold:120,mana:20,wood:60,pop:0,cells:Array(256).fill(null),lastSeen:Date.now(),win:false};}
-function load(){try{S=JSON.parse(localStorage.getItem(KEY))||def();}catch(e){S=def();}
- if(!S.cells||S.cells.length!==256){
-  if(S.cells&&S.cells.length===64){var big=Array(256).fill(null);
-   for(var mr=0;mr<8;mr++)for(var mc=0;mc<8;mc++)big[(mr+4)*16+(mc+4)]=S.cells[mr*8+mc];
+function validCell(c){return c&&typeof c.t==='string'&&B[c.t]&&(c.l===1||c.l===2||c.l===3);}
+function load(){var d=def(),raw=null;try{raw=JSON.parse(localStorage.getItem(KEY));}catch(e){raw=null;}
+ S=d;
+ if(raw&&typeof raw==='object'){
+  for(var k in d)if(k!=='cells'&&typeof raw[k]==='number')S[k]=raw[k];
+  if(typeof raw.win==='boolean')S.win=raw.win;
+  if(raw.cells&&raw.cells.length===64){var big=Array(256).fill(null);
+   for(var mr=0;mr<8;mr++)for(var mc=0;mc<8;mc++){var oc=raw.cells[mr*8+mc];big[(mr+4)*16+(mc+4)]=validCell(oc)?{t:oc.t,l:oc.l}:null;}
    S.cells=big;setTimeout(function(){toast('🗺️ Город расширен до 16×16! Старый центр на месте 🏙️');},800);}
-  else S.cells=Array(256).fill(null);}
+  else if(raw.cells&&raw.cells.length){var lim=Math.min(raw.cells.length,256);
+   for(var ci=0;ci<lim;ci++){var cc=raw.cells[ci];if(validCell(cc))S.cells[ci]={t:cc.t,l:cc.l};}}}
  var pvoRef={gold:0,wood:0,mana:0},hadPvo=false;
  S.cells.forEach(function(c,i){if(c&&c.t==='pvo'){var b0={gold:200,wood:100,mana:80};
   for(var k in b0)pvoRef[k]+=Math.floor(b0[k]*c.l*0.5);S.cells[i]=null;hadPvo=true;}});
@@ -622,9 +627,10 @@ function fpPanel(){var g=new THREE.Group();
 var BUILDERS={house:buildHouse,grove:buildGrove,tower:buildTower,market:buildMarket,garden:buildGarden,spire:buildSpire,tavern:buildTavern,treasury:buildTreasury,sawmill:buildSawmill,glade:buildGlade,runes:buildRunes,portal:buildPortal,mall:buildMall,cinema:buildCinema,theatre:buildTheatre,ferris:buildFerris,beach:buildBeach,shop:buildShop,barber:buildBarber,hospital:buildHospital,admin:buildAdmin,park:buildPark,airport:buildAirport,railway:buildRailway,bus:buildBus,stadium:buildStadium,refinery:buildRefinery};
 function refreshCell(i){
  var c0=S.cells[i];
- if(c0&&!BUILDERS[c0.t]){S.cells[i]=null;c0=null;}
  var old=bGroups[i];
  if(old){scene.remove(old);old.traverse(function(o){if(o.geometry)o.geometry.dispose();});delete bGroups[i];}
+ if(!c0)return;
+ if(!BUILDERS[c0.t])return; // неизвестный тип: сейв НЕ трогаем, просто не рисуем
  var c=S.cells[i];if(!c)return;
  var xz=idx2xz(i);
  var g=BUILDERS[c.t](c.l);
@@ -820,6 +826,25 @@ function buyTicket(){var now=Date.now();
 function gather(){var g=10+S.pop;S.wood+=g;S.mana+=Math.floor(g/2);
  toast('🎁 Дар леса: +'+g+' 🌲 и +'+Math.floor(g/2)+' 💧');blip(700);save();renderHUD();}
 function doReset(){if(confirm('Начать новый город?')){S=def();save();refreshAll();closeInspector();renderHUD();toast('🌱 Новый Эввград! Мы уже победили 🏆');}}
+function exportSave(){save();try{return btoa(JSON.stringify(S));}catch(e){return '';}}
+function importSave(code){var obj=null;
+ try{obj=JSON.parse(atob(String(code).replace(/\s/g,'')));}catch(e){obj=null;}
+ if(!obj||typeof obj!=='object'||!obj.cells||obj.cells.length!==256){toast('Код битый 😢');return false;}
+ var d=def(),n=0;
+ for(var k in d)if(k!=='cells'&&typeof obj[k]==='number')d[k]=obj[k];
+ if(typeof obj.win==='boolean')d.win=obj.win;
+ for(var i=0;i<256;i++){var cc=obj.cells[i];
+  if(validCell(cc)){d.cells[i]={t:cc.t,l:cc.l};n++;}}
+ if(!n){toast('В этом коде пустой город 😢');return false;}
+ S=d;save();refreshAll();closeInspector();renderHUD();
+ toast('🏆 Город восстановлен: '+n+' построек на месте!');return true;}
+function backupMenu(){save();
+ var code=exportSave();
+ if(!code){toast('Не вышло закодировать сейв 😢');return;}
+ var n=S.cells.filter(function(c){return !!c;}).length;
+ var ans=prompt('💾 Твой город: '+n+' построек. Скопируй код и храни его! Чтобы ЗАГРУЗИТЬ город из кода — вставь код сюда и жми ОК:',code);
+ if(ans===null||ans===code){if(ans===code)toast('Храни код, братуха! 🏆');return;}
+ if(importSave(ans))blip(880);}
 function after(){
  if(S.pop>=42&&!S.win){S.win=true;document.getElementById('win').style.display='flex';toast('🏆 42 ЖИТЕЛЯ! МЫ УЖЕ ПОБЕДИЛИ! 🏆');blip(880);}
  save();}
@@ -851,6 +876,9 @@ function renderHUD(){
  var rs=document.createElement('button');
  rs.className='tool';rs.innerHTML='<span class="em">🗑</span>Заново<small>новый город</small>';
  rs.onclick=doReset;dock.appendChild(rs);
+ var sv=document.createElement('button');
+ sv.className='tool';sv.innerHTML='<span class="em">💾</span>Сейв<small>бэкап города</small>';
+ sv.onclick=backupMenu;dock.appendChild(sv);
  if(selIdx>=0)fillInspector();}
 function openShop(gid){openGroup=gid;closeInspector();
  var gr=null;GROUPS.forEach(function(x){if(x.id===gid)gr=x;});if(!gr)return;
