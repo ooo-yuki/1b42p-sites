@@ -48,3 +48,9 @@ html,body{margin:0;padding:0;background:#070b18}
 .stx-foot{color:#8a93c9;font-size:13px}
 :focus-visible{outline:2px solid #ffd23f;outline-offset:3px}
 @media (prefers-reduced-motion:reduce){.stx-card{transition:none}}
+
+/* иконки вместо эмодзи */
+.stx-title svg,.stx-sec-t svg{width:1em;height:1em;vertical-align:-0.12em}
+.stx-rec .cup svg{width:34px;height:34px;color:#ffd23f}
+.medal{width:1.1em;height:1.1em;vertical-align:-0.15em;margin-right:.35em}
+.medal.gold{color:#ffd23f}.medal.silver{color:#c0c7e8}.medal.bronze{color:#e09a5a}

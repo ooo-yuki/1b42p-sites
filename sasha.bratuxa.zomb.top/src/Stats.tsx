@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { startBeacon } from './lib/beacon';
 import './stats.css';
+import { Activity, ChartLine, Medal, Radio, Trophy, Users } from 'lucide-react';
 
 const API = 'https://hub.bratuxa.zomb.top/api/stats';
 const reduced =
@@ -9,9 +10,9 @@ const reduced =
   matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const NAMES: Record<string, string> = {
-  hub: '🏠 Хаб', chaev: '🦖 Чаев', doom: '🔥 Дум', evaelph: '🧝 Эввград',
-  smolgrad: '👑 Смолград', miqqil: '🛞 Танки', setden: '🌪️ Сетден',
-  svyatoslav: '⚡ Святослав', denis: '🏝️ Денис', sasha: '⭐ Саша', gtaevv: '🚗 GTAEVV',
+  hub: 'Хаб', chaev: 'Чаев', doom: 'Дум', evaelph: 'Эввград',
+  smolgrad: 'Смолград', miqqil: 'Танки', setden: 'Сетден',
+  svyatoslav: 'Святослав', denis: 'Денис', sasha: 'Саша', gtaevv: 'GTAEVV',
 };
 const COLORS: Record<string, string> = {
   hub: '#ffd23f', chaev: '#7CFC00', doom: '#ff6b35', evaelph: '#ff7bac',
@@ -195,7 +196,7 @@ export default function Stats(): JSX.Element {
 
   const nm = (s: string): string => NAMES[s] || s;
   const onlineMax = Math.max(1, ...ORDER.map((s) => (st?.online[s] || 0)));
-  const medals = ['🥇', '🥈', '🥉'];
+  const medalClass = ['gold', 'silver', 'bronze'];
 
   return (
     <div className="stx">
@@ -203,7 +204,7 @@ export default function Stats(): JSX.Element {
         <div className="stx-top">
           <div>
             <h1 className="stx-title">
-              📡 Трекер онлайна <span className="r">1Б</span><span className="b">42П</span>
+              <Radio data-icon="inline-start" /> Трекер онлайна <span className="r">1Б</span><span className="b">42П</span>
             </h1>
             <div className="stx-sub">
               <a href="/">← На страницу Саши</a> · трекер by <b>Саша ⁴²</b>
@@ -221,7 +222,7 @@ export default function Stats(): JSX.Element {
         </div>
 
         <div className="stx-sec">
-          <h2 className="stx-sec-t">🟢 По сайтам</h2>
+          <h2 className="stx-sec-t"><Activity data-icon="inline-start" /> По сайтам</h2>
           <div className="stx-grid" style={{ marginTop: 12 }}>
             {ORDER.map((s) => {
               const n = st?.online[s] || 0;
@@ -239,7 +240,7 @@ export default function Stats(): JSX.Element {
         </div>
 
         <div className="stx-sec">
-          <h2 className="stx-sec-t">👣 Всего заходило: {st ? <Count to={st.everTotal} /> : '…'}</h2>
+          <h2 className="stx-sec-t"><Users data-icon="inline-start" /> Всего заходило: {st ? <Count to={st.everTotal} /> : '…'}</h2>
           <table className="stx-table" style={{ marginTop: 12 }}>
             <tbody>
               <tr>
@@ -248,7 +249,7 @@ export default function Stats(): JSX.Element {
               </tr>
               {(st ? st.everPerSite : []).map((x, i) => (
                 <tr key={x.site} className={x.site === 'sasha' ? 'me' : ''}>
-                  <td>{i < 3 ? `${medals[i]} ` : ''}{nm(x.site)}</td>
+                  <td>{i < 3 ? <Medal className={`medal ${medalClass[i]}`} aria-label={`Место ${i + 1}`} /> : ''}{nm(x.site)}</td>
                   <td>{x.n}</td>
                 </tr>
               ))}
@@ -258,7 +259,7 @@ export default function Stats(): JSX.Element {
 
         <div className="stx-sec">
           <div className="stx-rec">
-            <span className="cup">🏆</span>
+            <span className="cup"><Trophy aria-hidden /></span>
             <div>
               <b>{st ? <Count to={st.maxOnline} /> : '…'}</b>
               <div>
@@ -272,7 +273,7 @@ export default function Stats(): JSX.Element {
         </div>
 
         <div className="stx-sec">
-          <h2 className="stx-sec-t">📈 Онлайн за 24 часа</h2>
+          <h2 className="stx-sec-t"><ChartLine data-icon="inline-start" /> Онлайн за 24 часа</h2>
           <div className="stx-graph-wrap" style={{ marginTop: 12 }}>
             <canvas ref={cvRef} width={900} height={300} />
           </div>

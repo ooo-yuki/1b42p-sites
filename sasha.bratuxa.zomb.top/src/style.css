@@ -55,3 +55,8 @@ a.pill{text-decoration:none;display:inline-block}
 #flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:9}
 :focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 @media (prefers-reduced-motion:reduce){#cv{display:none}}
+
+/* lucide-иконки вместо эмодзи */
+#hint svg{width:1em;height:1em;vertical-align:-0.12em}
+#homeBtn svg,#depBtn svg{width:1.1em;height:1.1em;vertical-align:-0.18em}
+#secret p svg{width:1.1em;height:1.1em;vertical-align:-0.15em;color:var(--gold)}

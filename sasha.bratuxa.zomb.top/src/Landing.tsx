@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { useRain, useIntro, useBeacon } from './hooks';
+import { ChartLine, Dices, Eye, Gamepad2, Trophy } from 'lucide-react';
 
 export default function Landing(): JSX.Element {
   const cvRef = useRef<HTMLCanvasElement | null>(null);
@@ -25,20 +26,20 @@ export default function Landing(): JSX.Element {
             <br />А внутри — игра: клики, счёт, депозит зарплаты и ракета <b>ZOV</b>.
           </p>
           <a id="playBtn" className="pill solid" href="game.html">
-            🎮 Играть
+            <Gamepad2 data-icon="inline-start" /> Играть
           </a>
           <a id="statsBtn" className="pill ghost" href="stats.html" style={{ textDecoration: 'none' }}>
-            📡 Статистика
+            <ChartLine data-icon="inline-start" /> Статистика
           </a>
           <a id="casinoBtn" className="pill ghost" href="casino.html" style={{ textDecoration: 'none' }}>
-            🎰 Казино
+            <Dices data-icon="inline-start" /> Казино
           </a>
           <a id="hubBtn" className="pill ghost" href="https://hub.bratuxa.zomb.top" style={{ textDecoration: 'none' }}>
-            🏆 Хаб
+            <Trophy data-icon="inline-start" /> Хаб
           </a>
         </div>
       </main>
-      <div id="hint">а ещё 42 спрятаны… ищи 👀</div>
+      <div id="hint">а ещё 42 спрятаны… ищи <Eye aria-hidden /></div>
     </>
   );
 }

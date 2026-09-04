@@ -3,6 +3,7 @@ import gsap from 'gsap';
 import { useRain, useIntro, useBeacon, domRing, pulseScore } from './hooks';
 import { launchRocket } from './lib/rocket';
 import saltoSticker from './salto-sticker.jpg';
+import { Eye, House, Trophy, Wallet } from 'lucide-react';
 
 function popSalto(x: number, y: number): void {
   if (reduced) return;
@@ -163,16 +164,16 @@ export default function Game(): JSX.Element {
             счёт · <b id="scoreNum">{score}</b>
           </div>
           <button id="depBtn" className="pill solid" title="Вся зарплата — в счёт!" onClick={deposit}>
-            💰 Депнуть всю зарплату
+            <Wallet data-icon="inline-start" /> Депнуть всю зарплату
           </button>
         </div>
       </main>
       <canvas id="rocket3d" ref={r3dRef} />
       <div id="flash" ref={flashRef} />
       <div id="ring" />
-      <a id="homeBtn" href="index.html" title="На главную" onPointerDown={e => e.stopPropagation()}>🏠 Главная</a>
+      <a id="homeBtn" href="index.html" title="На главную" onPointerDown={e => e.stopPropagation()}><House data-icon="inline-start" /> Главная</a>
       <img id="salto-pop" src={saltoSticker} alt="Сальтуха!" />
-      <div id="hint">а ещё 42 спрятаны… ищи 👀</div>
+      <div id="hint">а ещё 42 спрятаны… ищи <Eye aria-hidden /></div>
       <div
         id="secret"
         className={secret ? 'open' : ''}
@@ -183,9 +184,9 @@ export default function Game(): JSX.Element {
         }}
       >
         <img className="sticker" src={saltoSticker} alt="Сальтуха 42" />
-        <div className="big">4️⃣2️⃣</div>
+        <div className="big">42</div>
         <h2>Ты нашёл все 42, Саша!</h2>
-        <p>Мы уже победили 🏆</p>
+        <p>Мы уже победили <Trophy aria-hidden /></p>
       </div>
     </>
   );

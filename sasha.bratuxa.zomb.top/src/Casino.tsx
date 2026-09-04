@@ -8,6 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { ItemIcon } from './casino-icons';
+import {
+  Bomb, Coins, CreditCard, Dices, Flag, Gem, Hand, House, Spade, Ticket,
+  TrendingUp, Trophy,
+} from 'lucide-react';
 
 const LS = 'sasha_casino';
 const START_BALANCE = 1000;
@@ -32,33 +37,33 @@ const reduced =
   matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* ---------- кейсы ---------- */
-type Drop = { em: string; label: string; amount: number; w: number };
-type CaseDef = { id: string; em: string; name: string; price: number; desc: string; drops: Drop[] };
+type Drop = { icon: string; label: string; amount: number; w: number };
+type CaseDef = { id: string; icon: string; name: string; price: number; desc: string; drops: Drop[] };
 
 const CASES: CaseDef[] = [
-  { id: 'barracks', em: '📦', name: 'Казарма', price: 100, desc: 'Скромно, но со вкусом',
+  { id: 'barracks', icon: 'barracks', name: 'Казарма', price: 100, desc: 'Скромно, но со вкусом',
     drops: [
-      { em: '🪖', label: 'Каска', amount: 50, w: 35 },
-      { em: '🥾', label: 'Берцы', amount: 80, w: 30 },
-      { em: '🎖️', label: 'Медалька', amount: 120, w: 20 },
-      { em: '🔥', label: 'Запал', amount: 200, w: 11 },
-      { em: '💰', label: 'Касса части', amount: 500, w: 4 },
+      { icon: 'hardhat', label: 'Каска', amount: 50, w: 35 },
+      { icon: 'boots', label: 'Берцы', amount: 80, w: 30 },
+      { icon: 'medal', label: 'Медалька', amount: 120, w: 20 },
+      { icon: 'flame', label: 'Запал', amount: 200, w: 11 },
+      { icon: 'coins', label: 'Касса части', amount: 500, w: 4 },
     ] },
-  { id: 'arsenal', em: '🧰', name: 'Арсенал', price: 300, desc: 'Для тех, кто в теме',
+  { id: 'arsenal', icon: 'arsenal', name: 'Арсенал', price: 300, desc: 'Для тех, кто в теме',
     drops: [
-      { em: '🔫', label: 'Глок', amount: 150, w: 32 },
-      { em: '🛡️', label: 'Броник', amount: 250, w: 28 },
-      { em: '🚛', label: 'Урал', amount: 400, w: 22 },
-      { em: '🚀', label: 'Ракета', amount: 700, w: 13 },
-      { em: '👑', label: 'Звезда генерала', amount: 1500, w: 5 },
+      { icon: 'glock', label: 'Глок', amount: 150, w: 32 },
+      { icon: 'vest', label: 'Броник', amount: 250, w: 28 },
+      { icon: 'truck', label: 'Урал', amount: 400, w: 22 },
+      { icon: 'rocket', label: 'Ракета', amount: 700, w: 13 },
+      { icon: 'crown', label: 'Звезда генерала', amount: 1500, w: 5 },
     ] },
-  { id: 'hq42', em: '💼', name: 'Штаб 42', price: 1000, desc: 'Олл-ин по-батальонному',
+  { id: 'hq42', icon: 'hq42', name: 'Штаб 42', price: 1000, desc: 'Олл-ин по-батальонному',
     drops: [
-      { em: '📻', label: 'Рация', amount: 500, w: 30 },
-      { em: '🗺️', label: 'Карта', amount: 800, w: 27 },
-      { em: '⚓', label: 'Якорь Авроры', amount: 1200, w: 23 },
-      { em: '🦅', label: 'Орёл', amount: 2500, w: 14 },
-      { em: '4️⃣2️⃣', label: 'Джекпот 42', amount: 10000, w: 6 },
+      { icon: 'radio', label: 'Рация', amount: 500, w: 30 },
+      { icon: 'map', label: 'Карта', amount: 800, w: 27 },
+      { icon: 'anchor', label: 'Якорь Авроры', amount: 1200, w: 23 },
+      { icon: 'eagle', label: 'Орёл', amount: 2500, w: 14 },
+      { icon: 'jackpot', label: 'Джекпот 42', amount: 10000, w: 6 },
     ] },
 ];
 
@@ -70,15 +75,15 @@ function pickDrop(drops: Drop[]): Drop {
 }
 
 /* ---------- лошади ---------- */
-type Horse = { id: string; em: string; name: string; odds: number };
+type Horse = { id: string; icon: string; name: string; odds: number };
 const HORSES: Horse[] = [
-  { id: 'tornado', em: '🌪️', name: 'Торнадо', odds: 1.8 },
-  { id: 'bratuxa', em: '🛞', name: 'Братуха', odds: 2.5 },
-  { id: 'vihr', em: '🐎', name: 'Вихрь', odds: 4 },
-  { id: 'pyat', em: '🦄', name: 'Пятёрка', odds: 7 },
+  { id: 'tornado', icon: 'tornado', name: 'Торнадо', odds: 1.8 },
+  { id: 'bratuxa', icon: 'wheel', name: 'Братуха', odds: 2.5 },
+  { id: 'vihr', icon: 'rabbit', name: 'Вихрь', odds: 4 },
+  { id: 'pyat', icon: 'star', name: 'Пятёрка', odds: 7 },
 ];
 
-const SLOT_EMOJI = ['🍒', '🍋', '⭐', '💰', '🎰', '7️⃣'];
+const SLOT_ICONS = ['cherry', 'clover', 'star', 'coins', 'dices', 'seven'];
 
 /* ================= страница ================= */
 export default function Casino(): JSX.Element {
@@ -95,43 +100,47 @@ export default function Casino(): JSX.Element {
 
   const takeBonus = (): void => {
     const wait = BONUS_CD - Math.floor((Date.now() - bonusTs) / 1000);
-    if (wait > 0) { setMsg(`Касса пуста, заходи через ${wait}с ⏳`); return; }
+    if (wait > 0) { setMsg(`Касса пуста, заходи через ${wait} с`); return; }
     setBalance(b => b + BONUS);
     setBonusTs(Date.now());
-    setMsg(`+${BONUS} фишек от батальона 🏆`);
+    setMsg(`+${BONUS} фишек от батальона`);
   };
 
-  const [msg, setMsg] = useState('Фишки фантики, азарт настоящий 🏆');
+  const [msg, setMsg] = useState('Фишки фантики, азарт настоящий');
 
   /* ----- кейсы ----- */
   const [caseBusy, setCaseBusy] = useState(false);
+  const [stripCells, setStripCells] = useState<Drop[] | null>(null);
   const openCase = (c: CaseDef): void => {
     if (caseBusy) return;
-    if (balRef.current < c.price) { setMsg(`На «${c.name}» не хватает: надо ${c.price} 💸`); return; }
+    if (balRef.current < c.price) { setMsg(`На «${c.name}» не хватает: надо ${c.price}`); return; }
     setBalance(b => b - c.price);
     setCaseBusy(true);
     const win = pickDrop(c.drops);
     const cells: Drop[] = Array.from({ length: 30 }, () => pickDrop(c.drops));
     cells[24] = win;
+    setStripCells(cells);
     const strip = document.getElementById('strip');
     const wrap = document.getElementById('stripWrap');
     if (strip && wrap) {
-      strip.innerHTML = cells.map(d => `<div class="cell"><span class="e">${d.em}</span>${d.amount}</div>`).join('');
-      wrap.classList.add('open');
+      requestAnimationFrame(() => {
+        wrap.classList.add('open');
+        gsap.set(strip, { x: 0 });
+      });
       const target = 24 * 94 - 60;
       gsap.fromTo(strip, { x: 0 }, {
         x: -target, duration: reduced ? 0.3 : 3.2, ease: 'power3.out',
         onComplete: () => {
           setBalance(b => b + win.amount);
           setMsg(win.amount >= c.price
-            ? `${win.em} ${win.label}: +${win.amount}! Кейс окупился 🤑`
-            : `${win.em} ${win.label}: +${win.amount}. Бывает 💩`);
+            ? `${win.label}: +${win.amount}! Кейс окупился`
+            : `${win.label}: +${win.amount}. Бывает`);
           setCaseBusy(false);
         },
       });
     } else {
       setBalance(b => b + win.amount);
-      setMsg(`${win.em} ${win.label}: +${win.amount}`);
+      setMsg(`${win.label}: +${win.amount}`);
       setCaseBusy(false);
     }
   };
@@ -169,15 +178,15 @@ export default function Casino(): JSX.Element {
   const startCrash = (): void => {
     if (crashRef.current.live) return;
     const stake = Math.floor(Number(bet));
-    if (!isFinite(stake) || stake < 10) { setMsg('Ставка от 10 фишек 🎲'); return; }
-    if (balRef.current < stake) { setMsg(`Не хватает: надо ${stake} 💸`); return; }
+    if (!isFinite(stake) || stake < 10) { setMsg('Ставка от 10 фишек'); return; }
+    if (balRef.current < stake) { setMsg(`Не хватает: надо ${stake}`); return; }
     setBalance(b => b - stake);
     const r = Math.random();
     const point = r < 0.03 ? 1 : Math.max(1, (0.97 / (1 - r)) * 0.97 + 0.03);
     const st = crashRef.current;
     st.live = true; st.m = 1; st.stake = stake;
     setCrashOn(true); setMult(1); setDead(false);
-    setMsg(`Ракета пошла! Жми «Забрать», пока не бахнуло 🚀`);
+    setMsg(`Ракета пошла! Жми «Забрать», пока не бахнуло`);
     const t0 = performance.now();
     const speed = reduced ? 0.9 : 0.32;
     const step = (t: number): void => {
@@ -187,7 +196,7 @@ export default function Casino(): JSX.Element {
         st.live = false;
         setMult(point); setCrashOn(false); setDead(true);
         drawCrash(point, true);
-        setMsg(`💥 Крэш на ×${point.toFixed(2)}! Минус ${stake}.`);
+        setMsg(`Крэш на ×${point.toFixed(2)}! Минус ${stake}.`);
         return;
       }
       setMult(st.m);
@@ -205,7 +214,7 @@ export default function Casino(): JSX.Element {
     const win = Math.floor(st.stake * st.m);
     setBalance(b => b + win);
     setCrashOn(false); setDead(false);
-    setMsg(`✅ Забрал ×${st.m.toFixed(2)}: +${win}!`);
+    setMsg(`Забрал ×${st.m.toFixed(2)}: +${win}!`);
   };
 
   useEffect(() => () => {
@@ -222,8 +231,8 @@ export default function Casino(): JSX.Element {
   const startRace = (): void => {
     if (racing) return;
     const stake = Math.floor(Number(hbet));
-    if (!isFinite(stake) || stake < 10) { setMsg('Ставка от 10 фишек 🐎'); return; }
-    if (balRef.current < stake) { setMsg(`Не хватает: надо ${stake} 💸`); return; }
+    if (!isFinite(stake) || stake < 10) { setMsg('Ставка от 10 фишек'); return; }
+    if (balRef.current < stake) { setMsg(`Не хватает: надо ${stake}`); return; }
     setBalance(b => b - stake);
     setRacing(true);
     setPos(HORSES.map(() => 0));
@@ -241,9 +250,9 @@ export default function Casino(): JSX.Element {
         if (h.id === horse) {
           const win = Math.floor(stake * h.odds);
           setBalance(b => b + win);
-          setMsg(`${h.em} ${h.name} первый! ×${h.odds}: +${win} 🏆`);
+          setMsg(`${h.name} первый! ×${h.odds}: +${win}`);
         } else {
-          setMsg(`${h.em} ${h.name} первый. Твоя лошадь мимо, минус ${stake} 💩`);
+          setMsg(`${h.name} первый. Твоя лошадь мимо, минус ${stake}`);
         }
         setRacing(false);
       }
@@ -260,8 +269,8 @@ export default function Casino(): JSX.Element {
   const spinRoulette = (): void => {
     if (rspinning) return;
     const stake = Math.floor(Number(rbet));
-    if (!isFinite(stake) || stake < 10) { setMsg('Ставка от 10 фишек 🎡'); return; }
-    if (balRef.current < stake) { setMsg(`Не хватает: надо ${stake} 💸`); return; }
+    if (!isFinite(stake) || stake < 10) { setMsg('Ставка от 10 фишек'); return; }
+    if (balRef.current < stake) { setMsg(`Не хватает: надо ${stake}`); return; }
     setBalance(b => b - stake);
     setRspinning(true);
     let ticks = 0;
@@ -281,9 +290,9 @@ export default function Casino(): JSX.Element {
         else if (/^\d+$/.test(rchoice) && Number(rchoice) === n) win = stake * 35;
         if (win > 0) {
           setBalance(b => b + win);
-          setMsg(`🎡 Выпало ${n}! Забрал +${win} 🏆`);
+          setMsg(`Выпало ${n}! Забрал +${win}`);
         } else {
-          setMsg(`🎡 Выпало ${n}. Мимо, минус ${stake} 💩`);
+          setMsg(`Выпало ${n}. Мимо, минус ${stake}`);
         }
       }
     }, reduced ? 30 : 90);
@@ -300,8 +309,8 @@ export default function Casino(): JSX.Element {
   const startMines = (): void => {
     if (mfield && !mdead) return;
     const stake = Math.floor(Number(mbet));
-    if (!isFinite(stake) || stake < 10) { setMsg('Ставка от 10 фишек 💣'); return; }
-    if (balRef.current < stake) { setMsg(`Не хватает: надо ${stake} 💸`); return; }
+    if (!isFinite(stake) || stake < 10) { setMsg('Ставка от 10 фишек'); return; }
+    if (balRef.current < stake) { setMsg(`Не хватает: надо ${stake}`); return; }
     setBalance(b => b - stake);
     lastStake.current = stake;
     const idx = Array.from({ length: 25 }, (_, i) => i);
@@ -315,7 +324,7 @@ export default function Casino(): JSX.Element {
     setMopen(Array(25).fill(false));
     setMmult(1);
     setMdead(false);
-    setMsg(`Поле 5×5, мин: ${mmines}. Открывай клетки, «Забрать» — в любой момент 💎`);
+    setMsg(`Поле 5×5, мин: ${mmines}. Открывай клетки, «Забрать» — в любой момент`);
   };
 
   const openCell = (i: number): void => {
@@ -323,7 +332,7 @@ export default function Casino(): JSX.Element {
     if (mfield[i]) {
       setMopen(mfield.map(() => true));
       setMdead(true);
-      setMsg(`💥 Мина! Ставка сгорела.`);
+      setMsg(`Мина! Ставка сгорела.`);
       return;
     }
     const opened = mopen.filter(Boolean).length;
@@ -334,18 +343,18 @@ export default function Casino(): JSX.Element {
     no[i] = true;
     setMopen(no);
     setMmult(nm);
-    setMsg(`💎 Чисто! Множитель ×${nm.toFixed(2)} — забирай или рискуй.`);
+    setMsg(`Чисто! Множитель ×${nm.toFixed(2)} — забирай или рискуй.`);
   };
 
   const cashMines = (): void => {
     if (!mfield || mdead) return;
     const opened = mopen.filter(Boolean).length;
-    if (opened === 0) { setMsg('Открой хоть одну клетку 💎'); return; }
+    if (opened === 0) { setMsg('Открой хоть одну клетку'); return; }
     const stake = lastStake.current;
     const win = Math.floor(stake * mmult);
     setBalance(b => b + win);
     setMfield(null);
-    setMsg(`✅ Мины: ×${mmult.toFixed(2)}, +${win}!`);
+    setMsg(`Мины: ×${mmult.toFixed(2)}, +${win}!`);
   };
 
   /* ----- блэкджек ----- */
@@ -371,8 +380,8 @@ export default function Casino(): JSX.Element {
   const dealBj = (): void => {
     if (bjphase === 'player') return;
     const stake = Math.floor(Number(bjbet));
-    if (!isFinite(stake) || stake < 10) { setMsg('Ставка от 10 фишек 🃏'); return; }
-    if (balRef.current < stake) { setMsg(`Не хватает: надо ${stake} 💸`); return; }
+    if (!isFinite(stake) || stake < 10) { setMsg('Ставка от 10 фишек'); return; }
+    if (balRef.current < stake) { setMsg(`Не хватает: надо ${stake}`); return; }
     setBalance(b => b - stake);
     lastStake.current = stake;
     const p = [drawCard(), drawCard()];
@@ -382,7 +391,7 @@ export default function Casino(): JSX.Element {
       const win = Math.floor(stake * 2.5);
       setBalance(b => b + win);
       setBjphase('done');
-      setMsg(`🃏 БЛЭКДЖЕК! +${win} 👑`);
+      setMsg(`БЛЭКДЖЕК! +${win}`);
     } else {
       setMsg(`Твои ${handValue(p)}, у дилера ${cardLabel(d[0])} + ?. Ещё или хватит?`);
     }
@@ -395,7 +404,7 @@ export default function Casino(): JSX.Element {
     const v = handValue(p);
     if (v > 21) {
       setBjphase('done');
-      setMsg(`Перебор: ${v}. Минус ${lastStake.current} 💩`);
+      setMsg(`Перебор: ${v}. Минус ${lastStake.current}`);
     } else if (v === 21) {
       standBj();
     } else {
@@ -413,42 +422,42 @@ export default function Casino(): JSX.Element {
     const stake = lastStake.current;
     if (dv > 21 || pv > dv) {
       setBalance(b => b + stake * 2);
-      setMsg(`Твои ${pv} против ${dv} — победа! +${stake * 2} 🏆`);
+      setMsg(`Твои ${pv} против ${dv} — победа! +${stake * 2}`);
     } else if (pv === dv) {
       setBalance(b => b + stake);
-      setMsg(`Ничья ${pv}:${dv} — ставка вернулась 🤝`);
+      setMsg(`Ничья ${pv}:${dv} — ставка вернулась`);
     } else {
-      setMsg(`Твои ${pv} против ${dv} — дилер забрал ${stake} 💩`);
+      setMsg(`Твои ${pv} против ${dv} — дилер забрал ${stake}`);
     }
   };
 
   /* ----- слоты ----- */
-  const [reels, setReels] = useState(['7️⃣', '🎰', '🍒']);
+  const [reels, setReels] = useState(['seven', 'dices', 'cherry']);
   const [spinning, setSpinning] = useState(false);
 
   const spin = (): void => {
     if (spinning) return;
-    if (balRef.current < 50) { setMsg('Спин стоит 50. Возьми бонус 💸'); return; }
+    if (balRef.current < 50) { setMsg('Спин стоит 50. Возьми бонус'); return; }
     setBalance(b => b - 50);
     setSpinning(true);
-    const final = [0, 1, 2].map(() => SLOT_EMOJI[Math.floor(Math.random() * SLOT_EMOJI.length)]);
+    const final = [0, 1, 2].map(() => SLOT_ICONS[Math.floor(Math.random() * SLOT_ICONS.length)]);
     let ticks = 0;
     const timer = window.setInterval(() => {
       ticks++;
-      setReels([0, 1, 2].map(i => (ticks > (i + 1) * 4 ? final[i] : SLOT_EMOJI[Math.floor(Math.random() * SLOT_EMOJI.length)])));
+      setReels([0, 1, 2].map(i => (ticks > (i + 1) * 4 ? final[i] : SLOT_ICONS[Math.floor(Math.random() * SLOT_ICONS.length)])));
       if (ticks > 14) {
         window.clearInterval(timer);
         setReels(final);
         setSpinning(false);
         const [a, b2, c] = final;
-        if (a === '7️⃣' && b2 === '7️⃣' && c === '7️⃣') {
-          setBalance(x => x + 1000); setMsg('7️⃣7️⃣7️⃣ ДЖЕКПОТ: +1000! 👑');
+        if (a === 'seven' && b2 === 'seven' && c === 'seven') {
+          setBalance(x => x + 1000); setMsg('ДЖЕКПОТ 777: +1000!');
         } else if (a === b2 && b2 === c) {
-          setBalance(x => x + 250); setMsg(`Три ${a}: +250! 🤑`);
+          setBalance(x => x + 250); setMsg(`Три одинаковых: +250!`);
         } else if (a === b2 || b2 === c || a === c) {
-          setBalance(x => x + 100); setMsg('Пара: +100 🙂');
+          setBalance(x => x + 100); setMsg('Пара: +100');
         } else {
-          setMsg('Мимо. Ещё по одной? 🎰');
+          setMsg('Мимо. Ещё по одной?');
         }
       }
     }, reduced ? 30 : 90);
@@ -457,17 +466,17 @@ export default function Casino(): JSX.Element {
   return (
     <>
       <div className="cbar">
-        <Button variant="outline" size="sm" asChild><a href="index.html" title="На главную" className="no-underline">🏠</a></Button>
-        <Badge variant="secondary" className="tabular-nums">🪙 {balance}</Badge>
+        <Button variant="outline" size="sm" asChild><a href="index.html" title="На главную" className="no-underline"><House data-icon="inline-start" /> Главная</a></Button>
+        <Badge variant="secondary" className="tabular-nums"><Coins data-icon="inline-start" /> {balance}</Badge>
         <span className="sp" />
-        <Button variant="outline" size="sm" onClick={takeBonus}>+500 фишек</Button>
+        <Button variant="outline" size="sm" onClick={takeBonus}><Ticket data-icon="inline-start" /> +500 фишек</Button>
         <Button size="sm" asChild>
           <a
             href="https://finance.ozon.ru/apps/sbp/ozonbankpay/019fa8eb-037e-75f9-a3d9-fe258db9e911"
             target="_blank"
             rel="noopener noreferrer"
             className="no-underline"
-          >💳 Пополнить</a>
+          ><CreditCard data-icon="inline-start" /> Пополнить</a>
         </Button>
       </div>
       <main><div className="cwrap">
@@ -479,7 +488,7 @@ export default function Casino(): JSX.Element {
 
         <Card>
           <CardHeader>
-            <CardTitle>📈 Краш</CardTitle>
+            <CardTitle><TrendingUp data-icon="inline-start" /> Краш</CardTitle>
             <CardDescription>Множитель растёт, пока ракета летит. Забирай до крэша — иначе ставка сгорает.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -488,15 +497,15 @@ export default function Casino(): JSX.Element {
             <div className="crow" style={{ marginTop: 12 }}>
               <Input className="cin" value={bet} onChange={e => setBet(e.target.value)} inputMode="numeric" aria-label="Ставка на краш" />
               {!crashOn
-                ? <Button onClick={startCrash}>Погнали 🚀</Button>
-                : <Button variant="secondary" onClick={cashOut}>Забрать ✅</Button>}
+                ? <Button onClick={startCrash}>Погнали <ItemIcon name="rocket" /></Button>
+                : <Button variant="secondary" onClick={cashOut}>Забрать <Hand data-icon="inline-end" /></Button>}
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>📦 Кейсы</CardTitle>
+            <CardTitle><ItemIcon name="barracks" /> Кейсы</CardTitle>
             <CardDescription>Платишь за кейс — лента крутится, что выпало, то твоё.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -504,7 +513,7 @@ export default function Casino(): JSX.Element {
               {CASES.map(c => (
                 <Card key={c.id} className="case">
                   <CardHeader>
-                    <div className="em">{c.em}</div>
+                    <div className="em case-art"><ItemIcon name={c.icon} /></div>
                     <CardTitle>{c.name}</CardTitle>
                     <CardDescription>{c.desc}</CardDescription>
                   </CardHeader>
@@ -515,50 +524,52 @@ export default function Casino(): JSX.Element {
                 </Card>
               ))}
             </div>
-            <div id="stripWrap"><div id="strip" /></div>
+            <div id="stripWrap"><div id="strip">{stripCells?.map((d, i) => (
+              <div className="cell" key={i}><span className="e"><ItemIcon name={d.icon} /></span>{d.amount}</div>
+            ))}</div></div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>🐎 Лошади</CardTitle>
+            <CardTitle><ItemIcon name="rabbit" /> Лошади</CardTitle>
             <CardDescription>Выбери лошадь, поставь фишки. Кто первый до финиша — тот и прав.</CardDescription>
           </CardHeader>
           <CardContent>
             <ToggleGroup type="single" value={horse} onValueChange={(v) => { if (v) setHorse(v); }} disabled={racing} className="flex-wrap justify-start">
               {HORSES.map(h => (
                 <ToggleGroupItem key={h.id} value={h.id}>
-                  {h.em} {h.name} ×{h.odds}
+                  <ItemIcon name={h.icon} /> {h.name} ×{h.odds}
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
             {HORSES.map((h, i) => (
               <div className="horse" key={h.id}>
-                <div className="nm"><b>{h.em} {h.name}</b> <Badge variant="secondary">×{h.odds}</Badge></div>
+                <div className="nm"><b><ItemIcon name={h.icon} /> {h.name}</b> <Badge variant="secondary">×{h.odds}</Badge></div>
                 <div className="track">
-                  <span className="run" style={{ left: `calc(${Math.min(96, pos[i])}% )` }}>{h.em}</span>
-                  <span className="fin">🏁</span>
+                  <span className="run" style={{ left: `calc(${Math.min(96, pos[i])}% )` }}><ItemIcon name={h.icon} /></span>
+                  <span className="fin"><Flag data-icon="inline-end" /></span>
                 </div>
               </div>
             ))}
             <div className="crow" style={{ marginTop: 12 }}>
               <Input className="cin" value={hbet} onChange={e => setHbet(e.target.value)} inputMode="numeric" aria-label="Ставка на лошадь" />
-              <Button disabled={racing} onClick={startRace}>{racing ? 'Скачут…' : 'Старт 🐎'}</Button>
+              <Button disabled={racing} onClick={startRace}>{racing ? 'Скачут…' : 'Старт'}</Button>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>🎡 Рулетка</CardTitle>
+            <CardTitle><Dices data-icon="inline-start" /> Рулетка</CardTitle>
             <CardDescription>Европейская: красное/чёрное ×2, зеро ×14, точное число ×35.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="rnum">{rnum === null ? '?' : rnum}</div>
             <ToggleGroup type="single" value={/^\d+$/.test(rchoice) ? '' : rchoice} onValueChange={(v) => { if (v) setRchoice(v); }} disabled={rspinning} className="flex-wrap justify-start">
-              <ToggleGroupItem value="red">🔴 Красное ×2</ToggleGroupItem>
-              <ToggleGroupItem value="black">⚫ Чёрное ×2</ToggleGroupItem>
-              <ToggleGroupItem value="green">🟢 Зеро ×14</ToggleGroupItem>
+              <ToggleGroupItem value="red"><span className="rdot red" /> Красное ×2</ToggleGroupItem>
+              <ToggleGroupItem value="black"><span className="rdot black" /> Чёрное ×2</ToggleGroupItem>
+              <ToggleGroupItem value="green"><span className="rdot green" /> Зеро ×14</ToggleGroupItem>
             </ToggleGroup>
             <div className="crow" style={{ marginTop: 12 }}>
               <Input className="cin" value={rbet} onChange={e => setRbet(e.target.value)} inputMode="numeric" aria-label="Ставка на рулетку" />
@@ -572,14 +583,14 @@ export default function Casino(): JSX.Element {
                 }}
                 inputMode="numeric" aria-label="Точное число"
               />
-              <Button disabled={rspinning} onClick={spinRoulette}>{rspinning ? 'Крутится…' : 'Крутить 🎡'}</Button>
+              <Button disabled={rspinning} onClick={spinRoulette}>{rspinning ? 'Крутится…' : 'Крутить'}</Button>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>💣 Мины</CardTitle>
+            <CardTitle><Bomb data-icon="inline-start" /> Мины</CardTitle>
             <CardDescription>Открывай клетки. Кристалл растит множитель, мина сжигает ставку.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -591,14 +602,14 @@ export default function Casino(): JSX.Element {
                 ))}
               </ToggleGroup>
               {!mfield || mdead
-                ? <Button onClick={startMines}>Начать 💣</Button>
-                : <Button variant="secondary" onClick={cashMines}>Забрать ×{mmult.toFixed(2)} ✅</Button>}
+                ? <Button onClick={startMines}>Начать</Button>
+                : <Button variant="secondary" onClick={cashMines}>Забрать ×{mmult.toFixed(2)}</Button>}
             </div>
             <div id="minefield">
               {mopen.map((op, i) => (
                 <button key={i} className={op ? (mfield && mfield[i] ? 'cell boom' : 'cell gem') : 'cell'}
-                  onClick={() => openCell(i)} disabled={!mfield || op}>
-                  {op ? (mfield && mfield[i] ? '💥' : '💎') : ''}
+                  onClick={() => openCell(i)} disabled={!mfield || op} aria-label={op ? (mfield && mfield[i] ? 'Мина' : 'Кристалл') : 'Закрытая клетка'}>
+                  {op ? (mfield && mfield[i] ? <Bomb aria-hidden /> : <Gem aria-hidden />) : ''}
                 </button>
               ))}
             </div>
@@ -607,13 +618,13 @@ export default function Casino(): JSX.Element {
 
         <Card>
           <CardHeader>
-            <CardTitle>🃏 Блэкджек</CardTitle>
+            <CardTitle><Spade data-icon="inline-start" /> Блэкджек</CardTitle>
             <CardDescription>Набери 21, но не больше. Дилер тянет до 17. Блэкджек с раздачи платит ×2.5.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="bjrow"><span>Дилер {bjd.length > 0 && bjphase === 'player' ? '' : bjd.length > 0 ? handValue(bjd) : ''}</span></div>
             <div className="bjcards">
-              {bjd.map((c, i) => <span className="bjcard" key={i}>{i === 1 && bjphase === 'player' ? '🂠' : cardLabel(c)}</span>)}
+              {bjd.map((c, i) => <span className="bjcard" key={i}>{i === 1 && bjphase === 'player' ? '?' : cardLabel(c)}</span>)}
             </div>
             <div className="bjrow"><span>Ты: {bjp.length > 0 ? <Badge variant="secondary">{handValue(bjp)}</Badge> : ''}</span></div>
             <div className="bjcards">
@@ -622,20 +633,20 @@ export default function Casino(): JSX.Element {
             <div className="crow" style={{ marginTop: 12 }}>
               <Input className="cin" value={bjbet} onChange={e => setBjbet(e.target.value)} inputMode="numeric" aria-label="Ставка на блэкджек" />
               {bjphase === 'player'
-                ? <><Button onClick={hitBj}>Ещё 🃏</Button><Button variant="outline" onClick={standBj}>Хватит ✋</Button></>
-                : <Button onClick={dealBj}>Раздать 🃏</Button>}
+                ? <><Button onClick={hitBj}>Ещё</Button><Button variant="outline" onClick={standBj}>Хватит</Button></>
+                : <Button onClick={dealBj}>Раздать</Button>}
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>🎰 Слоты</CardTitle>
+            <CardTitle><Ticket data-icon="inline-start" /> Слоты</CardTitle>
             <CardDescription>Спин — 50 фишек. Три семёрки — джекпот 1000, три одинаковых — 250, пара — 100.</CardDescription>
           </CardHeader>
           <CardContent>
             <div id="slots">
-              {reels.map((r, i) => <div className="reel" key={i}>{r}</div>)}
+              {reels.map((r, i) => <div className="reel" key={i}><ItemIcon name={r} /></div>)}
             </div>
             <div className="crow" style={{ justifyContent: 'center' }}>
               <Button disabled={spinning} onClick={spin}>{spinning ? 'Крутится…' : 'Крутить за 50'}</Button>
@@ -645,11 +656,11 @@ export default function Casino(): JSX.Element {
 
         <Separator className="csep" />
         <div className="cnav">
-          <Button variant="outline" asChild><a href="game.html" className="no-underline">🎮 Игра</a></Button>
-          <Button variant="outline" asChild><a href="index.html" className="no-underline">🏠 Главная</a></Button>
-          <Button variant="outline" asChild><a href="https://hub.bratuxa.zomb.top" className="no-underline">🏆 Хаб</a></Button>
+          <Button variant="outline" asChild><a href="game.html" className="no-underline">Игра</a></Button>
+          <Button variant="outline" asChild><a href="index.html" className="no-underline">Главная</a></Button>
+          <Button variant="outline" asChild><a href="https://hub.bratuxa.zomb.top" className="no-underline"><Trophy data-icon="inline-start" /> Хаб</a></Button>
         </div>
-        <p className="cfoot">Фишки ничего не стоят и ни на что не меняются. Мы уже победили 🏆</p>
+        <p className="cfoot">Фишки ничего не стоят и ни на что не меняются. Мы уже победили</p>
       </div></main>
     </>
   );
