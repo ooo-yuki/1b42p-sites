@@ -4,25 +4,25 @@
 @media (max-width:700px){.rl-grid{grid-template-columns:1fr}}
 
 .wheel-box{position:relative;width:100%;max-width:340px;margin:0 auto}
-.wheel{width:100%;height:auto;display:block;filter:drop-shadow(0 0 30px rgba(201,162,39,.3));
+.wheel{width:100%;height:auto;display:block;filter:drop-shadow(0 0 30px rgba(0,96,170,.3));
  transform:rotate(0deg);transition:transform 1.6s cubic-bezier(.2,.7,.25,1)}
 .wheel.spin{transform:rotate(var(--spin,720deg))}
 .pointer{position:absolute;top:-8px;left:50%;margin-left:-9px;width:18px;height:26px;
- background:linear-gradient(180deg,#ffd23f,#b07818);clip-path:polygon(0 0,100% 0,50% 100%);
- filter:drop-shadow(0 0 8px rgba(255,210,63,.8))}
+ background:linear-gradient(180deg,#0060AA,#b07818);clip-path:polygon(0 0,100% 0,50% 100%);
+ filter:drop-shadow(0 0 8px rgba(0,96,170,.8))}
 
-.cloth{border-radius:14px;padding:16px;background:linear-gradient(160deg,#0d3b26,#082418);
- border:1px solid rgba(55,214,122,.35)}
+.cloth{border-radius:14px;padding:16px;background:linear-gradient(160deg,#5f5f5f,#4d4d4d);
+ border:1px solid rgba(0,96,170,.35)}
 .rdot{display:inline-block;width:.85em;height:.85em;border-radius:50%;margin-right:.4em;vertical-align:baseline;border:1px solid rgba(0,0,0,.4)}
-.rdot.red{background:#e03131}.rdot.black{background:#16161a;border-color:#555}.rdot.green{background:#2f9e44}
+.rdot.red{background:#E31E25}.rdot.black{background:#4d4d4d;border-color:#555}.rdot.green{background:#0060AA}
 .numbers{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:12px}
-.numbers .num{padding:8px 0;border-radius:8px;border:1px solid rgba(232,237,255,.25);color:#e8edff;
- font-weight:700;font-size:14px;font-variant-numeric:tabular-nums;cursor:pointer;background:#0d1428}
-.numbers .num.red{background:#5c1620;border-color:#b3273b}
-.numbers .num.black{background:#14161d}
-.numbers .num.zero{background:#123f24;border-color:#2f9e44;grid-column:span 6}
-.numbers .num.sel{outline:2px solid var(--gold);outline-offset:1px}
+.numbers .num{padding:8px 0;border-radius:8px;border:1px solid rgba(255,255,255,.25);color:#ffffff;
+ font-weight:700;font-size:14px;font-variant-numeric:tabular-nums;cursor:pointer;background:#6f6f6f}
+.numbers .num.red{background:#8F1218;border-color:#E31E25}
+.numbers .num.black{background:#4d4d4d}
+.numbers .num.zero{background:#4d4d4d;border-color:#0060AA;grid-column:span 6}
+.numbers .num.sel{outline:2px solid #0060AA;outline-offset:1px}
 .numbers .num:disabled{cursor:default;opacity:.7}
 .cloth .crow{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-.cloth .fine{margin:10px 0 0;font-size:12.5px;color:#9fd8b4}
+.cloth .fine{margin:10px 0 0;font-size:12.5px;color:#f0f0f0}
 @media (prefers-reduced-motion:reduce){.wheel{transition:none}}

@@ -27,8 +27,8 @@ function wedge(i: number): string {
 }
 
 function pocketColor(n: number): string {
-  if (n === 0) return '#2f9e44';
-  return EU_REDS.includes(n) ? '#b3273b' : '#1b1e26';
+  if (n === 0) return '#0060AA';
+  return EU_REDS.includes(n) ? '#E31E25' : '#4d4d4d';
 }
 
 export default function Roulette({ api }: { api: Api }): JSX.Element {
@@ -76,22 +76,22 @@ export default function Roulette({ api }: { api: Api }): JSX.Element {
         <div className="wheel-box">
           <svg className={`wheel${spinning ? ' spin' : ''}`} viewBox="0 0 200 200"
             style={{ ['--spin' as string]: `${angle}deg` }} role="img" aria-label="Колесо рулетки">
-            <circle cx="100" cy="100" r="98" fill="#0a0d18" />
+            <circle cx="100" cy="100" r="98" fill="#6e6e6e" />
             {Array.from({ length: N }, (_, n) => (
-              <path key={n} d={wedge(n)} fill={pocketColor(n)} stroke="#c9a227" strokeWidth="0.7" />
+              <path key={n} d={wedge(n)} fill={pocketColor(n)} stroke="#ffffff" strokeWidth="0.7" />
             ))}
             {Array.from({ length: N }, (_, n) => {
               const [tx, ty] = polar(100, 100, 79, (n * 360) / N + 360 / N / 2);
               return (
                 <text key={n} x={tx} y={ty} textAnchor="middle" dominantBaseline="central"
-                  fontSize="8.5" fill="#e8edff" transform={`rotate(${(n * 360) / N + 360 / N / 2},${tx},${ty})`}>
+                  fontSize="8.5" fill="#ffffff" transform={`rotate(${(n * 360) / N + 360 / N / 2},${tx},${ty})`}>
                   {n}
                 </text>
               );
             })}
-            <circle cx="100" cy="100" r="34" fill="#141a30" stroke="#c9a227" strokeWidth="2" />
+            <circle cx="100" cy="100" r="34" fill="#4d4d4d" stroke="#ffffff" strokeWidth="2" />
             <text x="100" y="100" textAnchor="middle" dominantBaseline="central" fontSize="26"
-              fontWeight="900" fill={rnum === null ? '#5a6396' : '#ffd23f'}>
+              fontWeight="900" fill={rnum === null ? '#f0f0f0' : '#ffd23f'}>
               {rnum === null ? '?' : rnum}
             </text>
           </svg>

@@ -1,16 +1,16 @@
 /* ЗАЛ «СЛОТЫ» — автомат «Семёрка»: корпус, гирлянда, рычаг, таблица. */
 
 .cabinet{margin-top:12px;border-radius:18px;padding:18px 18px 16px;max-width:560px;
- background:linear-gradient(170deg,#2a1f3d,#120b20 70%);border:1px solid rgba(255,210,63,.45);
- box-shadow:0 0 40px rgba(255,210,63,.12)}
+ background:linear-gradient(170deg,#545454,#545454 70%);border:1px solid rgba(0,96,170,.45);
+ box-shadow:0 0 40px rgba(0,96,170,.12)}
 .marquee{display:flex;justify-content:space-between;margin-bottom:10px}
-.marquee i{width:10px;height:10px;border-radius:50%;background:#5a3a10;animation:bulb 1.4s ease-in-out infinite}
+.marquee i{width:10px;height:10px;border-radius:50%;background:#4d4d4d;animation:bulb 1.4s ease-in-out infinite}
 .marquee i:nth-child(odd){animation-delay:.7s}
-@keyframes bulb{0%,100%{background:#5a3a10;box-shadow:none}50%{background:#ffd23f;box-shadow:0 0 12px rgba(255,210,63,.9)}}
-.cab-title{text-align:center;font-weight:900;letter-spacing:.35em;font-size:15px;color:var(--gold);
- text-shadow:0 0 16px rgba(255,210,63,.6);margin-bottom:12px}
-.windows{display:flex;gap:10px;justify-content:center;padding:14px;border-radius:12px;background:#070b18;
- border:1px solid rgba(232,237,255,.2)}
+@keyframes bulb{0%,100%{background:#4d4d4d;box-shadow:none}50%{background:#0060AA;box-shadow:0 0 12px rgba(0,96,170,.9)}}
+.cab-title{text-align:center;font-weight:900;letter-spacing:.35em;font-size:15px;color:#ffffff;
+ text-shadow:0 0 16px rgba(0,96,170,.6);margin-bottom:12px}
+.windows{display:flex;gap:10px;justify-content:center;padding:14px;border-radius:12px;background:#808080;
+ border:1px solid rgba(255,255,255,.2)}
 .window{width:96px;height:104px;display:flex;align-items:center;justify-content:center;border-radius:10px;
  background:linear-gradient(180deg,#f2f5ff,#c9d2ee)}
 .window .cic{width:56px;height:56px}
@@ -19,17 +19,17 @@
 .lever{position:relative;width:44px;height:96px;background:none;border:none;cursor:pointer;padding:0}
 .lever:disabled{cursor:default}
 .lever .stick{position:absolute;left:50%;top:8px;bottom:18px;width:8px;margin-left:-4px;border-radius:4px;
- background:linear-gradient(90deg,#8b93a8,#565d75);transition:transform .18s}
+ background:linear-gradient(90deg,#8b93a8,#6f6f6f);transition:transform .18s}
 .lever .knob{position:absolute;left:50%;top:0;margin-left:-13px;width:26px;height:26px;border-radius:50%;
- background:radial-gradient(circle at 35% 35%,#ff7b7b,#b3273b 70%);box-shadow:0 0 14px rgba(255,59,59,.7);
+ background:radial-gradient(circle at 35% 35%,#E31E25,#E31E25 70%);box-shadow:0 0 14px rgba(227,30,37,.7);
  transition:top .18s}
 .lever.down .knob{top:58px}
 .lever.down .stick{transform:scaleY(.45);transform-origin:bottom}
 .paytable{margin:14px 0 0;display:flex;flex-direction:column;gap:6px}
 .paytable div{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:10px;
- background:rgba(0,0,0,.35);border:1px solid rgba(232,237,255,.14);font-size:14px}
-.paytable dt{color:#e8edff}
-.paytable dd{margin:0;color:var(--gold);font-weight:800;font-variant-numeric:tabular-nums}
+ background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.14);font-size:14px}
+.paytable dt{color:#ffffff}
+.paytable dd{margin:0;color:#ffffff;font-weight:800;font-variant-numeric:tabular-nums}
 .pt-syms{display:inline-flex;gap:4px;vertical-align:middle}
 .pt-syms .cic{width:24px;height:24px}
 @media (prefers-reduced-motion:reduce){.marquee i,.window.blur .cic{animation:none}.window.blur .cic{filter:none}}

@@ -12,10 +12,10 @@ import './horses.css';
 
 type Horse = { id: string; icon: string; name: string; odds: number; silks: string };
 const HORSES: Horse[] = [
-  { id: 'tornado', icon: 'steed-gray', name: 'Торнадо', odds: 1.8, silks: '#9aa3b5' },
-  { id: 'bratuxa', icon: 'steed-blue', name: 'Братуха', odds: 2.5, silks: '#6fb3f7' },
-  { id: 'vihr', icon: 'steed-brown', name: 'Вихрь', odds: 4, silks: '#b07a3f' },
-  { id: 'pyat', icon: 'steed-gold', name: 'Пятёрка', odds: 7, silks: '#ffd23f' },
+  { id: 'tornado', icon: 'steed-gray', name: 'Торнадо', odds: 1.8, silks: '#808080' },
+  { id: 'bratuxa', icon: 'steed-blue', name: 'Братуха', odds: 2.5, silks: '#0060AA' },
+  { id: 'vihr', icon: 'steed-brown', name: 'Вихрь', odds: 4, silks: '#E31E25' },
+  { id: 'pyat', icon: 'steed-gold', name: 'Пятёрка', odds: 7, silks: '#ffffff' },
 ];
 
 export default function Horses({ api }: { api: Api }): JSX.Element {

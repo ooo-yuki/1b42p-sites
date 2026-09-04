@@ -5,7 +5,7 @@ import type { JSX } from 'react';
 
 type Pix = { grid: string[]; colors: Record<string, string> };
 
-const K = '#20202e'; // общий контур
+const K = '#3d3d3d'; // общий контур
 
 function PixSvg({ art, className }: { art: Pix; className?: string }): JSX.Element {
   const h = art.grid.length;
@@ -52,10 +52,10 @@ function horseArt(coat: string, mane: string, dark: string): Pix {
 }
 
 const ARTS: Record<string, Pix> = {
-  'steed-gray': horseArt('#9aa3b5', '#4a5266', '#5a6376'),
-  'steed-blue': horseArt('#6fb3f7', '#2b4a7a', '#3f6ea5'),
+  'steed-gray': horseArt('#808080', '#4d4d4d', '#4d4d4d'),
+  'steed-blue': horseArt('#0060AA', '#004578', '#0060AA'),
   'steed-brown': horseArt('#b07a3f', '#5e3a17', '#7a5025'),
-  'steed-gold': horseArt('#ffd23f', '#b07818', '#c9a227'),
+  'steed-gold': horseArt('#f0f0f0', '#808080', '#808080'),
 
   hardhat: {
     grid: [
@@ -68,7 +68,7 @@ const ARTS: Record<string, Pix> = {
       'kBBBBBBBBBBk',
       'kkkkkkkkkkkk',
     ],
-    colors: { k: K, G: '#37d67a', B: '#1f8a4c' },
+    colors: { k: K, G: '#0060AA', B: '#004578' },
   },
   boots: {
     grid: [
@@ -83,7 +83,7 @@ const ARTS: Record<string, Pix> = {
       '..kSSSSSSSSSk',
       '..kkkkkkkkkkk',
     ],
-    colors: { k: K, L: '#9a6530', D: '#5e3a17', S: '#2e2e3e' },
+    colors: { k: K, L: '#9a6530', D: '#5e3a17', S: '#4d4d4d' },
   },
   medal: {
     grid: [
@@ -100,7 +100,7 @@ const ARTS: Record<string, Pix> = {
       '.....kOk....',
       '.....kkk....',
     ],
-    colors: { k: K, R: '#ff4d4d', U: '#4f8ff7', O: '#ffd23f', W: '#fff3b0' },
+    colors: { k: K, R: '#E31E25', U: '#0060AA', O: '#f0f0f0', W: '#ffffff' },
   },
   flame: {
     grid: [
@@ -117,7 +117,7 @@ const ARTS: Record<string, Pix> = {
       '.....FFFF...',
       '......kk....',
     ],
-    colors: { k: K, F: '#e03131', O: '#ff922b', Y: '#ffd43b' },
+    colors: { k: K, F: '#E31E25', O: '#E31E25', Y: '#ffffff' },
   },
   coins: {
     grid: [
@@ -131,7 +131,7 @@ const ARTS: Record<string, Pix> = {
       '.kOWWWOOOOOk',
       '..kkkkkkkk..',
     ],
-    colors: { k: K, O: '#ffd23f', W: '#fff3b0' },
+    colors: { k: K, O: '#f0f0f0', W: '#ffffff' },
   },
   glock: {
     grid: [
@@ -146,7 +146,7 @@ const ARTS: Record<string, Pix> = {
       '..kBBBk.....',
       '..kkkk......',
     ],
-    colors: { k: K, G: '#3d3d4a', B: '#6b4a2b' },
+    colors: { k: K, G: '#4d4d4d', B: '#6b4a2b' },
   },
   vest: {
     grid: [
@@ -161,7 +161,7 @@ const ARTS: Record<string, Pix> = {
       '.kVVVVVVVVk.',
       '..kkkkkkkk..',
     ],
-    colors: { k: K, V: '#6b7f3e', v: '#47542a', S: '#2e2e3e' },
+    colors: { k: K, V: '#6b7f3e', v: '#47542a', S: '#4d4d4d' },
   },
   truck: {
     grid: [
@@ -175,7 +175,7 @@ const ARTS: Record<string, Pix> = {
       '...kTHk..kTHk.',
       '...kkk...kkk..',
     ],
-    colors: { k: K, G: '#4c7a45', W: '#bfe3ff', T: '#22222c', H: '#8b93a8' },
+    colors: { k: K, G: '#4c7a45', W: '#ffffff', T: '#4d4d4d', H: '#808080' },
   },
   rocket: {
     grid: [
@@ -194,7 +194,7 @@ const ARTS: Record<string, Pix> = {
       '....FOOF....',
       '.....FF.....',
     ],
-    colors: { k: K, R: '#ff4d4d', W: '#eef1ff', B: '#4f8ff7', F: '#ff922b', O: '#ffd43b' },
+    colors: { k: K, R: '#E31E25', W: '#ffffff', B: '#0060AA', F: '#E31E25', O: '#ffffff' },
   },
   crown: {
     grid: [
@@ -207,7 +207,7 @@ const ARTS: Record<string, Pix> = {
       '..OOOOOOOO..',
       '...kkkkkk...',
     ],
-    colors: { k: K, O: '#ffd23f', W: '#fff3b0', R: '#ff4d6d', B: '#4f8ff7' },
+    colors: { k: K, O: '#f0f0f0', W: '#ffffff', R: '#E31E25', B: '#0060AA' },
   },
   radio: {
     grid: [
@@ -222,7 +222,7 @@ const ARTS: Record<string, Pix> = {
       '.kDSsSSSsSk.',
       '..kkkkkkkk..',
     ],
-    colors: { k: K, A: '#c0c7e8', D: '#2e2e3e', W: '#bfe3ff', G: '#40c057', S: '#565664', s: K },
+    colors: { k: K, A: '#ffffff', D: '#4d4d4d', W: '#ffffff', G: '#40c057', S: '#808080', s: K },
   },
   map: {
     grid: [
@@ -238,7 +238,7 @@ const ARTS: Record<string, Pix> = {
       'kPPPPPPPPPPk',
       '.kkkkkkkkkk.',
     ],
-    colors: { k: K, P: '#f3e3b3', R: '#e03131', B: '#4f8ff7', G: '#40c057' },
+    colors: { k: K, P: '#f3e3b3', R: '#E31E25', B: '#0060AA', G: '#40c057' },
   },
   anchor: {
     grid: [
@@ -254,7 +254,7 @@ const ARTS: Record<string, Pix> = {
       '....kSSk....',
       '.....kk.....',
     ],
-    colors: { k: K, S: '#8b93a8' },
+    colors: { k: K, S: '#808080' },
   },
   eagle: {
     grid: [
@@ -270,7 +270,7 @@ const ARTS: Record<string, Pix> = {
       '..kBBBBBk...',
       '...kkkkk....',
     ],
-    colors: { k: K, B: '#8a5a2b', b: '#5e3a17', E: K, Y: '#ffd23f', W: '#e8e4d5' },
+    colors: { k: K, B: '#8a5a2b', b: '#5e3a17', E: K, Y: '#f0f0f0', W: '#e8e4d5' },
   },
   jackpot: {
     grid: [
@@ -287,7 +287,7 @@ const ARTS: Record<string, Pix> = {
       '...kkRRRRkk.',
       '..kDDDDDDDDk',
     ],
-    colors: { k: K, O: '#ffd23f', W: '#fff3b0', R: '#ff4d4d', D: '#5e3a17' },
+    colors: { k: K, O: '#f0f0f0', W: '#ffffff', R: '#E31E25', D: '#5e3a17' },
   },
   barracks: {
     grid: [
@@ -302,7 +302,7 @@ const ARTS: Record<string, Pix> = {
       'kWWWWWWWWWWk',
       '.kkkkkkkkkk.',
     ],
-    colors: { k: K, W: '#b08948', w: '#7a5f30', N: '#565d75' },
+    colors: { k: K, W: '#b08948', w: '#7a5f30', N: '#808080' },
   },
   arsenal: {
     grid: [
@@ -317,7 +317,7 @@ const ARTS: Record<string, Pix> = {
       '.kRRRRRRRRk.',
       '..kkkkkkkk..',
     ],
-    colors: { k: K, H: '#9aa3b5', R: '#e03131', r: '#a02323', L: '#ffd23f' },
+    colors: { k: K, H: '#808080', R: '#E31E25', r: '#8F1218', L: '#f0f0f0' },
   },
   hq42: {
     grid: [
@@ -332,7 +332,7 @@ const ARTS: Record<string, Pix> = {
       'kBBBBBBBBBBk',
       '.kkkkkkkkkk.',
     ],
-    colors: { k: K, H: '#9aa3b5', B: '#2b3a67', O: '#ffd23f' },
+    colors: { k: K, H: '#808080', B: '#4d4d4d', O: '#f0f0f0' },
   },
   tornado: {
     grid: [
@@ -349,7 +349,7 @@ const ARTS: Record<string, Pix> = {
       '.......b......',
       '......kkk.....',
     ],
-    colors: { k: K, W: '#e8eefc', B: '#8fa3c9', b: '#4a5a7a' },
+    colors: { k: K, W: '#ffffff', B: '#808080', b: '#4d4d4d' },
   },
   wheel: {
     grid: [
@@ -365,7 +365,7 @@ const ARTS: Record<string, Pix> = {
       '..kkTTTTkk..',
       '....kkkk....',
     ],
-    colors: { k: K, T: '#2c2c36', H: '#9aa3b8' },
+    colors: { k: K, T: '#4d4d4d', H: '#808080' },
   },
   cherry: {
     grid: [
@@ -381,7 +381,7 @@ const ARTS: Record<string, Pix> = {
       '......RRRR..',
       '.......RR...',
     ],
-    colors: { S: '#7a5f30', G: '#40c057', R: '#ff4d6d' },
+    colors: { S: '#7a5f30', G: '#40c057', R: '#E31E25' },
   },
   clover: {
     grid: [
@@ -410,7 +410,7 @@ const ARTS: Record<string, Pix> = {
       '..OOO..oOO..',
       '..OO....oo..',
     ],
-    colors: { O: '#ffd23f', o: '#e0a91f' },
+    colors: { O: '#f0f0f0', o: '#a8a8a8' },
   },
   dices: {
     grid: [
@@ -426,7 +426,7 @@ const ARTS: Record<string, Pix> = {
       '.kWWWWWWWWk.',
       '..kkkkkkkk..',
     ],
-    colors: { k: K, W: '#eef1ff', P: '#e03131' },
+    colors: { k: K, W: '#ffffff', P: '#E31E25' },
   },
   seven: {
     grid: [
@@ -442,7 +442,7 @@ const ARTS: Record<string, Pix> = {
       '.kDDDDDDDDk.',
       '..kkkkkkkk..',
     ],
-    colors: { k: K, D: '#2b2b3a', O: '#ffd23f' },
+    colors: { k: K, D: '#4d4d4d', O: '#f0f0f0' },
   },
   bomb: {
     grid: [
@@ -458,7 +458,7 @@ const ARTS: Record<string, Pix> = {
       '..kBBBBBBk..',
       '...kkkkkk...',
     ],
-    colors: { k: K, B: '#2c2c36', W: '#565664', F: '#8a5a2b', Y: '#ffd43b' },
+    colors: { k: K, B: '#4d4d4d', W: '#808080', F: '#8a5a2b', Y: '#ffffff' },
   },
   spade: {
     grid: [
@@ -474,7 +474,7 @@ const ARTS: Record<string, Pix> = {
       '....SSSS....',
       '...SSSSSS...',
     ],
-    colors: { S: '#e8edff' },
+    colors: { S: '#ffffff' },
   },
 };
 

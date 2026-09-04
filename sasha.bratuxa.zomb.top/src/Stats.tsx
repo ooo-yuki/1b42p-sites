@@ -15,9 +15,9 @@ const NAMES: Record<string, string> = {
   svyatoslav: 'Святослав', denis: 'Денис', sasha: 'Саша', gtaevv: 'GTAEVV',
 };
 const COLORS: Record<string, string> = {
-  hub: '#ffd23f', chaev: '#7CFC00', doom: '#ff6b35', evaelph: '#ff7bac',
+  hub: '#0060AA', chaev: '#7CFC00', doom: '#ff6b35', evaelph: '#ff7bac',
   smolgrad: '#c9b458', miqqil: '#4fc3f7', setden: '#ba68c8',
-  svyatoslav: '#ffee58', denis: '#80deea', sasha: '#ff4d4d', gtaevv: '#00e5ff',
+  svyatoslav: '#ffee58', denis: '#80deea', sasha: '#E31E25', gtaevv: '#00e5ff',
 };
 const ORDER = ['hub', 'chaev', 'doom', 'evaelph', 'smolgrad', 'miqqil', 'setden', 'svyatoslav', 'denis', 'sasha', 'gtaevv'];
 interface HistPoint {
@@ -44,7 +44,7 @@ function drawGraph(cv: HTMLCanvasElement, h: HistPoint[]): void {
   const pad = 36;
   ctx.clearRect(0, 0, W, H);
   if (!h.length) {
-    ctx.fillStyle = '#8a93c9';
+    ctx.fillStyle = '#f0f0f0';
     ctx.font = '14px sans-serif';
     ctx.fillText('Пока нет истории — заходи позже!', 20, 40);
     return;
@@ -55,9 +55,9 @@ function drawGraph(cv: HTMLCanvasElement, h: HistPoint[]): void {
   });
   const X = (i: number): number => pad + (i * (W - 2 * pad)) / Math.max(1, h.length - 1);
   const Y = (v: number): number => H - pad - (v * (H - 2 * pad)) / max;
-  ctx.strokeStyle = 'rgba(232,237,255,.06)';
+  ctx.strokeStyle = 'rgba(255,255,255,.25)';
   ctx.lineWidth = 1;
-  ctx.fillStyle = '#5a6396';
+  ctx.fillStyle = '#f0f0f0';
   ctx.font = '12px sans-serif';
   for (let g = 0; g <= 4; g++) {
     const v = Math.round((max * g) / 4);
@@ -88,7 +88,7 @@ function drawGraph(cv: HTMLCanvasElement, h: HistPoint[]): void {
   ctx.fillStyle = grad;
   ctx.fill();
   const lines: Array<{ key: string; get: (p: HistPoint) => number; color: string; w: number }> = [
-    { key: 'total', get: (p) => p.total, color: '#ffd23f', w: 3 },
+    { key: 'total', get: (p) => p.total, color: '#ffffff', w: 3 },
     ...Object.keys(sites).map((s) => ({
       key: s,
       get: (p: HistPoint) => (p.per_site || {})[s] || 0,
@@ -113,7 +113,7 @@ function drawGraph(cv: HTMLCanvasElement, h: HistPoint[]): void {
     const label = NAMES[s] || s;
     ctx.fillStyle = COLORS[s] || '#fff';
     ctx.fillRect(lx, H - 14, 10, 10);
-    ctx.fillStyle = '#e8edff';
+    ctx.fillStyle = '#ffffff';
     ctx.fillText(label, lx + 13, H - 5);
     lx += ctx.measureText(label).width + 28;
   });
@@ -121,7 +121,7 @@ function drawGraph(cv: HTMLCanvasElement, h: HistPoint[]): void {
     d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
   const t0 = new Date(h[0].ts);
   const t1 = new Date(h[h.length - 1].ts);
-  ctx.fillStyle = '#8a93c9';
+  ctx.fillStyle = '#f0f0f0';
   ctx.fillText(fmt(t0), pad, H - 16);
   const e = fmt(t1);
   ctx.fillText(e, W - pad - ctx.measureText(e).width, H - 16);

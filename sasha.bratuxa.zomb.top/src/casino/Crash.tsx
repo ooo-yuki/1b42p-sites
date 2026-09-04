@@ -98,7 +98,7 @@ function Sky({ stars, birds }: { stars: Star[]; birds: Bird[] }): JSX.Element {
       ))}
       <svg className="city" viewBox="0 0 400 60" preserveAspectRatio="none">
         <path d="M0,60 L0,38 L18,38 L18,26 L30,26 L30,38 L52,38 L52,18 L60,18 L60,10 L68,18 L76,18 L76,38 L104,38 L104,30 L124,30 L124,44 L150,44 L150,22 L170,22 L170,44 L200,44 L200,34 L226,34 L226,44 L258,44 L258,16 L268,16 L268,8 L278,16 L288,16 L288,44 L318,44 L318,30 L340,30 L340,44 L366,44 L366,26 L384,26 L384,44 L400,44 L400,60 Z" />
-        <g className="win" fill="#ffd23f">
+        <g className="win" fill="#ffffff">
           {Array.from({ length: 26 }, (_, i) => (
             <rect key={i} x={8 + (i * 37) % 380} y={24 + ((i * 53) % 22)} width="4" height="5" opacity={0.25 + ((i * 29) % 60) / 100} />
           ))}
@@ -178,20 +178,20 @@ export default function Crash({ api }: { api: Api }): JSX.Element {
     const W = (cv.width = cv.clientWidth * 2);
     const H = (cv.height = 440);
     ctx.clearRect(0, 0, W, H);
-    ctx.strokeStyle = 'rgba(55,214,122,.14)';
+    ctx.strokeStyle = 'rgba(0,96,170,.14)';
     ctx.lineWidth = 2;
     for (let g = 1; g < 5; g++) {
       const y = (H / 5) * g;
       ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
     }
-    ctx.fillStyle = 'rgba(232,237,255,.45)';
+    ctx.fillStyle = 'rgba(255,255,255,.45)';
     ctx.font = '22px sans-serif';
     for (let g = 1; g < 5; g++) {
       ctx.fillText(`×${(1 + (m - 1) * (1 - g / 5)).toFixed(1)}`, 10, (H / 5) * g - 8);
     }
-    ctx.strokeStyle = dead ? '#E31E25' : '#37d67a';
+    ctx.strokeStyle = dead ? '#E31E25' : '#0060AA';
     ctx.lineWidth = 6;
-    ctx.shadowColor = dead ? 'rgba(227,30,37,.7)' : 'rgba(55,214,122,.7)';
+    ctx.shadowColor = dead ? 'rgba(227,30,37,.7)' : 'rgba(0,96,170,.7)';
     ctx.shadowBlur = 18;
     ctx.beginPath();
     const pts = 60;
@@ -204,7 +204,7 @@ export default function Crash({ api }: { api: Api }): JSX.Element {
     }
     ctx.stroke();
     ctx.shadowBlur = 0;
-    ctx.fillStyle = dead ? '#E31E25' : '#37d67a';
+    ctx.fillStyle = dead ? '#E31E25' : '#0060AA';
     ctx.beginPath(); ctx.arc(W - 20, H - 30 - Math.min(1, 1) * (H - 70), 10, 0, Math.PI * 2); ctx.fill();
   };
 
