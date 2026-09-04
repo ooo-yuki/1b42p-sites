@@ -53,7 +53,7 @@ b.gold{color:gold}b.grn{color:#0f6}b.red{color:#f55}
 <div id="hint">Метки: H — штаб • ! — цель • 🚗 — тачка • 💀 — враги • N — карта</div>
 <div id="maplegend">🏷️ <b>МЕТКИ:</b> <b style="color:gold">H</b> штаб • <b style="color:#f0f">!</b> краска • 🥫 магазин • 🎰 казино • 🚗 тачка • ⛰ пещера • <b style="color:yellow">?</b> слухи • <b style="color:#ff7700">SLAY</b> финал • <b>◆</b> цель (столб света)</div>
 <div id="touch"><div id="joy"><div id="stick"></div></div><div id="btns"><button class="tbtn" id="bE">E</button><button class="tbtn" id="bF">🚗</button><button class="tbtn" id="bHit">БИТА</button><button class="tbtn" id="bRun">БЕГ</button><button class="tbtn" id="bUp">🔼</button><button class="tbtn" id="bDn">🔽</button></div></div>
-<audio id="anthem" src="anthem.mp3" loop preload="auto"></audio><div id="dialog" style="display:none"><div id="dtext"></div><button id="dnext">ДАЛЕЕ ➤</button></div>
+<audio id="anthem" src="track42.mp3" loop preload="auto"></audio><div id="dialog" style="display:none"><div id="dtext"></div><button id="dnext">ДАЛЕЕ ➤</button></div>
 <div id="menu">
 <h1>42 • ДЕНИС БИТКОИН</h1>
 <h2 style="color:#0f6">ВОЗВРАЩЕНИЕ В БАТАЛЬОН</h2>
@@ -797,6 +797,7 @@ AU.init=function(){
  AU.sfx=x.createGain();AU.sfx.gain.value=.9;AU.sfx.connect(AU.master);AU.sfx.connect(conv);
  AU.startAmbient();AU.startEngine();AU.scheduler();
  document.getElementById('radio').textContent=AU.stations[0].name;
+ try{AU.playAnthem();}catch(_){} // трек стартует сразу со старта игры (клик — жест для автоплея)
 };
 AU.impulse=function(dur,decay){
  const x=AU.ctx,r=x.sampleRate*dur,b=x.createBuffer(2,r,x.sampleRate),d0=b.getChannelData(0),d1=b.getChannelData(1);
