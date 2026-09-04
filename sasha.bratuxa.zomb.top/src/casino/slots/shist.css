@@ -1,0 +1,35 @@
+/* ЛЕНТА — спины, итоги, лучший заход. */
+
+.sl-book{margin-top:14px; display:flex; flex-direction:column; gap:10px}
+.sl-book .book-total{
+  display:flex; flex-wrap:wrap; align-items:stretch; gap:8px;
+  background:#0d1428; border:1px solid rgba(255,255,255,.12);
+  border-radius:12px; padding:10px 12px;
+}
+.sl-book .book-total div{display:flex; flex-direction:column; min-width:86px; flex:1}
+.sl-book .book-total dt{font-size:10.5px; color:#808080; letter-spacing:.06em; text-transform:uppercase}
+.sl-book .book-total dd{margin:2px 0 0; font-size:17px; font-weight:800; color:#fff; font-variant-numeric:tabular-nums}
+.sl-book .book-total .plus dd{color:#fff}
+.sl-book .book-total .minus dd{color:#E31E25}
+.sl-book .book-total .best{display:flex; align-items:center; gap:4px}
+.sl-book .book-total .best .cic{width:20px; height:20px}
+.sl-book .book-clear{
+  align-self:center; background:none; border:1px solid rgba(128,128,128,.5);
+  color:#808080; border-radius:999px; padding:6px 14px; cursor:pointer; font-size:12.5px;
+  transition:border-color .15s, color .15s;
+}
+.sl-book .book-clear:hover{border-color:#E31E25; color:#E31E25}
+.sl-book ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px}
+.sl-book li{
+  display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:10px;
+  background:rgba(13,20,40,.7); border:1px solid rgba(255,255,255,.08); font-size:14px;
+}
+.sl-book li .cic{width:24px; height:24px}
+.sl-book .s-reels{display:flex; gap:4px}
+.sl-book li .h-label{color:#808080; font-size:13px}
+.sl-book li .h-amount{margin-left:auto; font-weight:800; font-variant-numeric:tabular-nums}
+.sl-book li .h-profit{font-weight:800; font-variant-numeric:tabular-nums; min-width:56px; text-align:right}
+.sl-book li.plus .h-profit{color:#fff}
+.sl-book li.miss .h-profit{color:#E31E25}
+.sl-book li.plus{border-color:rgba(0,96,170,.35)}
+.sl-book li.jack{border-color:#fff; box-shadow:0 0 16px rgba(0,96,170,.35)}

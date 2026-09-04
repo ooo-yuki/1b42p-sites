@@ -1,0 +1,50 @@
+/* КОРПУС — стоп барабанов, подсвет выигрыша, джекпот-торжество. */
+
+.cabinet{position:relative; overflow:hidden}
+.cabinet .window{transition:border-color .2s, box-shadow .2s, transform .2s}
+.cabinet .window.hot{
+  border-color:#fff; box-shadow:0 0 20px rgba(0,96,170,.65);
+  transform:translateY(-3px);
+}
+.cabinet.jackpot{border-color:#fff; box-shadow:0 0 60px rgba(0,96,170,.45)}
+.cabinet.jackpot .window{border-color:#fff; box-shadow:0 0 26px rgba(0,96,170,.8)}
+.cab-rays{
+  position:absolute; inset:-70px; pointer-events:none;
+  background:conic-gradient(from 0deg,
+    rgba(0,96,170,.25) 0deg 10deg, transparent 10deg 22deg,
+    rgba(0,96,170,.25) 22deg 32deg, transparent 32deg 44deg,
+    rgba(0,96,170,.25) 44deg 54deg, transparent 54deg 66deg,
+    rgba(0,96,170,.25) 66deg 76deg, transparent 76deg 88deg,
+    rgba(0,96,170,.25) 88deg 98deg, transparent 98deg 110deg,
+    rgba(0,96,170,.25) 110deg 120deg, transparent 120deg 132deg,
+    rgba(0,96,170,.25) 132deg 142deg, transparent 142deg 154deg,
+    rgba(0,96,170,.25) 154deg 164deg, transparent 164deg 176deg,
+    rgba(0,96,170,.25) 176deg 186deg, transparent 186deg 198deg,
+    rgba(0,96,170,.25) 198deg 208deg, transparent 208deg 220deg,
+    rgba(0,96,170,.25) 220deg 230deg, transparent 230deg 242deg,
+    rgba(0,96,170,.25) 242deg 252deg, transparent 252deg 264deg,
+    rgba(0,96,170,.25) 264deg 274deg, transparent 274deg 286deg,
+    rgba(0,96,170,.25) 286deg 296deg, transparent 296deg 308deg,
+    rgba(0,96,170,.25) 308deg 318deg, transparent 318deg 330deg,
+    rgba(0,96,170,.25) 330deg 340deg, transparent 340deg 352deg);
+  animation:spinrays 10s linear infinite;
+}
+@keyframes spinrays{to{transform:rotate(360deg)}}
+.jack-banner{
+  margin-top:12px; display:flex; align-items:baseline; justify-content:center; gap:10px;
+  animation:pop .45s cubic-bezier(.2,1.4,.4,1);
+}
+@keyframes pop{from{opacity:0; transform:scale(.5)}to{opacity:1; transform:scale(1)}}
+.jack-banner b{
+  font-size:44px; font-weight:900; color:#fff; line-height:1;
+  text-shadow:0 0 30px rgba(0,96,170,.9); font-variant-numeric:tabular-nums;
+}
+.jack-banner small{font-size:14px; color:#fff}
+.deck .lever{transition:filter .15s}
+.deck .lever:not(:disabled):hover{filter:drop-shadow(0 0 10px rgba(227,30,37,.7))}
+.spin-cost{margin:10px 0 0; text-align:center; font-size:12.5px; color:#808080}
+
+@media (prefers-reduced-motion:reduce){
+  .cab-rays,.jack-banner{animation:none}
+  .cabinet .window.hot{transform:none}
+}

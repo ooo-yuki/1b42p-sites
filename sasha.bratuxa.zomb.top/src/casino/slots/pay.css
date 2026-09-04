@@ -1,0 +1,16 @@
+/* ТАБЛИЦА — выплаты и честные шансы. */
+
+.pay-zone{margin-top:14px}
+.pay-zone .paytable{margin:0}
+.odds{
+  list-style:none; margin:10px 0 0; padding:0;
+  display:flex; flex-wrap:wrap; gap:8px;
+}
+.odds li{
+  flex:1; min-width:130px; display:flex; justify-content:space-between; gap:8px;
+  background:#0d1428; border:1px solid rgba(255,255,255,.12);
+  border-radius:10px; padding:8px 12px; font-size:13px;
+}
+.odds li span{color:#808080}
+.odds li b{color:#fff}
+.pay-zone .fine{margin:8px 0 0; font-size:12px; color:#808080}

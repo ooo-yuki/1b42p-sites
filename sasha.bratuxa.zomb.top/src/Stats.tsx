@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { startBeacon } from './lib/beacon';
 import './stats.css';
@@ -197,6 +197,34 @@ export default function Stats(): JSX.Element {
   const nm = (s: string): string => NAMES[s] || s;
   const onlineMax = Math.max(1, ...ORDER.map((s) => (st?.online[s] || 0)));
   const medalClass = ['gold', 'silver', 'bronze'];
+
+  /** Пики сайтов за 24 часа — считаются из истории, бэкенд не трогаем. */
+  const peaks = useMemo(() => {
+    const out: Array<{ site: string; n: number; at: string }> = [];
+    if (!st?.history?.length) return out;
+    for (const s of ORDER) {
+      let n = 0;
+      let at = '';
+      for (const p of st.history) {
+        const v = (p.per_site || {})[s] || 0;
+        if (v > n) {
+          n = v;
+          at = p.ts;
+        }
+      }
+      out.push({ site: s, n, at });
+    }
+    return out.sort((a, b) => b.n - a.n);
+  }, [st]);
+
+  const peakTime = (ts: string): string => {
+    if (!ts) return '—';
+    try {
+      return new Date(ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '—';
+    }
+  };
 
   return (
     <div className="stx">
