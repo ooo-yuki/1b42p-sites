@@ -353,9 +353,9 @@ function spark(parent,r,h,n,col){for(var i=0;i<n;i++){var m=new THREE.Mesh(new T
  new THREE.MeshBasicMaterial({color:col||0xfff6b8}));m.castShadow=false;
  m.userData={orbit:{r:r,h:h,sp:1.5+i*0.3,ph:i*2.1}};parent.add(m);}}
 /* --- кавайные мордочки: глазки, румянец, улыбка 💖 --- */
-function kawaii(p,y,sp,z,s){s=s||1;
+function kawaii(p,y,sp,z,s,pupil){s=s||1;
  var ew=new THREE.MeshBasicMaterial({color:0xffffff});
- var ep=new THREE.MeshBasicMaterial({color:0x3a3f5e});
+ var ep=new THREE.MeshBasicMaterial({color:pupil||0x3a3f5e});
  var bl=new THREE.MeshBasicMaterial({color:0xff9eb5});
  [-1,1].forEach(function(k){
   var e=new THREE.Mesh(new THREE.SphereGeometry(0.09*s,10,8),ew);e.position.set(k*sp,y,z);e.castShadow=false;p.add(e);
@@ -1554,8 +1554,22 @@ function makeBratuha(shirt,name,capC){var g=new THREE.Group();
  var cp=new THREE.Mesh(new THREE.SphereGeometry(0.2,10,8),mat(capC));cp.scale.set(1,0.55,1);cp.position.y=1.5;cp.castShadow=true;g.add(cp);
  g.add(put(box(0.3,0.04,0.22,mat(capC)),0,1.44,0.28));
  var pom=new THREE.Mesh(new THREE.SphereGeometry(0.05,8,6),mat(0xff8fbf));pom.position.set(0,1.62,0);pom.castShadow=false;g.add(pom);
+ // причёска и цвет глаз — стабильно свои у каждого братухи 💇
+ var hh=0;for(var hi=0;hi<name.length;hi++)hh=(hh*31+name.charCodeAt(hi))>>>0;
+ var hairCols=[0x6b4a2f,0x2b2b3a,0xd9a066,0xb34a6e,0x7fb6ff,0xff7b54];
+ var hc=hairCols[hh%hairCols.length],hs=hh%3;
+ if(hs===0)g.add(put(box(0.34,0.08,0.05,mat(hc)),0,1.4,0.3));
+ else if(hs===1)g.add(put(box(0.3,0.42,0.12,mat(hc)),0,1.14,-0.24));
+ else{var pg1=new THREE.Mesh(new THREE.SphereGeometry(0.09,8,6),mat(hc));pg1.position.set(-0.25,1.3,-0.05);pg1.castShadow=true;g.add(pg1);
+  var pg2=pg1.clone();pg2.position.x=0.25;g.add(pg2);}
+ if(hh%4===0){for(var fi=0;fi<5;fi++){var fa=fi/5*Math.PI*2;
+   var fl=new THREE.Mesh(new THREE.SphereGeometry(0.045,6,5),mat([0xff8fbf,0xfffdf4,0xffd23f][fi%3]));
+   fl.position.set(Math.cos(fa)*0.16,1.58,Math.sin(fa)*0.16);fl.castShadow=false;g.add(fl);}}
+ else if(hh%4===1){var pin=octa(0.05,mat(0x7fd4ff,0x1f6f8b,0.6));pin.position.set(0.18,1.46,0.12);g.add(pin);}
+ if(hh%7===0)g.scale.set(0.82,0.82,0.82); // малыш-братуха 👶
  // милая мордочка
- kawaii(g,1.3,0.1,0.22,0.8);
+ var eyeCols=[0x3a3f5e,0x2f6b4f,0x6b3a5e,0x1f4e79];
+ kawaii(g,1.3,0.1,0.22,0.8,eyeCols[hh%eyeCols.length]);
  // значок полицейского
  if(name&&name.indexOf('Полицейский')>=0){var bd=octa(0.07,mat(0xffd23f,0x6b4e00,0.5));bd.position.set(-0.15,0.75,0.17);g.add(bd);}
  g.add(makeNameSprite(name));return g;}
