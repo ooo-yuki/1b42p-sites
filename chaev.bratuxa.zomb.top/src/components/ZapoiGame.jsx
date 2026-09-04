@@ -141,14 +141,19 @@ export default function ZapoiGame() {
           const open = isUnlocked(z, c.id);
           const done = z.completed && z.completed[c.id];
           return (
-            <div key={c.id} style={{ border: '2px solid ' + (done ? '#7f7' : 'gold'), borderRadius: 12, padding: 10, margin: '8px 0', textAlign: 'left', opacity: open ? 1 : 0.55 }}>
-              <img src={c.img} alt={c.name} style={{ width: 110, borderRadius: 12, border: '2px solid gold', verticalAlign: 'top', marginRight: 10, float: 'left' }} />
-              <b style={{ fontSize: 18 }}>{c.emoji} {c.name}</b>{' '}
-              {done ? <span style={{ color: '#7f7' }}>✅ ЗАКРЫТ</span> : open ? '' : <span>🔒 откроется за бутылку Владимира</span>}
-              <div className="hint">{c.desc}</div>
-              <div className="hint">{c.hint}</div>
-              {open && !done && <button onClick={() => pickChar(c.id)} style={{ marginTop: 6 }}>ИГРАТЬ ЗА НЕГО ▶</button>}
-              {open && done && <button onClick={() => pickChar(c.id)} style={{ marginTop: 6 }}>ЕЩЁ РАЗ ▶</button>}
+            <div key={c.id} style={{ border: '2px solid ' + (done ? '#7f7' : 'gold'), borderRadius: 12, padding: 12, margin: '8px 0', overflow: 'hidden', background: '#1a1a1a' }}>
+              <img src={c.img} alt={c.name} style={{ width: 120, borderRadius: 12, border: '2px solid gold', marginRight: 12, float: 'left' }} />
+              <b style={{ fontSize: 19, color: '#fff' }}>{c.emoji} {c.name}</b>{' '}
+              {done ? <span style={{ color: '#7f7', fontWeight: 'bold' }}>✅ ЗАКРЫТ</span> : open ? '' : <span style={{ color: '#aaa' }}>🔒 откроется за бутылку Владимира</span>}
+              <div style={{ color: 'gold', fontSize: 15, marginTop: 6 }}>{c.desc}</div>
+              <div style={{ marginTop: 8 }}>
+                {(c.stats || []).map((st) => (
+                  <div key={st} style={{ color: '#fff', fontSize: 15, marginTop: 4 }}>• {st}</div>
+                ))}
+              </div>
+              <div style={{ color: '#aaa', fontSize: 13, fontStyle: 'italic', marginTop: 6 }}>{c.hint}</div>
+              {open && !done && <button onClick={() => pickChar(c.id)} style={{ marginTop: 8 }}>ИГРАТЬ ЗА НЕГО ▶</button>}
+              {open && done && <button onClick={() => pickChar(c.id)} style={{ marginTop: 8 }}>ЕЩЁ РАЗ ▶</button>}
               <div style={{ clear: 'both' }} />
             </div>
           );
