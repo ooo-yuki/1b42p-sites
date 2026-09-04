@@ -335,6 +335,9 @@ function awningShop(x,z,ci,sign){const w=14,hgt=5.5,D=10,fz=D/2;
   const dg=new THREE.Mesh(new THREE.PlaneGeometry(1.2,2.6),_shopGlassM);dg.position.set(0,1.7,fz+0.16);g.add(dg);
   const po=new THREE.Mesh(new THREE.PlaneGeometry(1.1,1.5),new THREE.MeshBasicMaterial({color:0xff66aa}));po.position.set(-3.6,1.8,fz+0.15);g.add(po);
  }
+  const bw=new THREE.Mesh(new THREE.PlaneGeometry(w-4,2.0),_shopGlassM);bw.position.set(0,2.2,-fz-0.06);bw.rotation.y=Math.PI;g.add(bw);
+  bx(1.4,2.4,0.4,0,1.6,-fz-0.1,_shopDarkM);
+  const vt=new THREE.Mesh(new THREE.BoxGeometry(1.2,0.8,0.6),_shopDarkM);vt.position.set(-w/2+1.5,hgt-0.8,-fz-0.2);g.add(vt);
  solids.push({x,z,hx:Math.abs(Math.abs(g.rotation.y)-Math.PI/2)<0.01?5.6:w/2+.6,hz:Math.abs(Math.abs(g.rotation.y)-Math.PI/2)<0.01?w/2+.6:5.6,mesh:m,extra:[]});} // торговый ряд как на фото: витрина/роллеты, неон-скоропись
 function kiosk(x,z){
  const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=faceRoad(x,z)+(z>=125?0:Math.PI);scene.add(g); // прилавком к дороге; на пляже — к городу
@@ -348,6 +351,8 @@ function kiosk(x,z){
  for(const px of [-2.1,2.1])for(const pz of [-1.7,1.7])bx(0.18,3.4,0.18,px,1.7,pz,_shopDarkM);
  bx(4.8,0.25,4.0,0,3.5,0,_shopDarkM);
  const band=new THREE.Mesh(new THREE.PlaneGeometry(3.4,0.7),new THREE.MeshBasicMaterial({color:0xffc37a}));band.position.set(0,3.1,-2.01);band.rotation.y=Math.PI;g.add(band);
+ const crate=new THREE.Mesh(_goodsG,bm);crate.scale.set(1.1,0.8,0.8);crate.position.set(1.2,0.4,1.9);crate.castShadow=true;g.add(crate);
+ const cgoods=new THREE.Mesh(_goodsG,_goodsM[1]);cgoods.scale.set(0.4,0.5,0.4);cgoods.position.set(1.2,1.05,1.9);g.add(cgoods);
  solids.push({x,z,hx:2.6,hz:2.6,mesh:m,extra:[]});} // ларёк-прилавок: товар, навес, световое меню
 function bench(x,z,rot){const b=new THREE.Group();b.position.set(x,0,z);b.rotation.y=rot||0;scene.add(b);
  const seat=new THREE.Mesh(new THREE.BoxGeometry(3,.25,1),new THREE.MeshStandardMaterial({color:0x6b4a2b}));seat.position.y=.8;seat.castShadow=true;b.add(seat);
@@ -1137,6 +1142,7 @@ function decoSign(txt,glow){
   sign.rotation.y=Math.PI/2;sign.position.set(w/2+0.15,h-3.8,fz-1);g.add(sign);
   const gl=new THREE.Mesh(new THREE.PlaneGeometry(w-4,2.4),_shopGlassM);gl.position.set(0,1.5,fz+0.06);g.add(gl);
   bx(2,2.8,0.3,0,1.4,fz+0.1,_shopDarkM);
+  for(let f=0;f<floors;f++){const bb=new THREE.Mesh(new THREE.PlaneGeometry(w-3,1.1),winM);bb.position.set(0,3+f*((h-1.5)/floors),-fz-0.06);bb.rotation.y=Math.PI;g.add(bb);}
   const dg=new THREE.Mesh(new THREE.PlaneGeometry(1.4,2.2),_shopGlassM);dg.position.set(0,1.4,fz+0.28);g.add(dg);
   solids.push({x,z:zc,hx:w/2+.6,hz:D/2+.6,mesh:m,extra:[]});
   placed.push({x,z:zc,w,D});ni++;done=true;break;
@@ -1196,6 +1202,12 @@ function neonShop(x,z,sign,glow,face){
  const nm=new THREE.MeshBasicMaterial({color:new THREE.Color(glow)});
  const edge=new THREE.Mesh(new THREE.BoxGeometry(W+0.4,0.28,0.28),nm);edge.position.set(x,H+0.35,z+face*(fz+0.1));scene.add(edge);
  for(const s of [-W/2,W/2]){const p=new THREE.Mesh(new THREE.BoxGeometry(0.28,H,0.28),nm);p.position.set(x+s,H/2,z+face*(fz+0.1));scene.add(p);}
+ const back=-face;
+ const win2=new THREE.Mesh(new THREE.PlaneGeometry(W-4,1.8),new THREE.MeshStandardMaterial({color:0x0e1622,metalness:.6,roughness:.3}));win2.position.set(x,2.2,z+back*(fz+0.06));if(back<0)win2.rotation.y=Math.PI;scene.add(win2);
+ const crM=new THREE.MeshStandardMaterial({color:0x4a4238,roughness:.9});
+ const cr1=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.0,1.0),crM);cr1.position.set(x-4,0.5,z+back*(fz+0.8));cr1.castShadow=true;scene.add(cr1);
+ const cr2=cr1.clone();cr2.position.set(x-4,1.4,z+back*(fz+0.8));scene.add(cr2);
+ const vent=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.7,0.5),new THREE.MeshStandardMaterial({color:0x555560,roughness:.7,metalness:.4}));vent.position.set(x+4,4.6,z+back*(fz+0.3));scene.add(vent);
  solids.push({x,z,hx:W/2+.6,hz:D/2+.6,mesh:m,extra:[awn]});
 }
 function neonKiosk(x,z,glow){
@@ -1277,6 +1289,54 @@ function skyBeam(x,h,z){const b=new THREE.Mesh(new THREE.CylinderGeometry(2.5,5,
    if(rnd()<0.4){awningShop(x,z,ci,SHOP_SIGNS[si++%SHOP_SIGNS.length]);}
    else{const w=8+rnd()*8,h=10+rnd()*20;tower(x,z,w,h,ci);if(rnd()<0.25)billboard(x,h+2.6,z+w/2+0.4);}
    added++;
+  }
+ }
+})();
+// клумбы с кастомными пальмами на пустых углах кварталов
+(function(){
+ let placed=0;
+ for(const ax of [-100,-50,0])for(const az of [-100,-50,0,50,100]){
+  if(placed>=14)break;
+  for(const sx of [8.5,-8.5]){
+   if(placed>=14)break;
+   const x=ax+sx,z=az+8.5;
+   try{if(rawZoneH(x,z)>1.2)continue;}catch(_){}
+   if(!freePt(x,z,2)||!decorFree(x,z,4))continue;
+   palm(x,z,1.0+Math.random()*0.25);placed++;
+  }
+ }
+})();
+// проезд к пляжу: продлить проспекты на песок + раздвинуть дома, зажимающие коридор
+(function(){
+ const extM=new THREE.MeshStandardMaterial({color:0x9a9aa5,roughness:.8});
+ const lnM=new THREE.MeshBasicMaterial({color:0xf5f5f0});
+ for(const av of [-100,-50,0]){
+  for(const s of [-5,5]){const c=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.22,38),extM);c.position.set(av+s,0.11,119);scene.add(c);}
+  const ln=new THREE.Mesh(new THREE.PlaneGeometry(0.5,38),lnM);ln.rotation.x=-Math.PI/2;ln.position.set(av,0.05,119);scene.add(ln);
+ }
+ const skip=new Set();
+ try{skip.add(player);skip.add(car);}catch(_){}
+ try{skip.add(kizyak.mesh);}catch(_){}
+ try{friends.forEach(f=>skip.add(f.mesh||f));}catch(_){}
+ try{bratukhi.forEach(f=>skip.add(f.mesh||f));}catch(_){}
+ try{rare.forEach(r=>skip.add(r.n.mesh));}catch(_){}
+ for(const s of solids){
+  if(s.z<80||s.z>140)continue;
+  for(const av of [-100,-50,0]){
+   const need=s.hx+8,off=s.x-av;
+   if(Math.abs(off)<need){
+    const dx=(off>=0?1:-1)*(need-Math.abs(off));
+    if(Math.abs(dx)>14)continue;
+    const ox=s.x;s.x+=dx;
+    try{
+     for(const o of scene.children){
+      if(o===ground||o===waterMesh||o.isLight||o.isPoints)continue;
+      if(skip.has(o))continue;
+      if(!(o.isMesh||o.isGroup||o.isSprite))continue;
+      if(Math.abs(o.position.x-ox)<s.hx+0.8&&Math.abs(o.position.z-s.z)<s.hz+0.8)o.position.x+=dx;
+     }
+    }catch(_){}
+   }
   }
  }
 })();
