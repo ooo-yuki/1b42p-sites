@@ -120,7 +120,7 @@ function zoneColor(x,z,out){
  if(z>118&&z<133) out.copy(ZONE_COL.shore); // полоса прибоя
  return out;
 }
-const ground=new THREE.Mesh(new THREE.PlaneGeometry(400,400,100,100),new THREE.MeshStandardMaterial({vertexColors:true,metalness:.5,roughness:.55,envMapIntensity:.6}));
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(400,400,160,160),new THREE.MeshStandardMaterial({vertexColors:true,metalness:.5,roughness:.55,envMapIntensity:.6}));
 (function(){const pos=ground.geometry.attributes.position,cols=[];const tc=new THREE.Color();const snow=new THREE.Color(0xdde4ea),rockL=new THREE.Color(0x7d5a5a);
 for(let i=0;i<pos.count;i++){const wx=pos.getX(i),wz=-pos.getY(i);const hh=groundHeight(wx,wz);pos.setZ(i,hh);zoneColor(wx,wz,tc);if(hh>4.6){tc.lerp(snow,Math.min(1,(hh-4.6)/1.4)*0.9);}else if(hh>3.4){tc.lerp(rockL,Math.min(1,(hh-3.4)/1.2)*0.5);}cols.push(tc.r,tc.g,tc.b);}
 ground.geometry.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));ground.geometry.computeVertexNormals();})();
@@ -207,7 +207,7 @@ function lampPost(x,z){
  const bulb=new THREE.Mesh(new THREE.SphereGeometry(.5,10,8),new THREE.MeshBasicMaterial({color:0xffeeaa}));bulb.position.set(x,8.2,z);scene.add(bulb);
  const li=new THREE.PointLight(0xffcc88,.8,30);li.position.set(x,8,z);scene.add(li);}
 for(let i=0;i<14;i++)palm(-140+Math.random()*280,-140+Math.random()*280);
-[[-15,55],[15,55],[-25,30],[25,30],[0,90]].forEach(p=>lampPost(p[0],p[1]));
+[[10,90],[40,90],[0,65],[45,65],[25,110]].forEach(p=>lampPost(p[0],p[1]));
 // ===== ГОРОД 42: кварталы + точки для будущих квестов =====
 const QUEST={};window.QUEST=QUEST;
 function questPoint(name,x,z,color){QUEST[name]={x,z};try{marker(x,z,color||0x00ff66,name);}catch(_){}}
@@ -215,8 +215,8 @@ let _seed=42;function rnd(){_seed=(_seed*1664525+1013904223)>>>0;return _seed/42
 const PAL=[0x2b3a55,0x55332b,0x3a3a3a,0x274046,0x4a2740,0x2f5233,0x5a5a6e];
 const CARC=[0xff3333,0x33aaff,0xffcc00,0x66ff66,0xcc66ff,0xffffff];
 const SIGNS=['24/7','БАР 42','ШИНЫ','ДОНЕР','АПТЕКА','ТАКСИ','ХОСТЕЛ','ПЛОВ','КАЗИНО','РЫНОК'];
-const RES=[[0,40,26],[-25,15,26],[-80,-60,22],[80,-70,22],[90,80,22],[0,70,22],[8,60,16],[-6,54,12],[6,54,12],[0,-140,48],[3,52,12],[-60,20,14],[60,40,14],[-120,-20,14],[120,20,14],[0,-80,14],[-10,58,10],[10,58,10],[0,62,10]];
-function freePt(x,z,pad){for(const r of RES){if(Math.hypot(x-r[0],z-r[1])<r[2]+(pad||0))return false;}return true;}
+const RES=[[25,75,26],[-25,25,26],[-80,-60,22],[80,-70,22],[90,80,22],[25,95,22],[33,95,16],[19,89,12],[31,89,12],[0,-140,48],[28,87,12],[-60,20,14],[60,40,14],[-120,-20,14],[120,20,14],[0,-80,14],[15,93,10],[35,93,10],[25,97,10]];
+function freePt(x,z,pad){for(const r of RES){if(Math.hypot(x-r[0],z-r[1])<r[2]+(pad||0))return false;}const rx=Math.abs(x-Math.round(x/50)*50),rz=Math.abs(z-Math.round(z/50)*50);if(Math.min(rx,rz)<5+(pad||0))return false;return true;} // + не ставить на дороги (сетка 50, полоса ±5)
 function facadeTex(base,cols,rows){const c=document.createElement('canvas');c.width=cols*16;c.height=rows*20;const g=c.getContext('2d');g.fillStyle=base;g.fillRect(0,0,c.width,c.height);for(let i=0;i<cols;i++)for(let j=0;j<rows;j++){g.fillStyle=rnd()<.5?'#ffdd88':'#0e1622';g.fillRect(i*16+3,j*20+4,10,12);}return new THREE.CanvasTexture(c);}
 function tower(x,z,w,hgt,ci){const cols=Math.max(3,Math.round(w/3)),rows=Math.max(3,Math.round(hgt/4));const base='#'+new THREE.Color(PAL[ci%PAL.length]).getHexString();const t=facadeTex(base,cols,rows);
  const m=new THREE.Mesh(new THREE.BoxGeometry(w,hgt,w),new THREE.MeshStandardMaterial({map:t,emissive:0xffffff,emissiveMap:t,emissiveIntensity:.3,roughness:.85,transparent:true}));
@@ -268,14 +268,14 @@ for(const bx of BC)for(const bz of BC){const cx=bx+(rnd()*16-8),cz=bz+(rnd()*16-
  else kiosk(cx,cz);
  if(rnd()<.7)parkedCar(cx+(rnd()<.5?-14:14),cz+(rnd()*10-5),rnd()*3);
  if(rnd()<.5)busstop(cx,cz+13);}
-questPoint('HQ',0,52);questPoint('SHOP',-25,25,0xff0022);questPoint('SLAY',0,-118,0xff7700);questPoint('RACE',8,60,0x00aaff);
-// штаб 42
-house(0,40,0x550000,'H • ШТАБ 42');
+questPoint('HQ',25,87);questPoint('SHOP',-25,35,0xff0022);questPoint('SLAY',0,-118,0xff7700);questPoint('RACE',33,95,0x00aaff);
+// штаб 42 (сюжетный квартал по сетке: центр блока)
+house(25,75,0x550000,'H • ШТАБ 42');
 // вражеские кварталы
 house(-80,-60,0x002255,'НАХ SQUAD');house(80,-70,0x002255,'НАХ SQUAD');house(90,80,0x442200,'WINLINE');
 house(-60,90,0x223300,'TORNADO');house(-110,20,0x333333,'Мобы');
 // неоново-чёрно-красный магазин TORNADO ENERGY (E — купить энергетик, +HP)
-const SHOP={x:-25,z:15,price:10};
+const SHOP={x:-25,z:25,price:10};
 (function(){
  const bx=new THREE.Mesh(new THREE.BoxGeometry(16,7,12),new THREE.MeshStandardMaterial({color:0x0a0a0a,roughness:.6,metalness:.3,transparent:true}));
  bx.position.set(SHOP.x,3.5,SHOP.z);bx.castShadow=true;bx.receiveShadow=true;scene.add(bx);
@@ -323,9 +323,9 @@ const sslay=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTextu
 function marker(x,z,color,txt){const m=new THREE.Mesh(new THREE.CylinderGeometry(2,2,6,16,1,true),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.5,side:THREE.DoubleSide}));m.position.set(x,3,z);scene.add(m);
 const c=document.createElement('canvas');c.width=128;c.height=64;const g=c.getContext('2d');g.fillStyle='#fff';g.font='bold 44px Arial';g.fillText(txt,30,48);
 const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));s.scale.set(8,4,1);s.position.set(x,9,z);scene.add(s);try{(window.markers=window.markers||[]).push(m);}catch(_){}return m;}
-let markH=marker(0,40,0xffd700,'H');
+let markH=marker(25,75,0xffd700,'H');
 // ===== ИГРОК: ДЕНИС-КОТ 🐱 =====
-const player=new THREE.Group();player.position.set(0,0,70);scene.add(player);
+const player=new THREE.Group();player.position.set(25,0,95);scene.add(player);
 const fur=new THREE.MeshStandardMaterial({color:0xffb84d,roughness:.7});
 const furD=new THREE.MeshStandardMaterial({color:0xe09a2b,roughness:.7});
 const body=new THREE.Mesh(new THREE.SphereGeometry(.9,20,16),fur);body.scale.set(1,.85,1.25);body.position.y=1;player.add(body);
@@ -370,7 +370,7 @@ const beam=new THREE.SpotLight(0xffffcc,2,40,.5,.4);beam.position.set(0,1.5,2.5)
 [[-1,-2.76],[1,-2.76]].forEach(p=>{const t=new THREE.Mesh(new THREE.BoxGeometry(.5,.25,.1),new THREE.MeshBasicMaterial({color:0xff2222}));t.position.set(p[0],1.1,-2.76);car.add(t);});
 const cwG=new THREE.CylinderGeometry(.55,.55,.5,16);const cwM=new THREE.MeshStandardMaterial({color:0x111});
 car.userData.wheels=[];[[-1.5,1.8],[1.5,1.8],[-1.5,-1.8],[1.5,-1.8]].forEach(p=>{const w=new THREE.Mesh(cwG,cwM);w.rotation.z=Math.PI/2;w.position.set(p[0],.55,p[1]);car.add(w);car.userData.wheels.push(w);});
-car.position.set(8,0,60);scene.add(car);marker(8,60,0x00aaff,'🚗');
+car.position.set(33,0,95);scene.add(car);marker(33,95,0x00aaff,'🚗');
 let carSpeed=0;
 // NPC
 // универсальный человек: рубашка/штаны/волосы/головной убор/ярлык вместо куба
@@ -437,10 +437,10 @@ function makeKizyak(x,z){
  g.position.set(x,0,z);scene.add(g);
  return {mesh:g,label:head,name:'КИЗЯК'};
 }
-let kizyak=makeKizyak(3,52);kizyak.mesh.visible=false;kizyak.label.visible=false;
-let friends=[makeHuman(-6,54,{shirt:0x141414,pants:0x141414,tie:0xff6600,hair:0x222222,skin:0xe8b88a,label:'ДРУГ•WINLINE',labelColor:'#ffaa55'}),makeHuman(6,54,{shirt:0x141414,pants:0x141414,tie:0xff6600,hair:0x111111,skin:0xd9a877,label:'ДРУГ•WINLINE',labelColor:'#ffaa55'})];
+let kizyak=makeKizyak(28,87);kizyak.mesh.visible=false;kizyak.label.visible=false;
+let friends=[makeHuman(19,89,{shirt:0x141414,pants:0x141414,tie:0xff6600,hair:0x222222,skin:0xe8b88a,label:'ДРУГ•WINLINE',labelColor:'#ffaa55'}),makeHuman(31,89,{shirt:0x141414,pants:0x141414,tie:0xff6600,hair:0x111111,skin:0xd9a877,label:'ДРУГ•WINLINE',labelColor:'#ffaa55'})];
 let enemies=[];
-let bratukhi=[makeHuman(-10,58,{shirt:0xffd700,emblem42:1,hat:'cap',hatColor:0x111111,label:'БРАТУХА 42',labelColor:'gold'}),makeHuman(10,58,{shirt:0xffd700,emblem42:1,hair:0x774411,label:'БРАТУХА 42',labelColor:'gold'}),makeHuman(0,62,{shirt:0xff5500,emblem42:1,hat:'hood',hatColor:0x551100,label:'БРАТУХА 42',labelColor:'#ffb066'})];
+let bratukhi=[makeHuman(15,93,{shirt:0xffd700,emblem42:1,hat:'cap',hatColor:0x111111,label:'БРАТУХА 42',labelColor:'gold'}),makeHuman(35,93,{shirt:0xffd700,emblem42:1,hair:0x774411,label:'БРАТУХА 42',labelColor:'gold'}),makeHuman(25,97,{shirt:0xff5500,emblem42:1,hat:'hood',hatColor:0x551100,label:'БРАТУХА 42',labelColor:'#ffb066'})];
 // редкие NPC со своими диалогами (E рядом)
 let rare=[
  {n:makeHuman(-60,20,{shirt:0x5a2a8a,hat:'hood',hatColor:0x2a1050,hair:0xcccccc,label:'ШАМАН•42',labelColor:'#c88cff'}),lines:['<b>ШАМАН:</b> Вижу ауру… твоя цепь светится, кот. 42 с тобой. 🌌','<b>ДЕНИС:</b> А по-простому?','<b>ШАМАН:</b> Иди к своим. И не слушай мобов.'],v:{p:.6,r:.85}},
@@ -534,11 +534,11 @@ if(near(SHOP.x,SHOP.z,11)){buyEnergy();return;}
 if(typeof CASINO!=='undefined'&&near(CASINO.x,CASINO.z,11)){gamble();return;}
 for(const s of CAVE.shards){if(!s.taken&&near(s.x,s.z,4)){s.taken=true;CAVE.shardN++;try{scene.remove(s.mesh);}catch(_){}try{AU.blip(1200,.2,'sine',.15);}catch(_){}say(['💎 Осколок '+CAVE.shardN+'/5! '+(CAVE.shardN>=5?'Все осколки собраны! Добей САСАБОТА! 💎':'Ищи ещё — они светятся в темноте.')]);try{checkCaveFinale();}catch(_){}return;}}
 for(const r of rare){if(near(r.n.mesh.position.x,r.n.mesh.position.z,6)){const rr=r;say(rr.lines.slice(),()=>{if(rr.resp)addResp(rr.resp);});return;}}
-if(MI===1&&stage===0&&near(0,40,15)){stage=1;
+if(MI===1&&stage===0&&near(25,75,15)){stage=1;
 say(['<b>ДЕНИС БИТКОИН</b> заходит в чат батальона… тихо. Пыль. Старые скриншоты.<br><i>«Никого нет… 5 лет…»</i> 😔','Он листает: SLAY 2021, завозы Пятёрки, мопсы, самокаты. Ностальгия давит.','Вдруг из темноты — рык…'],()=>{kizyak.mesh.visible=true;kizyak.label.visible=true;
 say(['<b class="red">КИЗЯК:</b> ТЫ ВЫБРАЛ НЕ ТОТ ЧАТ, УБЛ*** 😡 <i>(замахивается битой)</i>','<i>…присматривается… роняет биту…</i>','<b class="grn">КИЗЯК:</b> ОООО… ДЕНИС БИТКОИН?! ВАСАП МА БОЙ!! 🤝🔥','<b class="grn">КИЗЯК:</b> Держи фрибет 500 монет — сгоняй в КАЗИНО у центра, поднимишь банк! 🎰🪙'],()=>{addResp(20);addMoney(500);setM('Миссия 2: Краска','Закрась 3 граффити конкурентов (!) — подойди и держи E');MI=2;stage=0;});});}
 if(MI===2){for(const s of sprays){if(!s.done&&near(s.x,s.z,14)){s.done=true;addResp(15);try{AU.spraySfx();}catch(_){}if(sprays.every(x=>x.done)){setM('Миссия 3: Территория','Иди к синей зоне, размотай 3 НАХ битой (ЛКМ)');MI=3;spawnNakhSquad(-80,-60);try{AU.missionDone();}catch(_){}}return;}}}
-if(MI===4&&near(-4,44,15)){say(['<b>ДРУГ:</b> Денис, ну Винлайн платит… 42 не кормит…','<b>ДЕНИС:</b> Брат, хайп не продаётся. Пятёрка ждёт. Зал SLAY ждёт. Пошли домой.','<b>ДРУГ:</b> …ладно. Рвём контракт. <b>Мы с тобой.</b> ✊'],()=>{addResp(25);setTerr(55);setM('Миссия 5: Гонка','Садись в тачку (F) и доедь до SLAY за 90 сек');MI=5;MI5t=90;try{AU.missionDone();}catch(_){}});}
+if(MI===4&&near(21,79,15)){say(['<b>ДРУГ:</b> Денис, ну Винлайн платит… 42 не кормит…','<b>ДЕНИС:</b> Брат, хайп не продаётся. Пятёрка ждёт. Зал SLAY ждёт. Пошли домой.','<b>ДРУГ:</b> …ладно. Рвём контракт. <b>Мы с тобой.</b> ✊'],()=>{addResp(25);setTerr(55);setM('Миссия 5: Гонка','Садись в тачку (F) и доедь до SLAY за 90 сек');MI=5;MI5t=90;try{AU.missionDone();}catch(_){}});}
 if(MI===5&&near(0,-120,16)){enterVinlineWorld();return;}
 if(MI===6&&FIN.stage==='waves'&&near(0,-100,32)){try{winlineCheck();}catch(_){}return;}
 });
@@ -830,7 +830,7 @@ function spawnCaveNormies(){
 // ===== ДЕНЬГИ (MONEY) + КАЗИНО =====
 let MONEY=0;
 function addMoney(n){MONEY+=n;try{document.getElementById('money').textContent=MONEY;}catch(_){}}
-const CASINO={x:28,z:-8};
+const CASINO={x:25,z:-12};
 (function(){
  const bx=new THREE.Mesh(new THREE.BoxGeometry(16,8,12),new THREE.MeshStandardMaterial({color:0x0a0a2a,roughness:.5,metalness:.4,transparent:true}));
  bx.position.set(CASINO.x,4,CASINO.z);bx.castShadow=true;bx.receiveShadow=true;scene.add(bx);
@@ -881,6 +881,11 @@ function billboard(x,y,z){const m=new THREE.Mesh(new THREE.PlaneGeometry(15,4.5)
  for(let x=-115;x<=15;x+=25){if(decorFree(x,6,2))lampCold(x,6);}
  const plaza=new THREE.Mesh(new THREE.CircleGeometry(16,24),new THREE.MeshStandardMaterial({color:0x23232e,roughness:.6}));plaza.rotation.x=-Math.PI/2;plaza.position.set(0,0.04,-105);scene.add(plaza);
  const ring=new THREE.Mesh(new THREE.RingGeometry(16,17.5,32),new THREE.MeshBasicMaterial({color:0xffd700,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.set(0,0.05,-105);scene.add(ring);
+ // ровные проспекты: бордюры + осевая разметка (база y=0 — liftIsland поднимет на 0.8)
+ const curbM=new THREE.MeshStandardMaterial({color:0x9a9aa5,roughness:.8});
+ const lineM=new THREE.MeshBasicMaterial({color:0xf5f5f0});
+ for(const av of [-100,-50,0]){for(const s of [-5,5]){const c=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.22,200),curbM);c.position.set(av+s,0.11,0);scene.add(c);}const ln=new THREE.Mesh(new THREE.PlaneGeometry(0.5,200),lineM);ln.rotation.x=-Math.PI/2;ln.position.set(av,0.05,0);scene.add(ln);}
+ for(const av of [-100,-50,0,50,100]){for(const s of [-5,5]){const c=new THREE.Mesh(new THREE.BoxGeometry(150,0.22,0.6),curbM);c.position.set(-50,0.11,av);scene.add(c);}const ln=new THREE.Mesh(new THREE.PlaneGeometry(150,0.5),lineM);ln.rotation.x=-Math.PI/2;ln.position.set(-50,0.05,av);scene.add(ln);}
 })();
 function gamble(){
  if(MONEY<50){say(['<b>КРУПЬЕ КАЗИНО:</b> Ставка 50 монет, а у тебя '+MONEY+'. Загляни к Кизяку за фрибетом! 🎰']);try{AU.blip(200,.15,'square',.12);}catch(_){}return;}
@@ -986,7 +991,7 @@ function caveTick(dt){
   const dx=player.position.x-e.mesh.position.x,dz=player.position.z-e.mesh.position.z,d=Math.hypot(dx,dz)||1;
   e.mesh.position.x+=dx/d*5*dt;e.mesh.position.z+=dz/d*5*dt;
   e.mesh.position.y=2.5+Math.sin(Date.now()*0.005+e.phase)*.4;
-  if(d<2.5){HP-=25*dt;try{document.getElementById('hp').textContent=Math.ceil(HP);}catch(_){}if(HP<=0){HP=100;player.position.set(0,GY(0,70),70);try{document.getElementById('hp').textContent=100;}catch(_){}}}
+  if(d<2.5){HP-=25*dt;try{document.getElementById('hp').textContent=Math.ceil(HP);}catch(_){}if(HP<=0){HP=100;player.position.set(25,GY(25,95),95);try{document.getElementById('hp').textContent=100;}catch(_){}}}
  }
 }
 
@@ -1036,7 +1041,7 @@ car.userData.wheels.forEach(w=>w.rotation.x+=carSpeed*dt*2);
 car.position.x=Math.max(-190,Math.min(190,car.position.x));car.position.z=Math.max(-190,Math.min(190,car.position.z)); // вода-стена
 car.position.y=GY(car.position.x,car.position.z);
 player.position.set(car.position.x,car.position.y,car.position.z);
-if(MI===5){MI5t-=dt;setM('Миссия 5: Гонка','До SLAY: '+Math.ceil(MI5t)+' сек — жми!');if(near(0,-120,16)){try{enterVinlineWorld();}catch(_){}}else if(MI5t<=0){MI5t=90;car.position.set(8,GY(8,60),60);carSpeed=0;}}
+if(MI===5){MI5t-=dt;setM('Миссия 5: Гонка','До SLAY: '+Math.ceil(MI5t)+' сек — жми!');if(near(0,-120,16)){try{enterVinlineWorld();}catch(_){}}else if(MI5t<=0){MI5t=90;car.position.set(33,GY(33,95),95);carSpeed=0;}}
 }
 // атака битой
 if(attackCD>0)attackCD-=dt;
@@ -1056,7 +1061,7 @@ for(const e of enemies){if(e.hp<=0)continue;
  if(e.cave&&Math.hypot(player.position.x-CAVE.x,player.position.z-CAVE.z)>45)continue; // привязь: пещерные не уходят с арены
  if(e.parts){const w=Math.sin(Date.now()*0.01+e.phase);e.parts.legL.rotation.x=w*.6;e.parts.legR.rotation.x=-w*.6;e.parts.armL.rotation.x=-w*.5;e.parts.armR.rotation.x=w*.5;}
  const d=dist(player,e.mesh);if(d<30){const dx=(player.position.x-e.mesh.position.x)/d,dz=(player.position.z-e.mesh.position.z)/d;e.mesh.position.x+=dx*4*dt;e.mesh.position.z+=dz*4*dt;if(!e.fly)e.mesh.position.y=GY(e.mesh.position.x,e.mesh.position.z);
-if(d<2.2){HP-=20*dt;document.getElementById('hp').textContent=Math.ceil(HP);if(HP<=0){HP=100;if(FIN.stage)player.position.set(0,GY(0,-100),-100);else player.position.set(0,GY(0,70),70);player.position.y=GY(player.position.x,player.position.z);document.getElementById('hp').textContent=100;}}}}
+if(d<2.2){HP-=20*dt;document.getElementById('hp').textContent=Math.ceil(HP);if(HP<=0){HP=100;if(FIN.stage)player.position.set(0,GY(0,-100),-100);else player.position.set(25,GY(25,95),95);player.position.y=GY(player.position.x,player.position.z);document.getElementById('hp').textContent=100;}}}}
 // камера
 const focus=inCar?car.position:player.position;
 if(keys['ArrowLeft'])camAng-=2.2*dt;if(keys['ArrowRight'])camAng+=2.2*dt;
@@ -1085,7 +1090,7 @@ for(let i=-150;i<=150;i+=50){mm.beginPath();mm.moveTo(WX(i),0);mm.lineTo(WX(i),S
 // все здания из коллизий
 try{for(const s of solids){const c=s.mesh&&s.mesh.material&&s.mesh.material.color;mm.fillStyle=c?('#'+c.getHexString()):'#666';mm.fillRect(WX(s.x-s.hx),WX(s.z-s.hz),(s.hx*2)*W2M,(s.hz*2)*W2M);}}catch(_){}
 // штаб H
-mm.fillStyle='gold';mm.font='bold '+Math.round(9*k)+'px Arial';mm.fillText('H',WX(0)-3*k,WX(40)+3*k);
+mm.fillStyle='gold';mm.font='bold '+Math.round(9*k)+'px Arial';mm.fillText('H',WX(25)-3*k,WX(75)+3*k);
 // SLAY
 mm.fillStyle='#ff7700';mm.fillRect(WX(-30),WX(-160),60*W2M,40*W2M);mm.fillStyle='#fff';mm.fillText('SLAY',WX(-12),WX(-138));
 mm.fillStyle='#00ffcc';mm.fillRect(WX(CAVE.x)-2*k,WX(CAVE.z)-2*k,4*k,4*k);mm.fillStyle='#fff';mm.font='bold '+Math.round(8*k)+'px Arial';mm.fillText('ПЕЩЕРА',WX(CAVE.x)-20*k,WX(CAVE.z)-6*k);
