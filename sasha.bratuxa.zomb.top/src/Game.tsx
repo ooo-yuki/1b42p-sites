@@ -2,6 +2,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { useRain, useIntro, useBeacon, domRing, pulseScore } from './hooks';
 import { launchRocket } from './lib/rocket';
+import saltoSticker from './salto-sticker.jpg';
+
+function popSalto(x: number, y: number): void {
+  if (reduced) return;
+  const el = document.getElementById('salto-pop');
+  if (!el) return;
+  gsap.killTweensOf(el);
+  gsap.set(el, { x, y, scale: 0.4, rotation: -30, autoAlpha: 1 });
+  gsap.to(el, { scale: 1.15, rotation: 360, duration: 0.55, ease: 'back.out(1.4)' });
+  gsap.to(el, { autoAlpha: 0, y: '-=40', duration: 0.4, delay: 0.55, ease: 'power2.in' });
+}
 
 const GOAL = 42 * 42;
 const reduced =
@@ -62,6 +73,7 @@ export default function Game(): JSX.Element {
       setScore(next);
       pulseScore('#score');
       domRing(x, y);
+      if (next % (42 * 5) === 0) popSalto(x, y);
       if (next >= GOAL) fireRocket(x, y);
     },
     [fireRocket, rainRef],
@@ -158,6 +170,7 @@ export default function Game(): JSX.Element {
       <canvas id="rocket3d" ref={r3dRef} />
       <div id="flash" ref={flashRef} />
       <div id="ring" />
+      <img id="salto-pop" src={saltoSticker} alt="Сальтуха!" />
       <div id="hint">а ещё 42 спрятаны… ищи 👀</div>
       <div
         id="secret"
@@ -168,6 +181,7 @@ export default function Game(): JSX.Element {
           setScore(0);
         }}
       >
+        <img className="sticker" src={saltoSticker} alt="Сальтуха 42" />
         <div className="big">4️⃣2️⃣</div>
         <h2>Ты нашёл все 42, Саша!</h2>
         <p>Мы уже победили 🏆</p>

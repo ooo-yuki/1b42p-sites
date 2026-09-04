@@ -41,6 +41,9 @@ a.pill{text-decoration:none;display:inline-block}
  background:rgba(4,6,14,.94);z-index:10;color:var(--gold);text-align:center;padding:24px}
 #secret.open{display:flex}
 #secret .big{font-size:min(30vw,200px);line-height:1}
+#secret .sticker{width:min(46vw,220px);filter:drop-shadow(0 0 24px rgba(255,59,59,.5));margin-bottom:8px}
+#salto-pop{position:fixed;width:110px;height:110px;margin:-55px 0 0 -55px;pointer-events:none;z-index:7;opacity:0;
+ filter:drop-shadow(0 4px 14px rgba(0,0,0,.6))}
 #secret h2{color:#fff;margin:.4em 0 .2em}
 #ring{position:fixed;border:2px solid var(--gold);border-radius:50%;pointer-events:none;z-index:6;
  width:14px;height:14px;margin:-7px 0 0 -7px;opacity:0}
