@@ -1767,7 +1767,9 @@ function loop(){requestAnimationFrame(loop);
     npc.g.rotation.x+=(-Math.PI/2-npc.g.rotation.x)*Math.min(1,dt*8);
     if(npc.resp<=0){npc.down=false;npc.g.rotation.x=0;
      np.x=(Math.random()*2-1)*fpBounds.x[1]*0.7;np.z=(Math.random()*2-1)*fpBounds.z[1]*0.7;
-     npc.tx=np.x;npc.tz=np.z;showBubble(npc.name,'Я снова в строю! За 42! 💪');}
+     npc.tx=np.x;npc.tz=np.z;
+     if(npc.jail){npc.jail=false;npc.scammer=false;showBubble(npc.name,'Отсидел... завязал с мутками! 😇');}
+     else showBubble(npc.name,'Я снова в строю! За 42! 💪');}
     continue;}
    if(npc.wt>0){npc.wt-=dt;}
    else{if(Math.hypot(npc.tx-np.x,npc.tz-np.z)<0.25||Math.random()<0.005){
@@ -1786,7 +1788,24 @@ function loop(){requestAnimationFrame(loop);
      if(cdl>0.05){np.x+=cdx/cdl*2.1*dt;np.z+=cdz/cdl*2.1*dt;
       npc.g.rotation.y=Math.atan2(cdx,cdz);}
      if(cdl<0.85&&!surfOn){startSurfEscape();}}
-    else if(pd<1.9){npc.g.rotation.y=Math.atan2(fpPos.x-np.x,fpPos.z-np.z);}
+    else{
+     // коп вне розыска охотится на мошенников 🚨
+     var prey=null,pd2=1e9;
+     for(var pj=0;pj<fpNPCs.length;pj++){var qq=fpNPCs[pj];
+      if(qq.scammer&&!qq.down&&!qq.jail){var dd=Math.hypot(qq.g.position.x-np.x,qq.g.position.z-np.z);if(dd<pd2){pd2=dd;prey=qq;}}}
+     if(prey){
+      if(pd2>0.05){np.x+=(prey.g.position.x-np.x)/pd2*1.7*dt;np.z+=(prey.g.position.z-np.z)/pd2*1.7*dt;
+       npc.g.rotation.y=Math.atan2(prey.g.position.x-np.x,prey.g.position.z-np.z);}
+      if(pd2<0.8){
+       prey.down=true;prey.resp=25;prey.wt=0;prey.jail=true;
+       showBubble(npc.name,'Стоять! '+prey.name+' задержан за мошенничество! 🚨');
+       S.gold+=5;save();renderHUD();
+       floater('🚨 Арестован! +5🪙',FPX+prey.g.position.x,2.4,prey.g.position.z);
+       toast('🚨 Полиция задержала мошенника '+prey.name+'! Возврат +5🪙');blip(880);
+      }
+     }
+     else if(pd<1.9){npc.g.rotation.y=Math.atan2(fpPos.x-np.x,fpPos.z-np.z);}
+    }
     continue;}
    if(pd<1.9){npc.g.rotation.y=Math.atan2(fpPos.x-np.x,fpPos.z-np.z);
     if(npc.scammer&&!npc.down&&Date.now()>scamCd&&Math.random()<0.008&&Math.floor(S.gold)>0){
