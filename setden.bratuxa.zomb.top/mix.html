@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Торнадо-Микс: Слияние стихий 🌪️ | Игры Сетдена</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#07070f;color:#fff;font-family:Arial,sans-serif;margin:0;padding:12px;text-align:center;min-height:100vh;background:radial-gradient(ellipse at 50% 0%,#141428 0%,#07070f 70%)}
+h1{color:#0ff;text-shadow:0 0 18px #0ff,0 0 40px #f0f;font-size:clamp(20px,5vw,34px);margin:8px 0}
+.slogan{color:#f0f;text-shadow:0 0 12px #f0f;font-weight:bold;font-size:clamp(14px,4vw,20px)}
+.stats{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:10px 0}
+.stat{background:#111122;border:2px solid #0ff;border-radius:10px;padding:6px 12px;font-size:14px;box-shadow:0 0 10px #0ff3}
+.stat b{color:gold}
+#boss{background:#1a0a1a;border:3px solid #f00;border-radius:12px;padding:10px;margin:10px auto;max-width:480px;display:none;box-shadow:0 0 20px #f00;animation:bossPulse 1s infinite alternate}
+@keyframes bossPulse{from{box-shadow:0 0 10px #f00}to{box-shadow:0 0 30px #f00,0 0 50px #f0f}}
+#board{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-width:min(92vw,440px);margin:12px auto;touch-action:none;user-select:none}
+.cell{background:#151528;border:2px solid #333355;border-radius:12px;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:13px;font-weight:bold;position:relative;transition:transform .12s;overflow:hidden}
+.cell .emo{font-size:clamp(22px,7vw,38px);line-height:1}
+.cell .lv{font-size:11px;color:#aaa}
+.cell.blocked{border-color:#f00;background:#2a0a0a}
+.cell.blocked::after{content:'🚫';position:absolute;top:2px;right:4px}
+.cell.new{animation:pop .3s}
+.cell.merge{animation:mergeBoom .45s}
+@keyframes pop{0%{transform:scale(0)}70%{transform:scale(1.15)}100%{transform:scale(1)}}
+@keyframes mergeBoom{0%{transform:scale(1)}30%{transform:scale(1.3) rotate(8deg);box-shadow:0 0 30px gold}60%{transform:scale(.9)}100%{transform:scale(1)}}
+.mergeFlash{animation:flash .45s}
+@keyframes flash{0%{filter:brightness(3)}100%{filter:brightness(1)}}
+button{background:linear-gradient(135deg,#0ff,#f0f);border:none;font-weight:bold;font-size:15px;padding:10px 18px;border-radius:10px;cursor:pointer;color:#000;margin:4px}
+button:disabled{opacity:.4;cursor:not-allowed}
+.panel{background:#111122;border:2px solid #f0f;border-radius:12px;padding:10px;margin:10px auto;max-width:480px}
+.panel h3{margin:4px 0;color:#0ff}
+.skins{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+.skin{border:2px solid #444;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:13px;background:#151528}
+.skin.sel{border-color:gold;box-shadow:0 0 12px gold}
+a{color:#0f6}
+.hint-glow{outline:3px solid gold !important;box-shadow:0 0 20px gold !important}
+#log{font-size:13px;color:#8f8;min-height:20px}
+body.skin-cyber .cell{border-color:#0ff}
+body.skin-lava{background:radial-gradient(ellipse at 50% 0%,#3a0a0a 0%,#0a0505 70%)}
+body.skin-lava .cell{border-color:#f60}
+body.skin-neon .cell{border-color:#f0f;box-shadow:0 0 8px #f0f}
+</style>
+</head>
+<body>
+<p><a href="index.html">← На главную Сетдена</a></p>
+<h1>🌪️ ТОРНАДО-МИКС: Слияние стихий ⚡</h1>
+<div class="slogan">Слей все стихии в 42-й вихрь!</div>
+<div class="stats">
+<div class="stat">🏆 Очки: <b id="score">0</b></div>
+<div class="stat">🪙 Монеты: <b id="coins">0</b></div>
+<div class="stat">💎 Кристаллы: <b id="gems">0</b></div>
+<div class="stat">👣 Ходы: <b id="moves">0</b></div>
+<div class="stat">⚡ Макс: <b id="maxlv">1</b></div>
+<div class="stat">📜 Рекорд: <b id="best">0</b></div>
+</div>
+<div id="boss">🔥 БОСС-ВЫЗОВ: за <b id="bossLeft">3</b> хода создай элемент ≥ ур.<b id="bossTarget">1</b>! Победа: ×1.5 очков на ход ⚡</div>
+<div id="board"></div>
+<div id="log"></div>
+<div style="margin:8px 0">
+<button onclick="G.move(0,-1)">⬆️</button><br>
+<button onclick="G.move(-1,0)">⬅️</button>
+<button onclick="G.move(0,1)">⬇️</button>
+<button onclick="G.move(1,0)">➡️</button>
+</div>
+<div class="panel"><h3>🛠️ Действия</h3>
+<button onclick="G.hint()">💡 Подсказка (5💎)</button>
+<button onclick="G.continue()">💰 Продолжить (100🪙)</button>
+<button onclick="G.loot()">🎁 Кристалл 242 (242🪙)</button>
+<button onclick="G.reset()">🔄 Заново</button>
+</div>
+<div class="panel"><h3>🎨 Скины (за 💎)</h3><div class="skins" id="skins"></div></div>
+<div class="panel"><h3>📖 14 вкусов Tornado</h3><div id="flavors" style="font-size:12px;text-align:left;max-width:420px;margin:0 auto"></div></div>
+<p><a href="index.html">← Игры Сетдена</a> · Мы уже победили 🏆</p>
+<script>
+'use strict';
+const FLAV=[
+[1,'🌩️','Шторм','#39f'],[2,'🌀','Вихрь','#0ff'],[3,'⚡','Разряд','#ff0'],
+[4,'🔥','Пожар','#f60'],[5,'❄️','Мороз','#adf'],[6,'🌊','Цунами','#06f'],
+[7,'🌪️','Смерч','#0f6'],[8,'☄️','Комета','#f96'],[9,'🌋','Вулкан','#f30'],
+[10,'🌌','Космос','#90f'],[11,'👹','Демон','#f0f'],[12,'🐉','Дракон','#fc0'],
+[13,'👑','Легенда','#fd0'],[14,'7️⃣4️⃣2️⃣','42 микс','#fff']];
+const SKINS=[{id:'def',n:'Стандарт',c:0},{id:'cyber',n:'Кибер 42',c:10},{id:'lava',n:'Лава',c:20},{id:'neon',n:'Неон',c:30}];
+const K='tornadoMix42_save';
+let S;
+function def(){return{g:[],score:0,coins:50,gems:0,moves:0,max:1,over:false,boss:null,bossCD:5,bossWins:0,mult2:0,shield:0,free:0,skin:'def',best:0,bestMax:0};}
+function load(){try{const s=JSON.parse(localStorage.getItem(K));if(s&&s.g&&s.g.length===16)S=s;else S=def();}catch(e){S=def();}
+if(!S.g||!S.g.length){S.g=Array(16).fill(0);spawn(S.g);spawn(S.g);}S.best=+localStorage.getItem(K+'_best')||S.best||0;}
+function save(){localStorage.setItem(K,JSON.stringify(S));if(S.score>S.best){S.best=S.score;localStorage.setItem(K+'_best',S.best);}}
+function rnd(a){return a[Math.floor(Math.random()*a.length)];}
+function empty(g){const r=[];g.forEach((v,i)=>{if(!v)r.push(i)});return r;}
+function spawn(g){const e=empty(g);if(!e.length)return false;g[rnd(e)]=1;return true;}
+function log(t){document.getElementById('log').textContent=t;}
+function flav(l){return FLAV[l-1];}
+const G={
+move(dx,dy){
+ if(S.over){log('Игра окончена! Продолжи за 100 монет 💰');return;}
+ const before=JSON.stringify(S.g);
+ let gained=0,merges=[];
+ // lines depending on direction
+ const idx=(x,y)=>y*4+x;
+ let moved=true;
+ // slide+merge: process each line
+ function line(cells){ // array of 4 indices in move order
+   let vals=cells.map(i=>({i,v:S.g[i]})).filter(o=>o.v&&!blocked(o.i)).map(o=>o.v);
+   let bl=cells.filter(i=>blocked(i)).map(i=>({i,v:S.g[i]}));
+   let out=[],mi=0,sc=0,mg=[];
+   for(let k=0;k<vals.length;k++){
+     if(k+1<vals.length&&vals[k]===vals[k+1]&&vals[k]<14){const nl=vals[k]+1;out.push(nl);sc+=nl*(S.boss&&S.boss.active?1.5:1)*(S.mult2>0?2:1);mg.push(nl);k++;}
+     else out.push(vals[k]);
+   }
+   cells.forEach(i=>{if(!blocked(i))S.g[i]=0;});
+   let p=0;
+   cells.forEach(i=>{if(blocked(i))return;if(p<out.length){S.g[i]=out[p++];}});
+   return{sc,mg};
+ }
+ // build lines
+ let lines=[];
+ if(dx===-1)for(let y=0;y<4;y++)lines.push([0,1,2,3].map(x=>idx(x,y)));
+ if(dx===1)for(let y=0;y<4;y++)lines.push([3,2,1,0].map(x=>idx(x,y)));
+ if(dy===-1)for(let x=0;x<4;x++)lines.push([0,1,2,3].map(y=>idx(x,y)));
+ if(dy===1)for(let x=0;x<4;x++)lines.push([3,2,1,0].map(y=>idx(x,y)));
+ let mgAll=[];
+ lines.forEach(L=>{const r=line(L);gained+=Math.round(r.sc);mgAll=mgAll.concat(r.mg);});
+ if(JSON.stringify(S.g)===before){log('Нет хода в эту сторону 🤷');return;}
+ S.moves++;S.score+=gained;
+ mgAll.forEach(nl=>{S.coins+=nl*10;if(nl>=7)S.gems+=1;if(nl>S.max)S.max=nl;if(nl===14)return win();});
+ if(S.mult2>0)S.mult2--;
+ if(S.free>0)S.free--;else spawn(S.g);
+ // boss logic
+ bossTurn(mgAll);
+ if(S.bossCD>0&&!(S.boss&&S.boss.active))S.bossCD--;
+ if(S.bossCD<=0&&!(S.boss&&S.boss.active))startBoss();
+ decBlocks();
+ if(!canMove()){S.over=true;log('⛔ Ходов нет! Продолжение — 100 монет 💰');}
+ save();render(mgAll);
+},
+hint(){
+ if(S.gems<5){log('Нужно 5💎 для подсказки!');return;}
+ const dirs=[[-1,0],[1,0],[0,-1],[0,1]];
+ // naive: find any adjacent equal pair
+ for(let y=0;y<4;y++)for(let x=0;x<4;x++){const v=S.g[y*4+x];if(!v)continue;
+  [[1,0],[0,1]].forEach(d=>{const nx=x+d[0],ny=y+d[1];if(nx<4&&ny<4&&S.g[ny*4+nx]===v){}});
+ }
+ // simulate which move merges: pick first that changes with merge
+ S.gems-=5;log('💡 Подсказка: свайп туда, где рядом одинаковые! (-5💎)');
+ document.querySelectorAll('.cell').forEach(c=>{if(+c.dataset.v>0&&+c.dataset.v===nearVal())c.classList.add('hint-glow');});
+ setTimeout(()=>document.querySelectorAll('.hint-glow').forEach(c=>c.classList.remove('hint-glow')),1500);
+ save();render();
+},
+continue(){
+ if(!S.over){log('Ты ещё в игре! Продолжение не нужно 😎');return;}
+ if(S.coins<100){log('Нужно 100🪙! Открой лутбокс или сливай больше.');return;}
+ S.coins-=100;S.over=false;
+ // clear two cells
+ const filled=S.g.map((v,i)=>v?i:-1).filter(i=>i>=0);
+ for(let k=0;k<2&&filled.length;k++){S.g[filled.splice(Math.floor(Math.random()*filled.length),1)[0]]=0;}
+ spawn(S.g);log('💰 Продолжаем! Мы уже победили 🏆');save();render();
+},
+loot(){
+ if(S.coins<242){log('Лутбокс «Кристалл 242» стоит 242🪙!');return;}
+ S.coins-=242;const r=Math.random()*100;let t='';
+ if(r<30){const m=100+Math.floor(Math.random()*201);S.coins+=m;t=`🎁 +${m}🪙 монеты!`;}
+ else if(r<55){const g=5+Math.floor(Math.random()*11);S.gems+=g;t=`🎁 +${g}💎 кристаллы!`;}
+ else if(r<75){S.free+=1;t='🎁 Бесплатный ход (след. спавн пропущен)!';}
+ else if(r<90){S.mult2+=3;t='🎁 ×2 очки слияния на 3 хода!';}
+ else{S.shield+=10;t='🎁 Защита от босса 10 ходов! 🛡️';}
+ log(t);save();render();
+},
+reset(){if(confirm('Начать заново?')){const b=S.best;S=def();S.best=b;save();render();}}
+};
+function blocked(i){return S.blocks&&S.blocks[i]>0;}
+function decBlocks(){if(!S.blocks)return;for(let i=0;i<16;i++)if(S.blocks[i]>0)S.blocks[i]--;}
+function nearVal(){let best=0;const c={};S.g.forEach(v=>{if(v)c[v]=(c[v]||0)+1;});Object.keys(c).forEach(k=>{if(c[k]>=2&&+k>best)best=+k;});return best;}
+function canMove(){
+ if(empty(S.g).length)return true;
+ for(let y=0;y<4;y++)for(let x=0;x<4;x++){const v=S.g[y*4+x];
+  if(x<3&&S.g[y*4+x+1]===v)return true;
+  if(y<3&&S.g[(y+1)*4+x]===v)return true;}
+ return false;
+}
+function startBoss(){
+ S.boss={active:true,target:S.max,left:3};
+ document.getElementById('boss').style.display='block';
+ log(`🔥 БОСС-ВЫЗОВ: за 3 хода создай элемент ≥ ур.${S.max}!`);
+}
+function bossTurn(mgAll){
+ const b=S.boss;if(!b||!b.active)return;
+ if(S.shield>0){S.shield--;log(`🛡️ Защита от босса (${S.shield} ходов)`);if(S.shield<=0&&--b.left<=0){} }
+ const made=mgAll.some(nl=>nl>=b.target);
+ if(made){b.active=false;S.bossCD=5;S.bossWins++;document.getElementById('boss').style.display='none';log('🏆 Босс повержен! Мы уже победили 🏆');return;}
+ b.left--;
+ if(b.left<=0){
+   b.active=false;S.bossCD=5;document.getElementById('boss').style.display='none';
+   if(S.shield>0){log('🛡️ Щит спас от гнева босса!');return;}
+   if(!S.blocks)S.blocks=Array(16).fill(0);
+   const e=empty(S.g);const cell=e.length?rnd(e):Math.floor(Math.random()*16);
+   S.blocks[cell]=2;log(`💀 Босс заблокировал ячейку на 2 хода!`);
+ } else log(`🔥 Босс: осталось ходов ${b.left}, нужен ур.${b.target}!`);
+}
+function win(){S.over=true;log('🏆 42 МИКС СОБРАН! Ты — легенда Сетдена! Мы уже победили 🏆');}
+function render(merges){
+ document.getElementById('score').textContent=S.score;
+ document.getElementById('coins').textContent=S.coins;
+ document.getElementById('gems').textContent=S.gems;
+ document.getElementById('moves').textContent=S.moves;
+ document.getElementById('maxlv').textContent=S.max;
+ document.getElementById('best').textContent=S.best;
+ if(S.boss&&S.boss.active){document.getElementById('boss').style.display='block';
+  document.getElementById('bossLeft').textContent=S.boss.left;
+  document.getElementById('bossTarget').textContent=S.boss.target;}
+ else document.getElementById('boss').style.display='none';
+ const bd=document.getElementById('board');bd.innerHTML='';
+ S.g.forEach((v,i)=>{
+  const d=document.createElement('div');d.className='cell';d.dataset.v=v;
+  if(v){const f=flav(v);d.innerHTML=`<span class="emo">${f[1]}</span><span>${f[2]}</span><span class="lv">ур.${v}</span>`;
+   d.style.borderColor=f[3];d.style.boxShadow=`0 0 12px ${f[3]}`;d.classList.add('new');
+   if(merges&&merges.length&&merges.includes(v))d.classList.add('merge');}
+  if(blocked(i))d.classList.add('blocked');
+  bd.appendChild(d);
+ });
+ const sk=document.getElementById('skins');sk.innerHTML='';
+ SKINS.forEach(s=>{const d=document.createElement('div');d.className='skin'+(S.skin===s.id?' sel':'');
+  d.textContent=`${s.n} ${s.c?('('+s.c+'💎)'):''}`;
+  d.onclick=()=>{if(S.skin===s.id){applySkin();return;}if(S.gems<s.c){log('Не хватает 💎!');return;}S.gems-=s.c;S.skin=s.id;applySkin();save();render();};
+  sk.appendChild(d);});
+ const fl=document.getElementById('flavors');fl.innerHTML=FLAV.map(f=>`<div>ур.${f[0]} ${f[1]} ${f[2]}${f[0]>=7?' +1💎':''}</div>`).join('');
+}
+function applySkin(){document.body.className='skin-'+S.skin;}
+// controls
+document.addEventListener('keydown',e=>{
+ if(e.key==='ArrowLeft')G.move(-1,0);
+ else if(e.key==='ArrowRight')G.move(1,0);
+ else if(e.key==='ArrowUp')G.move(0,-1);
+ else if(e.key==='ArrowDown')G.move(0,1);
+});
+let tx=0,ty=0;
+const bd=document.getElementById('board');
+bd.addEventListener('touchstart',e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY;},{passive:true});
+bd.addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-tx,dy=e.changedTouches[0].clientY-ty;
+ if(Math.abs(dx)<24&&Math.abs(dy)<24)return;
+ if(Math.abs(dx)>Math.abs(dy))G.move(dx>0?1:-1,0);else G.move(0,dy>0?1:-1);},{passive:true});
+load();applySkin();render();
+</script>
+</body>
+</html>
