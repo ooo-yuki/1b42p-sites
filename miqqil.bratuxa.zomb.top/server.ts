@@ -215,7 +215,7 @@ const server = Bun.serve({
       }
 
       if (path === '/leaderboard') {
-        const top = await sql`SELECT nick, rating, kills, matches FROM users ORDER BY rating DESC LIMIT 10`;
+        const top = await sql`SELECT nick, rating, kills, matches FROM users WHERE matches > 0 ORDER BY rating DESC, kills DESC LIMIT 10`;
         return json({ top });
       }
 
