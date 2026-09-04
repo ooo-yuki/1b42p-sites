@@ -1531,17 +1531,33 @@ function makeNameSprite(text){var c=document.createElement('canvas');c.width=256
  var t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
  var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,depthTest:false}));
  sp.scale.set(1.7,0.42,1);sp.position.y=2.15;return sp;}
-function makeBratuha(shirt,name){var g=new THREE.Group();
- g.add(put(box(0.5,0.65,0.32,mat(shirt)),0,0.62,0));
- g.add(put(box(0.52,0.18,0.34,mat(0x2f5d3a)),0,0.95,0));
- var head=new THREE.Mesh(new THREE.SphereGeometry(0.26,10,8),mat(0xffd9b3));head.position.y=1.28;head.castShadow=true;g.add(head);
- g.add(put(box(0.5,0.12,0.1,mat(0x2f5d3a)),0,1.42,0));
- var e1=put(box(0.07,0.09,0.02,mat(0x222222)),-0.09,1.3,0.24);g.add(e1);
- var e2=put(box(0.07,0.09,0.02,mat(0x222222)),0.09,1.3,0.24);g.add(e2);
- g.add(put(box(0.16,0.5,0.16,mat(shirt)),-0.35,0.6,0));
- g.add(put(box(0.16,0.5,0.16,mat(shirt)),0.35,0.6,0));
+function makeBratuha(shirt,name,capC){var g=new THREE.Group();
+ capC=capC||0x2f5d3a;
+ // ножки-сапожки
  g.add(put(box(0.17,0.35,0.17,mat(0x5d4a7a)),-0.15,0.17,0));
  g.add(put(box(0.17,0.35,0.17,mat(0x5d4a7a)),0.15,0.17,0));
+ // тело + ремень с золотой пряжкой
+ g.add(put(box(0.5,0.65,0.32,mat(shirt)),0,0.62,0));
+ g.add(put(box(0.52,0.09,0.34,mat(0x5d4a2e)),0,0.42,0));
+ g.add(put(box(0.1,0.09,0.02,new THREE.MeshStandardMaterial({color:0xffd23f,roughness:0.4,metalness:0.5,flatShading:true})),0,0.42,0.17));
+ // ручки + ладошки
+ g.add(put(box(0.16,0.5,0.16,mat(shirt)),-0.35,0.6,0));
+ g.add(put(box(0.16,0.5,0.16,mat(shirt)),0.35,0.6,0));
+ var h1=new THREE.Mesh(new THREE.SphereGeometry(0.09,8,6),mat(0xffd9b3));h1.position.set(-0.35,0.32,0);h1.castShadow=true;g.add(h1);
+ var h2=h1.clone();h2.position.x=0.35;g.add(h2);
+ // голова
+ var head=new THREE.Mesh(new THREE.SphereGeometry(0.26,12,10),mat(0xffd9b3));head.position.y=1.28;head.castShadow=true;g.add(head);
+ // эльфийские ушки
+ var ea=cone(0.07,0.24,6,mat(0xffd9b3));ea.position.set(-0.27,1.36,0);ea.rotation.z=1.1;g.add(ea);
+ var ea2=cone(0.07,0.24,6,mat(0xffd9b3));ea2.position.set(0.27,1.36,0);ea2.rotation.z=-1.1;g.add(ea2);
+ // кепка-шарик + козырёк + помпон
+ var cp=new THREE.Mesh(new THREE.SphereGeometry(0.2,10,8),mat(capC));cp.scale.set(1,0.55,1);cp.position.y=1.5;cp.castShadow=true;g.add(cp);
+ g.add(put(box(0.3,0.04,0.22,mat(capC)),0,1.44,0.28));
+ var pom=new THREE.Mesh(new THREE.SphereGeometry(0.05,8,6),mat(0xff8fbf));pom.position.set(0,1.62,0);pom.castShadow=false;g.add(pom);
+ // милая мордочка
+ kawaii(g,1.3,0.1,0.22,0.8);
+ // значок полицейского
+ if(name&&name.indexOf('Полицейский')>=0){var bd=octa(0.07,mat(0xffd23f,0x6b4e00,0.5));bd.position.set(-0.15,0.75,0.17);g.add(bd);}
  g.add(makeNameSprite(name));return g;}
 var NPC_NAMES=['Братуха-42','Эльф-Строй','Лесной','Фугофрейтор','Легенда42','Пятёра'];
 var NPC_PHRASES={
@@ -1575,7 +1591,7 @@ function spawnBratuhi(type){fpNPCs=[];
   var px=(Math.random()*2-1)*fpBounds.x[1]*0.7,pz=(Math.random()*2-1)*fpBounds.z[1]*0.7;
   av.position.set(px,0,pz);curIn.add(av);
   fpNPCs.push({g:av,name:nm,tx:px,tz:pz,wt:Math.random()*2,ph:Math.random()*6,down:false,resp:0,scammer:scammer,cop:false});}
- if(fpType!=='prison'){var cav=makeBratuha(0x1c3faa,'Полицейский-42');cav.position.set(0,0,fpBounds.z[0]+0.8);
+ if(fpType!=='prison'){var cav=makeBratuha(0x1c3faa,'Полицейский-42',0x16294f);cav.position.set(0,0,fpBounds.z[0]+0.8);
   curIn.add(cav);fpNPCs.push({g:cav,name:'Полицейский-42',tx:0,tz:0,wt:0,ph:1,down:false,resp:0,scammer:false,cop:true});}
  if(!fpAvatar){fpAvatar=makeBratuha(0x58b368,'ТЫ • 42');curIn.add(fpAvatar);
   glockMesh=new THREE.Group();
