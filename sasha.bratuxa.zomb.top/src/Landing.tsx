@@ -30,6 +30,9 @@ export default function Landing(): JSX.Element {
           <a id="statsBtn" className="pill ghost" href="stats.html" style={{ textDecoration: 'none' }}>
             📡 Статистика
           </a>
+          <a id="casinoBtn" className="pill ghost" href="casino.html" style={{ textDecoration: 'none' }}>
+            🎰 Казино
+          </a>
         </div>
       </main>
       <div id="hint">а ещё 42 спрятаны… ищи 👀</div>

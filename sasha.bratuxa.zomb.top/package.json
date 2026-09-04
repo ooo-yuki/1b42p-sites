@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "bun build ./index.html ./game.html ./stats.html --outdir ./dist --minify",
+    "build": "bun build ./index.html ./game.html ./stats.html ./casino.html --outdir ./dist --minify",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
