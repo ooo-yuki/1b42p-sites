@@ -173,7 +173,7 @@ transition:transform 1.1s ease-out,opacity 1.1s}
 /* ================= ЭКОНОМИКА (сейвы совместимы со старой версией) ================= */
 var KEY='elfograd42_v1';
 var B={
- house:{em:'🏠',n:'Дом эльфа',cost:{gold:50,wood:20},house:4,desc:'Даёт жильё горожанам'},
+ house:{em:'🏠',n:'Дом эльфа',cost:{gold:50,wood:20},house:4,desc:'Минимализм: свет, дерево и панорамные окна'},
  grove:{em:'🌲',n:'Роща',cost:{gold:30},prod:{wood:0.4},desc:'Выращивает дерево'},
  tower:{em:'🔮',n:'Башня маны',cost:{gold:80,wood:40},prod:{mana:0.3},desc:'Собирает ману'},
  market:{em:'🏪',n:'Рынок',cost:{gold:60,wood:30},prod:{gold:0.5},desc:'Торгует и даёт золото'},
@@ -274,16 +274,57 @@ function spark(parent,r,h,n,col){for(var i=0;i<n;i++){var m=new THREE.Mesh(new T
  m.userData={orbit:{r:r,h:h,sp:1.5+i*0.3,ph:i*2.1}};parent.add(m);}}
 /* --- домики --- */
 function buildHouse(l){var g=new THREE.Group();
- var wall=mat(0xfff3d6),roof=mat(0xff9e9e),wood=mat(0x8b5e3c);
- var h=0.7+l*0.35;
- var b=put(box(1.1,h,1.0,wall),0,h/2,0);g.add(b);
- var r=put(cone(0.95,0.6+l*0.15,4,roof),0,h+0.3+l*0.07,0);r.rotation.y=Math.PI/4;g.add(r);
- g.add(put(box(0.3,0.45,0.06,wood),0,0.22,0.51));
- g.add(put(box(0.22,0.22,0.06,mat(0xbfe8ff)),-0.3,0.45+l*0.1,0.51));
- g.add(put(box(0.22,0.22,0.06,mat(0xbfe8ff)),0.3,0.45+l*0.1,0.51));
- if(l>=2)g.add(put(box(0.18,0.5,0.18,wood),0.4,h+0.3,0)); // труба
- smoke(g,0.4,h+0.75,0); // дымок из трубы
- if(l>=3){var s=octa(0.14,mat(0xffd23f,0x6b4e00,0.5));s.position.set(0,h+0.85,0);g.add(s);} // звезда
+ var wallC=0xf6f1e7,woodC=0x9a7355,darkC=0x3a3f4a,glassE=0xffe6b3;
+ var h=0.75+l*0.3;
+ // цоколь-платформа и ступенька
+ g.add(put(box(1.7,0.12,1.6,mat(0xd9d2c2)),0,0.06,0));
+ g.add(put(box(0.6,0.1,0.3,mat(0xc9bfae)),0,0.05,0.9));
+ // основной объём — светлый минимализм
+ g.add(put(box(1.25,h,1.1,mat(wallC)),0,0.12+h/2,-0.08));
+ // деревянные рейки на боковом фасаде
+ for(var sl=0;sl<4;sl++)g.add(put(box(0.04,h*0.85,0.12,mat(woodC)),-0.65,0.12+h*0.45,-0.45+sl*0.24));
+ // панорамное окно спереди — тёплое свечение
+ var win=put(box(0.8,0.42,0.05,mat(0x2b3440)),0.12,0.12+h*0.55,0.48);g.add(win);
+ var glow=put(box(0.7,0.32,0.02,new THREE.MeshStandardMaterial({color:0xfff2cf,roughness:0.4,emissive:0xffc46b,emissiveIntensity:l>=3?0.9:0.45})),0.12,0.12+h*0.55,0.51);glow.castShadow=false;g.add(glow);
+ g.add(put(box(0.86,0.05,0.06,mat(darkC)),0.12,0.12+h*0.55+0.24,0.48));
+ g.add(put(box(0.86,0.05,0.06,mat(darkC)),0.12,0.12+h*0.55-0.24,0.48));
+ // дверь — тёмное дерево + козырёк на тонких опорах
+ g.add(put(box(0.3,0.5,0.06,mat(0x5d4a7a)),-0.42,0.37,0.48));
+ g.add(put(box(0.55,0.05,0.4,mat(darkC)),-0.35,0.72,0.62));
+ g.add(put(cyl(0.025,0.025,0.6,5,mat(darkC)),-0.58,0.42,0.78));
+ // плоская крыша с выносом
+ var roofY=0.12+h;
+ g.add(put(box(1.55,0.1,1.45,mat(darkC)),0,roofY+0.05,-0.05));
+ g.add(put(box(1.5,0.08,1.4,mat(0xefe9dc)),0,roofY, -0.05));
+ // минималистичная труба
+ g.add(put(box(0.16,0.45,0.16,mat(0xb9c4c9)),0.45,roofY+0.3,-0.35));
+ smoke(g,0.45,roofY+0.55,-0.35);
+ if(l>=2){
+  // второй этаж — сдвинутый светлый объём со стеклом
+  var h2=0.55;
+  g.add(put(box(1.0,h2,0.85,mat(0xfffdf4)),-0.08,roofY+0.1+h2/2,-0.12));
+  var gl2=put(box(0.7,0.3,0.03,new THREE.MeshStandardMaterial({color:0xfff2cf,roughness:0.4,emissive:0xffc46b,emissiveIntensity:0.6})),-0.08,roofY+0.1+h2/2,0.32);gl2.castShadow=false;g.add(gl2);
+  g.add(put(box(1.15,0.08,1.0,mat(darkC)),-0.08,roofY+0.14+h2,-0.1));
+  // терраса с перилами справа
+  g.add(put(box(0.45,0.06,0.7,mat(woodC)),0.55,roofY+0.13,0.25));
+  for(var rp=0;rp<3;rp++)g.add(put(box(0.03,0.28,0.03,mat(darkC)),0.36+rp*0.19,roofY+0.3,0.58));
+  g.add(put(box(0.45,0.04,0.04,mat(darkC)),0.55,roofY+0.44,0.58));
+  // кашпо с зеленью
+  g.add(put(box(0.16,0.14,0.16,mat(0x8b5e3c)),0.55,roofY+0.2,-0.05));
+  var pl=ico(0.12,mat(0x58b368));pl.position.set(0.55,roofY+0.36,-0.05);g.add(pl);
+ }
+ if(l>=3){
+  // ухоженный дворик: дорожка + два кашпо + тёплый фонарь
+  g.add(put(box(0.4,0.04,0.5,mat(0xe8e2d0)),0,0.02,1.05));
+  g.add(put(box(0.18,0.16,0.18,mat(0x8b5e3c)),-0.6,0.08,0.85));
+  var p1=ico(0.13,mat(0x6fca7f));p1.position.set(-0.6,0.26,0.85);g.add(p1);
+  g.add(put(box(0.18,0.16,0.18,mat(0x8b5e3c)),0.7,0.08,0.7));
+  var p2=ico(0.13,mat(0x58b368));p2.position.set(0.7,0.26,0.7);g.add(p2);
+  g.add(put(cyl(0.03,0.03,0.5,5,mat(darkC)),0.7,0.25,1.0));
+  var lamp=new THREE.Mesh(new THREE.SphereGeometry(0.07,8,6),new THREE.MeshBasicMaterial({color:0xffe6a3}));lamp.position.set(0.7,0.53,1.0);lamp.castShadow=false;g.add(lamp);
+  var s=octa(0.13,mat(0xffd23f,0x6b4e00,0.5));s.position.set(0,roofY+(l>=2?0.95:0.5),-0.05);g.add(s);
+  spark(g,0.5,roofY+0.4,2,0xfff6b8);
+ }
  return g;}
 function elfTree(x,z,s,blossom){var g=new THREE.Group();
  g.add(put(cyl(0.09*s,0.13*s,0.5*s,5,mat(0x8b5e3c)),0,0.25*s,0));
@@ -995,10 +1036,72 @@ function fpSeat(){var g=new THREE.Group();
  return g;}
 function fpBedO(){var g=new THREE.Group();
  g.add(put(box(1.6,0.2,1.2,mat(0x7a5230)),0,0.1,0));return g;}
-function inHouse(){curIn.add(fpRoom(10,8,0xf3e2c7,0xc98f5a));
- fpAt(fpBed(),-3,-2,1.4);fpAt(fpTable(),2.5,-1.5,1.1);
- fpAt(fpStool(),2.5,0.3,0.4);fpAt(fpStool(),1.3,-1.5,0.4);
- fpAt(fpFire(),3.2,2.0,1.0);fpAt(fpShelf(),-3.4,2.6,1.0);}
+/* --- минимализм: светлый ремонт --- */
+function fpRug(w,d,col){var g=new THREE.Group();
+ g.add(put(box(w,0.04,d,mat(col||0xd9cfc0)),0,0.02,0));
+ g.add(put(box(w-0.3,0.045,d-0.3,mat(0xe8e0d2)),0,0.02,0));return g;}
+function fpPlatBed(){var g=new THREE.Group();
+ g.add(put(box(1.5,0.22,2.2,mat(0x9a7355)),0,0.11,0));
+ g.add(put(box(1.4,0.2,2.1,mat(0xf7f4ee)),0,0.32,0));
+ g.add(put(box(1.42,0.08,0.7,mat(0xd9cfc0)),0,0.42,0.55));
+ g.add(put(box(0.55,0.14,0.4,mat(0xffffff)),-0.35,0.48,-0.75));
+ g.add(put(box(0.55,0.14,0.4,mat(0xffffff)),0.35,0.48,-0.75));
+ g.add(put(box(1.5,0.9,0.1,mat(0xc9a06a)),0,0.55,-1.12));return g;}
+function fpSideTable(){var g=new THREE.Group();
+ g.add(put(box(0.45,0.4,0.45,mat(0xefe9dc)),0,0.2,0));
+ g.add(put(cyl(0.05,0.07,0.28,6,mat(0x8b5e3c)),0,0.54,0));
+ var sh=put(box(0.26,0.2,0.26,new THREE.MeshStandardMaterial({color:0xfff2cf,roughness:0.6,emissive:0xffc46b,emissiveIntensity:0.7})),0,0.72,0);sh.castShadow=false;g.add(sh);return g;}
+function fpLowTable(){var g=new THREE.Group();
+ g.add(put(box(1.5,0.08,0.9,mat(0xc9a06a)),0,0.38,0));
+ for(var a=-1;a<=1;a+=2)for(var b=-1;b<=1;b+=2)g.add(put(box(0.08,0.38,0.08,mat(0x8b5e3c)),a*0.65,0.19,b*0.35));
+ g.add(put(cyl(0.16,0.12,0.08,8,mat(0xe8e0d2)),-0.3,0.46,0));
+ g.add(put(box(0.3,0.06,0.2,mat(0x9db89a)),0.3,0.45,0.05));return g;}
+function fpCushion(col){var g=new THREE.Group();
+ g.add(put(box(0.45,0.14,0.45,mat(col)),0,0.07,0));
+ g.add(put(box(0.38,0.06,0.38,mat(0xffffff)),0,0.15,0));return g;}
+function fpCubeShelf(){var g=new THREE.Group(),fm=mat(0xefe9dc);
+ g.add(put(box(1.5,0.08,0.4,fm),0,0.04,0));g.add(put(box(1.5,0.08,0.4,fm),0,1.24,0));
+ g.add(put(box(0.08,1.28,0.4,fm),-0.71,0.64,0));g.add(put(box(0.08,1.28,0.4,fm),0.71,0.64,0));
+ g.add(put(box(0.08,1.2,0.36,fm),0,0.64,0));g.add(put(box(1.42,0.06,0.36,fm),0,0.64,0));
+ var cols=[0xc9a06a,0x9db89a,0xb9c4c9,0xd9a0a8,0x8fb3c9];
+ for(var i=0;i<5;i++)g.add(put(box(0.12,0.3,0.2,mat(cols[i])),-0.5+i*0.2,0.85,0.02));
+ g.add(put(box(0.25,0.2,0.25,mat(0xfffdf4)),0.4,0.28,0));
+ var pp=ico(0.11,mat(0x58b368));pp.position.set(0.4,0.48,0);g.add(pp);
+ g.add(put(box(0.3,0.22,0.05,mat(0x2f5d3a)),-0.4,0.3,0.12));return g;}
+function fpLinearFire(){var g=new THREE.Group();
+ g.add(put(box(1.6,0.35,0.35,mat(0x3a3f4a)),0,0.18,0));
+ var fl=put(box(1.3,0.12,0.1,new THREE.MeshStandardMaterial({color:0xff8c42,roughness:0.5,emissive:0xff5a1f,emissiveIntensity:1})),0,0.32,0.08);fl.castShadow=false;fl.userData={fadePulse:true};g.add(fl);
+ g.add(put(box(1.7,0.05,0.45,mat(0xd9d2c2)),0,0.03,0));return g;}
+function fpPendant(){var g=new THREE.Group();
+ g.add(put(cyl(0.015,0.015,0.9,4,mat(0x3a3f4a)),0,2.55,0));
+ g.add(put(cone(0.22,0.2,8,mat(0x2f5d3a)),0,2.05,0));
+ var b=new THREE.Mesh(new THREE.SphereGeometry(0.07,8,6),new THREE.MeshBasicMaterial({color:0xffe6a3}));b.position.y=1.95;b.castShadow=false;g.add(b);return g;}
+function fpPotPlant(big){var g=new THREE.Group(),s=big?1.25:1;
+ g.add(put(cyl(0.2*s,0.16*s,0.3*s,8,mat(0xefe9dc)),0,0.15*s,0));
+ var l1=ico(0.28*s,mat(0x58b368));l1.position.y=0.55*s;g.add(l1);
+ var l2=ico(0.18*s,mat(0x6fca7f));l2.position.set(0.14*s,0.75*s,0.08*s);g.add(l2);return g;}
+function fpArt42(){var g=new THREE.Group();
+ g.add(put(box(1.1,0.85,0.06,mat(0x3a3f4a)),0,1.7,0));
+ var c=document.createElement('canvas');c.width=128;c.height=96;
+ var x2=c.getContext('2d');x2.fillStyle='#f7f4ee';x2.fillRect(0,0,128,96);
+ x2.fillStyle='#2f5d3a';x2.font='bold 52px Trebuchet MS,Arial';x2.textAlign='center';x2.fillText('42',64,66);
+ x2.fillStyle='#c9a06a';x2.fillRect(14,76,100,5);
+ var t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
+ var p=new THREE.Mesh(new THREE.PlaneGeometry(0.95,0.7),new THREE.MeshBasicMaterial({map:t}));p.position.z=0.04;g.add(p);return g;}
+function inHouse(){curIn.add(fpRoom(10,8,0xf1ede6,0xd8bf9e));
+ var rug=fpRug(3.0,2.2,0xd9cfc0);rug.position.set(0.6,0,-0.3);curIn.add(rug);
+ fpAt(fpPlatBed(),-3,-2.1,1.5);
+ fpAt(fpSideTable(),-1.65,-2.75,0.5);
+ fpAt(fpLowTable(),1.7,-0.4,1.1);
+ var cu1=fpCushion(0xd9a0a8);cu1.position.set(1.7,0,0.75);curIn.add(cu1);
+ var cu2=fpCushion(0x9db89a);cu2.position.set(0.6,0,-0.4);curIn.add(cu2);
+ var cu3=fpCushion(0x8fb3c9);cu3.position.set(2.8,0,-0.4);curIn.add(cu3);
+ fpAt(fpCubeShelf(),3.6,-2.9,1.0);
+ fpAt(fpLinearFire(),-0.6,2.9,1.0);
+ fpAt(fpPotPlant(true),-4.1,2.5,0.6);
+ var art=fpArt42();art.position.set(-1.2,0,-3.8);curIn.add(art);
+ var pd1=fpPendant();pd1.position.set(1.2,0,-0.4);curIn.add(pd1);
+ var pd2=fpPendant();pd2.position.set(2.3,0,-0.4);curIn.add(pd2);}
 function inTavern(){curIn.add(fpRoom(12,9,0xe8c98f,0x8b5e3c));
  fpAt(fpCounter(),0,-3.2,1.5);
  fpAt(fpTable(),-3.2,0.5,1.2);fpAt(fpTable(),3.2,1.0,1.2);
