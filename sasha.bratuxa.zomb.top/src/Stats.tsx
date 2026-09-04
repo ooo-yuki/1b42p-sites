@@ -55,9 +55,9 @@ function drawGraph(cv: HTMLCanvasElement, h: HistPoint[]): void {
   });
   const X = (i: number): number => pad + (i * (W - 2 * pad)) / Math.max(1, h.length - 1);
   const Y = (v: number): number => H - pad - (v * (H - 2 * pad)) / max;
-  ctx.strokeStyle = 'rgba(232,237,255,.12)';
+  ctx.strokeStyle = 'rgba(232,237,255,.06)';
   ctx.lineWidth = 1;
-  ctx.fillStyle = '#8a93c9';
+  ctx.fillStyle = '#5a6396';
   ctx.font = '12px sans-serif';
   for (let g = 0; g <= 4; g++) {
     const v = Math.round((max * g) / 4);
