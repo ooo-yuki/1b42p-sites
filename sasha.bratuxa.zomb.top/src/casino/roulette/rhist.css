@@ -1,0 +1,50 @@
+/* ЖУРНАЛ — лента шаров, итоги, строки. */
+
+.rl-book{margin-top:14px; display:flex; flex-direction:column; gap:10px}
+.last-balls{display:flex; flex-wrap:wrap; gap:6px}
+.lball{
+  min-width:34px; height:34px; padding:0 8px; border-radius:999px;
+  display:inline-flex; align-items:center; justify-content:center;
+  font-weight:800; font-size:14px; color:#fff; font-variant-numeric:tabular-nums;
+  border:1px solid rgba(255,255,255,.2);
+  animation:ballin .3s ease-out;
+}
+@keyframes ballin{from{opacity:0; transform:scale(.5)}to{opacity:1; transform:scale(1)}}
+.lball.zero{background:#0060AA; border-color:#fff}
+.lball.red{background:#E31E25}
+.lball.black{background:#16161a}
+.lball.sm{min-width:30px; height:30px; font-size:13px; animation:none}
+.rl-book .book-total{
+  display:flex; flex-wrap:wrap; align-items:stretch; gap:8px;
+  background:#0d1428; border:1px solid rgba(255,255,255,.12);
+  border-radius:12px; padding:10px 12px;
+}
+.rl-book .book-total div{display:flex; flex-direction:column; min-width:86px; flex:1}
+.rl-book .book-total dt{font-size:10.5px; color:#808080; letter-spacing:.06em; text-transform:uppercase}
+.rl-book .book-total dd{margin:2px 0 0; font-size:17px; font-weight:800; color:#fff; font-variant-numeric:tabular-nums}
+.rl-book .book-total .plus dd{color:#fff}
+.rl-book .book-total .minus dd{color:#E31E25}
+.rl-book .book-clear{
+  align-self:center; background:none; border:1px solid rgba(128,128,128,.5);
+  color:#808080; border-radius:999px; padding:6px 14px; cursor:pointer; font-size:12.5px;
+  transition:border-color .15s, color .15s;
+}
+.rl-book .book-clear:hover{border-color:#E31E25; color:#E31E25}
+.rl-book ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px}
+.rl-book li{
+  display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:10px;
+  background:rgba(13,20,40,.7); border:1px solid rgba(255,255,255,.08); font-size:14px;
+}
+.rl-book li .h-label{display:flex; flex-direction:column; line-height:1.25}
+.rl-book li .h-label small{color:#808080; font-size:11.5px}
+.rl-book li .h-amount{margin-left:auto; font-weight:800; font-variant-numeric:tabular-nums}
+.rl-book li .h-profit{font-weight:800; font-variant-numeric:tabular-nums; min-width:56px; text-align:right}
+.rl-book li.plus .h-profit{color:#fff}
+.rl-book li.minus .h-profit{color:#E31E25}
+.rl-book li.plus{border-color:rgba(0,96,170,.35)}
+.rl-pick{margin:12px 0 0; font-size:14px; color:#808080}
+.rl-pick b{color:#fff}
+
+@media (prefers-reduced-motion:reduce){
+  .lball{animation:none}
+}

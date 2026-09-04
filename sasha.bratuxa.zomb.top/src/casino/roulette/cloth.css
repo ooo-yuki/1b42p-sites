@@ -1,0 +1,33 @@
+/* СУКНО — сетка чисел, жар, касса, превью. */
+
+.numbers .num{position:relative}
+.num .heat{
+  position:absolute; top:2px; right:2px; width:6px; height:6px; border-radius:50%;
+  background:#E31E25; box-shadow:0 0 6px rgba(227,30,37,.9);
+  animation:heat 1.6s ease-in-out infinite;
+}
+@keyframes heat{50%{opacity:.45}}
+.heat-note{margin:6px 0 0; font-size:11.5px; color:#808080}
+.cloth .presets{display:flex; gap:8px; margin-top:12px}
+.cloth .preset{
+  flex:1; padding:7px 0; border-radius:999px; cursor:pointer;
+  background:#0d1428; color:#fff; font-size:13.5px; font-weight:700;
+  font-variant-numeric:tabular-nums; border:1px solid rgba(255,255,255,.25);
+  transition:border-color .15s, box-shadow .15s, transform .12s;
+}
+.cloth .preset:hover:not(:disabled){border-color:#0060AA}
+.cloth .preset:active:not(:disabled){transform:scale(.95)}
+.cloth .preset.sel{border-color:#fff; box-shadow:0 0 10px rgba(0,96,170,.35)}
+.cloth .preset:disabled{opacity:.5; cursor:default}
+.cloth .crow{margin-top:12px}
+.cloth .crow input{max-width:120px}
+.cloth .crow button.press{transform:scale(.93)}
+.cloth .crow button{transition:transform .12s, box-shadow .15s}
+.cloth .crow button:not(:disabled):hover{box-shadow:0 0 16px rgba(0,96,170,.5)}
+.cloth .crow button:not(:disabled):active{transform:scale(.94)}
+.cloth .preview{font-size:13.5px; color:#808080; font-variant-numeric:tabular-nums}
+.cloth .preview.good{color:#fff}
+
+@media (prefers-reduced-motion:reduce){
+  .num .heat,.cloth .preset,.cloth .crow button{animation:none; transition:none}
+}
