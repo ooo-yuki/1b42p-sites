@@ -21,6 +21,14 @@
   --input: rgba(232, 237, 255, 0.25);
   --ring: #ffd23f;
   --radius: 0.75rem;
+  /* наследие style.css: казино пользуется этими именами без загрузки style.css */
+  --gold: #ffd23f;
+  --gold-ink: #231a00;
+  --red: #ff3b3b;
+  --blue: #3b82ff;
+  --paper: #e8edff;
+  --dim: #8a93c9;
+  --ink: #070b18;
 }
 
 @theme inline {

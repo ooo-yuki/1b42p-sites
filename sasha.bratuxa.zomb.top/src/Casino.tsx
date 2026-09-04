@@ -3,7 +3,7 @@ import gsap from 'gsap';
 import { useBeacon } from './hooks';
 import './casino.css';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -107,6 +107,8 @@ export default function Casino(): JSX.Element {
   };
 
   const [msg, setMsg] = useState('Фишки фантики, азарт настоящий');
+  const [tone, setTone] = useState('');
+  const say = (t: string, tn = ''): void => { setMsg(t); setTone(tn); };
 
   /* ----- кейсы ----- */
   const [caseBusy, setCaseBusy] = useState(false);
@@ -132,9 +134,10 @@ export default function Casino(): JSX.Element {
         x: -target, duration: reduced ? 0.3 : 3.2, ease: 'power3.out',
         onComplete: () => {
           setBalance(b => b + win.amount);
-          setMsg(win.amount >= c.price
+          say(win.amount >= c.price
             ? `${win.label}: +${win.amount}! Кейс окупился`
-            : `${win.label}: +${win.amount}. Бывает`);
+            : `${win.label}: +${win.amount}. Бывает`,
+            win.amount >= c.price ? 'win' : '');
           setCaseBusy(false);
         },
       });
@@ -196,7 +199,7 @@ export default function Casino(): JSX.Element {
         st.live = false;
         setMult(point); setCrashOn(false); setDead(true);
         drawCrash(point, true);
-        setMsg(`Крэш на ×${point.toFixed(2)}! Минус ${stake}.`);
+        say(`Крэш на ×${point.toFixed(2)}! Минус ${stake}.`, 'lose');
         return;
       }
       setMult(st.m);
@@ -214,7 +217,7 @@ export default function Casino(): JSX.Element {
     const win = Math.floor(st.stake * st.m);
     setBalance(b => b + win);
     setCrashOn(false); setDead(false);
-    setMsg(`Забрал ×${st.m.toFixed(2)}: +${win}!`);
+    say(`Забрал ×${st.m.toFixed(2)}: +${win}!`, 'win');
   };
 
   useEffect(() => () => {
@@ -250,9 +253,9 @@ export default function Casino(): JSX.Element {
         if (h.id === horse) {
           const win = Math.floor(stake * h.odds);
           setBalance(b => b + win);
-          setMsg(`${h.name} первый! ×${h.odds}: +${win}`);
+          say(`${h.name} первый! ×${h.odds}: +${win}`, 'win');
         } else {
-          setMsg(`${h.name} первый. Твоя лошадь мимо, минус ${stake}`);
+          say(`${h.name} первый. Твоя лошадь мимо, минус ${stake}`, 'lose');
         }
         setRacing(false);
       }
@@ -290,9 +293,9 @@ export default function Casino(): JSX.Element {
         else if (/^\d+$/.test(rchoice) && Number(rchoice) === n) win = stake * 35;
         if (win > 0) {
           setBalance(b => b + win);
-          setMsg(`Выпало ${n}! Забрал +${win}`);
+          say(`Выпало ${n}! Забрал +${win}`, 'win');
         } else {
-          setMsg(`Выпало ${n}. Мимо, минус ${stake}`);
+          say(`Выпало ${n}. Мимо, минус ${stake}`, 'lose');
         }
       }
     }, reduced ? 30 : 90);
@@ -332,7 +335,7 @@ export default function Casino(): JSX.Element {
     if (mfield[i]) {
       setMopen(mfield.map(() => true));
       setMdead(true);
-      setMsg(`Мина! Ставка сгорела.`);
+      say(`Мина! Ставка сгорела.`, 'lose');
       return;
     }
     const opened = mopen.filter(Boolean).length;
@@ -354,7 +357,7 @@ export default function Casino(): JSX.Element {
     const win = Math.floor(stake * mmult);
     setBalance(b => b + win);
     setMfield(null);
-    setMsg(`Мины: ×${mmult.toFixed(2)}, +${win}!`);
+    say(`Мины: ×${mmult.toFixed(2)}, +${win}!`, 'win');
   };
 
   /* ----- блэкджек ----- */
@@ -391,7 +394,7 @@ export default function Casino(): JSX.Element {
       const win = Math.floor(stake * 2.5);
       setBalance(b => b + win);
       setBjphase('done');
-      setMsg(`БЛЭКДЖЕК! +${win}`);
+      say(`БЛЭКДЖЕК! +${win}`, 'win');
     } else {
       setMsg(`Твои ${handValue(p)}, у дилера ${cardLabel(d[0])} + ?. Ещё или хватит?`);
     }
@@ -404,7 +407,7 @@ export default function Casino(): JSX.Element {
     const v = handValue(p);
     if (v > 21) {
       setBjphase('done');
-      setMsg(`Перебор: ${v}. Минус ${lastStake.current}`);
+      say(`Перебор: ${v}. Минус ${lastStake.current}`, 'lose');
     } else if (v === 21) {
       standBj();
     } else {
@@ -422,12 +425,12 @@ export default function Casino(): JSX.Element {
     const stake = lastStake.current;
     if (dv > 21 || pv > dv) {
       setBalance(b => b + stake * 2);
-      setMsg(`Твои ${pv} против ${dv} — победа! +${stake * 2}`);
+      say(`Твои ${pv} против ${dv} — победа! +${stake * 2}`, 'win');
     } else if (pv === dv) {
       setBalance(b => b + stake);
-      setMsg(`Ничья ${pv}:${dv} — ставка вернулась`);
+      say(`Ничья ${pv}:${dv} — ставка вернулась`);
     } else {
-      setMsg(`Твои ${pv} против ${dv} — дилер забрал ${stake}`);
+      say(`Твои ${pv} против ${dv} — дилер забрал ${stake}`, 'lose');
     }
   };
 
@@ -451,13 +454,13 @@ export default function Casino(): JSX.Element {
         setSpinning(false);
         const [a, b2, c] = final;
         if (a === 'seven' && b2 === 'seven' && c === 'seven') {
-          setBalance(x => x + 1000); setMsg('ДЖЕКПОТ 777: +1000!');
+          setBalance(x => x + 1000); say('ДЖЕКПОТ 777: +1000!', 'win');
         } else if (a === b2 && b2 === c) {
-          setBalance(x => x + 250); setMsg(`Три одинаковых: +250!`);
+          setBalance(x => x + 250); say(`Три одинаковых: +250!`, 'win');
         } else if (a === b2 || b2 === c || a === c) {
-          setBalance(x => x + 100); setMsg('Пара: +100');
+          setBalance(x => x + 100); say('Пара: +100');
         } else {
-          setMsg('Мимо. Ещё по одной?');
+          say('Мимо. Ещё по одной?');
         }
       }
     }, reduced ? 30 : 90);
@@ -484,7 +487,7 @@ export default function Casino(): JSX.Element {
           <h1><span className="r">Казино</span> <span className="g">42</span></h1>
           <p>Фишки фантики, азарт настоящий. Кейсы, крэш, лошади и слоты — всё на территории Саши.</p>
         </div>
-        <div className="clog">{msg}</div>
+        <div className={tone ? `clog ${tone}` : 'clog'} role="status">{msg}</div>
 
         <Card>
           <CardHeader>
@@ -511,17 +514,14 @@ export default function Casino(): JSX.Element {
           <CardContent>
             <div className="cases">
               {CASES.map(c => (
-                <Card key={c.id} className="case">
-                  <CardHeader>
-                    <div className="em case-art"><ItemIcon name={c.icon} /></div>
-                    <CardTitle>{c.name}</CardTitle>
-                    <CardDescription>{c.desc}</CardDescription>
-                  </CardHeader>
-                  <CardFooter className="casefoot">
-                    <Badge variant="secondary">{c.price} фишек</Badge>
+                <div key={c.id} className="case">
+                  <div className="case-art"><ItemIcon name={c.icon} /></div>
+                  <div className="case-tx"><b>{c.name}</b><small>{c.desc}</small></div>
+                  <div className="case-buy">
+                    <span className="cprice">{c.price} фишек</span>
                     <Button size="sm" disabled={caseBusy} onClick={() => openCase(c)}>Открыть</Button>
-                  </CardFooter>
-                </Card>
+                  </div>
+                </div>
               ))}
             </div>
             <div id="stripWrap"><div id="strip">{stripCells?.map((d, i) => (
