@@ -106,7 +106,7 @@ small.dim{opacity:.7}
 <script>
 // ===== ЗАМОК ДО 16:40 МСК (Date.UTC день,13,40) =====
 const NOWD=new Date();const UNLOCK=Date.UTC(NOWD.getUTCFullYear(),NOWD.getUTCMonth(),NOWD.getUTCDate(),13,40);
-function tickLock(){const ms=UNLOCK-Date.now();const el=document.getElementById('lockTimer');if(ms<=0){document.getElementById('lock').style.display='none';document.getElementById('lockAd').style.display='none';document.getElementById('topbar').style.display='flex';document.getElementById('game').style.display='block';boot();return true;}const s=Math.floor(ms/1000);const h=String(Math.floor(s/3600)).padStart(2,'0'),m=String(Math.floor(s%3600/60)).padStart(2,'0'),ss=String(s%60).padStart(2,'0');el.textContent=h+':'+m+':'+ss;document.getElementById('lockAd').style.display='block';return false;}
+function tickLock(){const ms=UNLOCK-Date.now();const el=document.getElementById('lockTimer');if(ms<=0){document.getElementById('lock').style.display='none';var la=document.getElementById('lockAd');if(la)la.style.display='none';document.getElementById('topbar').style.display='flex';document.getElementById('game').style.display='block';boot();return true;}const s=Math.floor(ms/1000);const h=String(Math.floor(s/3600)).padStart(2,'0'),m=String(Math.floor(s%3600/60)).padStart(2,'0'),ss=String(s%60).padStart(2,'0');el.textContent=h+':'+m+':'+ss;var la2=document.getElementById('lockAd');if(la2)la2.style.display='block';return false;}
 let booted=false;
 function boot(){if(booted)return;booted=true;initGame();}
 
