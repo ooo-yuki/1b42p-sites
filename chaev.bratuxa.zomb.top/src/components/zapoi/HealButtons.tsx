@@ -1,6 +1,6 @@
 // Кнопки хилок: ручка винлайна, пикули, святые, демонические, шприц, очищение.
 import {
-  BET_RETURN_MULT, bet, betStake, cleanseDemon, demonPickle,
+  BET_RETURN_MULT, BET_STAKE_RATE, BET_WIN_P, DEMON_PICKLE_FORM_SECS, bet, betStake, cleanseDemon, demonPickle,
   heal1cost, heal1val, heal2cost, holyPickle, owned, pickleSmall, syringe,
 } from '../../game/zapoi/index';
 import type { ZapoiState } from '../../game/zapoi/index';
@@ -26,12 +26,12 @@ export default function HealButtons({ z, mutate }: HealButtonsProps) {
           }, 650)}
           style={{ fontSize: 15 }}
         >
-          РУЧКА: 10% бухла, 50% — возврат ×2.1 + удача</ImgButton>
+          РУЧКА: {Math.round(BET_STAKE_RATE * 100)}% бухла, {Math.round(BET_WIN_P * 100)}% — возврат ×{BET_RETURN_MULT} + удача</ImgButton>
       )}{' '}
       {(z.char === 'vladimir' || z.char === 'winline') && (
         <ImgButton
           img="heals/pickle.png"
-          disabled={z.m < heal1cost(z)}
+          disabled={z.m < heal1cost(z) || z.hp >= z.maxhp}
           onClick={() => mutate((n) => {
             const r = pickleSmall(n);
             return r ? `🥒 Пикули: +${r.v} HP за ${r.c} бухла` : '';
@@ -43,11 +43,11 @@ export default function HealButtons({ z, mutate }: HealButtonsProps) {
       {z.char === 'demon' && (
         <ImgButton
           img="heals/dpickle.png"
-          disabled={z.m < heal1cost(z)}
+          disabled={z.m < heal1cost(z) || z.hp >= z.maxhp}
           onClick={() => mutate((n) => {
             const r = demonPickle(n);
             if (!r) return '';
-            return `🔥 Демонические пикули: +${r.v} HP за ${r.c} бухла${r.extended ? ', форма +10 сек!' : ''}`;
+            return `🔥 Демонические пикули: +${r.v} HP за ${r.c} бухла${r.extended ? `, форма +${DEMON_PICKLE_FORM_SECS} сек!` : ''}`;
           }, 500)}
           style={{ fontSize: 15 }}
         >
@@ -56,7 +56,7 @@ export default function HealButtons({ z, mutate }: HealButtonsProps) {
       {z.char === 'ghost' && (
         <ImgButton
           img="heals/hpickle.png"
-          disabled={z.m < heal1cost(z)}
+          disabled={z.m < heal1cost(z) || (z.soul ?? 100) >= 100}
           onClick={() => mutate((n) => {
             const r = holyPickle(n);
             if (!r) return '';
@@ -69,7 +69,7 @@ export default function HealButtons({ z, mutate }: HealButtonsProps) {
       {(z.char === 'vladimir' || z.char === 'winline') && (
         <ImgButton
           img="heals/syringe.png"
-          disabled={z.m < heal2cost(z)}
+          disabled={z.m < heal2cost(z) || z.hp >= z.maxhp}
           onClick={() => mutate((n) => {
             const r = syringe(n);
             return r ? `💉 Шприц: полное HP за ${r.c} бухла` : '';
@@ -81,7 +81,7 @@ export default function HealButtons({ z, mutate }: HealButtonsProps) {
       {z.char === 'demon' && (
         <ImgButton
           img="heals/cleanse.jpg"
-          disabled={z.m < heal2cost(z)}
+          disabled={z.m < heal2cost(z) || (z.demonForm <= 0 && z.hp >= z.maxhp)}
           onClick={() => mutate((n) => {
             const r = cleanseDemon(n);
             if (!r) return '';

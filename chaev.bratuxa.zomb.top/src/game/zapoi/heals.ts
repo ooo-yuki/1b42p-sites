@@ -2,7 +2,7 @@
 // Цены и формулы — те же что у Рассола (малые) и Капельницы (шприц).
 import type { CharId, HealDef, HealResult, BetResult, ZapoiState } from './types';
 import {
-  BET_WIN_MAX, BET_WIN_P, BET_RETURN_MULT, BIBLE_DEAL_P, FORM_BANK_MAX, LUCK_BET_STEP,
+  BET_WIN_MAX, BET_WIN_P, BET_RETURN_MULT, BIBLE_DEAL_P, DEMON_PICKLE_FORM_SECS, FORM_BANK_MAX, LUCK_BET_STEP,
   HANGOVER_HP_RATE, HOLY_DEAL_P,
   betStake,
   heal1cost, heal1val, heal2cost, heal2val, owned,
@@ -38,13 +38,13 @@ export function pickleSmall(z: ZapoiState): HealResult | null {
 }
 
 // Демонические пикули: хилят как обычные, а в демонической форме
-// добавляют +10 секунд к таймеру (копят максимум до 30).
+// добавляют +DEMON_PICKLE_FORM_SECS секунд к таймеру (копят максимум до FORM_BANK_MAX).
 export function demonPickle(z: ZapoiState): (HealResult & { extended: boolean }) | null {
   if (!canUse(z.char, 'dpickle')) return null;
   const r = spendHealSmall(z);
   if (!r) return null;
   let extended = false;
-  if (z.demonForm > 0) { z.demonForm = Math.min(FORM_BANK_MAX, z.demonForm + 10); extended = true; }
+  if (z.demonForm > 0) { z.demonForm = Math.min(FORM_BANK_MAX, z.demonForm + DEMON_PICKLE_FORM_SECS); extended = true; }
   return { ...r, extended };
 }
 

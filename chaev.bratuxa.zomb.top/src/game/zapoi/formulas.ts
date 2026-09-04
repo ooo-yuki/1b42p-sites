@@ -23,6 +23,7 @@ export const BIBLE_DEAL_P = 0.15; // библия: шанс скидки 5% → 
 export const BAN_FORM_SECS = 15; // бан: форма 15 сек вместо 10
 export const BAN_FORM_MULT = 6; // бан: мульт формы ×6 вместо ×5
 export const FORM_BANK_MAX = 30; // пикули копят время формы максимум до 30 сек
+export const DEMON_PICKLE_FORM_SECS = 10; // демонические пикули продлевают форму (единая константа для heals.ts и UI)
 
 /** Есть ли у забега артефакт (без зацикливания на synergies). */
 export function owned(z: ZapoiState, id: string): boolean {
@@ -47,6 +48,13 @@ export const WINLINE_BLANK_MIN = 0.02; // минимум пустышки
 // Ставка Винлайна: 10% бухла, минимум BET_MIN_STAKE. Единая формула для bet() и UI-disabled.
 export function betStake(m: number): number {
   return Math.max(BET_MIN_STAKE, Math.floor(m * BET_STAKE_RATE));
+}
+
+// Единый запасной подсчёт потери похмелья для лога (ревью #6):
+// applyHangover всегда кладёт точное число в z._hangoverLost синхронно,
+// фолбэк считает от бухла ДО списания — как applyHangover (floor(mBefore * rate)).
+export function hangoverLogLost(mBefore: number, rate: number, hangoverLost?: number): number {
+  return hangoverLost ?? Math.floor(mBefore * rate);
 }
 // --- Похмелье ---
 export const HANGOVER_HP_RATE = 0.3; // здоровье 30%

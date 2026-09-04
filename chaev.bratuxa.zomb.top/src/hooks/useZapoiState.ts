@@ -1,8 +1,8 @@
 // Хук состояния запоя: загрузка/сейв в localStorage, тик 1 сек, mutate, бутылка, выбор персонажа.
 import { useEffect, useState } from 'react';
 import {
-  BOTTLE_COST, buyBottle, checkSyns, cloneZapoi, createZapoiState,
-  hangoverRate, isUnlocked, newRun, tickZapoi,
+  BAN_FORM_MULT, BOTTLE_COST, buyBottle, checkSyns, cloneZapoi, createZapoiState,
+  DEMON_FORM_MULT, formDuration, hangoverLogLost, hangoverRate, isUnlocked, newRun, owned, tickZapoi,
 } from '../game/zapoi/index';
 import type { CharId, ZapoiState } from '../game/zapoi/index';
 import { blip } from '../components/ui/sound';
@@ -55,14 +55,14 @@ export function useZapoiState() {
         const ev = tickZapoi(next);
         if (ev === 'hangover') {
           const rate = hangoverRate(next);
-          const lost = next._hangoverLost ?? Math.floor(prev.m * rate);
+          const lost = hangoverLogLost(prev.m, rate, next._hangoverLost);
           setLog(`🤢 Похмелье! −${lost} бухла (${Math.round(rate * 100)}%), здоровье 30%. Рассолу накати!`);
         } else if (ev === 'shattered') {
           setLog('💥 Бутылка разбилась! Забег окончен.');
           blip(200);
           return newRun(next.completed, null);
         } else if (ev === 'demonform') {
-          setLog('😈 ДЕМОНИЧЕСКАЯ ФОРМА ×5 на 10 сек! ЖГИ!');
+          setLog(`😈 ДЕМОНИЧЕСКАЯ ФОРМА ×${owned(next, 'ban2w') ? BAN_FORM_MULT : DEMON_FORM_MULT} на ${formDuration(next)} сек! ЖГИ!`);
         }
         return next;
       });

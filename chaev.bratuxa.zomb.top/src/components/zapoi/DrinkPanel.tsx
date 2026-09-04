@@ -1,5 +1,5 @@
 // Витрина забега: статистика + большая кнопка глотка ягера.
-import { BAN_FORM_MULT, DEMON_FORM_MULT, VLADIMIR_CLICK_STEP, VLADIMIR_PASSIVE, charDiscount, dmgPerSip, effMult, fmtZ, formDuration, hangoverRate, jagerClick, owned, sipPreview } from '../../game/zapoi/index';
+import { BAN_FORM_MULT, DEMON_FORM_MULT, VLADIMIR_CLICK_STEP, VLADIMIR_PASSIVE, charDiscount, dmgPerSip, effMult, fmtZ, formDuration, hangoverLogLost, hangoverRate, jagerClick, owned, sipPreview } from '../../game/zapoi/index';
 import type { Character, ZapoiState } from '../../game/zapoi/index';
 import type { MutateFn } from '../../hooks/useZapoiState';
 import ImgButton from '../ui/ImgButton';
@@ -49,10 +49,11 @@ export default function DrinkPanel({ z, charDef, drinkImg, mutate, onShattered, 
         img={drinkImg ?? undefined}
         imgSize={34}
         onClick={() => mutate((n) => {
+          const mBefore = n.m;
           const ev = jagerClick(n);
           if (ev === 'hangover') {
             const rate = hangoverRate(n);
-            const lost = n._hangoverLost ?? Math.floor(n.m * rate / (1 - rate));
+            const lost = hangoverLogLost(mBefore, rate, n._hangoverLost);
             return `🤢 Похмелье! −${lost} бухла (${Math.round(rate * 100)}%), здоровье 30%. Рассолу накати!`;
           }
           if (ev === 'shattered') {
