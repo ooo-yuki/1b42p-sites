@@ -10,7 +10,10 @@
   html,body{ margin:0; height:100%; background:var(--bg); color:#e8eaf0; font-family:system-ui,'Segoe UI',Roboto,Arial,sans-serif; overflow:hidden; overscroll-behavior:none; }
   #c3d{ position:fixed; inset:0; touch-action:none; }
   canvas.game{ display:block; }
-  .screen{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; z-index:10; background:rgba(8,10,14,.88); padding:16px; overflow:auto; }
+  .screen{ position:fixed; inset:0; display:flex; align-items:center; justify-content:flex-start; flex-direction:column; z-index:10; background:rgba(8,10,14,.88); padding:16px; padding-top:calc(16px + env(safe-area-inset-top)); padding-bottom:calc(16px + env(safe-area-inset-bottom)); overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+  /* первый/последний отступы центрируют короткий контент, но отпускают верх при переполнении (иначе список техники уезжает за верх и не скроллится) */
+  .screen>*:first-child{ margin-top:auto; }
+  .screen>*:last-child{ margin-bottom:auto; }
   .hidden{ display:none !important; }
   h1{ color:var(--gold); margin:6px 0 2px; font-size:clamp(22px,4vw,38px); letter-spacing:1px; text-align:center; }
   .motto{ color:#9aa3b5; margin-bottom:14px; text-align:center; }
@@ -22,6 +25,7 @@
   .row{ display:flex; gap:8px; flex-wrap:wrap; }
   .row>*{ flex:1 1 auto; }
   #vehGrid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; width:min(760px,96vw); }
+  @media (max-width:600px){ #vehGrid{ grid-template-columns:repeat(2,1fr); } }
   .veh{ background:var(--panel); border:2px solid var(--line); border-radius:10px; padding:10px; cursor:pointer; }
   .veh.sel{ border-color:var(--gold); box-shadow:0 0 12px #f5c51855; }
   .veh b{ color:var(--gold); display:block; }
