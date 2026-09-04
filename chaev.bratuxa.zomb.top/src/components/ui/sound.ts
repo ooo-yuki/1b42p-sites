@@ -12,6 +12,11 @@ function ctx(): AudioContext | null {
   }
 }
 
+/** Общий AudioContext для процедурной музыки персонажей (тот же, что у бипов). */
+export function audioCtx(): AudioContext | null {
+  return ctx();
+}
+
 export function beep(f0: number, f1: number, dur: number, type?: OscillatorType, vol?: number): void {
   try {
     const ac = ctx();
