@@ -298,14 +298,15 @@ function tower(x,z,w,hgt,ci){const cols=Math.max(3,Math.round(w/3)),rows=Math.ma
 function awningShop(x,z,ci,sign){const w=14,hgt=5;
  const m=new THREE.Mesh(new THREE.BoxGeometry(w,hgt,10),new THREE.MeshStandardMaterial({color:PAL[ci%PAL.length],roughness:.85,transparent:true}));
  m.position.set(x,hgt/2,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);buildings.push(m);
- for(let i=0;i<7;i++){const s=new THREE.Mesh(new THREE.BoxGeometry(2,.25,3),new THREE.MeshStandardMaterial({color:i%2?0xffd700:0xcc0022}));s.position.set(x-w/2+1+i*2,hgt+.4,z+6);scene.add(s);}
- const cv=document.createElement('canvas');cv.width=256;cv.height=64;const g2=cv.getContext('2d');g2.fillStyle='#000';g2.fillRect(0,0,256,64);g2.fillStyle='gold';g2.font='bold 30px Arial';g2.fillText(sign,12,42);
- const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv)}));sp.scale.set(13,3.2,1);sp.position.set(x,hgt+2.6,z);scene.add(sp);
+ for(let i=0;i<7;i++){const s=new THREE.Mesh(new THREE.BoxGeometry(2,.25,3),new THREE.MeshStandardMaterial({color:i%2?0x8a8578:0x5a2a2a}));s.position.set(x-w/2+1+i*2,hgt+.4,z+6);scene.add(s);}
+ const cv=document.createElement('canvas');cv.width=256;cv.height=64;const g2=cv.getContext('2d');g2.fillStyle='#000';g2.fillRect(0,0,256,64);g2.fillStyle='#b8b8c0';g2.font='bold 26px Arial';g2.fillText(sign,12,42);
+ const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv)}));sp.scale.set(8,2,1);sp.position.set(x,hgt+2.6,z);scene.add(sp); // декоративная вывеска — вдвое меньше сюжетных
  const gg=new THREE.Group();gg.position.set(x,0,z);scene.add(gg);winRow(gg,0,0,0,3,4,0,0,5.05);winRow(gg,0,0,0,3,4,Math.PI,0,-5.05);
  solids.push({x,z,hx:w/2+.6,hz:5.6,mesh:m,extra:[]});}
-function kiosk(x,z){const m=new THREE.Mesh(new THREE.BoxGeometry(4,3,3),new THREE.MeshStandardMaterial({color:0x883300,roughness:.8,transparent:true}));m.position.set(x,1.5,z);m.castShadow=true;scene.add(m);buildings.push(m);
- const r=new THREE.Mesh(new THREE.BoxGeometry(4.6,.3,3.6),new THREE.MeshStandardMaterial({color:0xffd700}));r.position.set(x,3.2,z);scene.add(r);
- solids.push({x,z,hx:2.4,hz:1.9,mesh:m,extra:[r]});}
+function kiosk(x,z){const m=new THREE.Mesh(new THREE.BoxGeometry(4,3,3),new THREE.MeshStandardMaterial({color:0x3d3a36,roughness:.9,transparent:true}));m.position.set(x,1.5,z);m.castShadow=true;scene.add(m);buildings.push(m);
+ const r=new THREE.Mesh(new THREE.BoxGeometry(4.6,.3,3.6),new THREE.MeshStandardMaterial({color:0x232326}));r.position.set(x,3.2,z);scene.add(r);
+ const trim=new THREE.Mesh(new THREE.BoxGeometry(4.1,.3,3.1),new THREE.MeshStandardMaterial({color:0x6b6258,roughness:.9}));trim.position.set(x,2.6,z);scene.add(trim);
+ solids.push({x,z,hx:2.4,hz:1.9,mesh:m,extra:[r]});} // декоративный: тихий серый, без кричащей крыши
 function bench(x,z,rot){const b=new THREE.Group();b.position.set(x,0,z);b.rotation.y=rot||0;scene.add(b);
  const seat=new THREE.Mesh(new THREE.BoxGeometry(3,.25,1),new THREE.MeshStandardMaterial({color:0x6b4a2b}));seat.position.y=.8;seat.castShadow=true;b.add(seat);
  [[-1.2],[1.2]].forEach(s=>{const leg=new THREE.Mesh(new THREE.BoxGeometry(.25,.8,1),new THREE.MeshStandardMaterial({color:0x333}));leg.position.set(s[0],.4,0);b.add(leg);});
@@ -1044,7 +1045,7 @@ function billboard(x,y,z){const m=new THREE.Mesh(new THREE.PlaneGeometry(15,4.5)
   const seat=new THREE.Mesh(new THREE.BoxGeometry(1,0.35,2.2),new THREE.MeshStandardMaterial({color:0x8a6a3a,roughness:.85}));seat.position.y=0.35;seat.castShadow=true;g.add(seat);
   const back=new THREE.Mesh(new THREE.BoxGeometry(1,0.3,1.1),new THREE.MeshStandardMaterial({color:0x8a6a3a,roughness:.85}));back.position.set(0,0.8,-1.4);back.rotation.x=-0.6;g.add(back);
   const towel=new THREE.Mesh(new THREE.PlaneGeometry(0.9,1.8),new THREE.MeshStandardMaterial({color:c,roughness:.9}));towel.rotation.x=-Math.PI/2;towel.position.y=0.54;g.add(towel);}
- function beachSign(x,z,txt){const c=document.createElement('canvas');c.width=512;c.height=96;const g=c.getContext('2d');g.fillStyle='#000';g.fillRect(0,0,512,96);g.fillStyle='#ffd700';g.font='bold 52px Arial';g.fillText(txt,20,64);const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));s.scale.set(12,2.2,1);s.position.set(x,6.5,z);scene.add(s);}
+ function beachSign(x,z,txt){const c=document.createElement('canvas');c.width=512;c.height=96;const g=c.getContext('2d');g.fillStyle='#000';g.fillRect(0,0,512,96);g.fillStyle='#e8dcc0';g.font='bold 44px Arial';g.fillText(txt,20,64);const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));s.scale.set(8,1.5,1);s.position.set(x,6.5,z);scene.add(s);}
  (function(){
   let placed=0,guard=0;
   while(placed<18&&guard++<160){const x=45+Math.random()*140,z=-20+Math.random()*130;if(!decorFree(x,z,5))continue;pine(x,z);placed++;}
