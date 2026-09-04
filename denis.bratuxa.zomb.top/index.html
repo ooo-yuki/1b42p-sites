@@ -1121,30 +1121,44 @@ function billboard(x,y,z){const m=new THREE.Mesh(new THREE.PlaneGeometry(15,4.5)
  const _zebraMA=new THREE.MeshBasicMaterial({map:_zebraA,transparent:true});
  const _zebraMB=new THREE.MeshBasicMaterial({map:_zebraB,transparent:true});
  const _curbM=new THREE.MeshStandardMaterial({color:0x9a9aa5,roughness:.8});
- function highway(av,horiz,len,cAlong){
-  // horiz=false: дорога вдоль Z на x=av с центром z=cAlong; horiz=true: вдоль X на z=av с центром x=cAlong (база y=0 — liftIsland поднимет)
+ function roadSeg(ax,az,bx,bz){
+  // Прямой отрезок шоссе из (ax,az) в (bx,bz): строго вдоль X или Z (база y=0 — liftIsland поднимет)
+  const len=Math.hypot(bx-ax,bz-az);
+  if(len<1)return;
+  const horiz=Math.abs(bx-ax)>=Math.abs(bz-az);
+  const cx=(ax+bx)/2,cz=(az+bz)/2;
   const tex=_roadTile.clone();tex.needsUpdate=true;tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.repeat.set(1,Math.max(1,Math.round(len/20)));
   const r=new THREE.Mesh(new THREE.PlaneGeometry(10,len),new THREE.MeshStandardMaterial({map:tex,roughness:.92,metalness:.05}));
-  r.rotation.x=-Math.PI/2;r.receiveShadow=true;
-  if(!horiz){r.position.set(av,0.02,cAlong);}else{r.rotation.z=Math.PI/2;r.position.set(cAlong,0.025,av);}
-  scene.add(r);
+  r.rotation.x=-Math.PI/2;if(horiz)r.rotation.z=Math.PI/2;
+  r.position.set(cx,horiz?0.025:0.02,cz);r.receiveShadow=true;scene.add(r);
   for(const s of [-6,6]){
    const w=new THREE.Mesh(new THREE.PlaneGeometry(2,len),_walkM);
-   w.rotation.x=-Math.PI/2;w.receiveShadow=true;
-   if(!horiz){w.position.set(av+s,0.035,cAlong);}else{w.rotation.z=Math.PI/2;w.position.set(cAlong,0.04,av+s);}
+   w.rotation.x=-Math.PI/2;if(horiz)w.rotation.z=Math.PI/2;w.receiveShadow=true;
+   if(!horiz)w.position.set(cx+s,0.035,cz);else w.position.set(cx,0.04,cz+s);
    scene.add(w);
    const curb=new THREE.Mesh(new THREE.BoxGeometry(horiz?len:0.6,0.22,horiz?0.6:len),_curbM);
-   if(!horiz)curb.position.set(av+Math.sign(s)*5,0.11,cAlong);else curb.position.set(cAlong,0.11,av+Math.sign(s)*5);
+   if(!horiz)curb.position.set(cx+Math.sign(s)*5,0.11,cz);else curb.position.set(cx,0.11,cz+Math.sign(s)*5);
    scene.add(curb);
   }
  }
  const _VA=[-100,-50,0],_HA=[-100,-50,0,50,100];
- for(const av of _VA)highway(av,false,200,0);
- for(const ah of _HA)highway(ah,true,150,-50);
- // зебры на каждом перекрёстке: по полосе на рукав, чуть в стороне от центра
+ // вертикальные проспекты с разрывами на перекрёстках (иначе ленты лежат друг на друге)
+ for(const av of _VA){
+  const pts=[-100];for(const ah of _HA)pts.push(ah-5,ah+5);pts.push(100);pts.sort((a,b)=>a-b);
+  for(let i=0;i+1<pts.length;i+=2)roadSeg(av,Math.max(-100,pts[i]),av,Math.min(100,pts[i+1]));
+ }
+ // горизонтальные проспекты с разрывами
+ for(const ah of _HA){
+  const pts=[-125];for(const av of _VA)pts.push(av-5,av+5);pts.push(25);pts.sort((a,b)=>a-b);
+  for(let i=0;i+1<pts.length;i+=2)roadSeg(Math.max(-125,pts[i]),ah,Math.min(25,pts[i+1]),ah);
+ }
+ // перекрёстки — чистый асфальт без разметки + зебры на рукавах (поперёк своей дороги)
+ const _xmat=new THREE.MeshStandardMaterial({color:0x2b2b31,roughness:.92,metalness:.05});
  for(const av of _VA)for(const ah of _HA){
+  const xm=new THREE.Mesh(new THREE.PlaneGeometry(10,10),_xmat);
+  xm.rotation.x=-Math.PI/2;xm.position.set(av,0.022,ah);xm.receiveShadow=true;scene.add(xm);
   for(const dz of [-8,8]){const z=new THREE.Mesh(new THREE.PlaneGeometry(9,3),_zebraMA);z.rotation.x=-Math.PI/2;z.position.set(av,0.05,ah+dz);scene.add(z);}
-  for(const dx of [-8,8]){const z=new THREE.Mesh(new THREE.PlaneGeometry(9,3),_zebraMB);z.rotation.x=-Math.PI/2;z.position.set(av+dx,0.055,ah);scene.add(z);}
+  for(const dx of [-8,8]){const z=new THREE.Mesh(new THREE.PlaneGeometry(3,9),_zebraMB);z.rotation.x=-Math.PI/2;z.position.set(av+dx,0.055,ah);scene.add(z);}
  }
  // ===== OCEAN DRIVE: ар-деко отели перед пляжем (фасадом к морю, +z) =====
 const _decoCols=[0x9fd8c8,0xf5c8a0,0xf0a8c0,0xf2e8d0,0xa0d8e8,0xc8b8e8];
@@ -1349,9 +1363,9 @@ function skyBeam(x,h,z){const b=new THREE.Mesh(new THREE.CylinderGeometry(2.5,5,
   }
  }
 })();
-// проезд к пляжу: продлить шоссе на песок тем же highway() (ленты+тротуары+бордюры) + раздвинуть дома, зажимающие коридор
+// проезд к пляжу: продлить шоссе на песок теми же отрезками + раздвинуть дома, зажимающие коридор
 (function(){
- for(const av of [-100,-50,0])highway(av,false,38,119);
+ for(const av of [-100,-50,0])roadSeg(av,100,av,138);
  const skip=new Set();
  try{skip.add(player);skip.add(car);}catch(_){}
  try{skip.add(kizyak.mesh);}catch(_){}
