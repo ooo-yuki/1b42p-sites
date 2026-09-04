@@ -170,6 +170,7 @@ export default function Game(): JSX.Element {
       <canvas id="rocket3d" ref={r3dRef} />
       <div id="flash" ref={flashRef} />
       <div id="ring" />
+      <a id="homeBtn" href="index.html" title="На главную" onPointerDown={e => e.stopPropagation()}>🏠 Главная</a>
       <img id="salto-pop" src={saltoSticker} alt="Сальтуха!" />
       <div id="hint">а ещё 42 спрятаны… ищи 👀</div>
       <div

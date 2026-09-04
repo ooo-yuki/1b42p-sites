@@ -33,6 +33,9 @@ export default function Landing(): JSX.Element {
           <a id="casinoBtn" className="pill ghost" href="casino.html" style={{ textDecoration: 'none' }}>
             🎰 Казино
           </a>
+          <a id="hubBtn" className="pill ghost" href="https://hub.bratuxa.zomb.top" style={{ textDecoration: 'none' }}>
+            🏆 Хаб
+          </a>
         </div>
       </main>
       <div id="hint">а ещё 42 спрятаны… ищи 👀</div>
