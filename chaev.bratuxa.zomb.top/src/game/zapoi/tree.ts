@@ -15,7 +15,7 @@ export const TREE: UpgradeDef[] = [
   { br: '🩹 Ветка Трезвости — лечат HP, жрут бухло', id: 'kapel', name: '💉 Медсестра 42', desc: 'Шприц и очищение +40% и дешевле на 10%', max: 5, base: 250, g: 6, fx() {} },
   { br: '🎉 Ветка Кутежа — мульты', id: 'party', name: '🪩 Компания', desc: '×2 ко всему бухлу', max: 4, base: 100, g: 8, fx(z) { z.mult *= 2; } },
   { br: '🎉 Ветка Кутежа — мульты', id: 'anthem', name: '🎺 Гимн 42', desc: '+10% ко всему за каждый артефакт', max: 3, base: 600, g: 7, fx(z) { z.mult *= 1 + 0.1 * artCount(z); } },
-  { br: '🎉 Ветка Кутежа — мульты', id: 'stream', name: '📺 Стрим запоя', desc: '+2 бухла/сек, +0.2 урона/сек (риск!)', max: 5, base: 300, g: 6, fx(z) { z.auto += 2; z.toxic *= 1.04; } },
+  { br: '🎉 Ветка Кутежа — мульты и удача', id: 'stream', name: '🍀 Удача 42', desc: '+2% удачи: ставка чаще заходит, джекпоты чаще, пустышек меньше', max: 5, base: 300, g: 6, fx(z) { z.luck = (z.luck || 0) + 2; } },
 ];
 
 export function buyUpgrade(z: ZapoiState, id: string): boolean {

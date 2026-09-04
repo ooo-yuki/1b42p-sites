@@ -9,7 +9,7 @@ export const GHOST_SIP_MULT = 3; // глоток призрака ×3
 export const DEMON_SIP_MULT = 2; // глоток демона ×2
 export const DEMON_FORM_MULT = 5; // демоническая форма ×5
 export const DEMON_FORM_SECS = 10; // длительность формы, сек
-export const WINLINE_SIP_AVG = 1.5; // средний глоток винлайна (для превью кнопки)
+export const WINLINE_SIP_AVG = 1.4; // средний глоток винлайна (для превью кнопки)
 // --- Пассивки ---
 export const VLADIMIR_CLICK_STEP = 0.02; // +к клику за глоток, навсегда
 export const VLADIMIR_PASSIVE = 0.2; // бухла/сек
@@ -27,11 +27,21 @@ export const BAN_FORM_MULT = 6; // бан: мульт формы ×6 вмест�
 export function owned(z: ZapoiState, id: string): boolean {
   return !!z.arts[id];
 }
-// --- Винлайн-ставка ---
+// --- Винлайн: честное казино (окупается, но не имба) ---
 export const BET_STAKE_RATE = 0.1; // 10% бухла
 export const BET_MIN_STAKE = 50;
-export const BET_WIN_P = 0.45; // шанс возврата ×2
-export const BET_RETURN_MULT = 2;
+export const BET_WIN_P = 0.5; // шанс возврата ×2.1 (EV +5% — окупается)
+export const BET_RETURN_MULT = 2.1;
+export const BET_WIN_MAX = 0.65; // потолок шанса с удачей
+export const LUCK_BET_STEP = 0.01; // +1% к шансу ставки за единицу удачи
+// --- Глоток винлайна: tiers ---
+export const WINLINE_JACKPOT_P = 0.05; // 5% — джекпот ×5
+export const LUCK_JACKPOT_STEP = 0.005; // удача растит шанс джекпота
+export const JACKPOT_MAX = 0.15; // потолок шанса джекпота
+export const JACKPOT_MULT = 5; // джекпот ×5
+export const WINLINE_BIG_P = 0.25; // 25% — крупный ×1.5…×2.5
+export const LUCK_BLANK_STEP = 0.005; // удача режет шанс пустышки
+export const WINLINE_BLANK_MIN = 0.02; // минимум пустышки
 
 // Ставка Винлайна: 10% бухла, минимум BET_MIN_STAKE. Единая формула для bet() и UI-disabled.
 export function betStake(m: number): number {

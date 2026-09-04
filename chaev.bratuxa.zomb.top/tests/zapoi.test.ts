@@ -274,17 +274,21 @@ describe('персонажи и бутылка', () => {
     expect(jagerClick(z)).toBe('demonform');
     expect(z.demonForm).toBe(10);
   });
-  it('винлайн: глоток в пределах ×0.5…×2.5', () => {
+  it('винлайн: глоток-казино — мелочь ×0.6…×1.2, крупный ×1.5…×2.5, джекпот ×5', () => {
     const z = createZapoiState();
     z.char = 'winline';
     z.maxhp = 1e9; z.hp = 1e9;
-    for (let i = 0; i < 20; i++) {
+    let seenBig = false;
+    for (let i = 0; i < 300; i++) {
       const before = z.m;
       jagerClick(z);
       const g = z.m - before;
-      expect(g).toBeGreaterThanOrEqual(0.5 - 1e-9);
-      expect(g).toBeLessThanOrEqual(2.5 + 1e-9);
+      expect(g).toBeGreaterThanOrEqual(0.6 - 1e-9);
+      expect(g).toBeLessThanOrEqual(5 + 1e-9);
+      if (g > 2.5) seenBig = true;
     }
+    // джекпот ×5 за 300 глотков почти гарантирован (p≈1−0.95^300)
+    expect(seenBig).toBe(true);
   });
   it('бутылка: 50000, только когда всё куплено', () => {
     const z = createZapoiState();
@@ -476,5 +480,39 @@ describe('именные: польза всем персонажам', () => {
     z.completed = { vladimir: 1, demon: 1 };
     expect(buyArt(z, 'ban2w')).not.toBe(false);
     expect(z.mult).toBeCloseTo(1.25);
+  });
+});
+
+describe('винлайн 2.0: честное казино + удача', () => {
+  it('ставка: 10% (мин 50), выигрыш ×2.1', () => {
+    const z = createZapoiState(); z.char = 'winline'; z.m = 1000;
+    const stake = 100;
+    let sawWin = false;
+    for (let i = 0; i < 200 && !sawWin; i++) {
+      z.m = 1000;
+      const r = bet(z)!;
+      expect(r.stake).toBe(stake);
+      if (r.win) { sawWin = true; expect(z.m).toBe(1000 - stake + Math.round(stake * 2.1)); }
+    }
+    expect(sawWin).toBe(true);
+  });
+  it('удача 42: +2% за уровень, растит шанс ставки', () => {
+    const z = createZapoiState(); z.m = 1e9;
+    expect(buyUpgrade(z, 'stream')).toBe(true);
+    expect(z.luck).toBe(2);
+    expect(buyUpgrade(z, 'stream')).toBe(true);
+    expect(z.luck).toBe(4);
+  });
+  it('удача режет пустышки, но не ниже 2%', () => {
+    const z = createZapoiState(); z.char = 'winline'; z.m = 1e9; z.luck = 100;
+    let blanks = 0;
+    for (let i = 0; i < 30; i++) {
+      delete z.arts['cap'];
+      z.m = 1e9;
+      buyArt(z, 'cap');
+      if (z._lastArtBlank) blanks++;
+    }
+    // шанс 2%: за 30 попыток пустышек мало (допуск < 6)
+    expect(blanks).toBeLessThan(6);
   });
 });

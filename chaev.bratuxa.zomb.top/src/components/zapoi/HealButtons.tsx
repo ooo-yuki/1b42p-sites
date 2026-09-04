@@ -26,7 +26,7 @@ export default function HealButtons({ z, mutate }: HealButtonsProps) {
           }, 650)}
           style={{ fontSize: 15 }}
         >
-          РУЧКА: 10% бухла, 45% — возврат ×2</ImgButton>
+          РУЧКА: 10% бухла, 50% — возврат ×2.1 + удача</ImgButton>
       )}{' '}
       {(z.char === 'vladimir' || z.char === 'winline') && (
         <ImgButton

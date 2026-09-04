@@ -4,7 +4,9 @@ import {
   AUTO_SELF_DMG, BIBLE_SOUL_REGEN, DEMON_SIP_MULT,
   GHOST_SIP_MULT, GHOST_SOUL_REGEN, GHOST_SOUL_SIP,
   HANGOVER_HP_RATE, HANGOVER_RATE, HANGOVER_RATE_GOD,
+  JACKPOT_MAX, JACKPOT_MULT, LUCK_JACKPOT_STEP,
   VLADIMIR_CLICK_STEP, VLADIMIR_PASSIVE,
+  WINLINE_BIG_P, WINLINE_JACKPOT_P,
   dmgPerSip, effMult, formDuration, owned,
 } from './formulas';
 import { hangoverRate } from '../synergies';
@@ -12,7 +14,7 @@ import { hangoverRate } from '../synergies';
 export const ZDEF: ZapoiState = {
   m: 0, hp: 100, maxhp: 100, click: 1, auto: 0,
   mult: 1, regen: 0, toxic: 1, heals: 0, up: {}, arts: {}, syn: {},
-  char: null, sips: 0, soul: 100, demonForm: 0, completed: {}, deals: 0,
+  char: null, sips: 0, soul: 100, demonForm: 0, completed: {}, deals: 0, luck: 0,
 };
 
 export function createZapoiState(): ZapoiState {
@@ -61,7 +63,16 @@ export function jagerClick(z: ZapoiState): ZapoiEvent {
     z.sips = (z.sips || 0) + 1;
     z.click += VLADIMIR_CLICK_STEP;
   }
-  if (z.char === 'winline') gain *= 0.5 + Math.random() * 2;
+  // Винлайн-казино: 5% джекпот ×5, 25% крупный ×1.5…×2.5,
+  // остальное мелочь ×0.6…×1.2. Удача растит шанс джекпота.
+  if (z.char === 'winline') {
+    const luck = z.luck || 0;
+    const jp = Math.min(JACKPOT_MAX, WINLINE_JACKPOT_P + luck * LUCK_JACKPOT_STEP);
+    const roll = Math.random();
+    if (roll < jp) gain *= JACKPOT_MULT;
+    else if (roll < jp + WINLINE_BIG_P) gain *= 1.5 + Math.random();
+    else gain *= 0.6 + Math.random() * 0.6;
+  }
   if (z.char === 'demon') gain *= DEMON_SIP_MULT;
   z.m += gain;
   let dmg = dmgPerSip(z);

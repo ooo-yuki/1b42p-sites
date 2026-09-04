@@ -18,6 +18,7 @@ export interface ZapoiState {
   sips: number;
   soul: number;
   demonForm: number;
+  luck: number; // удача: растит ставку, джекпоты, режет пустышки
   completed: Record<string, number>;
   deals: number;
   /** Потеря бухла при последнем похмелье (чтобы UI не пересчитывал формулой). */

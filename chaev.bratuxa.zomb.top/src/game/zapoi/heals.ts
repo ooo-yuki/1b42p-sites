@@ -2,7 +2,7 @@
 // Цены и формулы — те же что у Рассола (малые) и Капельницы (шприц).
 import type { CharId, HealDef, HealResult, BetResult, ZapoiState } from './types';
 import {
-  BET_WIN_P, BET_RETURN_MULT, BIBLE_DEAL_P,
+  BET_WIN_MAX, BET_WIN_P, BET_RETURN_MULT, BIBLE_DEAL_P, LUCK_BET_STEP,
   HANGOVER_HP_RATE, HOLY_DEAL_P,
   betStake,
   heal1cost, heal1val, heal2cost, heal2val, owned,
@@ -109,7 +109,8 @@ export function cleanseDemon(z: ZapoiState): (HealResult & { cleansed?: boolean 
   return healBig(z);
 }
 
-// Ставка: 10% бухла (мин 50). 45% — возврат ×2, иначе потеря.
+// Ставка: 10% бухла (мин 50). Шанс 50% — возврат ×2.1 (EV +5%,
+// окупается). Удача добавляет +1% к шансу (потолок 65%).
 // Доступна Винлайну всегда и любому персонажу со Сломанной ручкой.
 // Возвращает null если нельзя, иначе {win, stake}.
 export function bet(z: ZapoiState): BetResult | null {
@@ -117,7 +118,8 @@ export function bet(z: ZapoiState): BetResult | null {
   const stake = betStake(z.m);
   if (z.m < stake) return null;
   z.m -= stake;
-  if (Math.random() < BET_WIN_P) {
+  const p = Math.min(BET_WIN_MAX, BET_WIN_P + (z.luck || 0) * LUCK_BET_STEP);
+  if (Math.random() < p) {
     z.m += stake * BET_RETURN_MULT;
     return { win: true, stake };
   }

@@ -1,6 +1,6 @@
 // Артефакты 42 по качествам 1-4. Цены и эффекты — 1-в-1.
 import type { ArtDef, ZapoiState } from './types';
-import { WINLINE_BLANK_P, WINLINE_DOUBLE_P, artCost } from './formulas';
+import { LUCK_BLANK_STEP, WINLINE_BLANK_MIN, WINLINE_BLANK_P, WINLINE_DOUBLE_P, artCost } from './formulas';
 import { checkSyns } from '../synergies';
 
 export const ARTS: ArtDef[] = [
@@ -48,7 +48,9 @@ export function buyArt(z: ZapoiState, id: string): false | string[] {
   z._lastArtBlank = false;
   const roll = Math.random();
   if (z.char === 'winline') {
-    if (roll < WINLINE_BLANK_P) {
+    // Удача режет шанс пустышки (минимум 2%).
+    const blankP = Math.max(WINLINE_BLANK_MIN, WINLINE_BLANK_P - (z.luck || 0) * LUCK_BLANK_STEP);
+    if (roll < blankP) {
       // Пустышка: деньги назад, слот свободен — можно крутить снова.
       z.m += c;
       delete z.arts[id];
