@@ -50,7 +50,7 @@ b.gold{color:gold}b.grn{color:#0f6}b.red{color:#f55}
 <canvas id="minimap" width="120" height="120"></canvas>
 <button id="mapBtn" title="карта: увеличить / скрыть (N)">🗺️ РАСШИРИТЬ</button>
 <div id="hint">Метки: H — штаб • ! — цель • 🚗 — тачка • 💀 — враги • N — карта</div>
-<div id="maplegend">🏷️ <b>МЕТКИ:</b> <b style="color:gold">H</b> штаб • <b style="color:#f0f">!</b> краска • 🥫 магазин • 🎰 казино • 🚗 тачка • ⛰ пещера • <b style="color:yellow">?</b> слухи • <b style="color:magenta">SLAY</b> финал</div>
+<div id="maplegend">🏷️ <b>МЕТКИ:</b> <b style="color:gold">H</b> штаб • <b style="color:#f0f">!</b> краска • 🥫 магазин • 🎰 казино • 🚗 тачка • ⛰ пещера • <b style="color:yellow">?</b> слухи • <b style="color:#ff7700">SLAY</b> финал</div>
 <div id="touch"><div id="joy"><div id="stick"></div></div><div id="btns"><button class="tbtn" id="bE">E</button><button class="tbtn" id="bF">🚗</button><button class="tbtn" id="bHit">БИТА</button><button class="tbtn" id="bRun">БЕГ</button><button class="tbtn" id="bUp">🔼</button><button class="tbtn" id="bDn">🔽</button></div></div>
 <audio id="anthem" src="anthem.mp3" loop preload="auto"></audio><div id="dialog" style="display:none"><div id="dtext"></div><button id="dnext">ДАЛЕЕ ➤</button></div>
 <div id="menu">
@@ -268,7 +268,7 @@ for(const bx of BC)for(const bz of BC){const cx=bx+(rnd()*16-8),cz=bz+(rnd()*16-
  else kiosk(cx,cz);
  if(rnd()<.7)parkedCar(cx+(rnd()<.5?-14:14),cz+(rnd()*10-5),rnd()*3);
  if(rnd()<.5)busstop(cx,cz+13);}
-questPoint('HQ',0,52);questPoint('SHOP',-25,25,0xff0022);questPoint('SLAY',0,-118,0xff00ff);questPoint('RACE',8,60,0x00aaff);
+questPoint('HQ',0,52);questPoint('SHOP',-25,25,0xff0022);questPoint('SLAY',0,-118,0xff7700);questPoint('RACE',8,60,0x00aaff);
 // штаб 42
 house(0,40,0x550000,'H • ШТАБ 42');
 // вражеские кварталы
@@ -305,9 +305,9 @@ function buyEnergy(){
 }
 function sfxBuy(){try{if(!AU.ctx||AU.muted)return;[880,1174,1568].forEach((f,i)=>setTimeout(()=>AU.blip(f,.18,'square',.14),i*90));}catch(_){}}
 // SLAY-зал (финал)
-const slayL=new THREE.Mesh(new THREE.BoxGeometry(22,16,40),new THREE.MeshStandardMaterial({color:0x660066,emissive:0x220022,transparent:true}));slayL.position.set(-19,8,-140);slayL.castShadow=true;scene.add(slayL);
+const slayL=new THREE.Mesh(new THREE.BoxGeometry(22,16,40),new THREE.MeshStandardMaterial({color:0x6b3a00,emissive:0x2a1500,transparent:true}));slayL.position.set(-19,8,-140);slayL.castShadow=true;scene.add(slayL);
 const slayR=slayL.clone();slayR.position.x=19;scene.add(slayR);
-const slayTop=new THREE.Mesh(new THREE.BoxGeometry(60,4,40),new THREE.MeshStandardMaterial({color:0x440044,emissive:0x220022,transparent:true}));slayTop.position.set(0,18,-140);scene.add(slayTop);
+const slayTop=new THREE.Mesh(new THREE.BoxGeometry(60,4,40),new THREE.MeshStandardMaterial({color:0x4a2600,emissive:0x2a1500,transparent:true}));slayTop.position.set(0,18,-140);scene.add(slayTop);
 solids.push({x:-19,z:-140,hx:11,hz:20,mesh:slayL,extra:[]});
 solids.push({x:19,z:-140,hx:11,hz:20,mesh:slayR,extra:[]});
 const slay=slayTop;
@@ -315,9 +315,9 @@ const slay=slayTop;
 for(let i=0;i<8;i++){const w=new THREE.Mesh(new THREE.PlaneGeometry(4,3),winLitM);w.position.set(-26+i*7.5,20,-119.9);scene.add(w);
 const w2=w.clone();w2.position.set(-26+i*7.5,10,-119.9);scene.add(w2);}
 const slayDoor=new THREE.Mesh(new THREE.BoxGeometry(8,10,1),doorM);slayDoor.position.set(0,5,-119.8);scene.add(slayDoor);
-const slayFrame=new THREE.Mesh(new THREE.BoxGeometry(9.5,11,.5),new THREE.MeshStandardMaterial({color:0xff00ff,emissive:0x880088,emissiveIntensity:.8}));slayFrame.position.set(0,5.5,-120.1);scene.add(slayFrame);
+const slayFrame=new THREE.Mesh(new THREE.BoxGeometry(9.5,11,.5),new THREE.MeshStandardMaterial({color:0xff7700,emissive:0x883300,emissiveIntensity:.8}));slayFrame.position.set(0,5.5,-120.1);scene.add(slayFrame);
 slayFrame.position.z=-120.2;slayDoor.position.z=-119.9;
-const scv=document.createElement('canvas');scv.width=512;scv.height=96;const sg=scv.getContext('2d');sg.fillStyle='#000';sg.fillRect(0,0,512,96);sg.fillStyle='magenta';sg.font='bold 60px Arial';sg.fillText('SLAY ★ ФИНАЛ',20,65);
+const scv=document.createElement('canvas');scv.width=512;scv.height=96;const sg=scv.getContext('2d');sg.fillStyle='#000';sg.fillRect(0,0,512,96);sg.fillStyle='#ff7700';sg.font='bold 60px Arial';sg.fillText('SLAY ★ ФИНАЛ',20,65);
 const sslay=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(scv)}));sslay.scale.set(50,9,1);sslay.position.set(0,36,-140);scene.add(sslay);
 // метки
 function marker(x,z,color,txt){const m=new THREE.Mesh(new THREE.CylinderGeometry(2,2,6,16,1,true),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.5,side:THREE.DoubleSide}));m.position.set(x,3,z);scene.add(m);
@@ -863,7 +863,7 @@ solids.push({x,z,hx:r*0.7,hz:r*0.7,mesh:m,extra:[cap]});}
 for(const p of [[-120,-172,16,24],[-45,-174,18,28],[30,-172,15,22],[120,-168,17,26],[170,-108,14,20],[-160,-165,13,18]]){if(decorFree(p[0],p[1],p[2]+6))peak(p[0],p[1],p[2],p[3]);}
 // ===== ГОРОД 2.0: даунтаун + WINLINE-билборды + площадь SLAY (база y=0 — liftIsland поднимет) =====
 const winlineTex=(function(){const c=document.createElement('canvas');c.width=512;c.height=160;const g=c.getContext('2d');
-g.fillStyle='#cc0022';g.fillRect(0,0,512,160);g.fillStyle='#fff';g.font='bold 84px Arial';g.fillText('WINLINE',60,95);
+g.fillStyle='#e65c00';g.fillRect(0,0,512,160);g.fillStyle='#fff';g.font='bold 84px Arial';g.fillText('WINLINE',60,95);
 g.fillStyle='#ffd700';g.font='bold 34px Arial';g.fillText('СТАВКИ ★ ЗАВОЗ ★ x5',70,138);
 return new THREE.CanvasTexture(c);})();
 function billboard(x,y,z){const m=new THREE.Mesh(new THREE.PlaneGeometry(15,4.5),new THREE.MeshBasicMaterial({map:winlineTex}));m.position.set(x,y,z);scene.add(m);}
@@ -1087,7 +1087,7 @@ try{for(const s of solids){const c=s.mesh&&s.mesh.material&&s.mesh.material.colo
 // штаб H
 mm.fillStyle='gold';mm.font='bold '+Math.round(9*k)+'px Arial';mm.fillText('H',WX(0)-3*k,WX(40)+3*k);
 // SLAY
-mm.fillStyle='magenta';mm.fillRect(WX(-30),WX(-160),60*W2M,40*W2M);mm.fillStyle='#fff';mm.fillText('SLAY',WX(-12),WX(-138));
+mm.fillStyle='#ff7700';mm.fillRect(WX(-30),WX(-160),60*W2M,40*W2M);mm.fillStyle='#fff';mm.fillText('SLAY',WX(-12),WX(-138));
 mm.fillStyle='#00ffcc';mm.fillRect(WX(CAVE.x)-2*k,WX(CAVE.z)-2*k,4*k,4*k);mm.fillStyle='#fff';mm.font='bold '+Math.round(8*k)+'px Arial';mm.fillText('ПЕЩЕРА',WX(CAVE.x)-20*k,WX(CAVE.z)-6*k);
 mm.fillStyle='#ff0022';mm.fillRect(WX(SHOP.x)-2*k,WX(SHOP.z)-2*k,4*k,4*k);
 // спреи
