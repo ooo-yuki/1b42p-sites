@@ -47,10 +47,11 @@ b.gold{color:gold}b.grn{color:#0f6}b.red{color:#f55}
 <div id="guide">WASD — идти • Shift — бег • E — действие • F — тачка • ЛКМ — бита • C — камера<br><span class="pconly">ПКМ/колесо(зажать)/стрелки — взгляд • колесо — зум • R — радио • M — звук • V — озвучка • H — скрыть • N — карта •</span> <span class="mobonly">свайп — взгляд • 🔼🔽 — вверх/вниз •</span> 🥫 энергетик за 10 респекта • <span id="gfx">⚡АВТО</span></div>
 <div id="radiopop" style="position:absolute;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);border:2px solid magenta;border-radius:10px;padding:8px 18px;font-size:18px;display:none">📻 <span id="radiopop-t"></span></div>
 <div id="mission">📜 <b id="mtitle">Миссия 1: Возвращение</b><br><span id="mdesc">Иди в штаб (жёлтая метка H)</span></div>
+<div id="questFlash" style="display:none;position:absolute;top:118px;right:10px;max-width:320px;background:rgba(0,0,0,.88);border:2px solid #f0f;border-radius:10px;padding:8px 12px;font-size:14px;z-index:30"></div>
 <canvas id="minimap" width="120" height="120"></canvas>
 <button id="mapBtn" title="карта: увеличить / скрыть (N)">🗺️ РАСШИРИТЬ</button>
 <div id="hint">Метки: H — штаб • ! — цель • 🚗 — тачка • 💀 — враги • N — карта</div>
-<div id="maplegend">🏷️ <b>МЕТКИ:</b> <b style="color:gold">H</b> штаб • <b style="color:#f0f">!</b> краска • 🥫 магазин • 🎰 казино • 🚗 тачка • ⛰ пещера • <b style="color:yellow">?</b> слухи • <b style="color:#ff7700">SLAY</b> финал</div>
+<div id="maplegend">🏷️ <b>МЕТКИ:</b> <b style="color:gold">H</b> штаб • <b style="color:#f0f">!</b> краска • 🥫 магазин • 🎰 казино • 🚗 тачка • ⛰ пещера • <b style="color:yellow">?</b> слухи • <b style="color:#ff7700">SLAY</b> финал • <b>◆</b> цель (столб света)</div>
 <div id="touch"><div id="joy"><div id="stick"></div></div><div id="btns"><button class="tbtn" id="bE">E</button><button class="tbtn" id="bF">🚗</button><button class="tbtn" id="bHit">БИТА</button><button class="tbtn" id="bRun">БЕГ</button><button class="tbtn" id="bUp">🔼</button><button class="tbtn" id="bDn">🔽</button></div></div>
 <audio id="anthem" src="anthem.mp3" loop preload="auto"></audio><div id="dialog" style="display:none"><div id="dtext"></div><button id="dnext">ДАЛЕЕ ➤</button></div>
 <div id="menu">
@@ -1363,11 +1364,50 @@ function toggleMap(){MAP_MODE=(MAP_MODE+1)%3;applyMapMode();}
 try{document.getElementById('mapBtn').addEventListener('click',toggleMap);}catch(_){}
 addEventListener('keydown',e=>{if(e.code==='KeyN')toggleMap();});
 // ===== ЦИКЛ =====
+// ===== КВЕСТ-ЦЕЛИ: единый список для маяков, карты и баннера (логику миссий не трогает) =====
+function questTargets(){const t=[];
+ try{
+  if(MI===1)t.push({x:25,z:87,c:'#ffd700',n:'ШТАБ'});
+  if(MI===2)for(const s of sprays){if(!s.done)t.push({x:s.x,z:s.z,c:'#ff00ff',n:s.x===-80?'НАХ-запад':(s.x===80?'НАХ-восток':'WINLINE')});}
+  if(MI===3){const foes=enemies.filter(e=>!e.cave&&e.hp>0);if(foes.length)for(const e of foes.slice(0,3))t.push({x:e.mesh.position.x,z:e.mesh.position.z,c:'#ff2222',n:'НАХ'});else t.push({x:-80,z:-60,c:'#ff2222',n:'ЗОНА'});}
+  if(MI===4)t.push({x:21,z:79,c:'#00ffee',n:'ДРУГ'});
+  if(MI===5||MI===6)t.push({x:0,z:-120,c:'#ff7700',n:'SLAY'});
+ }catch(_){}
+ return t;}
+const _bcPool=[];let _bcT=0;
+function _beaconMake(){const g=new THREE.Group();scene.add(g);
+ const pm=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.3,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false});
+ const p=new THREE.Mesh(new THREE.CylinderGeometry(2.5,2.5,55,12,1,true),pm);p.position.y=27.5;g.add(p);
+ const rm=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.7,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false});
+ const r=new THREE.Mesh(new THREE.RingGeometry(3,4.2,24),rm);r.rotation.x=-Math.PI/2;r.position.y=0.3;g.add(r);
+ return {g,p,r,pm,rm};}
+function beaconTick(dt){_bcT+=dt;let want=[];try{want=questTargets();}catch(_){}
+ try{if(typeof CAVE!=='undefined'&&CAVE)want=want.concat([{x:CAVE.x,z:CAVE.z,c:'#00ffcc',cave:true}]);}catch(_){}
+ while(_bcPool.length<want.length)_bcPool.push(_beaconMake());
+ for(let i=0;i<_bcPool.length;i++){const b=_bcPool[i];
+  if(i<want.length){const w=want[i];b.g.visible=true;
+   try{b.g.position.set(w.x,GY(w.x,w.z),w.z);}catch(_){b.g.position.set(w.x,0,w.z);}
+   const col=new THREE.Color(w.c);b.pm.color.copy(col);b.rm.color.copy(col);
+   const hgt=w.cave?35:55;b.p.scale.y=hgt/55;b.p.position.y=hgt/2;
+   const pu=0.5+0.5*Math.sin(_bcT*4);b.pm.opacity=0.22+0.18*pu;b.rm.opacity=0.5+0.4*pu;
+   const rs=1+0.25*Math.sin(_bcT*4);b.r.scale.set(rs,rs,1);
+  }else b.g.visible=false;}}
+let _lastMI=0,_lastSprayN=-1,_flashTO=null;
+function flashQuest(html,ms){try{const el=document.getElementById('questFlash');if(!el)return;el.innerHTML=html;el.style.display='block';if(_flashTO)clearTimeout(_flashTO);_flashTO=setTimeout(()=>{el.style.display='none';},ms||9000);}catch(_){}}
+function questWatch(){let menuHidden=false;try{menuHidden=document.getElementById('menu').style.display==='none';}catch(_){}
+ if(!menuHidden)return;
+ if(MI!==_lastMI){_lastMI=MI;try{_lastSprayN=sprays.filter(s=>!s.done).length;}catch(_){}
+  const T={1:'🎯 <b>Штаб (H)</b> — иди на золотой столб света',2:'🎯 <b>Краска:</b> дома ждут — смотри розовые столбы',3:'🔥 <b>Территория:</b> размотай НАХ — красные столбы',4:'✊ <b>Друзья:</b> поговори у штаба — циановый столб',5:'🏁 <b>Гонка:</b> до SLAY — оранжевый столб',6:'😈 <b>Финал:</b> держи SLAY!'};
+  let extra='';if(MI===2){try{extra='<br>🏠 '+questTargets().map(t=>t.n).join(' • ');}catch(_){}}
+  flashQuest((T[MI]||'🎯 Квест обновлён')+extra,9000);}
+ else if(MI===2){let n=0;try{n=sprays.filter(s=>!s.done).length;}catch(_){}
+  if(n!==_lastSprayN){_lastSprayN=n;let left='';try{left=questTargets().map(t=>t.n).join(' • ');}catch(_){}
+   flashQuest(n>0?('✅ Закрашено! Осталось: <b>'+n+'</b><br>🏠 '+left):'✅ Все дома закрашены!',6000);}}}
 const mm=document.getElementById('minimap').getContext('2d');
 let last=Date.now();
 function loop(){
 requestAnimationFrame(loop);
-const dt=Math.min(.05,(Date.now()-last)/1000);last=Date.now();try{gfxTick(dt);}catch(_){}
+const dt=Math.min(.05,(Date.now()-last)/1000);last=Date.now();try{gfxTick(dt);}catch(_){}try{beaconTick(dt);}catch(_){}try{questWatch();}catch(_){}
 touchX+=(jTX-touchX)*Math.min(1,dt*12);touchY+=(jTY-touchY)*Math.min(1,dt*12);
 const run=(keys['ShiftLeft']||touchRun||jMag>0.92)?2.2:1;
 if(!inCar&&finished===false){
@@ -1451,7 +1491,10 @@ mm.fillStyle='#00ffcc';mm.fillRect(WX(CAVE.x)-2*k,WX(CAVE.z)-2*k,4*k,4*k);mm.fil
 try{mm.strokeStyle='#2e2e38';mm.lineWidth=Math.max(1.5,2*k);mm.beginPath();for(let _pi=0;_pi<PATH.length;_pi++){const _px=WX(PATH[_pi].x),_pz=WX(PATH[_pi].z);if(_pi===0)mm.moveTo(_px,_pz);else mm.lineTo(_px,_pz);}mm.stroke();}catch(_){}
 mm.fillStyle='#ff0022';mm.fillRect(WX(SHOP.x)-2*k,WX(SHOP.z)-2*k,4*k,4*k);
 // спреи
-mm.fillStyle='#f0f';try{sprays.forEach(s=>{if(!s.done)mm.fillRect(WX(s.x)-1*k,WX(s.z)-1*k,2*k,2*k);});}catch(_){}
+try{const _pu=0.5+0.5*Math.sin(Date.now()/250);const _qt=questTargets();
+ for(const q of _qt){const qx=WX(q.x),qy=WX(q.z),qr=(5+3*_pu)*k;
+  mm.fillStyle=q.c;mm.beginPath();mm.moveTo(qx,qy-qr);mm.lineTo(qx+qr,qy);mm.lineTo(qx,qy+qr);mm.lineTo(qx-qr,qy);mm.closePath();mm.fill();
+  mm.strokeStyle='#fff';mm.lineWidth=Math.max(1,k);mm.stroke();}}catch(_){}
 // тачка
 try{mm.fillStyle='cyan';mm.fillRect(WX(car.position.x)-2*k,WX(car.position.z)-2*k,4*k,4*k);}catch(_){}
 // редкие
