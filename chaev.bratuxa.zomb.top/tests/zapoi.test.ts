@@ -7,6 +7,7 @@ import {
   CHARACTERS, isUnlocked, isAllBought, BOTTLE_COST, buyBottle, newRun, bet,
   artCost, charDiscount, effMult, cleanseDemon,
   pickleSmall, demonPickle, holyPickle, syringe, HEALS,
+  shopDiscount, formDuration,
 } from '../src/game/zapoi/index';
 import { SYNS, hangoverRate } from '../src/game/synergies';
 
@@ -143,8 +144,8 @@ describe('артефакты и синергии', () => {
 });
 
 describe('качества артефактов 1-4', () => {
-  it('10 артефактов, у каждого качество', () => {
-    expect(ARTS).toHaveLength(10);
+  it('14 артефактов (10 обычных + 4 именных), у каждого качество', () => {
+    expect(ARTS).toHaveLength(14);
     for (const a of ARTS) expect([1, 2, 3, 4]).toContain(a.q);
   });
   it('цена растёт с качеством', () => {
@@ -403,5 +404,61 @@ describe('пойло демона 42', () => {
     const d = CHARACTERS.find((c) => c.id === 'demon');
     expect(d!.drink).toBe('jager/demon.jpg');
     expect(d!.drinkForm).toBe('jager/demon-form.jpg');
+  });
+});
+
+describe('именные артефакты закрытых персонажей', () => {
+  it('4 именных в качестве 4 с req-замком', () => {
+    for (const [id, req] of [['mug', 'vladimir'], ['bible', 'ghost'], ['ban2w', 'demon'], ['leverball', 'winline']] as const) {
+      const a = ARTS.find((x) => x.id === id)!;
+      expect(a.q).toBe(4); expect(a.req).toBe(req);
+    }
+    expect(ARTS.length).toBe(14);
+  });
+  it('без закрытия купить нельзя', () => {
+    const z = createZapoiState(); z.m = 1e9;
+    expect(buyArt(z, 'mug')).toBe(false);
+    expect(buyArt(z, 'bible')).toBe(false);
+    expect(buyArt(z, 'ban2w')).toBe(false);
+    expect(buyArt(z, 'leverball')).toBe(false);
+  });
+  it('кружка: −50% на апгрейды, артефакты и хилки', () => {
+    const z = createZapoiState(); z.m = 1e9; z.completed = { vladimir: 1 };
+    expect(buyArt(z, 'mug')).not.toBe(false);
+    expect(shopDiscount(z)).toBeCloseTo(0.5);
+    const b = TREE.find((x) => x.id === 'throat')!;
+    expect(upgradeCost(b, 0, shopDiscount(z))).toBe(5);
+    expect(heal1cost(z)).toBe(Math.floor(20 * 0.5));
+  });
+  it('кружка не действует на бутылку (50000)', () => {
+    expect(BOTTLE_COST).toBe(50000);
+  });
+  it('библия: реген души +2 и двойной хил пикулей', () => {
+    const z = createZapoiState(); z.char = 'ghost'; z.m = 1e9; z.soul = 50;
+    z.completed = { vladimir: 1, ghost: 1 };
+    expect(buyArt(z, 'bible')).not.toBe(false);
+    tickZapoi(z);
+    expect(z.soul).toBe(54);
+    z.soul = 50;
+    const r = holyPickle(z)!;
+    expect(r.v).toBe(heal1val({ ...z, arts: {} }) * 2);
+  });
+  it('бан: форма 15 сек и мульт ×6', () => {
+    const z = createZapoiState(); z.char = 'demon'; z.m = 1e9;
+    z.completed = { vladimir: 1, demon: 1 };
+    expect(buyArt(z, 'ban2w')).not.toBe(false);
+    expect(formDuration(z)).toBe(15);
+    z.hp = 0; z.maxhp = 100;
+    jagerClick(z);
+    expect(z.demonForm).toBe(15);
+    expect(effMult(z)).toBe(z.mult * 3 * 6);
+  });
+  it('ручка: ставка доступна любому персонажу', () => {
+    const z = createZapoiState(); z.char = 'vladimir'; z.m = 1e9;
+    expect(bet(z)).toBeNull();
+    z.completed = { vladimir: 1, winline: 1 };
+    expect(buyArt(z, 'leverball')).not.toBe(false);
+    z.m = 1000;
+    expect(bet(z)).not.toBeNull();
   });
 });

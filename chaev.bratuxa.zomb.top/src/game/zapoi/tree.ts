@@ -1,6 +1,6 @@
 // Древо прокачки: 12 апгрейдов в 4 ветках. Цена = base × growth^уровень.
 import type { UpgradeDef, ZapoiState } from './types';
-import { charDiscount, upgradeCost } from './formulas';
+import { shopDiscount, upgradeCost } from './formulas';
 import { artCount } from './artifacts';
 
 export const TREE: UpgradeDef[] = [
@@ -22,7 +22,7 @@ export function buyUpgrade(z: ZapoiState, id: string): boolean {
   const b = TREE.find((x) => x.id === id);
   if (!b) return false;
   const l = z.up[id] || 0;
-  const c = upgradeCost(b, l, charDiscount(z));
+  const c = upgradeCost(b, l, shopDiscount(z));
   if (l >= b.max || z.m < c) return false;
   z.m -= c;
   z.up[id] = l + 1;

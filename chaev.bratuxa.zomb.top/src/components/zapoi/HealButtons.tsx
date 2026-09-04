@@ -1,7 +1,7 @@
 // Кнопки хилок: ручка винлайна, пикули, святые, демонические, шприц, очищение.
 import {
-  BET_MIN_STAKE, BET_STAKE_RATE, bet, cleanseDemon, demonPickle,
-  heal1cost, heal1val, heal2cost, holyPickle, pickleSmall, syringe,
+  bet, betStake, cleanseDemon, demonPickle,
+  heal1cost, heal1val, heal2cost, holyPickle, owned, pickleSmall, syringe,
 } from '../../game/zapoi/index';
 import type { ZapoiState } from '../../game/zapoi/index';
 import type { MutateFn } from '../../hooks/useZapoiState';
@@ -15,10 +15,10 @@ interface HealButtonsProps {
 export default function HealButtons({ z, mutate }: HealButtonsProps) {
   return (
     <>
-      {z.char === 'winline' && (
+      {(z.char === 'winline' || owned(z, 'leverball')) && (
         <ImgButton
-          img="heals/lever.jpg"
-          disabled={z.m < Math.max(BET_MIN_STAKE, Math.floor(z.m * BET_STAKE_RATE))}
+          img="heals/lever.png"
+          disabled={z.m < betStake(z.m)}
           onClick={() => mutate((n) => {
             const r = bet(n);
             if (!r) return '';
@@ -30,7 +30,7 @@ export default function HealButtons({ z, mutate }: HealButtonsProps) {
       )}{' '}
       {(z.char === 'vladimir' || z.char === 'winline') && (
         <ImgButton
-          img="heals/pickle.jpg"
+          img="heals/pickle.png"
           disabled={z.m < heal1cost(z)}
           onClick={() => mutate((n) => {
             const r = pickleSmall(n);
@@ -42,7 +42,7 @@ export default function HealButtons({ z, mutate }: HealButtonsProps) {
       )}{' '}
       {z.char === 'demon' && (
         <ImgButton
-          img="heals/dpickle.jpg"
+          img="heals/dpickle.png"
           disabled={z.m < heal1cost(z)}
           onClick={() => mutate((n) => {
             const r = demonPickle(n);
@@ -55,7 +55,7 @@ export default function HealButtons({ z, mutate }: HealButtonsProps) {
       )}{' '}
       {z.char === 'ghost' && (
         <ImgButton
-          img="heals/hpickle.jpg"
+          img="heals/hpickle.png"
           disabled={z.m < heal1cost(z)}
           onClick={() => mutate((n) => {
             const r = holyPickle(n);
@@ -68,7 +68,7 @@ export default function HealButtons({ z, mutate }: HealButtonsProps) {
       )}{' '}
       {(z.char === 'vladimir' || z.char === 'winline') && (
         <ImgButton
-          img="heals/syringe.jpg"
+          img="heals/syringe.png"
           disabled={z.m < heal2cost(z)}
           onClick={() => mutate((n) => {
             const r = syringe(n);

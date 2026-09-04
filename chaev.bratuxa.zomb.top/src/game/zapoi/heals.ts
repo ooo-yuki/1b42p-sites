@@ -2,17 +2,18 @@
 // Цены и формулы — те же что у Рассола (малые) и Капельницы (шприц).
 import type { CharId, HealDef, HealResult, BetResult, ZapoiState } from './types';
 import {
-  BET_MIN_STAKE, BET_STAKE_RATE, BET_WIN_P, BET_RETURN_MULT,
+  BET_WIN_P, BET_RETURN_MULT, BIBLE_DEAL_P,
   HANGOVER_HP_RATE, HOLY_DEAL_P,
-  heal1cost, heal1val, heal2cost, heal2val,
+  betStake,
+  heal1cost, heal1val, heal2cost, heal2val, owned,
 } from './formulas';
 
 export const HEALS: Record<string, HealDef> = {
-  pickle: { name: 'Обычные пикули', img: 'heals/pickle.jpg', chars: ['vladimir', 'winline'] },
-  dpickle: { name: 'Демонические пикули', img: 'heals/dpickle.jpg', chars: ['demon'] },
-  hpickle: { name: 'Святые пикули', img: 'heals/hpickle.jpg', chars: ['ghost'] },
-  lever: { name: 'Ручка игрового аппарата', img: 'heals/lever.jpg', chars: ['winline'] },
-  syringe: { name: 'Шприц 42', img: 'heals/syringe.jpg', chars: ['vladimir', 'winline'] },
+  pickle: { name: 'Обычные пикули', img: 'heals/pickle.png', chars: ['vladimir', 'winline'] },
+  dpickle: { name: 'Демонические пикули', img: 'heals/dpickle.png', chars: ['demon'] },
+  hpickle: { name: 'Святые пикули', img: 'heals/hpickle.png', chars: ['ghost'] },
+  lever: { name: 'Ручка игрового аппарата', img: 'heals/lever.png', chars: ['winline'] },
+  syringe: { name: 'Шприц 42', img: 'heals/syringe.png', chars: ['vladimir', 'winline'] },
 };
 
 function canUse(char: CharId | null, key: string): boolean {
@@ -49,16 +50,18 @@ export function demonPickle(z: ZapoiState): (HealResult & { extended: boolean })
 
 // Святые пикули: хилят душу призрака (формула Рассола), с шансом 5%
 // дают скидку −0.2% к ценам навсегда (как у Владимира, до −20%).
+// С Библией батальона: лечат ×2, шанс скидки 15%.
 export function holyPickle(z: ZapoiState): HealResult | null {
   if (!canUse(z.char, 'hpickle')) return null;
   const c = heal1cost(z);
-  const v = heal1val(z);
+  const v = owned(z, 'bible') ? heal1val(z) * 2 : heal1val(z);
   if (z.m < c || (z.soul ?? 100) >= 100) return null;
   z.m -= c;
   z.soul = Math.min(100, (z.soul ?? 100) + v);
   z.heals++;
   let deal = false;
-  if (Math.random() < HOLY_DEAL_P) { z.deals = (z.deals || 0) + 1; deal = true; }
+  const p = owned(z, 'bible') ? BIBLE_DEAL_P : HOLY_DEAL_P;
+  if (Math.random() < p) { z.deals = (z.deals || 0) + 1; deal = true; }
   return { v, c, deal };
 }
 
@@ -106,11 +109,12 @@ export function cleanseDemon(z: ZapoiState): (HealResult & { cleansed?: boolean 
   return healBig(z);
 }
 
-// Ставка Винлайна: 10% бухла (мин 50). 45% — возврат ×2, иначе потеря.
+// Ставка: 10% бухла (мин 50). 45% — возврат ×2, иначе потеря.
+// Доступна Винлайну всегда и любому персонажу со Сломанной ручкой.
 // Возвращает null если нельзя, иначе {win, stake}.
 export function bet(z: ZapoiState): BetResult | null {
-  if (z.char !== 'winline') return null;
-  const stake = Math.max(BET_MIN_STAKE, Math.floor(z.m * BET_STAKE_RATE));
+  if (z.char !== 'winline' && !owned(z, 'leverball')) return null;
+  const stake = betStake(z.m);
   if (z.m < stake) return null;
   z.m -= stake;
   if (Math.random() < BET_WIN_P) {

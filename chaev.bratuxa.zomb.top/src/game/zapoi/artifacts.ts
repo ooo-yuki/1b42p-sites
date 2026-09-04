@@ -18,13 +18,18 @@ export const ARTS: ArtDef[] = [
   // ⭐⭐⭐⭐ Качество 4 — легенды: цена 18000–20000, лютая имба.
   { id: 'heart42', name: '❤️‍🔥 Сердце Батальона', desc: '+300 maxHP, +3 HP/сек, toxic×0.85', cost: 18000, q: 4, fx(z) { z.maxhp += 300; z.hp += 300; z.regen += 3; z.toxic *= 0.85; } },
   { id: 'crown', name: '👑 Корона Запоя 42', desc: '×3 ко всему бухлу. Навсегда.', cost: 20000, q: 4, fx(z) { z.mult *= 3; } },
+  // 🏆 Качество 4 — именные: открываются закрытием персонажа, лежат у всех.
+  { id: 'mug', name: '🍺 Золотая кружка Чаева', desc: '−50% на всё в магазине (кроме разбитой бутылки). Открывается закрытием Владимира.', cost: 25000, q: 4, req: 'vladimir', fx() {} },
+  { id: 'bible', name: '📕 Библия Батальона', desc: 'Душа регенит +2/сек, святые пикули лечат ×2, шанс скидки 5% → 15%. Открывается закрытием Призрака.', cost: 25000, q: 4, req: 'ghost', fx() {} },
+  { id: 'ban2w', name: '🔨 Бан на две недельки', desc: 'Демоническая форма: 15 сек вместо 10, мульт ×6 вместо ×5. Открывается закрытием Демона.', cost: 30000, q: 4, req: 'demon', fx() {} },
+  { id: 'leverball', name: '🔴 Сломанная ручка автомата', desc: 'Даёт любому персонажу механику Винлайна: кнопку СТАВКА. Открывается закрытием Винлайна.', cost: 30000, q: 4, req: 'winline', fx() {} },
 ];
 
 export const QUALITY_NAMES: Record<number, string> = {
   1: 'Качество 1 — дешёвые (300–500)',
   2: 'Качество 2 — средние (2500–6000)',
   3: 'Качество 3 — крутые (5000–8000)',
-  4: 'Качество 4 — легенды (18000–20000)',
+  4: 'Качество 4 — легенды (18000–30000)',
 };
 
 export function artCount(z: ZapoiState): number {
@@ -34,6 +39,8 @@ export function artCount(z: ZapoiState): number {
 export function buyArt(z: ZapoiState, id: string): false | string[] {
   const a = ARTS.find((x) => x.id === id);
   if (!a || z.arts[id]) return false;
+  // Именной артефакт: нужен закрытый персонаж-хозяин.
+  if (a.req && !(z.completed && z.completed[a.req])) return false;
   const c = artCost(z, a);
   if (z.m < c) return false;
   z.m -= c;

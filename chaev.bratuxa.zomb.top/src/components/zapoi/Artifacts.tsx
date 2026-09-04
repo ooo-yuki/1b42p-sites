@@ -1,6 +1,6 @@
 // Артефакты по качествам 1-4.
 import { useState } from 'react';
-import { ARTS, QUALITY_NAMES, SYNS, artCost, buyArt } from '../../game/zapoi/index';
+import { ARTS, QUALITY_NAMES, SYNS, CHARACTERS, artCost, buyArt } from '../../game/zapoi/index';
 import type { ZapoiState } from '../../game/zapoi/index';
 import type { MutateFn } from '../../hooks/useZapoiState';
 
@@ -32,11 +32,14 @@ export default function Artifacts({ z, mutate }: ArtifactsProps) {
               {open && list.map((a) => {
                 const isOwned = !!z.arts[a.id];
                 const price = artCost(z, a);
+                const locked = !!a.req && !(z.completed && z.completed[a.req]);
+                const reqName = a.req ? (CHARACTERS.find((c) => c.id === a.req) as { name: string } | undefined)?.name || a.req : '';
                 return (
                   <div className="art" key={a.id}>
-                    <img src={`arts/${a.id}.png`} alt={a.name} style={{ width: 44, height: 44, borderRadius: 10, border: '2px solid gold', verticalAlign: 'middle', marginRight: 8 }} />
+                    <img src={`arts/${a.id}.png`} alt={a.name} style={{ width: 44, height: 44, borderRadius: 10, border: '2px solid gold', verticalAlign: 'middle', marginRight: 8, opacity: locked ? 0.4 : 1 }} />
                     <b>{a.name}</b> — {a.desc}{' '}
-                    <button disabled={isOwned || z.m < price} onClick={() => mutate((n) => {
+                    {locked && <span className="hint">🔒 закрой: {reqName}</span>}
+                    <button disabled={isOwned || locked || z.m < price} onClick={() => mutate((n) => {
                       const syns = buyArt(n, a.id);
                       if (syns === false) return '';
                       if (n._lastArtBlank) return `🎰 Пустышка! Деньги возвращены (${price} 🍾), крути снова!`;

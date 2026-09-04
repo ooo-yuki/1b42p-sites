@@ -1,6 +1,5 @@
 // Формулы запоя 42, 1-в-1 из legacy.html. Все цены и валы — только здесь.
 import type { UpgradeDef, ArtDef, ZapoiState } from './types';
-
 // --- Скидки персонажей ---
 export const SIP_DISCOUNT_STEP = 0.002; // −0.2% за глоток/сделку
 export const SIP_DISCOUNT_MAX = 0.2; // потолок −20%
@@ -17,11 +16,27 @@ export const VLADIMIR_PASSIVE = 0.2; // бухла/сек
 export const GHOST_SOUL_REGEN = 2; // реген души/сек
 export const GHOST_SOUL_SIP = 5; // душа за глоток
 export const AUTO_SELF_DMG = 0.05; // урон/сек за единицу auto
+// --- Именные артефакты закрытых персонажей (качество 4) ---
+export const MUG_DISCOUNT = 0.5; // кружка Владимира: −50% ко всему, кроме бутылки
+export const BIBLE_SOUL_REGEN = 2; // библия: +2/сек к регену души
+export const BIBLE_DEAL_P = 0.15; // библия: шанс скидки 5% → 15%
+export const BAN_FORM_SECS = 15; // бан: форма 15 сек вместо 10
+export const BAN_FORM_MULT = 6; // бан: мульт формы ×6 вместо ×5
+
+/** Есть ли у забега артефакт (без зацикливания на synergies). */
+export function owned(z: ZapoiState, id: string): boolean {
+  return !!z.arts[id];
+}
 // --- Винлайн-ставка ---
 export const BET_STAKE_RATE = 0.1; // 10% бухла
 export const BET_MIN_STAKE = 50;
 export const BET_WIN_P = 0.45; // шанс возврата ×2
 export const BET_RETURN_MULT = 2;
+
+// Ставка Винлайна: 10% бухла, минимум BET_MIN_STAKE. Единая формула для bet() и UI-disabled.
+export function betStake(m: number): number {
+  return Math.max(BET_MIN_STAKE, Math.floor(m * BET_STAKE_RATE));
+}
 // --- Похмелье ---
 export const HANGOVER_HP_RATE = 0.3; // здоровье 30%
 export const HANGOVER_RATE = 0.2; // −20% бухла
@@ -39,6 +54,17 @@ export function charDiscount(z: ZapoiState): number {
   return 0;
 }
 
+// Магазинная скидка: скидка персонажа + кружка Владимира (−50%,
+// кроме финальной бутылки — та считается без кружки).
+export function shopDiscount(z: ZapoiState): number {
+  return charDiscount(z) + (owned(z, 'mug') ? MUG_DISCOUNT : 0);
+}
+
+// Длительность демонической формы: 10 сек, с баном — 15.
+export function formDuration(z: ZapoiState): number {
+  return owned(z, 'ban2w') ? BAN_FORM_SECS : DEMON_FORM_SECS;
+}
+
 // Эффективный мульт с учётом персонажа.
 export function effMult(z: ZapoiState): number {
   let m = z.mult;
@@ -46,7 +72,7 @@ export function effMult(z: ZapoiState): number {
   if (z.char === 'demon') {
     const missing = 1 - z.hp / Math.max(1, z.maxhp);
     m *= 1 + missing * 2;
-    if (z.demonForm > 0) m *= DEMON_FORM_MULT;
+    if (z.demonForm > 0) m *= owned(z, 'ban2w') ? BAN_FORM_MULT : DEMON_FORM_MULT;
   }
   return m;
 }
@@ -56,9 +82,9 @@ export function upgradeCost(def: UpgradeDef, level: number, discount = 0): numbe
   return Math.floor(def.base * Math.pow(def.g, level) * (1 - discount));
 }
 
-// Цена артефакта со скидкой персонажа.
+// Цена артефакта с магазинной скидкой (персонаж + кружка).
 export function artCost(z: ZapoiState, a: ArtDef): number {
-  return Math.floor(a.cost * (1 - charDiscount(z)));
+  return Math.floor(a.cost * (1 - shopDiscount(z)));
 }
 
 export function dmgPerSip(z: ZapoiState): number {
@@ -82,7 +108,7 @@ export function heal1val(z: ZapoiState): number {
 export function heal1cost(z: ZapoiState): number {
   let c = Math.floor(20 * Math.pow(1.35, z.heals));
   if (z.syn.balance) c = Math.floor(c * 0.8);
-  return Math.floor(c * (1 - charDiscount(z)));
+  return Math.floor(c * (1 - shopDiscount(z)));
 }
 
 export function heal2val(z: ZapoiState): number {

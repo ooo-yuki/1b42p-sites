@@ -55,6 +55,8 @@ export interface ArtDef {
   desc: string;
   cost: number;
   q: 1 | 2 | 3 | 4;
+  /** Закрытый персонаж, открывающий артефакт в магазине (именные, качество 4). */
+  req?: CharId;
   fx: (z: ZapoiState) => void;
 }
 

@@ -1,11 +1,11 @@
 // Состояние забега: создание, тик, глоток, похмелье, новый забег.
 import type { CharId, ZapoiEvent, ZapoiState } from './types';
 import {
-  AUTO_SELF_DMG, DEMON_FORM_SECS, DEMON_SIP_MULT,
+  AUTO_SELF_DMG, BIBLE_SOUL_REGEN, DEMON_SIP_MULT,
   GHOST_SIP_MULT, GHOST_SOUL_REGEN, GHOST_SOUL_SIP,
   HANGOVER_HP_RATE, HANGOVER_RATE, HANGOVER_RATE_GOD,
   VLADIMIR_CLICK_STEP, VLADIMIR_PASSIVE,
-  dmgPerSip, effMult,
+  dmgPerSip, effMult, formDuration, owned,
 } from './formulas';
 import { hangoverRate } from '../synergies';
 
@@ -52,7 +52,7 @@ export function jagerClick(z: ZapoiState): ZapoiEvent {
     return null;
   }
   if (z.hp <= 0) {
-    if (z.char === 'demon') { z.demonForm = DEMON_FORM_SECS; return 'demonform'; }
+    if (z.char === 'demon') { z.demonForm = formDuration(z); return 'demonform'; }
     applyHangover(z);
     return 'hangover';
   }
@@ -69,7 +69,7 @@ export function jagerClick(z: ZapoiState): ZapoiEvent {
   z.hp -= dmg;
   if (z.hp <= 0) {
     z.hp = 0;
-    if (z.char === 'demon') { z.demonForm = DEMON_FORM_SECS; return 'demonform'; }
+    if (z.char === 'demon') { z.demonForm = formDuration(z); return 'demonform'; }
     applyHangover(z);
     return 'hangover';
   }
@@ -86,7 +86,9 @@ export function tickZapoi(z: ZapoiState): ZapoiEvent {
   if (z.regen > 0) z.hp += z.regen;
   if (z.char === 'ghost') {
     if (z.soul <= 0) return 'shattered';
-    z.soul = Math.min(100, (z.soul ?? 100) + GHOST_SOUL_REGEN);
+    // Библия батальона: душа регенит вдвое быстрее.
+    const regen = GHOST_SOUL_REGEN + (owned(z, 'bible') ? BIBLE_SOUL_REGEN : 0);
+    z.soul = Math.min(100, (z.soul ?? 100) + regen);
   }
   if (z.char === 'demon' && z.demonForm > 0) {
     z.demonForm -= 1;
@@ -94,7 +96,7 @@ export function tickZapoi(z: ZapoiState): ZapoiEvent {
   }
   z.hp = Math.max(0, Math.min(z.maxhp, z.hp));
   if (z.hp <= 0) {
-    if (z.char === 'demon' && z.demonForm <= 0) { z.demonForm = DEMON_FORM_SECS; return 'demonform'; }
+    if (z.char === 'demon' && z.demonForm <= 0) { z.demonForm = formDuration(z); return 'demonform'; }
     if (z.char === 'ghost') return 'shattered';
     applyHangover(z);
     return 'hangover';

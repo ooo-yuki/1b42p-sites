@@ -1,6 +1,6 @@
 // Огромное древо прокачки: 4 ветки, цены base×growth^ур.
 import { useMemo, useState } from 'react';
-import { TREE, charDiscount, upgradeCost, buyUpgrade } from '../../game/zapoi/index';
+import { TREE, shopDiscount, upgradeCost, buyUpgrade } from '../../game/zapoi/index';
 import type { ZapoiState } from '../../game/zapoi/index';
 import type { MutateFn } from '../../hooks/useZapoiState';
 
@@ -38,7 +38,7 @@ export default function UpgradeTree({ z, mutate }: UpgradeTreeProps) {
               {open && g.defs.map((b) => {
                 const l = z.up[b.id] || 0;
                 const isMaxed = l >= b.max;
-                const c = upgradeCost(b, l, charDiscount(z));
+                const c = upgradeCost(b, l, shopDiscount(z));
                 return (
                   <div className="upg" key={b.id}>
                     <b>{b.name}</b> ур.{l}/{b.max} — {b.desc}{' '}
