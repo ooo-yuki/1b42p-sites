@@ -63,6 +63,22 @@ footer{padding:18px;color:var(--gold);border-top:2px solid var(--gold);font-weig
 </div>
 
 </div>
+
+<div class="review">
+<h2>Ревью #3 — 04.09.2026, 04:31 МСК</h2>
+<div class="meta">Тесты: <code>npx vitest run</code> — 55/55 passed (zapoi 48 + dino 7) ✅ • Прод <code>chaev.bratuxa.zomb.top</code> — HTTP 200 ✅ • TS-миграция: код теперь <code>.ts/.tsx</code> (<code>src/game/zapoi/*</code>), старые пути из ревью #1–2 (<code>zapoiLogic.js</code>, <code>ZapoiGame.jsx</code>) — legacy, маппинг ниже</div>
+<ul>
+<li><span class="warn">[хардкод констант]</span> <code>src/components/zapoi/DrinkPanel.tsx</code> — строка дохода дублирует <code>0.2 * z.mult</code> вместо <code>VLADIMIR_PASSIVE</code> из <code>formulas.ts:16</code>, а «Солидность» считает <code>z.sips * 0.02</code> вместо <code>VLADIMIR_CLICK_STEP</code> (<code>formulas.ts:15</code>). Значения совпадают, но при смене констант UI врёт. Чинить: импортировать обе константы.</li>
+<li><span class="warn">[хардкод хинта]</span> <code>src/components/zapoi/DrinkPanel.tsx</code> — хинт призрака «реген +2/сек, глоток −5» захардкожен вместо <code>GHOST_SOUL_REGEN</code>/<code>GHOST_SOUL_SIP</code> (<code>formulas.ts:17-18</code>). Совпадает, но та же ловушка. Чинить: подставить константы.</li>
+<li><span class="warn">[дубль формулы]</span> <code>src/components/zapoi/HealButtons.tsx</code> — <code>disabled</code> ручки Винлайна считает <code>Math.max(BET_MIN_STAKE, Math.floor(z.m * BET_STAKE_RATE))</code>, дублируя формулу <code>bet()</code> из <code>src/game/zapoi/heals.ts:113</code>. Совпадает, но два места правды. Чинить: вынести <code>betStake(m)</code> в <code>formulas.ts</code> и использовать в обоих местах.</li>
+<li><span class="warn">[мёртвый draw]</span> <code>src/components/DinoGame.tsx:103-104</code> — экран смерти заливает один и тот же rect сначала <code>#c00</code>, потом <code>gold</code>: красная заливка полностью перекрыта, рамка не видна. Чинить: убрать первую заливку или рисовать рамку через <code>strokeRect</code>/вложенные rects как ниже (строки 105).</li>
+<li><span class="warn">[косметика]</span> <code>src/game/zapoi/artifacts.ts:7-18</code> — после коммита «убраны звёзды из названий качеств ⭐» звёзды-маркеры остались в комментариях (<code>// ⭐ Качество 1</code> … <code>// ⭐⭐⭐⭐</code>). UI чист, но остаток висит. Чинить: убрать звёзды из комментов или заменить на <code>Q1–Q4</code>.</li>
+<li><span class="warn">[запутывающее]</span> <code>src/game/synergies.ts:24-26</code> (<code>balance: fx() {}</code>) + <code>src/game/zapoi/tree.ts:13,15</code> (<code>rassol/kapel: fx() {}</code>) — пустые эффекты, реальная механика живёт в <code>formulas.ts:69-97</code> (<code>withBalance</code>, <code>heal1val/heal2cost</code>). By design, но читается как мёртвый код. Чинить: комментарий <code>// эффект — в formulas.ts</code> у каждого пустого <code>fx</code>.</li>
+</ul>
+<p>Проверено и чисто: TODO/FIXME/console.log — нет; дубли эмодзи в именах сущностей — нет (повторы 🍾 — валюта, ⭐ — маркеры качества в комментах, 🏆 — мантра + РЕЖИМ БОГА, ок); цены апгрейдов/артефактов/лечилок/бутылки в UI идут через те же <code>upgradeCost/artCost/heal1-2cost/BOTTLE_COST</code> — рассинхрона нет; старые баги закрыты: пустышка Винлайна возвращает деньги (<code>artifacts.ts:44-49</code>), лог похмелья берёт <code>_hangoverLost</code> (<code>state.ts:34-41</code>), кнопки хилок/ручки с <code>disabled</code>, доход «+/с» через <code>effMult</code>; баланс sane: EV ставки −10% (казино by design), средний глоток Винлайна 1.5 точен, урон <code>0.6+m/4000</code> даёт ~18 глотков до похмелья на 20к бухла; дино: спавн/скорость/коллизии 1-в-1 legacy. Мы уже победили 🏆</p>
+</div>
+
+</div>
 </main>
 <footer>1Б42П • БАТАЛЬОН ПРОПАГАНДЫ 42 • Мы уже победили 🏆</footer>
 </body>
