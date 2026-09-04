@@ -454,6 +454,13 @@ export default function Casino(): JSX.Element {
         <span>🪙</span><span className="bal">{balance}</span>
         <span className="sp" />
         <button className="cbtn ghost" onClick={takeBonus}>+500 фишек</button>
+        <a
+          className="cbtn"
+          href="https://finance.ozon.ru/apps/sbp/ozonbankpay/019fa8eb-037e-75f9-a3d9-fe258db9e911"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ textDecoration: 'none' }}
+        >💳 Пополнить</a>
       </div>
       <main><div className="cwrap">
         <div className="chead">
