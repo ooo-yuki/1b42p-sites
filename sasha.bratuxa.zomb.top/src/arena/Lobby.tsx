@@ -1,34 +1,50 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Num } from '../casino/shared';
-import { Users } from 'lucide-react';
-import { DiceCup } from './dice';
+import { DiceFace } from './dice';
 import { arenaClick } from './sound';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import type { GameDef, PoolView } from './proto';
 
-/* Лобби клуба: онлайн-пилюля, имя, пати 2–5, код комнаты, как играть. */
+/* Центр клуба: выбор игры голосами, поиск, пул, ожидание, доп-лобби. */
 
 type Props = {
+  me: string;
   online: number | null;
-  name: string;
-  wins: number;
+  pool: PoolView | null;
+  games: Record<string, GameDef>;
+  searching: boolean;
   busy: boolean;
-  queued: { size: number; waiting: number } | null;
-  onName: (n: string) => void;
-  onQuick: (size: number) => void;
+  myVote: string;
+  onVoteGame: (g: string) => void;
+  onSearch: () => void;
+  onStop: () => void;
+  onVoteEnter: (yes: boolean) => void;
+  onVoteWait: (yes: boolean) => void;
   onCreate: () => void;
   onJoin: (code: string) => void;
 };
 
-const PARTY = [2, 3, 4, 5];
+function fmtElapsed(since: number): string {
+  const s = Math.max(0, Math.floor((Date.now() - since) / 1000));
+  const m = Math.floor(s / 60);
+  return m > 0 ? `${m} мин ${s % 60} с` : `${s} с`;
+}
 
-export default function Lobby({ online, name, wins, busy, queued, onName, onQuick, onCreate, onJoin }: Props): JSX.Element {
+export default function Lobby({ me, online, pool, games, searching, busy, myVote,
+  onVoteGame, onSearch, onStop, onVoteEnter, onVoteWait, onCreate, onJoin }: Props): JSX.Element {
   const [code, setCode] = useState('');
   const go = (): void => {
     const c = code.trim().toUpperCase();
     if (c.length >= 3) { arenaClick(); onJoin(c); }
   };
+  const ids = Object.keys(games);
+  const members = pool?.members ?? [];
+  const myEnter = members.find(m => m.id === me)?.enter ?? false;
+  const yesEnter = members.filter(m => m.enter).length;
+  const canEnter = members.length >= 2;
+  const wait = pool?.wait;
+
   return (
     <div className="arena-lobby">
       <h1 className="aneon" aria-label="Арена 42">
@@ -38,45 +54,96 @@ export default function Lobby({ online, name, wins, busy, queued, onName, onQuic
         <span className="tk-dot" />
         <span className="tk-label">в клубе сейчас</span>
         <b className="tk-num tnum">{online === null ? '…' : online}</b>
-        {wins > 0 && <span className="tk-wins">побед: <Num>{wins}</Num></span>}
       </div>
-      <label className="aname">
-        <span>Имя бойца</span>
-        <Input value={name} maxLength={24} placeholder="Братуха"
-          onChange={e => onName(e.target.value)} aria-label="Имя бойца" />
-      </label>
-      <div className="aparty" role="group" aria-label="Быстрый бой: размер пати">
-        {PARTY.map(n => (
-          <button key={n} type="button" disabled={busy}
-            className={cn('pcard', queued?.size === n && 'sel')}
-            onClick={() => { arenaClick(); onQuick(n); }}>
-            <DiceCup n={n} />
-            <b>{n} {n === 5 ? 'игроков' : 'игрока'}</b>
-            <small>{queued?.size === n ? `ждут: ${queued.waiting}` : 'быстрый бой'}</small>
-          </button>
-        ))}
+
+      <div className="agames" role="group" aria-label="Выбор игры голосованием">
+        {ids.map(id => {
+          const g = games[id];
+          const v = members.filter(m => m.vote === id).length;
+          const sel = myVote === id;
+          return (
+            <button key={id} type="button" disabled={busy}
+              className={cn('gcard', sel && 'sel')}
+              onClick={() => { arenaClick(); onVoteGame(sel ? 'any' : id); }}
+              aria-pressed={sel}>
+              <DiceFace v={5} hot={sel} />
+              <b>{g.label}</b>
+              <small>{g.min}–{g.max} игроков · голосов: <span className="tnum">{v}</span></small>
+            </button>
+          );
+        })}
+        <button type="button" disabled={busy}
+          className={cn('gcard any', myVote === 'any' && 'sel')}
+          onClick={() => { arenaClick(); onVoteGame('any'); }}
+          aria-pressed={myVote === 'any'}>
+          <span className="qmark">?</span>
+          <b>Любая</b>
+          <small>доверяюсь клубу · голосов: <span className="tnum">{members.filter(m => m.vote === 'any').length}</span></small>
+        </button>
       </div>
-      <div className="aroom-row">
-        <Input value={code} maxLength={8} placeholder="Код комнаты"
-          onChange={e => setCode(e.target.value.toUpperCase())}
-          onKeyDown={e => { if (e.key === 'Enter') go(); }}
-          aria-label="Код комнаты" disabled={busy} />
-        <Button variant="outline" disabled={busy || code.trim().length < 3} onClick={go}>
-          Войти
+      <p className="avote-note">Игра с большинством голосов — в бой. Все на «любой» — решит рандом.</p>
+
+      {!searching ? (
+        <Button size="lg" disabled={busy} onClick={() => { arenaClick(); onSearch(); }}>
+          Искать бой
         </Button>
-        <Button variant="secondary" disabled={busy} onClick={() => { arenaClick(); onCreate(); }}>
-          Своя комната
-        </Button>
-      </div>
+      ) : (
+        <div className="asearch-live">
+          <p className="asearch-t">Ищем братух… <b className="tnum">{fmtElapsed(pool?.since ?? Date.now())}</b></p>
+          <Button variant="outline" onClick={onStop}>Выйти из поиска</Button>
+        </div>
+      )}
+
+      {searching && (
+        <div className="apool" aria-label="В поиске">
+          {members.map(m => (
+            <span key={m.id} className={cn('pmem', m.enter && 'in', m.id === me && 'me')}>
+              <b>{m.name}</b>
+              <small>{m.vote === 'any' ? 'любая' : games[m.vote]?.label ?? 'любая'}</small>
+              {m.enter && <i className="go" title="голосует за заход">за!</i>}
+            </span>
+          ))}
+          {members.length === 0 && <p className="idle">Пока один… клуб уже свистит братухам.</p>}
+        </div>
+      )}
+
+      {searching && canEnter && (
+        <div className="aenter">
+          <p>Нас <b className="tnum">{members.length}</b>, за заход — <b className="tnum">{yesEnter}</b>. Больше половины «за» — и в бой!</p>
+          <div className="crow">
+            <Button disabled={myEnter} onClick={() => onVoteEnter(true)}>За!</Button>
+            <Button variant="outline" disabled={!myEnter} onClick={() => onVoteEnter(false)}>Погожу</Button>
+          </div>
+        </div>
+      )}
+
+      {searching && wait?.open && (
+        <div className="await" role="alert">
+          <p>Ищем уже долго. Ждём ещё или в бой тем, что есть?</p>
+          <div className="crow">
+            <Button onClick={() => onVoteWait(true)}>Ждать ещё</Button>
+            <Button variant="secondary" onClick={() => onVoteWait(false)}>В бой!</Button>
+          </div>
+        </div>
+      )}
+
+      <details className="aprivate">
+        <summary>Своя комната — доп-функция</summary>
+        <div className="aroom-row">
+          <Input value={code} maxLength={8} placeholder="Код комнаты"
+            onChange={e => setCode(e.target.value.toUpperCase())}
+            onKeyDown={e => { if (e.key === 'Enter') go(); }}
+            aria-label="Код комнаты" disabled={busy} />
+          <Button variant="outline" disabled={busy || code.trim().length < 3} onClick={go}>Войти</Button>
+          <Button variant="secondary" disabled={busy} onClick={() => { arenaClick(); onCreate(); }}>Создать</Button>
+        </div>
+      </details>
+
       <ol className="arules">
-        <li>Жми размер пати — клуб подберёт живых за секунды.</li>
-        <li>Кости на выбывание: каждый раунд низший падает, ничья за вылет — переброс.</li>
-        <li>Победа пишется в летопись. Фишки тут ни при чём.</li>
+        <li>Голосуй за игру, жми поиск — клуб соберёт пати.</li>
+        <li>Нас двое+ — голосуй «за», и бой начнётся.</li>
+        <li>Кости на выбывание: низший падает, ничья за вылет — переброс.</li>
       </ol>
-      <p className="afoot">
-        <Users data-icon="inline-start" /> онлайн живой, без ботов-заглушек.
-        Нет соперников — зови братух по коду комнаты.
-      </p>
     </div>
   );
 }

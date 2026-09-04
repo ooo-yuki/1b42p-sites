@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Lobby from './arena/Lobby';
 import Room, { type ChatLine, type FeedLine } from './arena/Room';
+import Settings from './arena/Settings';
 import {
-  addWin, arenaWsUrl, loadName, loadWins, saveName,
-  type CMsg, type RoomView, type SMsg,
+  addWin, arenaWsUrl, clearWins, loadMuted, loadName, loadWins, saveMuted, saveName,
+  type CMsg, type GameDef, type PoolView, type RoomView, type SMsg,
 } from './arena/proto';
-import { arenaClick, arenaWin, chatPop, diceLand, diceRattle, elimGong } from './arena/sound';
+import { arenaClick, arenaWin, chatPop, diceLand, diceRattle, elimGong, setArenaMuted } from './arena/sound';
 
-/* АРЕНА — оркестрация клуба: сокет, лобби, комната, летопись побед. */
+/* АРЕНА — оркестрация клуба: сокет, центр (игры+поиск), комната, настройки. */
 
 type Conn = 'idle' | 'connecting' | 'live' | 'dead';
 
@@ -16,11 +17,14 @@ let feedSeq = 1;
 export default function Arena(): JSX.Element {
   const [conn, setConn] = useState<Conn>('idle');
   const [online, setOnline] = useState<number | null>(null);
-  const [me, setMe] = useState('');
   const [myId, setMyId] = useState('');
   const [name, setName] = useState(() => loadName());
   const [wins, setWins] = useState(() => loadWins());
-  const [queued, setQueued] = useState<{ size: number; waiting: number } | null>(null);
+  const [muted, setMuted] = useState(() => loadMuted());
+  const [pool, setPool] = useState<PoolView | null>(null);
+  const [games, setGames] = useState<Record<string, GameDef>>({});
+  const [searching, setSearching] = useState(false);
+  const [myVote, setMyVote] = useState('any');
   const [room, setRoom] = useState<RoomView | null>(null);
   const [feed, setFeed] = useState<FeedLine[]>([]);
   const [chat, setChat] = useState<ChatLine[]>([]);
@@ -28,8 +32,8 @@ export default function Arena(): JSX.Element {
   const [secsLeft, setSecsLeft] = useState<number | null>(null);
   const [err, setErr] = useState('');
   const wsRef = useRef<WebSocket | null>(null);
-  const roomRef = useRef<RoomView | null>(null);
-  roomRef.current = room;
+  const myIdRef = useRef('');
+  myIdRef.current = myId;
   const roundTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const pushFeed = useCallback((text: string, hot = false): void => {
@@ -59,28 +63,33 @@ export default function Arena(): JSX.Element {
     }, 1000);
   }, []);
 
-  const myIdRef = useRef('');
-  myIdRef.current = myId;
-
   const onMsg = useCallback((m: SMsg): void => {
     switch (m.t) {
       case 'welcome':
         setMyId(m.id);
         setOnline(m.online);
+        setGames(m.games ?? {});
         break;
       case 'online':
         setOnline(m.n);
         break;
       case 'queued':
-        setQueued({ size: m.size, waiting: m.waiting });
+        setSearching(true);
+        setErr('');
+        break;
+      case 'pool':
+        setSearching(true);
+        setPool({ members: m.members, since: m.since, games: m.games, wait: m.wait });
         setErr('');
         break;
       case 'room':
-        setQueued(null);
+        setSearching(false);
+        setPool(null);
         setRoom({
-          code: m.code, phase: m.phase, players: m.players, host: m.host,
-          size: m.size, private: m.private, round: m.round, alive: m.alive,
-          contenders: m.contenders, rolls: m.rolls, winner: m.winner,
+          code: m.code, phase: m.phase, game: m.game, gameLabel: m.gameLabel,
+          players: m.players, host: m.host, private: m.private,
+          round: m.round, alive: m.alive, contenders: m.contenders,
+          rolls: m.rolls, winner: m.winner,
         });
         setErr('');
         break;
@@ -94,6 +103,8 @@ export default function Arena(): JSX.Element {
       case 'leftRoom':
         stopClock();
         setRoom(null);
+        setSearching(false);
+        setPool(null);
         setChat([]);
         setFeed([]);
         setMyRolled(false);
@@ -105,9 +116,8 @@ export default function Arena(): JSX.Element {
         pushFeed(`Раунд ${m.round}: кости в стаканах!`);
         break;
       case 'roll': {
-        const mine = m.id === myIdRef.current;
-        if (mine) { setMyRolled(true); diceLand(m.v); }
-        else diceLand(m.v);
+        diceLand(m.v);
+        if (m.id === myIdRef.current) setMyRolled(true);
         if (m.auto) pushFeed(`${m.name} молчал — клуб кинул за него: ${m.v}.`);
         break;
       }
@@ -143,6 +153,7 @@ export default function Arena(): JSX.Element {
   }, [pushFeed, startClock]);
 
   useEffect(() => {
+    setArenaMuted(loadMuted());
     setConn('connecting');
     let ws: WebSocket | null = null;
     let ping: ReturnType<typeof setInterval> | null = null;
@@ -175,55 +186,58 @@ export default function Arena(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // имя уходит на сервер при смене (следующий hello) и в сейв сразу
   const changeName = (n: string): void => {
     setName(n);
     saveName(n);
-    setMe(n);
+    if (conn === 'live') send({ t: 'hello', name: (n || 'Братуха').slice(0, 24) });
   };
 
-  useEffect(() => {
-    if (conn === 'live' && myId) {
-      const n = (name || 'Братуха').slice(0, 24);
-      setMe(n);
-      send({ t: 'hello', name: n });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conn, myId]);
+  const voteGame = (g: string): void => {
+    setMyVote(g);
+    send({ t: 'voteGame', game: g });
+  };
 
   return (
     <div className="arena-page">
       <div id="sky" />
       <div id="veil" />
       <main className="arena-main">
-        <div className="arena-col">
-          <a className="ahome" href="index.html">← Саша ⁴²</a>
-          {conn === 'dead' && (
-            <p className="aerr" role="alert">
-              Клуб недоступен — сервер арены спит. Обнови страницу чуть позже.
-              {err ? ` (${err})` : ''}
-            </p>
-          )}
-          {conn === 'connecting' && <p className="aconn">Стучимся в клуб…</p>}
-          {!room && conn !== 'dead' && (
-            <Lobby online={online} name={name} wins={wins}
-              busy={conn !== 'live'}
-              queued={queued}
-              onName={changeName}
-              onQuick={size => send({ t: 'queue', size })}
-              onCreate={() => send({ t: 'create' })}
-              onJoin={code => send({ t: 'join', code })} />
-          )}
-          {room && (
-            <Room me={myId} room={room} feed={feed} chat={chat}
-              myRolled={myRolled} secsLeft={secsLeft}
-              onRoll={() => send({ t: 'roll' })}
-              onLeave={() => send({ t: 'leave' })}
-              onStart={() => send({ t: 'start' })}
-              onRematch={() => send({ t: 'rematch' })}
-              onChat={t => send({ t: 'chat', text: t })} />
-          )}
-          {err && room && <p className="aerr" role="alert">{err}</p>}
+        <div className="arena-grid">
+          <div className="arena-col">
+            <a className="ahome" href="index.html">← Саша ⁴²</a>
+            {conn === 'dead' && (
+              <p className="aerr" role="alert">
+                Клуб недоступен — сервер арены спит. Обнови страницу чуть позже.
+                {err ? ` (${err})` : ''}
+              </p>
+            )}
+            {conn === 'connecting' && <p className="aconn">Стучимся в клуб…</p>}
+            {!room && conn !== 'dead' && (
+              <Lobby me={myId} online={online} pool={pool} games={games} searching={searching}
+                busy={conn !== 'live'} myVote={myVote}
+                onVoteGame={voteGame}
+                onSearch={() => send({ t: 'search' })}
+                onStop={() => send({ t: 'stop' })}
+                onVoteEnter={yes => send({ t: 'voteEnter', yes })}
+                onVoteWait={yes => send({ t: 'voteWait', yes })}
+                onCreate={() => send({ t: 'create' })}
+                onJoin={code => send({ t: 'join', code })} />
+            )}
+            {room && (
+              <Room me={myId} room={room} feed={feed} chat={chat}
+                myRolled={myRolled} secsLeft={secsLeft}
+                onRoll={() => send({ t: 'roll' })}
+                onLeave={() => send({ t: 'leave' })}
+                onStart={() => send({ t: 'start' })}
+                onRematch={() => send({ t: 'rematch' })}
+                onChat={t => send({ t: 'chat', text: t })} />
+            )}
+            {err && room && <p className="aerr" role="alert">{err}</p>}
+          </div>
+          <Settings name={name} wins={wins} online={online} muted={muted}
+            onName={changeName}
+            onMute={setMuted}
+            onClearWins={() => { clearWins(); setWins(0); }} />
         </div>
       </main>
     </div>

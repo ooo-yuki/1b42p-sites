@@ -59,6 +59,7 @@ export default function Room({ me, room, feed, chat, myRolled, secsLeft, onRoll,
         <span className={cn('ar-phase', room.phase)}>
           {room.phase === 'lobby' ? 'сбор' : room.phase === 'play' ? `раунд ${room.round}` : 'бой окончен'}
         </span>
+        <span className="ar-game">{room.gameLabel}</span>
         <span className="sp" />
         <Button variant="outline" size="sm" onClick={() => { arenaClick(); onLeave(); }}>Покинуть</Button>
       </div>
