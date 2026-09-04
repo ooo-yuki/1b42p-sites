@@ -218,7 +218,7 @@ transition:transform 1.1s ease-out,opacity 1.1s}
 <button id="saltoBtn">🤸 Сальтуха (R)</button>
 <button id="flipCompBtn">🏆 Соревы по сальтухам!</button>
 <div id="flipComp"><div id="flipCompBox">🤸 <b>СОРЕВНОВАНИЯ ПО САЛЬТУХАМ!</b> 🤸<br><small id="flipCompText">Тапай САЛЬТУХА быстрее соперника за 5 сек! Проигрыш = −70% всех ресурсов 😱</small><div id="flipScore" style="font-weight:bold;font-size:18px;margin:8px 0">ТЫ 0 : 0 СОПЕРНИК</div><div id="flipTimer" style="font-weight:bold">5.0с</div><div><button id="flipTap">🤸 САЛЬТУХА!</button></div><div><button id="flipStart">▶️ Старт!</button><button id="flipClose">✖️ Закрыть</button></div></div></div>
-<div id="win"><div id="winBox">🏆 <b>МЫ УЖЕ ПОБЕДИЛИ!</b> 🏆<br>Эввград достиг 42 жителей! Город сияет, лес поёт! 🧝🌲✨<br><button onclick="document.getElementById('win').style.display='none'">Ура! 🎉</button></div></div>
+<div id="win"><div id="winBox">🏆 <b>МЫ УЖЕ ПОБЕДИЛИ!</b> 🏆<br>Эввград достиг 42 жителей! Город сияет, лес поёт! 🧝🌲✨<br><small>Игра продолжается — строй, крути сальтухи, участвуй в соревах! 🚀</small><br><button onclick="document.getElementById('win').style.display='none'">Продолжить играть 🚀</button></div></div>
 <div id="miqAd"><div id="miqAdBox">🛞 <b>МИККИЛ 42 — ТАНКИ!</b> 🛞<br>Броня, тактика и грохот гусениц! Батальонный танкодром уже ждёт!<br><a href="https://miqqil.bratuxa.zomb.top/" target="_blank">Играть →</a><div id="miqAdBtns"><button onclick="closeMiqAd(false)">Позже</button><button onclick="closeMiqAd(true)">Не показывать</button></div></div></div>
 <div id="travel"><div id="travelBox">🧳 <b>ГОРОДА БРАТУХ</b> 🧳<br><small>Куда едем? Сейв Эввграда уже записан!</small><a class="city" href="https://smolgrad.bratuxa.zomb.top">👑 Смолград<small>королевство царя smolskie</small></a><a class="city" href="https://denis.bratuxa.zomb.top">🏝️ Остров Дениса<small>пляж, город, WINLINE и пещера</small></a><a class="city" href="https://hub.bratuxa.zomb.top">🏠 Хаб 1Б42П<small>все игры батальона</small></a><button id="travelClose" onclick="closeTravel()">Остаюсь дома</button></div></div>
 <div id="net"><div id="netBox">🌐 <b>МУЛЬТИПЛЕЕР 42</b> 🌐<br><small id="netStatus">Гость: города братух видно всем, заливка — после входа</small>
@@ -916,7 +916,6 @@ function renderHUD(){
  var tb=document.getElementById('ticketBtn');
  if(tb){if(Date.now()<ticketCd){tb.textContent='🎟️ '+Math.ceil((ticketCd-Date.now())/1000)+'с';tb.disabled=true;}
   else{tb.textContent='🎟️ Билет 50🪙';tb.disabled=false;}}
- if(S.win)document.getElementById('win').style.display='flex';
  var dock=document.getElementById('dock');dock.innerHTML='';
  GROUPS.forEach(function(gr){
   var btn=document.createElement('button');
@@ -1796,8 +1795,8 @@ function doSalto(){
  }
  return flipTotal;
 }
-var compOn=false,compMe=0,compRival=0,compRivalName='Чаев',compRivalSkill=0.75,compT=0,compTimer=null;
-var RIVALS=[{n:'Чаев 🤸',s:0.7},{n:'Миккил 🛞',s:0.8},{n:'Торнадо ⚡',s:0.9},{n:'Денис 🚗',s:1.0},{n:'Святослав ⚡',s:0.75},{n:'Смолград 🏰',s:0.85}];
+var compOn=false,compMe=0,compRival=0,compRivalName='Бот1',compRivalSkill=0.75,compT=0,compTimer=null;
+var RIVALS=[{n:'Бот1 🤸',s:0.7},{n:'Бот2 🛞',s:0.8},{n:'Бот3 ⚡',s:0.9},{n:'Бот4 🚗',s:1.0},{n:'Бот5 ⚡',s:0.75},{n:'Бот6 🏰',s:0.85}];
 function openFlipComp(){
  document.getElementById('flipComp').style.display='flex';
  document.getElementById('flipScore').textContent='ТЫ 0 : 0 СОПЕРНИК';
