@@ -140,6 +140,13 @@ class VHostHandler(SimpleHTTPRequestHandler):
         return super().translate_path(path)
     def log_message(self, fmt, *args):
         pass
+    def end_headers(self):
+        # HTML всегда свежий: иначе браузер кэширует старый index.html, тот тянет
+        # удалённые хешированные ассеты Vite (404) — и сайт белый без стилей.
+        # JS/CSS с хешами в именах кэшируются как раньше, им это не вредит.
+        if self.path.split('?')[0].split('#')[0].endswith(('.html', '/')):
+            self.send_header('Cache-Control', 'no-cache')
+        super().end_headers()
 
 def serve_http():
     srv = ThreadingHTTPServer(("0.0.0.0", 80), VHostHandler)
