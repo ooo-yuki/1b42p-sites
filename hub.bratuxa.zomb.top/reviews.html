@@ -49,6 +49,20 @@ footer{padding:18px;color:var(--gold);border-top:2px solid var(--gold);font-weig
 </div>
 
 </div>
+
+<div class="review">
+<h2>Ревью #2 — 04.09.2026, 04:01 МСК</h2>
+<div class="meta">Тесты: <code>npx vitest run</code> — 55/55 passed (zapoi 48 + dino 7) ✅ • Прод <code>chaev.bratuxa.zomb.top</code> — HTTP 200 ✅</div>
+<ul>
+<li><span class="warn">[мёртвый импорт]</span> <code>src/components/ZapoiGame.jsx:5-6</code> — <code>healSmall</code>, <code>healBig</code>, <code>synReady</code> импортированы, но ни разу не вызваны (0 вхождений <code>healSmall(</code>/<code>healBig(</code>/<code>synReady(</code> в файле): лечилки идут через <code>pickleSmall/demonPickle/holyPickle/syringe/cleanseDemon</code>, синергии — через <code>checkSyns</code>. Чинить: убрать троицу из импорта.</li>
+<li><span class="warn">[ресурс]</span> <code>src/components/DinoGame.jsx:24-34</code> — <code>blip()</code> создаёт новый <code>AudioContext</code> на каждый клик, а <code>beep()</code> выше переиспользует общий <code>AC</code>. При активном кликанье текут контексты. Чинить: reuse <code>AC</code> как в <code>beep()</code>.</li>
+<li><span class="warn">[UX-минор]</span> кнопки лечилок/пикулей/шприца и «РУЧКА» Винлайна не имеют <code>disabled</code> (в отличие от артефактов и древа): при нехватке бухла <code>pickleSmall/syringe/holyPickle/bet</code> возвращают <code>null</code> и <code>mutate</code> молча ничего не делает. Чинить: дизейблить по <code>heal1cost/heal2cost</code>/ставку 10%.</li>
+<li><span class="warn">[косметика]</span> <code>src/game/zapoiLogic.js:92-97</code> — <code>QUALITY_NAMES[4]</code> начинается с <code>🔱</code>, а комментарий шкалы у <code>ARTS</code> пишет <code>⭐⭐⭐⭐</code>. Мелочь, унифицировать.</li>
+</ul>
+<p>Проверено и чисто: TODO/FIXME/console.log — нет; дубли эмодзи в именах (общие 🍾🥒💉 — одни и те же предметы у разных персов, ок); цены апгрейдов/артефактов/лечилок в UI идут через те же <code>upgradeCost/artCost/heal1-2cost</code> — рассинхрона нет; доход «+/с» теперь через <code>effMult</code>, пустышка Винлайна возвращает деньги, лог похмелья берёт <code>_hangoverLost</code>, строка бутылки — через <code>BOTTLE_COST</code>. В рабочей копии висит незакоммиченный краш-фикс <code>drinkImg</code> (<code>!charDef ? null</code>) — годно, ждёт коммита. Мы уже победили 🏆</p>
+</div>
+
+</div>
 </main>
 <footer>1Б42П • БАТАЛЬОН ПРОПАГАНДЫ 42 • Мы уже победили 🏆</footer>
 </body>
