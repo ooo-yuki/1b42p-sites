@@ -1098,11 +1098,54 @@ function billboard(x,y,z){const m=new THREE.Mesh(new THREE.PlaneGeometry(15,4.5)
  // каменная площадь под пещерой в горах (база y=0 — liftIsland поднимет на площадку)
  const cplaza=new THREE.Mesh(new THREE.CircleGeometry(28,28),new THREE.MeshStandardMaterial({color:0x4a4a52,roughness:.9}));cplaza.rotation.x=-Math.PI/2;cplaza.position.set(CAVE.x,0.04,CAVE.z);cplaza.receiveShadow=true;scene.add(cplaza);
  const cring=new THREE.Mesh(new THREE.RingGeometry(28,29.5,36),new THREE.MeshBasicMaterial({color:0x00ffcc,side:THREE.DoubleSide}));cring.rotation.x=-Math.PI/2;cring.position.set(CAVE.x,0.05,CAVE.z);scene.add(cring);
- // ровные проспекты: бордюры + осевая разметка (база y=0 — liftIsland поднимет на 0.8)
- const curbM=new THREE.MeshStandardMaterial({color:0x9a9aa5,roughness:.8});
- const lineM=new THREE.MeshBasicMaterial({color:0xf5f5f0});
- for(const av of [-100,-50,0]){for(const s of [-5,5]){const c=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.22,200),curbM);c.position.set(av+s,0.11,0);scene.add(c);}const ln=new THREE.Mesh(new THREE.PlaneGeometry(0.5,200),lineM);ln.rotation.x=-Math.PI/2;ln.position.set(av,0.05,0);scene.add(ln);}
- for(const av of [-100,-50,0,50,100]){for(const s of [-5,5]){const c=new THREE.Mesh(new THREE.BoxGeometry(150,0.22,0.6),curbM);c.position.set(-50,0.11,av);scene.add(c);}const ln=new THREE.Mesh(new THREE.PlaneGeometry(150,0.5),lineM);ln.rotation.x=-Math.PI/2;ln.position.set(-50,0.05,av);scene.add(ln);}
+ // ===== РЕАЛИСТИЧНЫЕ ШОССЕ: асфальт-ленты с разметкой + тротуары + зебры (только визуал — коллизии и сетка улиц не тронуты) =====
+ function roadTileTex(){
+  const c=document.createElement('canvas');c.width=256;c.height=512;const g=c.getContext('2d');
+  g.fillStyle='#2b2b31';g.fillRect(0,0,256,512);
+  for(let i=0;i<1100;i++){const v=120+Math.random()*70|0;g.fillStyle='rgba('+v+','+v+','+(v+8)+','+(Math.random()*0.09).toFixed(3)+')';g.fillRect(Math.random()*256|0,Math.random()*512|0,2,2);} // шум асфальта
+  g.fillStyle='#e8e8e2';g.fillRect(8,0,5,512);g.fillRect(243,0,5,512); // сплошная кромка
+  g.fillStyle='#d8a923';g.fillRect(121,0,6,512);g.fillRect(133,0,6,512); // двойная жёлтая по центру
+  g.fillStyle='#e8e8e2';g.fillRect(61,60,5,220);g.fillRect(190,60,5,220); // прерывистые разделители полос (±2.5м)
+  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=4;return t;
+ }
+ function zebraTex(rot){
+  const c=document.createElement('canvas');c.width=256;c.height=64;const g=c.getContext('2d');
+  g.clearRect(0,0,256,64);g.fillStyle='rgba(232,232,226,0.92)';
+  for(let x=6;x<256;x+=42)g.fillRect(x,6,22,52);
+  const t=new THREE.CanvasTexture(c);t.anisotropy=4;
+  if(rot){t.center.set(0.5,0.5);t.rotation=Math.PI/2;}
+  return t;
+ }
+ const _roadTile=roadTileTex(),_zebraA=zebraTex(false),_zebraB=zebraTex(true);
+ const _walkM=new THREE.MeshStandardMaterial({color:0x6f6f7a,roughness:.95});
+ const _zebraMA=new THREE.MeshBasicMaterial({map:_zebraA,transparent:true});
+ const _zebraMB=new THREE.MeshBasicMaterial({map:_zebraB,transparent:true});
+ const _curbM=new THREE.MeshStandardMaterial({color:0x9a9aa5,roughness:.8});
+ function highway(av,horiz,len,cAlong){
+  // horiz=false: дорога вдоль Z на x=av с центром z=cAlong; horiz=true: вдоль X на z=av с центром x=cAlong (база y=0 — liftIsland поднимет)
+  const tex=_roadTile.clone();tex.needsUpdate=true;tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.repeat.set(1,Math.max(1,Math.round(len/20)));
+  const r=new THREE.Mesh(new THREE.PlaneGeometry(10,len),new THREE.MeshStandardMaterial({map:tex,roughness:.92,metalness:.05}));
+  r.rotation.x=-Math.PI/2;r.receiveShadow=true;
+  if(!horiz){r.position.set(av,0.02,cAlong);}else{r.rotation.z=Math.PI/2;r.position.set(cAlong,0.025,av);}
+  scene.add(r);
+  for(const s of [-6,6]){
+   const w=new THREE.Mesh(new THREE.PlaneGeometry(2,len),_walkM);
+   w.rotation.x=-Math.PI/2;w.receiveShadow=true;
+   if(!horiz){w.position.set(av+s,0.035,cAlong);}else{w.rotation.z=Math.PI/2;w.position.set(cAlong,0.04,av+s);}
+   scene.add(w);
+   const curb=new THREE.Mesh(new THREE.BoxGeometry(horiz?len:0.6,0.22,horiz?0.6:len),_curbM);
+   if(!horiz)curb.position.set(av+Math.sign(s)*5,0.11,cAlong);else curb.position.set(cAlong,0.11,av+Math.sign(s)*5);
+   scene.add(curb);
+  }
+ }
+ const _VA=[-100,-50,0],_HA=[-100,-50,0,50,100];
+ for(const av of _VA)highway(av,false,200,0);
+ for(const ah of _HA)highway(ah,true,150,-50);
+ // зебры на каждом перекрёстке: по полосе на рукав, чуть в стороне от центра
+ for(const av of _VA)for(const ah of _HA){
+  for(const dz of [-8,8]){const z=new THREE.Mesh(new THREE.PlaneGeometry(9,3),_zebraMA);z.rotation.x=-Math.PI/2;z.position.set(av,0.05,ah+dz);scene.add(z);}
+  for(const dx of [-8,8]){const z=new THREE.Mesh(new THREE.PlaneGeometry(9,3),_zebraMB);z.rotation.x=-Math.PI/2;z.position.set(av+dx,0.055,ah);scene.add(z);}
+ }
  // ===== OCEAN DRIVE: ар-деко отели перед пляжем (фасадом к морю, +z) =====
 const _decoCols=[0x9fd8c8,0xf5c8a0,0xf0a8c0,0xf2e8d0,0xa0d8e8,0xc8b8e8];
 const _decoGlow=['#27e6ff','#ff66aa','#ffd76a','#00ffee'];
@@ -1306,14 +1349,9 @@ function skyBeam(x,h,z){const b=new THREE.Mesh(new THREE.CylinderGeometry(2.5,5,
   }
  }
 })();
-// проезд к пляжу: продлить проспекты на песок + раздвинуть дома, зажимающие коридор
+// проезд к пляжу: продлить шоссе на песок тем же highway() (ленты+тротуары+бордюры) + раздвинуть дома, зажимающие коридор
 (function(){
- const extM=new THREE.MeshStandardMaterial({color:0x9a9aa5,roughness:.8});
- const lnM=new THREE.MeshBasicMaterial({color:0xf5f5f0});
- for(const av of [-100,-50,0]){
-  for(const s of [-5,5]){const c=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.22,38),extM);c.position.set(av+s,0.11,119);scene.add(c);}
-  const ln=new THREE.Mesh(new THREE.PlaneGeometry(0.5,38),lnM);ln.rotation.x=-Math.PI/2;ln.position.set(av,0.05,119);scene.add(ln);
- }
+ for(const av of [-100,-50,0])highway(av,false,38,119);
  const skip=new Set();
  try{skip.add(player);skip.add(car);}catch(_){}
  try{skip.add(kizyak.mesh);}catch(_){}
@@ -1587,9 +1625,15 @@ mm.fillStyle='#1e6a34';mm.fillRect(WX(40),WX(-30),160*W2M,155*W2M); // лес
 mm.fillStyle='#3e7a33';mm.fillRect(0,0,S,50*W2M); // горы север
 mm.fillRect(WX(140),WX(-130),60*W2M,100*W2M); // хребет
 mm.fillStyle='#d9b84a';mm.fillRect(0,WX(125),S,75*W2M); // пляж
-// дороги-сетка
-mm.strokeStyle='#2a2a2a';mm.lineWidth=Math.max(1,k);
+// шоссе-сетка: тёмная окантовка + асфальт + пунктирная осевая
+mm.lineCap='butt';
+mm.strokeStyle='#1f1f26';mm.lineWidth=Math.max(2,10*W2M);
 for(let i=-150;i<=150;i+=50){mm.beginPath();mm.moveTo(WX(i),0);mm.lineTo(WX(i),S);mm.stroke();mm.beginPath();mm.moveTo(0,WX(i));mm.lineTo(S,WX(i));mm.stroke();}
+mm.strokeStyle='#33333d';mm.lineWidth=Math.max(1,7*W2M);
+for(let i=-150;i<=150;i+=50){mm.beginPath();mm.moveTo(WX(i),0);mm.lineTo(WX(i),S);mm.stroke();mm.beginPath();mm.moveTo(0,WX(i));mm.lineTo(S,WX(i));mm.stroke();}
+mm.strokeStyle='#d8a923';mm.lineWidth=Math.max(1,W2M);mm.setLineDash([4,3]);
+for(let i=-150;i<=150;i+=50){mm.beginPath();mm.moveTo(WX(i),0);mm.lineTo(WX(i),S);mm.stroke();mm.beginPath();mm.moveTo(0,WX(i));mm.lineTo(S,WX(i));mm.stroke();}
+mm.setLineDash([]);
 // все здания из коллизий
 try{for(const s of solids){const c=s.mesh&&s.mesh.material&&s.mesh.material.color;mm.fillStyle=c?('#'+c.getHexString()):'#666';mm.fillRect(WX(s.x-s.hx),WX(s.z-s.hz),(s.hx*2)*W2M,(s.hz*2)*W2M);}}catch(_){}
 // штаб H
