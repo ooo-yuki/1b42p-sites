@@ -41,6 +41,13 @@ class VHostHandler(SimpleHTTPRequestHandler):
             return True
         client_sock = self.connection
         self.close_connection = True
+        # Сокеты туннеля — в блокирующий режим: таймауты connect/handler
+        # иначе режут тихое соединение (проверено холд-тестом: смерть на 10-й секунде).
+        try:
+            client_sock.settimeout(None)
+            upstream.settimeout(None)
+        except OSError:
+            pass
 
         def pipe(src, dst):
             try:

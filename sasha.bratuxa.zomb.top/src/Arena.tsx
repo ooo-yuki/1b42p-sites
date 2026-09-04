@@ -11,7 +11,7 @@ import { cardText } from './arena/games/durak';
 
 /* АРЕНА — оркестрация клуба: сокет, центр (игры+поиск), комната, настройки. */
 
-type Conn = 'idle' | 'connecting' | 'live' | 'dead';
+type Conn = 'idle' | 'connecting' | 'live' | 'reconnecting' | 'dead';
 
 let feedSeq = 1;
 
@@ -36,6 +36,10 @@ export default function Arena(): JSX.Element {
   const wsRef = useRef<WebSocket | null>(null);
   const myIdRef = useRef('');
   myIdRef.current = myId;
+  const searchingRef = useRef(false);
+  searchingRef.current = searching;
+  const roomCodeRef = useRef<string | null>(null);
+  roomCodeRef.current = room?.code ?? null;
   const roundTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const pushFeed = useCallback((text: string, hot = false): void => {
@@ -181,32 +185,73 @@ export default function Arena(): JSX.Element {
   useEffect(() => {
     setArenaMuted(loadMuted());
     setConn('connecting');
-    let ws: WebSocket | null = null;
+    let active: WebSocket | null = null;
     let ping: ReturnType<typeof setInterval> | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let dead = false;
-    try {
-      ws = new WebSocket(arenaWsUrl());
-    } catch {
-      setConn('dead');
-      return;
-    }
-    wsRef.current = ws;
-    ws.onopen = () => {
+    let tries = 0;
+    const dropPing = (): void => {
+      if (ping) { clearInterval(ping); ping = null; }
+    };
+    const connect = (): void => {
       if (dead) return;
-      setConn('live');
-      send({ t: 'hello', name: (loadName() || 'Братуха').slice(0, 24) });
-      ping = setInterval(() => send({ t: 'ping' }), 25000);
+      dropPing();
+      if (active) {
+        const old = active;
+        active = null;
+        try { old.close(); } catch { /* уже мёртв */ }
+      }
+      let ws: WebSocket | null = null;
+      let failed = false;
+      try {
+        ws = new WebSocket(arenaWsUrl());
+      } catch {
+        return scheduleRetry();
+      }
+      active = ws;
+      wsRef.current = ws;
+      ws.onopen = () => {
+        if (dead) return;
+        tries = 0;
+        setConn('live');
+        send({ t: 'hello', name: (loadName() || 'Братуха').slice(0, 24) });
+        // восстановление сессии: комната важнее поиска
+        const code = roomCodeRef.current;
+        if (code) send({ t: 'join', code });
+        else if (searchingRef.current) send({ t: 'search' });
+        ping = setInterval(() => send({ t: 'ping' }), 25000);
+      };
+      ws.onmessage = ev => {
+        try { onMsg(JSON.parse(String(ev.data)) as SMsg); } catch { /* битый фрейм */ }
+      };
+      // onerror и onclose стреляют парой — засчитываем только первый
+      const onDrop = (): void => {
+        if (dead || failed || active !== ws) return;
+        failed = true;
+        active = null;
+        dropPing();
+        scheduleRetry();
+      };
+      ws.onclose = onDrop;
+      ws.onerror = onDrop;
     };
-    ws.onmessage = ev => {
-      try { onMsg(JSON.parse(String(ev.data)) as SMsg); } catch { /* битый фрейм */ }
+    const scheduleRetry = (): void => {
+      if (dead) return;
+      if (tries >= 5) { setConn('dead'); return; }
+      setConn('reconnecting');
+      const backoff = [1000, 2000, 3000, 5000, 5000][Math.min(tries, 4)];
+      tries++;
+      retryTimer = setTimeout(connect, backoff);
     };
-    ws.onclose = () => { if (!dead) setConn('dead'); };
-    ws.onerror = () => { if (!dead) setConn('dead'); };
+    connect();
     return () => {
       dead = true;
-      if (ping) clearInterval(ping);
+      dropPing();
+      if (retryTimer) clearTimeout(retryTimer);
       stopClock();
-      try { ws?.close(); } catch { /* уже закрыт */ }
+      const w = active;
+      active = null;
+      try { w?.close(); } catch { /* уже закрыт */ }
       wsRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -238,6 +283,7 @@ export default function Arena(): JSX.Element {
               </p>
             )}
             {conn === 'connecting' && <p className="aconn">Стучимся в клуб…</p>}
+            {conn === 'reconnecting' && <p className="aconn">Связь моргнула — стучимся снова…</p>}
             {!room && conn !== 'dead' && (
               <Lobby me={myId} online={online} pool={pool} games={games} searching={searching}
                 busy={conn !== 'live'} myVote={myVote}
