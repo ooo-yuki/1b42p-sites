@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { useRain, useIntro, useBeacon } from './hooks';
-import { ChartLine, Dices, Eye, Gamepad2, Trophy } from 'lucide-react';
+import { ChartLine, Dices, Eye, Gamepad2, Trophy, Users } from 'lucide-react';
 
 export default function Landing(): JSX.Element {
   const cvRef = useRef<HTMLCanvasElement | null>(null);
@@ -33,6 +33,9 @@ export default function Landing(): JSX.Element {
           </a>
           <a id="casinoBtn" className="pill ghost" href="casino.html" style={{ textDecoration: 'none' }}>
             <Dices data-icon="inline-start" /> Казино
+          </a>
+          <a id="arenaBtn" className="pill solid" href="arena.html" style={{ textDecoration: 'none' }}>
+            <Users data-icon="inline-start" /> Арена · онлайн 2–5
           </a>
           <a id="hubBtn" className="pill ghost" href="https://hub.bratuxa.zomb.top" style={{ textDecoration: 'none' }}>
             <Trophy data-icon="inline-start" /> Хаб

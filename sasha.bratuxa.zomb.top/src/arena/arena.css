@@ -1,0 +1,113 @@
+/* АРЕНА 42 — ночной клуб: неон, пати-карты, стол костей, чат. */
+
+.arena-page{min-height:100vh; background:#070b18; color:#fff;
+  font-family:"Segoe UI",system-ui,-apple-system,sans-serif}
+.arena-main{position:relative; z-index:1; display:flex; justify-content:center; padding:24px 16px 60px}
+.arena-col{width:min(760px,94vw); display:flex; flex-direction:column; gap:14px}
+.ahome{align-self:flex-start; color:#808080; text-decoration:none; font-size:14px;
+  border:1px solid rgba(128,128,128,.4); border-radius:999px; padding:7px 16px}
+.ahome:hover{border-color:#0060AA; color:#fff}
+.aerr{background:rgba(227,30,37,.1); border:1px solid rgba(227,30,37,.5);
+  border-radius:12px; padding:10px 16px; font-size:14px}
+.aconn{color:#808080; font-size:14px; text-align:center}
+
+/* лобби */
+.arena-lobby{display:flex; flex-direction:column; align-items:center; gap:16px; text-align:center}
+.aneon{margin:6px 0 0; font-size:min(15vw,88px); font-weight:900; letter-spacing:.04em; line-height:1}
+.aneon .n-red{color:#E31E25;
+  text-shadow:0 0 8px rgba(227,30,37,.9), 0 0 28px rgba(227,30,37,.55), 0 0 70px rgba(227,30,37,.35)}
+.aneon .n-blue{color:#fff;
+  text-shadow:0 0 8px rgba(0,96,170,.9), 0 0 28px rgba(0,96,170,.55), 0 0 70px rgba(0,96,170,.35)}
+.aticker{display:inline-flex; align-items:center; gap:10px;
+  border:1px solid rgba(0,96,170,.5); border-radius:999px; padding:8px 22px;
+  background:rgba(0,96,170,.08)}
+.tk-dot{width:10px; height:10px; border-radius:50%; background:#2f9e44;
+  box-shadow:0 0 10px rgba(47,158,68,.9); animation:blink 2s steps(2) infinite}
+@keyframes blink{50%{opacity:.5}}
+.tk-label{color:#808080; font-size:13px}
+.tk-num{font-size:22px; font-weight:900}
+.tk-wins{font-size:12.5px; color:#fff; border-left:1px solid rgba(255,255,255,.2); padding-left:10px}
+.aname{display:flex; flex-direction:column; gap:6px; width:min(320px,86vw)}
+.aname span{font-size:12.5px; color:#808080}
+.aparty{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; width:100%}
+@media (max-width:640px){.aparty{grid-template-columns:repeat(2,1fr)}}
+.pcard{
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+  padding:18px 8px 14px; border-radius:14px; cursor:pointer; color:#fff;
+  background:#0d1428; border:1px solid rgba(0,96,170,.35);
+  transition:transform .15s ease-out, border-color .15s, box-shadow .15s;
+  font-family:inherit;
+}
+.pcard:hover:not(:disabled){transform:translateY(-3px); border-color:#fff; box-shadow:0 8px 26px rgba(0,96,170,.25)}
+.pcard:active:not(:disabled){transform:scale(.96)}
+.pcard:disabled{opacity:.5; cursor:wait}
+.pcard.sel{border-color:#fff; box-shadow:0 0 22px rgba(0,96,170,.4)}
+.pcard b{font-size:15px}
+.pcard small{color:#808080; font-size:12px; font-variant-numeric:tabular-nums}
+.acup{display:flex; align-items:flex-end; height:44px}
+.amini{width:34px; height:34px; margin-left:-8px; transform:translateX(var(--shift, 0px))}
+.amini:first-child{margin-left:0}
+.aroom-row{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; width:100%}
+.aroom-row input{max-width:180px}
+.arules{margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:6px;
+  color:#808080; font-size:13.5px; max-width:60ch}
+.arules li::before{content:'42 · '; color:#0060AA; font-weight:800}
+.afoot{color:#808080; font-size:13px}
+.afoot svg{width:1.1em; height:1.1em; vertical-align:-0.18em}
+
+/* комната */
+.arena-room{display:flex; flex-direction:column; gap:12px}
+.ar-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+.ar-code{font-size:20px; font-weight:900; letter-spacing:.2em; color:#fff;
+  border:1px dashed rgba(0,96,170,.6); border-radius:10px; padding:4px 12px}
+.ar-phase{font-size:12.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+  color:#0060AA; border:1px solid rgba(0,96,170,.5); border-radius:999px; padding:5px 14px}
+.ar-phase.play{color:#fff; background:rgba(0,96,170,.25)}
+.ar-phase.over{color:#E31E25; border-color:rgba(227,30,37,.6)}
+.ar-head .sp{flex:1}
+.ar-fighters{list-style:none; margin:0; padding:0; display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px}
+.fighter{display:flex; flex-direction:column; align-items:center; gap:6px;
+  background:#0d1428; border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:10px 6px}
+.fighter.me{border-color:rgba(0,96,170,.6)}
+.fighter.lead{border-color:#fff; box-shadow:0 0 16px rgba(0,96,170,.35)}
+.fighter.out{opacity:.45; filter:grayscale(.8)}
+.f-dice{display:flex; height:44px; align-items:center}
+.f-wait{font-size:22px; color:#808080; font-weight:900}
+.f-name{font-size:13px; text-align:center}
+.f-out{font-size:11px; color:#E31E25; letter-spacing:.06em}
+.adice{width:42px; height:42px}
+.adice .die-body{fill:#f2f5ff; stroke:#0d1428; stroke-width:.8}
+.adice .die-shine{fill:#c9d2ee; opacity:.7}
+.adice .die-pip{fill:#0d1428}
+.adice.hot .die-body{fill:#fff}
+.adice.hot{filter:drop-shadow(0 0 10px rgba(0,96,170,.9))}
+.amini .die-body{fill:#f2f5ff; stroke:#0d1428; stroke-width:.8}
+.amini .die-pip{fill:#0d1428}
+.ar-table{background:#0d1428; border:1px solid rgba(0,96,170,.35);
+  border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:12px}
+.ar-lounge{text-align:center; display:flex; flex-direction:column; gap:10px; align-items:center}
+.ar-lounge p{margin:0; color:#808080}
+.ar-lounge b{color:#fff}
+.ar-round{display:flex; flex-direction:column; gap:8px; align-items:center}
+.ar-dead{margin:0; color:#808080; font-size:13.5px}
+.ar-over{text-align:center; display:flex; flex-direction:column; gap:10px; align-items:center}
+.ar-over b{font-size:22px; text-shadow:0 0 24px rgba(0,96,170,.7)}
+.ar-over .crow{display:flex; gap:10px; justify-content:center}
+.ar-feed{max-height:150px; overflow-y:auto; display:flex; flex-direction:column; gap:4px;
+  border-top:1px solid rgba(255,255,255,.08); padding-top:10px}
+.ar-feed p{margin:0; font-size:13.5px; color:#808080}
+.ar-feed p.hot{color:#fff; font-weight:700}
+.ar-chat{background:#0d1428; border:1px solid rgba(255,255,255,.12);
+  border-radius:12px; padding:10px 12px}
+.ar-lines{max-height:140px; overflow-y:auto; display:flex; flex-direction:column; gap:3px; margin-bottom:8px}
+.ar-lines p{margin:0; font-size:13.5px}
+.ar-lines p b{color:#0060AA}
+.ar-lines p.idle{color:#808080}
+.ar-chat .crow{display:flex; gap:8px}
+:focus-visible{outline:2px solid #0060AA; outline-offset:2px}
+::selection{background:rgba(0,96,170,.9); color:#fff}
+
+@media (prefers-reduced-motion:reduce){
+  .tk-dot,.pcard{animation:none; transition:none}
+}
