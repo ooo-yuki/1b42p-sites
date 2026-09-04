@@ -189,7 +189,7 @@ export default function ZapoiGame() {
       )}
       <p className="hint">урон/глоток {dmgPerSip(z).toFixed(1)} HP • реген {z.regen.toFixed(1)}/с • toxic×{z.toxic.toFixed(2)} • mult×{z.mult.toFixed(2)}</p>
       <div style={{ margin: '10px 0' }}>
-        <img src="jager.png" alt="Ягермейстер 42" style={{ width: 120, borderRadius: 12, border: '2px solid gold', verticalAlign: 'middle' }} />
+        <img src={charDef.drink} alt="Пойло персонажа" style={{ width: 120, borderRadius: 12, border: '2px solid gold', verticalAlign: 'middle' }} />
       </div>
       <button onClick={() => mutate((n) => {
         const ev = jagerClick(n);
@@ -204,7 +204,7 @@ export default function ZapoiGame() {
         if (ev === 'demonform') return '😈 ДЕМОНИЧЕСКАЯ ФОРМА ×5 на 10 сек! ЖГИ!';
         return '';
       }, 400)} style={{ background: 'linear-gradient(180deg,#ff7a00,#c50)', color: '#fff', fontSize: 22, padding: '14px 30px' }}>
-        <img src="jager.png" alt="" style={{ height: 34, verticalAlign: 'middle', borderRadius: 8, marginRight: 8 }} />
+        <img src={charDef.drink} alt="" style={{ height: 34, verticalAlign: 'middle', borderRadius: 8, marginRight: 8 }} />
         ЯГЕРМЕЙСТЕР (+{z.char === 'winline' ? '~' : ''}{sipPreview(z)})
       </button><br /><br />
       {z.char === 'winline' && (
