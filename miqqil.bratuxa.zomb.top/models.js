@@ -560,7 +560,14 @@ export function unwreck(unit3d) {
 
 // ---------- эффекты: пулы вместо аллокаций на каждый выстрел/взрыв ----------
 const scenePools = new WeakMap();
+// Эффект-заглушка: сцена не поднялась (упал boot3D) — не роняем игру на каждый
+// выстрел, просто молча пропускаем визуал. Игра при этом уже показала ERR 3D.
+const NULL_FX = { step() { return false; }, dispose() {} };
 function poolsFor(scene) {
+  if (!scene || (typeof scene !== 'object' && typeof scene !== 'function')) {
+    if (!poolsFor.warned) { poolsFor.warned = true; console.warn('[tanks] effects: нет сцены — эффекты пропущены'); }
+    return null;
+  }
   let p = scenePools.get(scene);
   if (!p) {
     p = { tracers: [], flashes: [], sparks: [], booms: [], muzzleLight: null, boomLight: null };
@@ -578,6 +585,7 @@ function acquire(list, max, factory) {
 export function spawnMuzzleFlash(scene, pos, dir) {
   const { SPARK_TEX } = texCache();
   const pools = poolsFor(scene);
+  if (!pools) return NULL_FX;
   if (!pools.muzzleLight) { pools.muzzleLight = new THREE.PointLight(0xffaa33, 0, 22); scene.add(pools.muzzleLight); }
   const it = acquire(pools.flashes, 16, () => {
     const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: SPARK_TEX, color: 0xffcc66, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -604,6 +612,7 @@ export function spawnMuzzleFlash(scene, pos, dir) {
 
 export function spawnTracer(scene, from, to) {
   const pools = poolsFor(scene);
+  if (!pools) return NULL_FX;
   const dir = new THREE.Vector3().subVectors(to, from);
   const len = Math.max(0.01, dir.length());
   const it = acquire(pools.tracers, 24, () => {
@@ -626,6 +635,7 @@ export function spawnTracer(scene, from, to) {
 export function spawnHitSpark(scene, pos) {
   const { SPARK_TEX } = texCache();
   const pools = poolsFor(scene);
+  if (!pools) return NULL_FX;
   const n = 8;
   const it = acquire(pools.sparks, 12, () => {
     const positions = new Float32Array(n * 3);
@@ -663,6 +673,7 @@ export function spawnHitSpark(scene, pos) {
 export function spawnExplosion(scene, pos) {
   const { SMOKE_TEX } = texCache();
   const pools = poolsFor(scene);
+  if (!pools) return NULL_FX;
   if (!pools.boomLight) { pools.boomLight = new THREE.PointLight(0xff5522, 0, 40); scene.add(pools.boomLight); }
   const it = acquire(pools.booms, 10, () => {
     const fireball = new THREE.Mesh(new THREE.SphereGeometry(1.6, 12, 12), new THREE.MeshBasicMaterial({ color: 0xff6622, transparent: true, opacity: 0.95 }));

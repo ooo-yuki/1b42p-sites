@@ -231,7 +231,15 @@ import * as M from './models.js';
 import { createNetClient, makeSnapshotBuffer } from './net.js';
 
 const $ = id => document.getElementById(id);
-window.addEventListener('error', e => { $('err').textContent = 'ERR: ' + (e.message || e.error); });
+window.addEventListener('error', e => {
+  // Первую ошибку фиксируем навсегда: раньше каждый выстрел перезаписывал
+  // оверлей одной и той же вторичной ошибкой и прятал первопричину.
+  const el = $('err');
+  if (el.dataset.done) return;
+  el.dataset.done = '1';
+  const stack = (e.error && e.error.stack) ? ' @ ' + String(e.error.stack).split('\n').slice(0, 3).join(' | ') : '';
+  el.textContent = 'ERR: ' + (e.message || e.error) + stack;
+});
 function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
@@ -476,6 +484,7 @@ function unitsIndex(unitsLike) {
 }
 function applyEvents(events, unitsLike) {
   if (!events || !events.length) return;
+  if (!scene) return; // 3D не поднялась — события не во что рисовать, сим при этом жив
   const idx = unitsIndex(unitsLike);
   for (const ev of events) {
     if (ev.t === 'shot') {
@@ -769,6 +778,11 @@ function resetBattleState() {
 }
 async function enterBattle(vid) {
   AU.init();
+  if (!renderer || !scene) {
+    const el = $('err'); el.dataset.done = '1';
+    el.textContent = 'ERR 3D: движок не запустился — обнови браузер и включи WebGL, потом зайди заново 🎮';
+    return;
+  }
   selectedVeh = vid;
   $('lobby').classList.add('hidden');
   $('end').classList.add('hidden');
@@ -1145,8 +1159,13 @@ $('quality').onchange = () => {
   if (renderer) { renderer.setPixelRatio(q.dpr); renderer.shadowMap.enabled = q.shadow; }
 };
 
-// boot
-boot3D();
+// boot: 3D поднимаем в try — чёрный экран без единой строчки больше не молчит,
+// а говорит внятную причину (обычно — заблокированный WebGL на устройстве).
+try { boot3D(); } catch (err) {
+  console.error('[tanks] boot3D упал:', err);
+  const el = document.getElementById('err'); el.dataset.done = '1';
+  el.textContent = 'ERR 3D: ' + ((err && err.message) || err) + ' — обнови браузер и включи WebGL 🎮';
+}
 if (ME.nick) { $('nick').value = ME.nick; enterLobby(); }
 </script>
 <script>/* 42-трекер онлайна */(function(){var SITE='miqqil';try{var s=null;try{s=localStorage.getItem('t42_sid');}catch(e){}if(!s||!/^[0-9a-f]{32}$/.test(s)){s='';var h='0123456789abcdef';for(var i=0;i<32;i++)s+=h[Math.floor(Math.random()*16)];try{localStorage.setItem('t42_sid',s);}catch(e){}}function b(){try{fetch('https://hub.bratuxa.zomb.top/api/track',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({site:SITE,sid:s}),keepalive:true}).catch(function(){});}catch(e){}}b();setInterval(b,30000);}catch(e){}})();</script>
