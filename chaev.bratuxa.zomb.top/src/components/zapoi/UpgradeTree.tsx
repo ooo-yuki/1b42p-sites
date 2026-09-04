@@ -4,6 +4,19 @@ import { TREE, shopDiscount, upgradeCost, buyUpgrade } from '../../game/zapoi/in
 import type { ZapoiState } from '../../game/zapoi/index';
 import type { MutateFn } from '../../hooks/useZapoiState';
 
+// Иконки веток от Дениса Биткоина 🍺 (public/tree/*.jpg, 256px, q86).
+export const BRANCH_ICON: Record<string, string> = {
+  '🍺 Ветка Глотки — только бухло': 'tree/glotka.jpg',
+  '🧬 Ветка Печени — бухло/сек + тело': 'tree/pechen.jpg',
+  '🩹 Ветка Трезвости — лечат HP, жрут бухло': 'tree/trezvost.jpg',
+  '🎉 Ветка Кутежа — мульты': 'tree/kutezh.jpg',
+  '🍀 Ветка Удачи — ставки и джекпоты': 'tree/udacha.jpg',
+};
+
+export function branchIcon(header: string): string {
+  return BRANCH_ICON[header] || '';
+}
+
 interface UpgradeTreeProps {
   z: ZapoiState;
   mutate: MutateFn;
@@ -33,7 +46,7 @@ export default function UpgradeTree({ z, mutate }: UpgradeTreeProps) {
           return (
             <div key={g.header}>
               <div className="branch" onClick={() => setOpenBr((p) => ({ ...p, [g.header]: !p[g.header] }))} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                {open ? '▼' : '▶'} {g.header} <span className="hint">(MAX {maxed}/{g.defs.length})</span>
+                {open ? '▼' : '▶'}{' '}{branchIcon(g.header) ? <img src={branchIcon(g.header)} alt="" style={{ width: 28, height: 28, borderRadius: 6, verticalAlign: 'middle' }} /> : null} {g.header} <span className="hint">(MAX {maxed}/{g.defs.length})</span>
               </div>
               {open && g.defs.map((b) => {
                 const l = z.up[b.id] || 0;
