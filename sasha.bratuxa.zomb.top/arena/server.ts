@@ -126,7 +126,7 @@ function poolView(): Record<string, unknown> {
     games: gameCatalog(),
     wait: pool.waitOpen
       ? { open: true, ends: pool.waitEnds, votes: { ...pool.waitVotes }, round: pool.waitRound }
-      : { open: false, round: pool.waitRound },
+      : { open: false, ends: 0, votes: {}, round: pool.waitRound },
   };
 }
 

@@ -51,7 +51,7 @@ export default function Lobby({ me, online, pool, games, searching, busy, myVote
   const yesEnter = members.filter(m => m.enter).length;
   const canEnter = members.length >= 2;
   const wait = pool?.wait;
-  const waitVotes = wait ? Object.values(wait.votes) : [];
+  const waitVotes = wait?.votes ? Object.values(wait.votes) : [];
   const yesWait = waitVotes.filter(Boolean).length;
   const enterPct = members.length > 0 ? Math.round((yesEnter / members.length) * 100) : 0;
   const waitPct = waitVotes.length > 0 ? Math.round((yesWait / waitVotes.length) * 100) : 0;
