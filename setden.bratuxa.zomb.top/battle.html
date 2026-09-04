@@ -28,8 +28,10 @@ button.gold{background:linear-gradient(180deg,#ffd23f,#ff7b00);color:#300}
 button:disabled{opacity:.45;cursor:default}
 .tabs{display:flex;gap:6px;overflow-x:auto;margin:10px 0;padding-bottom:4px}
 .tabs button{flex:0 0 auto;font-size:14px;padding:8px 12px}
-.adbanner{margin:12px 0;padding:14px;text-align:center;font-weight:bold;font-size:16px;border:2px solid #ffd23f;border-radius:14px;background:#140f00;box-shadow:0 0 18px #ffd23f55}
-.adbtn{display:inline-block;margin-top:8px;padding:10px 22px;border-radius:12px;color:#001 !important;font-weight:bold;text-decoration:none;background:linear-gradient(90deg,#ff2d78,#ffd23f,#00e5ff,#7CFC00,#ff2d78);background-size:300% 100%;animation:adflow 4s linear infinite;box-shadow:0 0 16px #ffd23faa}
+.adbanner{margin:16px auto;padding:22px 18px;max-width:560px;text-align:center;font-weight:bold;font-size:20px;border:3px solid #ffd23f;border-radius:18px;background:linear-gradient(180deg,#1c1400,#0a0800);box-shadow:0 0 28px #ffd23f88,0 0 70px #ff2d7844}
+.adbanner .adtitle{font-size:22px;margin-bottom:6px}
+.adbanner .adsub{font-size:14px;font-weight:normal;color:#ffe9a8;margin-bottom:10px}
+.adbtn{display:block;margin:12px auto 0;padding:18px 20px;max-width:420px;font-size:22px;border-radius:16px;color:#001 !important;font-weight:bold;text-decoration:none;background:linear-gradient(90deg,#ff2d78,#ffd23f,#00e5ff,#7CFC00,#ff2d78);background-size:300% 100%;animation:adflow 4s linear infinite;box-shadow:0 0 24px #ffd23fcc}
 @keyframes adflow{to{background-position:300% 0}}
 .panel{background:#0b0b1acc;border:2px solid #00e5ff;border-radius:14px;padding:12px;margin-top:8px;display:none}
 .panel.on{display:block}
@@ -74,7 +76,7 @@ small.dim{opacity:.7}
 <div><small class="dim">Тапай по врагу — каждый тап = удар. Враг бьёт в ответ автоматически.</small></div>
 </div>
 
-<div class="adbanner">🛞 Хочешь реальный батл? Переходи в Miqqil Танки!<br><a class="adbtn" href="https://miqqil.bratuxa.zomb.top/" target="_blank" rel="noopener">🎮 ИГРАТЬ В ТАНКИ →</a></div>
+<div class="adbanner"><div class="adtitle">🛞 Хочешь реальный батл?</div><div class="adsub">Тапы — это разминка. Настоящая броня, тактика и грохот — в танках Миккила!</div><a class="adbtn" href="https://miqqil.bratuxa.zomb.top/" target="_blank" rel="noopener">🎮 ПЕРЕХОДИ В MIQQIL ТАНКИ →</a></div>
 <div class="tabs">
 <button data-t="fight" class="ghost">⚔️ Бой</button>
 <button data-t="inv" class="ghost">🎒 Инвентарь</button>
