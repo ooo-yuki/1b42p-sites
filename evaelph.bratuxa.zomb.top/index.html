@@ -52,6 +52,20 @@ padding:10px 20px;border-radius:999px;z-index:10;opacity:0;transition:opacity .2
 #giftBtn{position:fixed;right:12px;bottom:108px;z-index:10;border:3px solid var(--ink);background:var(--berry);color:#fff;
 font-weight:bold;font-size:15px;border-radius:999px;padding:12px 18px;cursor:pointer;box-shadow:0 4px 0 #a33e66}
 #giftBtn:active{transform:translateY(2px);box-shadow:none}
+/* магазин (шторка над доком) */
+#shop{position:fixed;left:50%;transform:translateX(-50%);bottom:112px;z-index:11;display:none;
+background:var(--cream);border:3px solid var(--ink);border-radius:22px;padding:12px;max-width:96vw;width:470px;
+box-shadow:0 8px 0 rgba(47,93,58,.35)}
+#shop h4{margin:0 0 8px;font-size:17px}
+#shopGrid{display:flex;gap:10px}
+.shopCard{flex:1;border:3px solid var(--ink);border-radius:18px;background:#f3f9ec;padding:12px 8px;cursor:pointer;
+text-align:center;color:var(--ink);box-shadow:0 3px 0 rgba(47,93,58,.25)}
+.shopCard:active{transform:scale(.95)}
+.shopCard .em{font-size:48px;display:block}
+.shopCard b{font-size:15px}
+.shopCard small{display:block;font-size:12px;margin-top:4px;min-height:30px}
+.shopCard .cost{color:#d63d6e;font-weight:bold;font-size:13px;margin-top:6px}
+@media(max-width:640px){#shop{bottom:172px}}
 /* победа */
 #win{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(47,93,58,.45);z-index:20}
 #winBox{background:var(--cream);border:4px solid var(--gold);border-radius:26px;padding:28px;max-width:340px;text-align:center;
@@ -81,6 +95,7 @@ transition:transform 1.1s ease-out,opacity 1.1s}
   <div class="res">🧝 <b id="pop">0</b>/<b id="cap">0</b></div>
  </div>
 </div>
+<div id="shop"><h4 id="shopTitle"></h4><div id="shopGrid"></div></div>
 <div id="dock"></div>
 <div id="inspector">
  <h3 id="inspName">🏠</h3>
@@ -106,7 +121,13 @@ var B={
  spire:{em:'🗼',n:'Шпиль 42',cost:{gold:300,wood:150,mana:100},prod:{gold:2,mana:1,wood:1},house:10,desc:'Венец города!'}
 };
 var ORDER=['house','grove','tower','market','garden','spire'];
-var S,tool='house',bulldoze=false,selIdx=-1;
+var S,tool='house',bulldoze=false,selIdx=-1,openGroup=null;
+/* разделы магазина (как в Clash of Clans): внизу только группы */
+var GROUPS=[
+ {id:'city',em:'🏠',n:'Город',items:['house','market']},
+ {id:'nature',em:'🌲',n:'Природа',items:['grove','garden']},
+ {id:'magic',em:'🔮',n:'Магия',items:['tower','spire']}
+];
 function def(){return{gold:120,mana:20,wood:60,pop:0,cells:Array(64).fill(null),lastSeen:Date.now(),win:false};}
 function load(){try{S=JSON.parse(localStorage.getItem(KEY))||def();}catch(e){S=def();}
  if(!S.cells||S.cells.length!==64)S.cells=Array(64).fill(null);
@@ -222,6 +243,7 @@ function refreshCell(i){
  var xz=idx2xz(i);
  var g=BUILDERS[c.t](c.l);
  g.position.set(xz[0],0.3,xz[1]);
+ g.userData.base=1.15;g.scale.set(0.01,0.01,0.01);
  g.userData.idx=i;
  scene.add(g);bGroups[i]=g;
  pops.push({g:g,t:0});}
@@ -362,21 +384,34 @@ function renderHUD(){
  document.getElementById('popLine').textContent=S.pop+' жителей';
  if(S.win)document.getElementById('win').style.display='flex';
  var dock=document.getElementById('dock');dock.innerHTML='';
- ORDER.forEach(function(k){var b=B[k];
-  var btn=document.createElement('button');btn.className='tool'+((!bulldoze&&tool===k)?' active':'')+(canPay(b.cost)?'':' cant');
-  btn.innerHTML='<span class="em">'+b.em+'</span>'+b.n+'<small>'+fmtCost(b.cost)+'</small>';
-  btn.title=b.desc;
-  btn.onclick=function(){tool=k;bulldoze=false;selIdx=-1;closeInspector();toast(b.em+' '+b.n+': '+b.desc+'. Тапни клетку! 👆');blip(500);renderHUD();};
+ GROUPS.forEach(function(gr){
+  var btn=document.createElement('button');
+  var hasTool=!bulldoze&&gr.items.indexOf(tool)>=0;
+  btn.className='tool'+(hasTool?' active':'');
+  btn.innerHTML='<span class="em">'+gr.em+'</span>'+gr.n+(hasTool?'<small>'+B[tool].em+' '+B[tool].n+'</small>':'<small>'+gr.items.length+' постройки</small>');
+  btn.onclick=function(){blip(500);if(openGroup===gr.id){closeShop();}else{openShop(gr.id);}renderHUD();};
   dock.appendChild(btn);});
  var bz=document.createElement('button');
  bz.className='tool bulldoze'+(bulldoze?' active':'');
  bz.innerHTML='<span class="em">🚫</span>Снести<small>возврат 50%</small>';
- bz.onclick=function(){bulldoze=!bulldoze;closeInspector();toast(bulldoze?'Режим сноса: тапни здание 🚫':'Режим стройки 🏗️');renderHUD();};
+ bz.onclick=function(){bulldoze=!bulldoze;closeInspector();closeShop();toast(bulldoze?'Режим сноса: тапни здание 🚫':'Режим стройки 🏗️');renderHUD();};
  dock.appendChild(bz);
  var rs=document.createElement('button');
  rs.className='tool';rs.innerHTML='<span class="em">🗑</span>Заново<small>новый город</small>';
  rs.onclick=doReset;dock.appendChild(rs);
  if(selIdx>=0)fillInspector();}
+function openShop(gid){openGroup=gid;closeInspector();
+ var gr=null;GROUPS.forEach(function(x){if(x.id===gid)gr=x;});if(!gr)return;
+ document.getElementById('shopTitle').textContent=gr.em+' '+gr.n;
+ var grid=document.getElementById('shopGrid');grid.innerHTML='';
+ gr.items.forEach(function(k){var b=B[k];
+  var card=document.createElement('div');card.className='shopCard';
+  card.innerHTML='<span class="em">'+b.em+'</span><b>'+b.n+'</b><small>'+b.desc+'</small><div class="cost">'+fmtCost(b.cost)+'</div>';
+  card.onclick=function(){tool=k;bulldoze=false;selIdx=-1;closeShop();blip(620);
+   toast(b.em+' '+b.n+' выбран! Тапни клетку 👆');renderHUD();};
+  grid.appendChild(card);});
+ document.getElementById('shop').style.display='block';}
+function closeShop(){openGroup=null;document.getElementById('shop').style.display='none';}
 function openInspector(i){selIdx=i;var c=S.cells[i];if(!c){closeInspector();return;}
  document.getElementById('inspector').style.display='block';fillInspector();}
 function closeInspector(){selIdx=-1;document.getElementById('inspector').style.display='none';}
@@ -401,8 +436,9 @@ function loop(){requestAnimationFrame(loop);
   if(clouds[ci].position.x>18)clouds[ci].position.x=-18;}
  scene.traverse(function(o){if(o.userData&&o.userData.pulse){var s=1+Math.sin(t*3)*0.12;o.scale.set(s,s,s);}});
  for(var p=pops.length-1;p>=0;p--){var a=pops[p];a.t+=dt*3;
-  if(a.t>=1){a.g.scale.set(1,1,1);pops.splice(p,1);}
-  else{var e=1-Math.pow(1-a.t,3);a.g.scale.set(e,e,e);}}
+  var bs=a.g.userData.base||1;
+  if(a.t>=1){a.g.scale.set(bs,bs,bs);pops.splice(p,1);}
+  else{var e=1-Math.pow(1-a.t,3);a.g.scale.set(e*bs,e*bs,e*bs);}}
  renderer.render(scene,camera);}
 /* --- старт --- */
 load();
@@ -422,7 +458,7 @@ if(initThree()){refreshAll();renderHUD();loop();
   S.lastSeen=Date.now();save();renderHUD();},1000);}
 else{renderHUD();}
 /* крючок для тестов */
-window.__elf={get:function(){return S;},build:function(t){tool=t;bulldoze=false;
+window.__elf={get:function(){return S;},tool:function(){return tool;},build:function(t){tool=t;bulldoze=false;
  var i=S.cells.findIndex(function(c){return !c;});if(i>=0)clickCell(i);return i;},
  tiles:function(){return tileMeshes.length;}};
 </script>
