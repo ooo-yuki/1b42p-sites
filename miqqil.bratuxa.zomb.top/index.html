@@ -64,6 +64,58 @@
   #firebtn{ position:fixed; right:calc(24px + env(safe-area-inset-right)); bottom:calc(110px + env(safe-area-inset-bottom)); width:96px; height:96px; border-radius:50%; background:#f5c518; color:#111; font-weight:800; font-size:18px; z-index:6; display:none; border:none; touch-action:none; }
   body.touch #joy,body.touch #firebtn{ display:block; }
   #err{ position:fixed; bottom:0; left:0; right:0; z-index:99; color:#ff8080; font-size:12px; padding:4px 8px; }
+  /* ===== ГАЧА «ПРЫЖОК 42» в духе Honkai: Star Rail Warp ===== */
+  #warp{ background:radial-gradient(ellipse at 30% 20%,#1b2340 0%,#0b0e1a 55%,#05060c 100%); }
+  #warpStars,#warpStars2{ position:absolute; inset:-50%; pointer-events:none;
+    background-image:radial-gradient(1.5px 1.5px at 20px 30px,#fff,transparent),radial-gradient(1px 1px at 130px 80px,#9db4ff,transparent),radial-gradient(2px 2px at 70px 150px,#fff,transparent),radial-gradient(1px 1px at 200px 40px,#ffe9a8,transparent),radial-gradient(1.5px 1.5px at 260px 120px,#fff,transparent),radial-gradient(1px 1px at 320px 200px,#9db4ff,transparent);
+    background-size:360px 240px; animation:warpDrift 60s linear infinite; }
+  #warpStars2{ animation-duration:90s; opacity:.5; }
+  @keyframes warpDrift{ to{ transform:translate3d(360px,240px,0); } }
+  #warpMain{ position:relative; z-index:2; display:flex; gap:16px; flex-wrap:wrap; justify-content:center; align-items:stretch; width:min(980px,96vw); }
+  #warpBanner{ flex:1 1 420px; min-height:380px; border-radius:16px; padding:0; position:relative; overflow:hidden;
+    background:url('./img/warp-banner.jpg') center 65%/cover no-repeat,linear-gradient(135deg,#3a2a08,#1b2340); border:1px solid #f5c51866; box-shadow:0 0 40px #f5c51833; display:flex; align-items:flex-end; }
+  #warpBanner .shade{ position:absolute; inset:0; background:linear-gradient(180deg,transparent 30%,rgba(5,6,12,.25) 55%,rgba(5,6,12,.88) 100%); }
+  #warpBanner .cap{ position:relative; z-index:1; padding:18px 22px; width:100%; }
+  #warpBanner .lim{ display:inline-block; font-size:12px; font-weight:800; letter-spacing:2px; color:#0d0f14; background:linear-gradient(90deg,#ffe9a8,#f5c518); border-radius:6px; padding:3px 10px; }
+  #warpBanner h2{ color:#fff; margin:8px 0 0; font-size:34px; text-shadow:0 2px 18px #000,0 0 40px #f5c51866; }
+  #warpBanner .stars5{ color:#ffd700; font-size:22px; letter-spacing:6px; text-shadow:0 0 14px #ffd700; }
+  #warpBanner .sub{ color:#ffe9a8; font-size:14px; margin-top:4px; text-shadow:0 1px 8px #000; }
+  #warpSide{ flex:1 1 300px; background:#10141dee; border:1px solid var(--line); border-radius:16px; padding:18px; }
+  #warpSide .pass{ font-size:18px; margin:10px 0; }
+  #warpRates{ font-size:13px; color:#9aa3b5; margin-top:10px; line-height:1.7; }
+  #warpRates b.g{ color:#ffd700; } #warpRates b.p{ color:#c084fc; } #warpRates b.b{ color:#7cc4ff; }
+  #warpTunnel{ position:absolute; inset:0; z-index:5; display:flex; align-items:center; justify-content:center; flex-direction:column; overflow:hidden;
+    background:radial-gradient(circle at 50% 50%,#fff 0%,#9db4ff 12%,#1b2340 45%,#05060c 100%); }
+  #warpTunnel .ticket{ font-size:90px; animation:ticketFly 1.6s ease-in forwards; }
+  @keyframes ticketFly{ 0%{ transform:scale(.4) rotate(-20deg); opacity:0; } 25%{ opacity:1; } 100%{ transform:scale(2.6) rotate(10deg); opacity:0; } }
+  #warpTunnel .streaks{ position:absolute; inset:-60%; pointer-events:none;
+    background:repeating-conic-gradient(from 0deg at 50% 50%,#ffffff22 0deg 2deg,transparent 2deg 8deg);
+    animation:streakSpin 1.2s linear infinite; }
+  @keyframes streakSpin{ to{ transform:rotate(360deg) scale(1.4); } }
+  #warpFlash{ position:absolute; inset:0; z-index:6; opacity:0; pointer-events:none; }
+  #warpFlash.go{ animation:flashBang .7s ease-out; }
+  @keyframes flashBang{ 0%{ opacity:0; } 20%{ opacity:1; } 100%{ opacity:0; } }
+  #warpReveal{ position:absolute; inset:0; z-index:7; display:flex; align-items:center; justify-content:center; background:rgba(5,6,12,.85); padding:16px; }
+  .wcard{ width:min(420px,92vw); border-radius:18px; padding:26px 20px; text-align:center; background:#141824; animation:cardIn .5s cubic-bezier(.2,1.4,.4,1); }
+  @keyframes cardIn{ from{ transform:scale(.6) rotate(-4deg); opacity:0; } to{ transform:scale(1) rotate(0); opacity:1; } }
+  .wcard.s5{ border:2px solid #ffd700; box-shadow:0 0 60px #ffd70088; }
+  .wcard.s4{ border:2px solid #c084fc; box-shadow:0 0 40px #c084fc66; }
+  .wcard.s3{ border:2px solid #7cc4ff; box-shadow:0 0 24px #7cc4ff44; }
+  .wcard .big{ font-size:110px; filter:drop-shadow(0 0 24px currentColor); }
+  .wcard .art{ width:100%; height:300px; object-fit:cover; object-position:center 30%; border-radius:12px; display:block; }
+  .wcard .wn{ font-size:22px; font-weight:800; margin:8px 0 2px; }
+  .wthumb{ width:56px; height:56px; object-fit:cover; border-radius:8px; vertical-align:middle; }
+  .wthumb.sil{ filter:grayscale(1) brightness(.35); }
+  .wcard.s5 .wn{ color:#ffd700; } .wcard.s4 .wn{ color:#c084fc; } .wcard.s3 .wn{ color:#7cc4ff; }
+  .wcard .wst{ letter-spacing:4px; font-size:20px; }
+  .wcard .new{ display:inline-block; margin-top:8px; padding:4px 14px; border-radius:999px; font-weight:800; font-size:14px; }
+  .wcard .new.yes{ background:#37d67a; color:#06130b; } .wcard .new.no{ background:#3a4152; color:#9aa3b5; }
+  #warpGrid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; width:min(760px,94vw); margin-top:10px; }
+  #warpGrid .mini{ border-radius:10px; padding:8px; text-align:center; background:#141824; font-size:12px; }
+  #warpGrid .mini.s5{ border:1px solid #ffd700; } #warpGrid .mini.s4{ border:1px solid #c084fc; } #warpGrid .mini.s3{ border:1px solid #7cc4ff; }
+  #warpGrid .mini .e{ font-size:40px; }
+  .veh.locked{ opacity:.55; border-style:dashed; cursor:not-allowed; }
+  .veh .lock{ color:#f5c518; font-weight:800; font-size:13px; }
 </style>
 <script type="importmap">
 { "imports": {
@@ -129,6 +181,32 @@
     </div>
   </div>
   <div class="card"><b style="color:#f5c518">Топ батальона</b><div id="lbTop">…</div></div>
+  <div class="card"><b style="color:#f5c518">🎰 ПРЫЖОК 42 — гача танков</b>
+    <div style="margin-top:6px;font-size:15px">Пропусков 42: <b id="spins" style="color:#f5c518">5</b> 🎟️ <span style="color:#9aa3b5;font-size:13px">• +1 за каждую сыгранную битву</span></div>
+    <div class="row" style="margin-top:8px"><button id="btnGacha">К БАННЕРУ ✨</button></div>
+  </div>
+</div>
+
+<div id="warp" class="screen hidden">
+  <div id="warpStars"></div><div id="warpStars2"></div>
+  <div id="warpMain">
+    <div id="warpBanner">
+      <div class="shade"></div>
+      <div class="cap"><span class="lim">ЛИМИТНЫЙ ПРЫЖОК</span><h2>«Аврора-42»</h2><div class="stars5">★★★★★</div><div class="sub">Прыжок 42: Броня судьбы 🏆</div></div>
+    </div>
+    <div id="warpSide">
+      <b style="color:#f5c518">Звёздный пропуск 42</b>
+      <div class="pass">🎟️ <b id="warpSpins">5</b> <span style="color:#9aa3b5;font-size:13px">• гарант 4★ каждые 10 прыжков • гарант 5★ каждые 90</span></div>
+      <div class="row"><button id="btnWarp1">Прыгнуть ×1</button><button id="btnWarp10" class="ghost">Прыгнуть ×10</button></div>
+      <div class="row" style="margin-top:8px"><button id="btnWarpBack" class="ghost">В ангар</button></div>
+      <div id="warpRates"><b class="g">★★★★★ «Аврора-42» — 3%</b><br><b class="p">★★★★ ИС «Пятёрка» — 10% • «Ястреб» — 14%</b><br><b class="b">★★★ БТ «Вихрь» — 73%</b><br>Т-42 «Братуха» уже твой 🏆 • повторка ничего не даёт</div>
+      <div id="warpMsg" style="margin-top:8px;font-size:13px;color:#9aa3b5"></div>
+    </div>
+  </div>
+  <div id="warpGrid"></div>
+  <div id="warpTunnel" class="hidden"><div class="streaks"></div><div class="ticket">🎟️</div><div style="z-index:1">Прыжок сквозь звёзды…</div><button id="btnWarpSkip" class="ghost" style="z-index:1;margin-top:12px">Пропустить ⏩</button></div>
+  <div id="warpFlash"></div>
+  <div id="warpReveal" class="hidden"><div class="wcard" id="warpCard"></div></div>
 </div>
 
 <div id="end" class="screen hidden">
@@ -147,6 +225,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { vehicleList, getVehicle, updateRating } from './game-logic.js';
+import { GACHA_POOL, STARTER, defaultGacha, rollOnce, grantSpin, isUnlocked } from './gacha.js';
 import * as Sim from './sim.js';
 import * as M from './models.js';
 import { createNetClient, makeSnapshotBuffer } from './net.js';
@@ -190,7 +269,20 @@ const AU = { ctx: null,
     const o = c.createOscillator(), g = c.createGain();
     o.type = 'square'; o.frequency.setValueAtTime(320, t); o.frequency.exponentialRampToValueAtTime(60, t + 0.12);
     g.gain.setValueAtTime(0.15, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
-    o.connect(g).connect(c.destination); o.start(t); o.stop(t + 0.14); }
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t + 0.14); },
+  warp() { if (!this.ctx) return; const c = this.ctx, t = c.currentTime; // свист прыжка сквозь звёзды
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(2400, t + 1.4);
+    g.gain.setValueAtTime(0.18, t); g.gain.exponentialRampToValueAtTime(0.001, t + 1.6);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t + 1.6); },
+  reveal(stars) { if (!this.ctx) return; const c = this.ctx, t = c.currentTime; // фанфары редкости
+    const base = stars >= 5 ? [523, 659, 784, 1047] : stars >= 4 ? [440, 554, 659] : [330, 392];
+    base.forEach((f, i) => {
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = 'triangle'; o.frequency.setValueAtTime(f, t + i * 0.12);
+      g.gain.setValueAtTime(0.2, t + i * 0.12); g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.12 + 0.4);
+      o.connect(g).connect(c.destination); o.start(t + i * 0.12); o.stop(t + i * 0.12 + 0.42);
+    }); },
 };
 function sfxShot() { AU.shot(); }
 function sfxBoom(big) { AU.boom(big); }
@@ -413,6 +505,8 @@ function applyEvents(events, unitsLike) {
         roundResults = ev.results;
         feed('Раунд окончен — итоги на экране 🏆');
         if (mode === 'offline') {
+          grantSpin(G); saveG(); refreshSpins(); // +1 пропуск за сыгранную битву 🎟️
+          feed('+1 🎟️ пропуск 42 за битву!');
           const mine = ev.results.find(r => r.id === myId);
           if (mine) {
             const r = updateRating(ME.rating, 1000, mine.place, mine.total, mine.kills);
@@ -636,6 +730,8 @@ function handleNetMessage(msg) {
     applyEvents(msg.events, msg.units);
   } else if (msg.t === 'rating') {
     ME.rating = msg.rating; store.set('rating', ME.rating); $('myrating').textContent = ME.rating;
+    grantSpin(G); saveG(); refreshSpins(); // +1 пропуск за сыгранную битву 🎟️
+    feed('+1 🎟️ пропуск 42 за битву!');
   }
 }
 
@@ -863,21 +959,135 @@ if (isTouchDevice) document.body.classList.add('touch');
   fb.addEventListener('touchcancel', e => { e.stopPropagation(); touchFire = false; }); // палец соскользнул — не оставлять огонь зажатым навсегда
 })();
 
+// ---------- ГАЧА «ПРЫЖОК 42» ----------
+const VEH_EMOJI = { t42: '🛞', pyat: '🛡️', vihr: '🌪️', avrora: '🚢', yastreb: '✈️' };
+const VEH_ART = { avrora: './img/avrora.jpg', pyat: './img/pyat.jpg', yastreb: './img/yastreb.jpg', vihr: './img/vihr.jpg' };
+let G = store.get('gacha', null);
+if (!G || typeof G.spins !== 'number' || !Array.isArray(G.owned)) G = defaultGacha();
+function saveG() { store.set('gacha', G); }
+function refreshSpins() {
+  $('spins').textContent = G.spins;
+  $('warpSpins').textContent = G.spins;
+  $('warpMsg').textContent = G.spins <= 0 ? 'Пропуски кончились — иди в бой, +1 за каждую битву 🏆' : '';
+}
+function gachaPoolStars(id) {
+  const p = GACHA_POOL.find(x => x.id === id);
+  return p ? p.stars : 3;
+}
+let warpBusy = false, warpQueue = [], warpTunnelTimer = null;
+function openWarp() {
+  AU.init();
+  $('lobby').classList.add('hidden');
+  $('warp').classList.remove('hidden');
+  $('warpTunnel').classList.add('hidden');
+  $('warpReveal').classList.add('hidden');
+  $('warpGrid').innerHTML = '';
+  refreshSpins();
+}
+function closeWarp() {
+  $('warp').classList.add('hidden');
+  $('lobby').classList.remove('hidden');
+  buildLobby();
+  refreshSpins();
+}
+function doWarp(n) {
+  if (warpBusy) return;
+  AU.init();
+  if (G.spins < n) {
+    $('warpMsg').textContent = `Нужно ${n} 🎟️, а у тебя ${G.spins}. Иди в бой — +1 за каждую битву 🏆`;
+    return;
+  }
+  const results = [];
+  for (let i = 0; i < n; i++) {
+    const r = rollOnce(G);
+    if (r.error) break;
+    results.push(r);
+  }
+  saveG(); refreshSpins(); buildLobbyPreview();
+  warpQueue = results;
+  warpBusy = true;
+  $('warpGrid').innerHTML = '';
+  $('warpReveal').classList.add('hidden');
+  const tun = $('warpTunnel');
+  tun.classList.remove('hidden');
+  tun.querySelector('.ticket').style.animation = 'none';
+  void tun.offsetWidth;
+  tun.querySelector('.ticket').style.animation = '';
+  AU.warp();
+  warpTunnelTimer = setTimeout(() => showNextReveal(), 1700);
+}
+function skipTunnel() {
+  if (warpTunnelTimer) { clearTimeout(warpTunnelTimer); warpTunnelTimer = null; }
+  if (warpBusy && warpQueue.length) showNextReveal();
+}
+function showNextReveal() {
+  warpTunnelTimer = null;
+  $('warpTunnel').classList.add('hidden');
+  const r = warpQueue[0];
+  if (!r) { finishWarp(); return; }
+  const v = getVehicle(r.id);
+  const flash = $('warpFlash');
+  flash.style.background = r.stars >= 5
+    ? 'radial-gradient(circle,#fff 0%,#ffd700 30%,transparent 70%)'
+    : r.stars >= 4 ? 'radial-gradient(circle,#fff 0%,#c084fc 30%,transparent 70%)'
+    : 'radial-gradient(circle,#fff 0%,#7cc4ff 30%,transparent 70%)';
+  flash.classList.remove('go');
+  void flash.offsetWidth;
+  flash.classList.add('go');
+  AU.reveal(r.stars);
+  const card = $('warpCard');
+  card.className = 'wcard s' + r.stars;
+  card.innerHTML = `<img class="art" src="${VEH_ART[r.id] || './img/warp-banner.jpg'}" alt="${escapeHtml(v.name)}">
+    <div class="wst" style="color:${r.stars >= 5 ? '#ffd700' : r.stars >= 4 ? '#c084fc' : '#7cc4ff'}">${'★'.repeat(r.stars)}</div>
+    <div class="wn">${escapeHtml(v.name)}</div>
+    <small style="color:#9aa3b5">${escapeHtml(v.desc)}</small>
+    <div class="ttx" style="font-size:12px;color:#c6cddb;margin-top:4px">HP ${v.hp} • Урон ${v.damage} • Скор ${v.speed}</div><br>
+    <span class="new ${r.isNew ? 'yes' : 'no'}">${r.isNew ? '🆕 НОВАЯ ТЕХНИКА! Доступна в ангаре!' : '♻️ Повторка — ничего не даёт'}</span><br>
+    <button id="warpNext" style="margin-top:12px">${warpQueue.length > 1 ? 'Далее ⏭️' : 'Забрать 🏆'}</button>`;
+  $('warpReveal').classList.remove('hidden');
+  $('warpNext').onclick = () => {
+    warpQueue.shift();
+    $('warpReveal').classList.add('hidden');
+    if (warpQueue.length) showNextReveal();
+    else finishWarp();
+  };
+}
+function finishWarp() {
+  warpBusy = false;
+  buildLobbyPreview();
+}
+function buildLobbyPreview() {
+  // мини-итог под баннером: что уже выбито
+  const owned = GACHA_POOL.filter(p => G.owned.includes(p.id));
+  $('warpGrid').innerHTML = owned.length
+    ? '<div style="color:#9aa3b5;font-size:13px;width:100%;text-align:center">В коллекции: ' + owned.map(p => `<img class="wthumb" src="${VEH_ART[p.id]}" alt=""> ${escapeHtml(getVehicle(p.id).name)} ${'★'.repeat(p.stars)}`).join(' • ') + '</div>'
+    : '<div style="color:#9aa3b5;font-size:13px;width:100%;text-align:center">Пока только Т-42 «Братуха» — прыгай за остальными! 🎰</div>';
+}
 // ---------- UI flow ----------
 function buildLobby() {
   const grid = $('vehGrid');
   grid.innerHTML = '';
-  let sel = store.get('veh', 't42');
-  try { getVehicle(sel); } catch { sel = 't42'; }
+  let sel = store.get('veh', STARTER);
+  try { getVehicle(sel); } catch { sel = STARTER; }
+  if (!isUnlocked(G, sel)) sel = STARTER;
   for (const v of vehicleList()) {
+    const open = isUnlocked(G, v.id);
     const d = document.createElement('div');
-    d.className = 'veh' + (v.id === sel ? ' sel' : '');
-    d.innerHTML = `<b>${v.name}</b><small>${v.type === 'tank' ? 'ТАНК' : v.type === 'ship' ? 'КОРАБЛЬ' : 'САМОЛЁТ'} • ${v.desc}</small>
-      <div class="ttx">HP ${v.hp} • Урон ${v.damage} • Скор ${v.speed} • Перезаряд ${v.reload}с • Дальн ${v.range}</div>`;
-    d.onclick = () => { AU.init(); store.set('veh', v.id); sel = v.id; grid.querySelectorAll('.veh').forEach(x => x.classList.remove('sel')); d.classList.add('sel'); };
+    d.className = 'veh' + (v.id === sel ? ' sel' : '') + (open ? '' : ' locked');
+    if (open) {
+      d.innerHTML = `<b>${VEH_EMOJI[v.id] || ''} ${v.name}</b><small>${v.type === 'tank' ? 'ТАНК' : v.type === 'ship' ? 'КОРАБЛЬ' : 'САМОЛЁТ'} • ${v.desc}</small>
+        <div class="ttx">HP ${v.hp} • Урон ${v.damage} • Скор ${v.speed} • Перезаряд ${v.reload}с • Дальн ${v.range}</div>`;
+      d.onclick = () => { AU.init(); store.set('veh', v.id); sel = v.id; grid.querySelectorAll('.veh').forEach(x => x.classList.remove('sel')); d.classList.add('sel'); };
+    } else {
+      const stars = gachaPoolStars(v.id);
+      d.innerHTML = `<b>🔒 ??? ${'★'.repeat(stars)}</b><br><img class="wthumb sil" style="width:100%;height:74px" src="${VEH_ART[v.id] || './img/warp-banner.jpg'}" alt=""><br><small>Закрыто — выбей в «Прыжке 42» 🎰</small>
+        <div class="lock">🎟️ крути баннер, повторка не нужна</div>`;
+      d.onclick = () => { $('lobbyHello').textContent = 'Эта машина ещё закрыта — жми «К БАННЕРУ» 🎰'; };
+    }
     grid.appendChild(d);
   }
   grid.dataset.sel = sel;
+  refreshSpins();
 }
 
 $('btnHow').onclick = () => $('how').classList.toggle('hidden');
@@ -908,6 +1118,11 @@ $('btnStart').onclick = () => {
   enterBattle(v.id);
 };
 $('btnAgain').onclick = () => { if (mode !== 'offline') return; $('end').classList.add('hidden'); leaveBattle(); enterBattle(selectedVeh); };
+$('btnGacha').onclick = () => openWarp();
+$('btnWarp1').onclick = () => doWarp(1);
+$('btnWarp10').onclick = () => doWarp(10);
+$('btnWarpBack').onclick = () => closeWarp();
+$('btnWarpSkip').onclick = () => skipTunnel();
 $('btnHangar').onclick = () => { leaveBattle(); $('end').classList.add('hidden'); enterLobby(); refreshBoard(); };
 
 function enterLobby() {
@@ -934,6 +1149,6 @@ $('quality').onchange = () => {
 boot3D();
 if (ME.nick) { $('nick').value = ME.nick; enterLobby(); }
 </script>
-<script>/* 42-трекер онлайна */(function(){var SITE='miqqil';try{var s=null;try{s=localStorage.getItem('t42_sid');}catch(e){}if(!s||!/^[0-9a-f]{32}$/.test(s)){s='';var h='0123456789abcdef';for(var i=0;i<32;i++)s+=h[Math.floor(Math.random()*16)];try{localStorage.setItem('t42_sid',s);}catch(e){}}function b(){try{fetch('https://hub.bratuxa.zomb.top/api/track',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({site:SITE,sid:s}),keepalive:true});}catch(e){}}b();setInterval(b,30000);}catch(e){}})();</script>
+<script>/* 42-трекер онлайна */(function(){var SITE='miqqil';try{var s=null;try{s=localStorage.getItem('t42_sid');}catch(e){}if(!s||!/^[0-9a-f]{32}$/.test(s)){s='';var h='0123456789abcdef';for(var i=0;i<32;i++)s+=h[Math.floor(Math.random()*16)];try{localStorage.setItem('t42_sid',s);}catch(e){}}function b(){try{fetch('https://hub.bratuxa.zomb.top/api/track',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({site:SITE,sid:s}),keepalive:true}).catch(function(){});}catch(e){}}b();setInterval(b,30000);}catch(e){}})();</script>
 </body>
 </html>
