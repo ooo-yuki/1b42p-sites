@@ -65,7 +65,7 @@ b.gold{color:gold}b.grn{color:#0f6}b.red{color:#f55}
 </div>
 <script>
 // ===== МИР =====
-const scene=new THREE.Scene();scene.background=new THREE.Color(0x0a0a18);scene.fog=new THREE.Fog(0x0a0a18,60,260);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x0a0a18);scene.fog=new THREE.Fog(0x0a0a18,60,340);
 const cam=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,500);
 const ren=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});ren.setSize(innerWidth,innerHeight);ren.setPixelRatio(Math.min(devicePixelRatio||1,2));ren.shadowMap.enabled=true;ren.shadowMap.type=THREE.PCFSoftShadowMap;ren.toneMapping=THREE.ACESFilmicToneMapping;ren.toneMappingExposure=1.25;ren.outputColorSpace=THREE.SRGBColorSpace;document.body.appendChild(ren.domElement);
 let GFX={pr:Math.min(devicePixelRatio||1,2),t:0,acc:0,n:0};
@@ -99,11 +99,18 @@ function rawZoneH(x,z){
  if(x>=40&&z>-30&&z<125) return 2.0;  // лес (восток)
  return 0.8;                          // город (запад+центр)
 }
+function massif(x,z){
+ const mtnM=Math.min(1,Math.max(0,(rawZoneH(x,z)-2)/1.6)); // только в горах
+ if(mtnM<=0)return 0;
+ const g1=24*Math.exp(-((x+40)*(x+40)+(z+178)*(z+178))/(2*48*48)); // главная вершина
+ const g2=18*Math.exp(-((x-125)*(x-125)+(z-172)*(z-172))/(2*38*38)); // вторая вершина
+ const g3=12*Math.exp(-((x-175)*(x-175)+(z-120)*(z-120))/(2*30*30)); // хребет
+ return (g1+g2+g3)*mtnM;
+}
 function baseH(x,z){
  const r=10;
  let h=(rawZoneH(x,z)+rawZoneH(x+r,z)+rawZoneH(x-r,z)+rawZoneH(x,z+r)+rawZoneH(x,z-r))/5;
- const mtnM=Math.min(1,Math.max(0,(rawZoneH(x,z)-2)/1.6)); // 0 вне гор → 1 в горах
- if(mtnM>0) h+=(Math.sin(x*0.16)*Math.cos(z*0.14)*1.4+Math.sin(x*0.42+1.7)*Math.cos(z*0.38+0.6)*0.5+Math.abs(Math.sin(x*0.09+0.5)*Math.sin(z*0.11))*1.2)*mtnM; // пейзажный рельеф
+ h+=massif(x,z); // горный массив вместо мелких неровностей
  return h;
 }
 const AUTOPAD=[]; // автоплощадки под зданиями (заполняются перед buildTerrain)
@@ -114,8 +121,8 @@ function groundHeight(x,z){
  return h;
 }
 function GY(x,z){return groundHeight(x,z);}
-const FLAT=[{x:0,z:-140,r:32,h:0.8},{x:60,z:-155,r:36,h:3.6}]; // площадки: SLAY ровно на городе, пещера ровно на горе
-const ZONE_COL={beach:new THREE.Color(0xd9b84a),shore:new THREE.Color(0xc9a94e),city:new THREE.Color(0x1c1c24),forest:new THREE.Color(0x1e6a34),mtn:new THREE.Color(0x6a3a3a),road:new THREE.Color(0x33333d)};
+const FLAT=[{x:0,z:-140,r:32,h:0.8},{x:60,z:-155,r:36,h:baseH(60,-155)}]; // площадки: SLAY ровно на городе, пещера ровно на склоне массива
+const ZONE_COL={beach:new THREE.Color(0xd9b84a),shore:new THREE.Color(0xc9a94e),city:new THREE.Color(0x1c1c24),forest:new THREE.Color(0x1e6a34),mtn:new THREE.Color(0x3e7a33),road:new THREE.Color(0x33333d)};
 function zoneColor(x,z,out){
  let isCF=false;
  if(z<=-150||(x>=140&&z<=-30)) out.copy(ZONE_COL.mtn);
@@ -127,8 +134,8 @@ function zoneColor(x,z,out){
  return out;
 }
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(400,400,160,160),new THREE.MeshStandardMaterial({vertexColors:true,metalness:.5,roughness:.55,envMapIntensity:.6}));
-function buildTerrain(){const pos=ground.geometry.attributes.position,cols=[];const tc=new THREE.Color();const snow=new THREE.Color(0xdde4ea),rockL=new THREE.Color(0x7d5a5a);
-for(let i=0;i<pos.count;i++){const wx=pos.getX(i),wz=-pos.getY(i);const hh=groundHeight(wx,wz);pos.setZ(i,hh);zoneColor(wx,wz,tc);if(hh>4.6){tc.lerp(snow,Math.min(1,(hh-4.6)/1.4)*0.9);}else if(hh>3.4){tc.lerp(rockL,Math.min(1,(hh-3.4)/1.2)*0.5);}cols.push(tc.r,tc.g,tc.b);}
+function buildTerrain(){const pos=ground.geometry.attributes.position,cols=[];const tc=new THREE.Color();const rockHi=new THREE.Color(0x7a756c),dryGrass=new THREE.Color(0x6e7a3a);
+for(let i=0;i<pos.count;i++){const wx=pos.getX(i),wz=-pos.getY(i);const hh=groundHeight(wx,wz);pos.setZ(i,hh);zoneColor(wx,wz,tc);if(hh>9){tc.lerp(rockHi,Math.min(1,(hh-9)/6)*0.85);}else if(hh>4.5){tc.lerp(dryGrass,Math.min(1,(hh-4.5)/4.5)*0.55);}cols.push(tc.r,tc.g,tc.b);}
 ground.geometry.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));ground.geometry.computeVertexNormals();}
 ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
 // вода вокруг острова (стена — кламп ±190 ниже в коде движения)
@@ -205,9 +212,19 @@ function segSeg(x1,z1,x2,z2,x3,z3,x4,z4){
  const t=((x3-x1)*(z4-z3)-(z3-z1)*(x4-x3))/d,u=((x3-x1)*(z2-z1)-(z3-z1)*(x2-x1))/d;
  return t>=0&&t<=1&&u>=0&&u<=1;}
 // -- мини-ландшафт и братухи --
-function palm(x,z){
- const t=new THREE.Mesh(new THREE.CylinderGeometry(.4,.55,7,8),new THREE.MeshStandardMaterial({color:0x6b4a2b}));t.position.set(x,3.5,z);t.castShadow=true;scene.add(t);
- for(let i=0;i<6;i++){const leaf=new THREE.Mesh(new THREE.ConeGeometry(1,4,4),new THREE.MeshStandardMaterial({color:0x1d7a2f}));leaf.position.set(x+Math.cos(i)*2,7.3,z+Math.sin(i)*2);leaf.rotation.z=Math.cos(i)*1.1;leaf.rotation.x=Math.sin(i)*1.1;scene.add(leaf);}}
+function palm(x,z,s){
+ s=s||1;
+ const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=Math.random()*Math.PI*2;scene.add(g);
+ const tm=new THREE.MeshStandardMaterial({color:0x6b4a2b,roughness:.9});
+ const lean=(rnd()-0.5)*0.35;
+ let px=0;const segH=5.5*s;
+ for(let i=0;i<2;i++){const t=new THREE.Mesh(new THREE.CylinderGeometry(0.45*s*(1-i*0.12),0.55*s*(1-i*0.12),segH,7),tm);px+=lean*segH*0.35;t.position.set(px,segH/2+i*segH*0.94,0);t.rotation.z=-lean*0.35;t.castShadow=true;g.add(t);}
+ const topY=2*segH*0.94,topX=px;
+ const fm=new THREE.MeshStandardMaterial({color:0x1faa4a,roughness:.8});
+ for(let i=0;i<7;i++){const a=i/7*Math.PI*2;const leaf=new THREE.Mesh(new THREE.ConeGeometry(0.55*s,5*s,5),fm);leaf.scale.z=0.55;leaf.position.set(topX+Math.cos(a)*2.3*s,topY-0.3*s,Math.sin(a)*2.3*s);leaf.rotation.set(Math.sin(a)*1.25,0,-Math.cos(a)*1.25);leaf.castShadow=true;g.add(leaf);}
+ const cm=new THREE.MeshStandardMaterial({color:0x6b4a1a,roughness:.85});
+ for(let i=0;i<2;i++){const nut=new THREE.Mesh(new THREE.SphereGeometry(0.35*s,8,6),cm);nut.position.set(topX+Math.cos(i*2.4+1)*0.8*s,topY-0.7*s,Math.sin(i*2.4+1)*0.8*s);g.add(nut);}
+}
 function lampPost(x,z){
  const p=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,8,8),new THREE.MeshStandardMaterial({color:0x444444}));p.position.set(x,4,z);scene.add(p);
  const bulb=new THREE.Mesh(new THREE.SphereGeometry(.5,10,8),new THREE.MeshBasicMaterial({color:0xffeeaa}));bulb.position.set(x,8.2,z);scene.add(bulb);
@@ -864,11 +881,21 @@ function rock(x,z,s){const m=new THREE.Mesh(new THREE.ConeGeometry(4*s,7*s,5),ne
  placed=0;guard=0;
  while(placed<6&&guard++<70){const x=-170+Math.random()*340,z=132+Math.random()*50;if(!decorFree(x,z,5))continue;palm(x,z);placed++;}
 })();
-// пики со снежными шапками (база y=0 — liftIsland поднимет на рельеф)
-function peak(x,z,r,h){const m=new THREE.Mesh(new THREE.ConeGeometry(r,h,7),new THREE.MeshStandardMaterial({color:0x4a2e2e,roughness:1,flatShading:true}));m.position.set(x,h/2-1,z);m.castShadow=true;scene.add(m);
-const cap=new THREE.Mesh(new THREE.ConeGeometry(r*0.42,h*0.3,7),new THREE.MeshStandardMaterial({color:0xe8eef4,roughness:.8,flatShading:true}));cap.position.set(x,h-1-h*0.15,z);scene.add(cap);
-solids.push({x,z,hx:r*0.7,hz:r*0.7,mesh:m,extra:[cap]});}
-for(const p of [[-120,-172,16,24],[-45,-174,18,28],[30,-172,15,22],[120,-168,17,26],[170,-108,14,20],[-160,-165,13,18]]){if(decorFree(p[0],p[1],p[2]+6))peak(p[0],p[1],p[2],p[3]);}
+// горные пальмы на пологих склонах массива (конусы-пики убраны)
+(function(){
+ let placed=0,guard=0;
+ while(placed<18&&guard++<220){
+  const north=rnd()<0.7;
+  const x=north?-180+rnd()*370:140+rnd()*50;
+  const z=north?-200+rnd()*65:-130+rnd()*100;
+  if(rawZoneH(x,z)<3)continue; // только в горах
+  if(Math.abs(baseH(x+4,z)-baseH(x-4,z))>7)continue; // слишком круто
+  if(Math.abs(baseH(x,z+4)-baseH(x,z-4))>7)continue;
+  if(!decorFree(x,z,4))continue;
+  if(Math.hypot(x-60,z+155)<42)continue; // не на пещере
+  palm(x,z,1.1+rnd()*0.4);placed++;
+ }
+})();
 // ===== ГОРОД 2.0: даунтаун + WINLINE-билборды + площадь SLAY (база y=0 — liftIsland поднимет) =====
 const winlineTex=(function(){const c=document.createElement('canvas');c.width=512;c.height=160;const g=c.getContext('2d');
 g.fillStyle='#e65c00';g.fillRect(0,0,512,160);g.fillStyle='#fff';g.font='bold 84px Arial';g.fillText('WINLINE',60,95);
@@ -1211,7 +1238,7 @@ cam.lookAt(focus.x,cam.userData.lookY||2,focus.z);
 // фон зон острова
 mm.fillStyle='#1c1c24';mm.fillRect(0,0,S,S); // город-база
 mm.fillStyle='#1e6a34';mm.fillRect(WX(40),WX(-30),160*W2M,155*W2M); // лес
-mm.fillStyle='#6a3a3a';mm.fillRect(0,0,S,50*W2M); // горы север
+mm.fillStyle='#3e7a33';mm.fillRect(0,0,S,50*W2M); // горы север
 mm.fillRect(WX(140),WX(-130),60*W2M,100*W2M); // хребет
 mm.fillStyle='#d9b84a';mm.fillRect(0,WX(125),S,75*W2M); // пляж
 // дороги-сетка
