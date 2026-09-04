@@ -1,0 +1,21 @@
+{
+  "name": "skitons-cafe",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "bunx tsc --noEmit && bun build ./src/main.tsx --outdir ./dist --minify --target browser --define process.env.NODE_ENV='\"production\"'",
+    "typecheck": "tsc --noEmit",
+    "dev": "bun --hot ./src/dev-server.ts"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.160.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@types/three": "^0.160.0",
+    "typescript": "^5.5.3"
+  }
+}
