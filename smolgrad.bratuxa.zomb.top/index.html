@@ -687,6 +687,38 @@ function buildSmolStatue(){
  spark(g,0.9,2.4,3,0xfff6b8);
  g.position.set(0,0.3,0);scene.add(g);}
 buildSmolStatue();
+/* --- УЖ-ПОБРАТИМ: ползает вокруг ног статуи и охраняет царя --- */
+var uzhSegs=[],uzhAng=0,uzhTongue=null;
+function buildUzh(){
+ var g=new THREE.Group();scene.add(g);
+ var bodyM=mat(0x35382f);
+ for(var i=0;i<8;i++){var r=0.22-i*0.016;
+  var s=new THREE.Mesh(new THREE.SphereGeometry(r,9,7),bodyM);
+  s.castShadow=true;g.add(s);uzhSegs.push(s);}
+ var head=uzhSegs[0];
+ var sp1=new THREE.Mesh(new THREE.SphereGeometry(0.05,6,5),new THREE.MeshBasicMaterial({color:0xffd23f}));
+ sp1.position.set(0.14,0.1,0.12);head.add(sp1);
+ var sp2=sp1.clone();sp2.position.x=-0.14;head.add(sp2);
+ var e1=new THREE.Mesh(new THREE.SphereGeometry(0.035,6,5),new THREE.MeshBasicMaterial({color:0x111111}));
+ e1.position.set(0.09,0.08,0.2);head.add(e1);
+ var e2=e1.clone();e2.position.x=-0.09;head.add(e2);
+ uzhTongue=put(box(0.04,0.015,0.22,mat(0xc00040)),0,-0.02,0.32);head.add(uzhTongue);
+ head.add(put(cyl(0.1,0.12,0.07,8,mat(0xffd23f,0x6b4e00,0.4)),0,0.24,0));
+ for(var ci=0;ci<3;ci++){var a=ci/3*Math.PI*2;
+  head.add(put(cone(0.035,0.09,5,mat(0xffd23f,0x6b4e00,0.4)),Math.cos(a)*0.08,0.32,Math.sin(a)*0.08));}}
+buildUzh();
+function updateUzh(dt){
+ if(!uzhSegs.length)return;
+ uzhAng+=dt*0.45;
+ var t=Date.now()/1000,R=0.55,Y=1.16;
+ for(var i=0;i<uzhSegs.length;i++){
+  var a=uzhAng-i*0.16;
+  var wob=Math.sin(t*5-i*0.9)*0.06;
+  var s=uzhSegs[i];
+  s.position.set(Math.cos(a)*(R+wob),Y+Math.sin(t*3-i*0.8)*0.02,Math.sin(a)*(R+wob));
+  var a2=a-0.12;
+  s.lookAt(Math.cos(a2)*R,Y,Math.sin(a2)*R);}
+ if(uzhTongue){uzhTongue.scale.z=0.5+((Math.sin(t*6)+1)/2);}}
  raycaster=new THREE.Raycaster();mouseV=new THREE.Vector2();
  bindInput();updateCam();fit();
  window.addEventListener('resize',fit);
@@ -1234,6 +1266,7 @@ function loop(){requestAnimationFrame(loop);
   var bs=a.g.userData.base||1;
   if(a.t>=1){a.g.scale.set(bs,bs,bs);pops.splice(p,1);}
   else{var e=1-Math.pow(1-a.t,3);a.g.scale.set(e*bs,e*bs,e*bs);}}
+ updateUzh(dt);
  if(fpMode){var f=0,s=0;
   if(keys['KeyW']||keys['ArrowUp'])f+=1;if(keys['KeyS']||keys['ArrowDown'])f-=1;
   if(keys['KeyD']||keys['ArrowRight'])s+=1;if(keys['KeyA']||keys['ArrowLeft'])s-=1;
