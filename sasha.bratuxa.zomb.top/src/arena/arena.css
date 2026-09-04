@@ -136,6 +136,9 @@
   display:flex; align-items:center; justify-content:center; transform:rotate(-8deg)}
 .minicard i + i{margin-left:-12px; transform:rotate(8deg)}
 .minicard i.red{color:#E31E25}
+/* конь шахмат на дуэльной карте */
+.minicard.chess i.knight{background:linear-gradient(160deg,#0d1428,#004578);
+  color:#fff; border-color:rgba(0,96,170,.6); font-size:26px; transform:none}
 .avote-note{margin:0; font-size:12.5px; color:#808080; text-align:center}
 
 /* единственный авторский момент входа: фликер неона + каскад карт + подъём кнопки */
@@ -218,6 +221,42 @@ button.dcard:disabled{cursor:default}
 .du-hand{display:flex; flex-wrap:wrap; gap:8px; justify-content:center;
   background:#0d1428; border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:14px}
 .du-hand .idle{color:#808080; margin:0}
+/* шахматная доска клуба: дерево поверх ночи, синий — последний ход, алый — шах */
+.ch-wrap{display:flex; flex-direction:column; gap:10px; align-items:center}
+.ch-top{display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:center}
+.ch-turn{background:#0d1428; border:1px solid rgba(0,96,170,.4); border-radius:999px;
+  padding:6px 16px; font-size:14px; color:#fff}
+.ch-check{font-style:normal; font-weight:800; color:#fff; background:#E31E25;
+  border-radius:999px; padding:6px 14px; font-size:13px;
+  box-shadow:0 0 18px rgba(227,30,37,.7)}
+.ch-full{color:#808080; font-size:12.5px}
+.ch-board{display:grid; grid-template-columns:repeat(8,minmax(0,1fr));
+  width:min(100%,480px); aspect-ratio:1; border-radius:12px; overflow:hidden;
+  border:2px solid rgba(0,96,170,.45); box-shadow:0 0 30px rgba(0,96,170,.25)}
+.ch-sq{position:relative; aspect-ratio:1; border:0; padding:0; cursor:default;
+  background:#5a3d24; display:flex; align-items:center; justify-content:center}
+.ch-sq.lt{background:#d8c49a}
+.ch-sq.last{background:#7fb3e8}
+.ch-sq.lt.last{background:#a9cdec}
+.ch-sq.chk{background:#e05559}
+.ch-sq.sel{outline:3px solid #fff; outline-offset:-3px; z-index:1}
+button.ch-sq{cursor:pointer}
+button.ch-sq:hover{filter:brightness(1.15)}
+.ch-pc{font-size:clamp(22px,7vw,38px); line-height:1; color:#101828;
+  text-shadow:0 1px 0 rgba(255,255,255,.35)}
+.ch-pc.ww{color:#fff; text-shadow:0 0 6px rgba(0,0,0,.6), 0 2px 2px rgba(0,0,0,.5)}
+.ch-coord{position:absolute; font-style:normal; font-size:10px; font-weight:700;
+  color:rgba(16,24,40,.7); pointer-events:none}
+.ch-coord.rank{top:2px; left:3px}
+.ch-coord.file{bottom:2px; right:4px}
+.ch-promo{background:#0d1428; border:1px solid rgba(0,96,170,.4); border-radius:12px;
+  padding:10px 14px; text-align:center}
+.ch-promo p{margin:0 0 8px; font-size:14px}
+.ch-promo .ch-pc{font-size:26px}
+.ch-actions{display:flex; gap:10px; justify-content:center; flex-wrap:wrap}
+.ch-hint{margin:0; text-align:center; font-size:12.5px; color:#808080; max-width:60ch}
+.ch-hist{margin:0; text-align:center; font-size:12px; color:#808080; max-width:100%;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 /* пикер игры хоста в приватной комнате */
 .apick{display:flex; align-items:center; gap:10px; flex-wrap:wrap;
   background:#0d1428; border:1px solid rgba(0,96,170,.35); border-radius:12px;

@@ -12,10 +12,11 @@ const WAIT_VOTE_SECS = 60;
 
 type Phase = 'lobby' | 'play' | 'over';
 
-type GameDef = { label: string; min: number; max: number; turnSecs: number; icon: 'dice' | 'cards' };
+type GameDef = { label: string; min: number; max: number; turnSecs: number; icon: 'dice' | 'cards' | 'chess' };
 const GAMES: Record<string, GameDef> = {
   dice: { label: 'Кости на выбывание', min: 2, max: 5, turnSecs: 12, icon: 'dice' },
   durak: { label: 'Дурак подкидной', min: 2, max: 5, turnSecs: 30, icon: 'cards' },
+  chess: { label: 'Шахматы', min: 2, max: 2, turnSecs: 60, icon: 'chess' },
 };
 const GAME_IDS = Object.keys(GAMES);
 
@@ -45,6 +46,7 @@ type Room = {
   winner: string | null;
   gdata: Record<string, unknown>; // витрина игры для клиента; кости держат всё в rolls/alive
   dstate: DState | null; // дурак живёт здесь целиком, в gdata — только публичный срез
+  cstate: ChessState | null; // шахматы — вся правда здесь; позиция открыта, в gdata — полный срез
 };
 
 type Pool = {
@@ -64,6 +66,10 @@ import {
   applyMove as durakApply, createDurak, removePlayer as durakRemove,
   timeoutMove as durakTimeout, type Card as EngineCard, type DState,
 } from './durak';
+import {
+  applyMove as chessApply, createChess, removePlayer as chessRemove,
+  type ChessState,
+} from './chess';
 
 const clients = new Map<string, Client>();
 const rooms = new Map<string, Room>();
@@ -99,6 +105,21 @@ function memberViews(r: Room): { id: string; name: string; alive: boolean }[] {
   }));
 }
 
+/** Полный срез шахмат: позиция открыта, тайн нет — клиент рисует как есть. */
+function chessPublic(r: Room): Record<string, unknown> {
+  const st = r.cstate;
+  if (!st) return {};
+  return {
+    board: st.board.map(p => (p ? { ...p } : null)),
+    turn: st.turn, check: st.check,
+    white: st.white, black: st.black,
+    last: st.last ? { ...st.last } : null,
+    drawOffer: st.drawOffer, full: st.full,
+    history: [...st.history],
+    phase: st.phase, winner: st.winner, reason: st.reason,
+  };
+}
+
 /** Публичный срез дурака: стол, козырь, размеры рук. Сами руки — личным 'hand'. */
 function durakPublic(r: Room): Record<string, unknown> {
   const st = r.dstate;
@@ -121,7 +142,7 @@ function roomState(r: Room): Record<string, unknown> {
     private: r.private,
     round: r.round, alive: [...r.alive], contenders: [...r.contenders],
     rolls: { ...r.rolls }, winner: r.winner,
-    gdata: r.game === 'durak' ? durakPublic(r) : { ...r.gdata },
+    gdata: r.game === 'durak' ? durakPublic(r) : r.game === 'chess' ? chessPublic(r) : { ...r.gdata },
   };
 }
 
@@ -196,6 +217,10 @@ function detach(c: Client): void {
   delete r.rolls[c.id];
   if (r.players.length === 0) { destroyRoom(code); return; }
   if (r.host === c.id) r.host = r.players[0];
+  if (r.phase === 'play' && r.game === 'chess' && r.cstate) {
+    broadcast(r, { t: 'left', id: c.id, name: c.name });
+    return chessLeave(r, c.id);
+  }
   if (r.phase === 'play' && r.game === 'durak' && r.dstate) {
     broadcast(r, { t: 'left', id: c.id, name: c.name });
     return durakLeave(r, c.id);
@@ -257,7 +282,7 @@ function formRoom(ids: string[]): void {
   const r: Room = {
     code, players: [], host: fitted[0], private: false, game,
     phase: 'lobby', alive: [], contenders: [], rolls: {}, round: 0,
-    timer: null, createdAt: now(), winner: null, gdata: {}, dstate: null,
+    timer: null, createdAt: now(), winner: null, gdata: {}, dstate: null, cstate: null,
   };
   rooms.set(code, r);
   for (const id of fitted) {
@@ -382,7 +407,7 @@ function onCreate(c: Client, game: unknown): void {
   const r: Room = {
     code, players: [c.id], host: c.id, private: true, game: sanitizeGame(game),
     phase: 'lobby', alive: [], contenders: [], rolls: {}, round: 0,
-    timer: null, createdAt: now(), winner: null, gdata: {}, dstate: null,
+    timer: null, createdAt: now(), winner: null, gdata: {}, dstate: null, cstate: null,
   };
   rooms.set(code, r);
   c.roomId = code;
@@ -544,11 +569,132 @@ function durakLeave(r: Room, id: string): void {
   dTick(r);
 }
 
+/* ---------- шахматы: проводка движка ---------- */
+
+const REASON_TEXT: Record<string, string> = {
+  mate: 'мат', stalemate: 'пат', resign: 'сдача', timeout: 'флаг',
+  leave: 'уход соперника', material: 'мёртвая позиция',
+  fifty: 'правило 50 ходов', repeat: 'троекратное повторение', draw: 'мировая',
+};
+
+function finishChess(r: Room): void {
+  const st = r.cstate;
+  if (!st) return;
+  killTimer(r);
+  r.phase = 'over';
+  r.winner = st.winner;
+  r.alive = st.winner ? [st.winner] : [];
+  r.rolls = {};
+  const wname = (st.winner && clients.get(st.winner)?.name) ?? null;
+  const why = REASON_TEXT[st.reason ?? ''] ?? st.reason ?? 'конец';
+  broadcast(r, {
+    t: 'over', winner: r.winner,
+    name: st.winner ? wname : `Ничья — ${why}`,
+  });
+  broadcast(r, roomState(r));
+}
+
+function startChess(r: Room): void {
+  const whiteFirst = Math.random() < 0.5;
+  const white = whiteFirst ? r.players[0] : r.players[1];
+  const black = whiteFirst ? r.players[1] : r.players[0];
+  r.cstate = createChess(white, black);
+  r.phase = 'play';
+  r.alive = [...r.players];
+  r.round = 1;
+  broadcast(r, {
+    t: 'log',
+    text: `Бой начался! Игра — Шахматы. Белые — ${clients.get(white)?.name ?? '???'}.`,
+  });
+  broadcast(r, roomState(r));
+  chessTick(r);
+}
+
+function chessTick(r: Room): void {
+  if (r.phase !== 'play' || !r.cstate) return;
+  const secs = GAMES.chess.turnSecs;
+  const st = r.cstate;
+  broadcast(r, roomState(r));
+  broadcast(r, {
+    t: 'cturn',
+    white: st.white, black: st.black,
+    color: st.turn, secs,
+  });
+  killTimer(r);
+  r.timer = setTimeout(() => chessTimeout(r), secs * 1000);
+}
+
+function chessAfter(r: Room): void {
+  if (!r.cstate) return;
+  if (r.cstate.phase === 'over') return finishChess(r);
+  chessTick(r);
+}
+
+function parsePromo(v: unknown): 'q' | 'r' | 'b' | 'n' | undefined {
+  return v === 'q' || v === 'r' || v === 'b' || v === 'n' ? v : undefined;
+}
+
+function onChessMove(c: Client, mv: Record<string, unknown>): void {
+  const r = c.roomId ? rooms.get(c.roomId) : undefined;
+  const st = r?.cstate;
+  if (!r || !st || r.phase !== 'play') return;
+  const kind = String(mv.kind ?? 'chess');
+  if (kind === 'resign' || kind === 'draw' || kind === 'accept') {
+    const res = chessApply(st, c.id,
+      kind === 'resign' ? { kind: 'resign' } : kind === 'draw' ? { kind: 'draw' } : { kind: 'accept' });
+    if (!res.ok) return send(c.ws, { t: 'err', msg: res.err ?? 'так нельзя' });
+    broadcast(r, {
+      t: 'cmove', id: c.id, name: c.name, kind,
+      from: null, to: null, promote: null,
+    });
+    if (kind === 'draw') broadcast(r, { t: 'log', text: `${c.name} предлагает мировую.` });
+    return chessAfter(r);
+  }
+  if (kind !== 'chess') return;
+  const from = mv.from;
+  const to = mv.to;
+  if (typeof from !== 'number' || typeof to !== 'number'
+    || !Number.isInteger(from) || !Number.isInteger(to)
+    || from < 0 || from > 63 || to < 0 || to > 63) {
+    return send(c.ws, { t: 'err', msg: 'кривые клетки' });
+  }
+  const res = chessApply(st, c.id, { from, to, promote: parsePromo(mv.promote) });
+  if (!res.ok) return send(c.ws, { t: 'err', msg: res.err ?? 'так нельзя' });
+  broadcast(r, {
+    t: 'cmove', id: c.id, name: c.name, kind: 'chess',
+    from, to, promote: parsePromo(mv.promote) ?? null,
+  });
+  chessAfter(r);
+}
+
+/** Флаг: сторона на ходу молчала — поражение по времени. */
+function chessTimeout(r: Room): void {
+  const st = r.cstate;
+  if (r.phase !== 'play' || !st) return;
+  const loser = st.turn === 'w' ? st.white : st.black;
+  const who = clients.get(loser)?.name ?? '???';
+  st.phase = 'over';
+  st.winner = loser === st.white ? st.black : st.white;
+  st.reason = 'timeout';
+  st.history.push('флаг');
+  broadcast(r, { t: 'log', text: `${who} прошляпил флаг — время вышло.` });
+  broadcast(r, { t: 'cmove', id: loser, name: who, kind: 'flag', from: null, to: null, promote: null, auto: true });
+  finishChess(r);
+}
+
+/** Уход посреди шахмат: оставшийся забирает бой. */
+function chessLeave(r: Room, id: string): void {
+  if (!r.cstate || r.phase !== 'play') return;
+  chessRemove(r.cstate, id);
+  finishChess(r);
+}
+
 /* ---------- кости на выбывание ---------- */
 
 function startGame(r: Room): void {
   if (r.players.length < 2) return;
   if (r.game === 'durak') return startDurak(r);
+  if (r.game === 'chess') return startChess(r);
   r.phase = 'play';
   r.alive = [...r.players];
   r.contenders = [];
@@ -635,6 +781,7 @@ type Plugin = { onMove(c: Client, mv: Record<string, unknown>): void };
 const PLUGINS: Record<string, Plugin> = {
   dice: { onMove(c, mv) { if (mv.kind === 'roll') onRoll(c); } },
   durak: { onMove(c, mv) { onDurakMove(c, mv); } },
+  chess: { onMove(c, mv) { onChessMove(c, mv); } },
 };
 
 function onMove(c: Client, mv: unknown): void {

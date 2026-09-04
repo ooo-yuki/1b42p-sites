@@ -78,9 +78,11 @@ export default function Lobby({ me, online, pool, games, searching, busy, myVote
               className="gcard" aria-label={`Голос за ${g.label}`}>
               {g.icon === 'cards'
                 ? <span className="minicard" aria-hidden="true"><i>Т♠</i><i className="red">К♥</i></span>
-                : <DiceFace v={5} hot={myVote === id} />}
+                : g.icon === 'chess'
+                  ? <span className="minicard chess" aria-hidden="true"><i className="knight">♞</i></span>
+                  : <DiceFace v={5} hot={myVote === id} />}
               <b>{g.label}</b>
-              <small>{g.min}–{g.max} игроков · голосов: <span className="tnum">{v}</span></small>
+              <small>{g.min === g.max ? (g.max === 2 ? 'дуэль' : `${g.max} игрока`) : `${g.min}–${g.max} игроков`} · голосов: <span className="tnum">{v}</span></small>
             </ToggleGroupItem>
           );
         })}
@@ -158,6 +160,8 @@ export default function Lobby({ me, online, pool, games, searching, busy, myVote
         <li>Голосуй за игру, жми поиск — клуб соберёт пати.</li>
         <li>Нас двое+ — голосуй «за», и бой начнётся.</li>
         <li>Кости на выбывание: низший падает, ничья за вылет — переброс.</li>
+        <li>Дурак подкидной: отбивайся или бери, скинул всё — чемпион.</li>
+        <li>Шахматы — дуэль: белые и чёрные по жребию, на ход минута, флаг — поражение.</li>
       </ol>
     </div>
   );

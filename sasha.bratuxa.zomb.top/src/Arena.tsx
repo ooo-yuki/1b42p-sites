@@ -151,6 +151,26 @@ export default function Arena(): JSX.Element {
         pushFeed(m.auto ? `${m.name} молчал — клуб решил за него.` : (lines[m.kind] ?? `${m.name} сходил.`), m.kind === 'take');
         break;
       }
+      case 'cturn':
+        startClock(m.secs);
+        if (m.white === myIdRef.current || m.black === myIdRef.current) cardSnap();
+        break;
+      case 'cmove': {
+        if (m.kind === 'chess') cardSnap();
+        else arenaClick();
+        const sq = (i: number | null): string =>
+          typeof i === 'number' ? `${'abcdefgh'[i % 8]}${8 - Math.floor(i / 8)}` : '';
+        const mv = m.from !== null && m.to !== null ? ` ${sq(m.from)}${sq(m.to)}${m.promote ?? ''}` : '';
+        const clines: Record<string, string> = {
+          chess: `${m.name} сходил${mv}.`,
+          resign: `${m.name} сдался.`,
+          draw: `${m.name} предлагает мировую.`,
+          accept: `${m.name} согласен на мировую.`,
+          flag: `${m.name} прошляпил флаг.`,
+        };
+        pushFeed(m.auto ? `${m.name} молчал — клуб решил за него.` : (clines[m.kind] ?? `${m.name} сходил.`), m.kind === 'resign');
+        break;
+      }
       case 'elim':
         elimGong();
         pushFeed(`Раунд ${m.round}: ${m.name} выбит с ${m.v}.`, true);

@@ -19,7 +19,7 @@ export type RoomView = {
 };
 
 export type PoolMember = { id: string; name: string; vote: string; enter: boolean };
-export type GameDef = { label: string; min: number; max: number; turnSecs: number; icon: 'dice' | 'cards' };
+export type GameDef = { label: string; min: number; max: number; turnSecs: number; icon: 'dice' | 'cards' | 'chess' };
 
 /** Карта дурака: r 6..14 (11=В 12=Д 13=К 14=Т), s масть S/H/D/C. */
 export type DCard = { r: number; s: string };
@@ -28,6 +28,17 @@ export type DurakPublic = {
   table: DPair[]; deckN: number; trump: string;
   attacker: string; defender: string; out: string[];
   handN: Record<string, number>;
+};
+
+/** Фигура шахмат: c цвет w/b, k вид p/n/b/r/q/k. Клетка 0=a8..63=h1. */
+export type ChessPiece = { c: string; k: string } | null;
+export type ChessPublic = {
+  board: ChessPiece[]; turn: string; check: boolean;
+  white: string; black: string;
+  last: { from: number; to: number } | null;
+  drawOffer: string | null; full: number;
+  history: string[];
+  phase: string; winner: string | null; reason: string | null;
 };
 
 export type PoolView = {
@@ -51,6 +62,8 @@ export type SMsg =
   | { t: 'hand'; cards: DCard[] }
   | { t: 'dturn'; attacker: string; defender: string; secs: number }
   | { t: 'dmove'; id: string; name: string; kind: string; card: DCard | null; target: DCard | null; auto?: boolean }
+  | { t: 'cturn'; white: string; black: string; color: string; secs: number }
+  | { t: 'cmove'; id: string; name: string; kind: string; from: number | null; to: number | null; promote: string | null; auto?: boolean }
   | { t: 'elim'; id: string; name: string; v: number; round: number; alive: string[] }
   | { t: 'over'; winner: string | null; name: string }
   | { t: 'log'; text: string }
@@ -73,7 +86,7 @@ export type CMsg =
   | { t: 'start' }
   | { t: 'rematch' }
   | { t: 'roll' }
-  | { t: 'move'; move: { kind: string; card?: DCard; target?: DCard } }
+  | { t: 'move'; move: { kind: string; card?: DCard; target?: DCard; from?: number; to?: number; promote?: string } }
   | { t: 'chat'; text: string };
 
 export const NAME_KEY = 'sasha_arena_name';

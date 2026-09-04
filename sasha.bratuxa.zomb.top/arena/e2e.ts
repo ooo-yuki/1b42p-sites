@@ -210,6 +210,54 @@ if (!overD) throw new Error('дурак не кончился!');
 if (!overD.winner) throw new Error('дурак без чемпиона!');
 console.log('durak winner:', overD.name);
 for (const p of [F, G]) p.ws.close();
+
+// шахматы-трек: приватная дуэль, пилоты разыгрывают дурацкий мат.
+const H = client('Тест-И');
+const J = client('Тест-К');
+await Promise.all([H.ready, J.ready]);
+const wH = await H.waitFor((m) => m.t === 'welcome');
+const wJ = await J.waitFor((m) => m.t === 'welcome');
+idOf.set(H, wH.id);
+idOf.set(J, wJ.id);
+H.send({ t: 'create', game: 'chess' });
+const rch = await H.waitFor((m) => m.t === 'room' && m.private);
+if (rch.game !== 'chess') throw new Error('приватка не с шахматами!');
+J.send({ t: 'join', code: rch.code });
+await J.waitFor((m) => m.t === 'room' && m.code === rch.code);
+H.send({ t: 'start' });
+// дурацкий мат по цветам: белые f3, g4; чёрные e5, Фh4#
+// ход выбираем по длине истории — дубли рассылок становятся холостыми
+function mateMove(gd: any): { from: number; to: number } | null {
+  const n = (gd.history as string[]).length;
+  if (gd.turn === 'w') return n === 0 ? { from: 53, to: 37 } : n === 2 ? { from: 54, to: 38 } : null;
+  return n === 1 ? { from: 12, to: 28 } : n === 3 ? { from: 3, to: 39 } : null;
+}
+const byId = (id: string): any => (idOf.get(H) === id ? H : J);
+let overC: any = null;
+{
+  const t3 = Date.now();
+  let cur: any = await H.waitFor((m) => m.t === 'room' && m.phase === 'play');
+  while (!overC && Date.now() - t3 < 60000) {
+    const gd = cur.gdata as any;
+    const mv = mateMove(gd);
+    if (mv) {
+      const turnId = gd.turn === 'w' ? gd.white : gd.black;
+      byId(turnId).send({ t: 'move', move: { kind: 'chess', from: mv.from, to: mv.to } });
+    }
+    const nxt = await Promise.race([
+      H.waitFor((m) => m.t === 'room' && m.phase === 'play').catch(() => null),
+      H.waitFor((m) => m.t === 'over', 60000).catch(() => null),
+      J.waitFor((m) => m.t === 'over', 60000).catch(() => null),
+    ]);
+    if (!nxt) continue;
+    if (nxt.t === 'over') { overC = nxt; break; }
+    if (nxt.t === 'room') cur = nxt;
+  }
+}
+if (!overC) throw new Error('шахматы не кончились!');
+if (!overC.winner) throw new Error('мат не поставил чемпиона!');
+console.log('chess winner:', overC.name);
+for (const p of [H, J]) p.ws.close();
 const check = await fetch('http://127.0.0.1:8094/api/online').then((r) => r.json());
 console.log('online:', JSON.stringify(check));
 if (check.online < 3) throw new Error('онлайн врёт!');

@@ -65,7 +65,7 @@ export default function Room({ me, room, games, hand, feed, chat, myRolled, secs
         <span className={cn('ar-phase', room.phase)}>
           {room.phase === 'lobby' ? 'сбор'
             : room.phase === 'play'
-              ? (room.game === 'durak' ? 'бой идёт' : `раунд ${room.round}`)
+              ? (room.game === 'durak' ? 'бой идёт' : room.game === 'chess' ? 'бой идёт' : `раунд ${room.round}`)
               : 'бой окончен'}
         </span>
         <span className="ar-game">{room.gameLabel}</span>

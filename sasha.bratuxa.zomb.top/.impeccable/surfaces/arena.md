@@ -21,6 +21,8 @@ PLATFORM: новая игра = запись в GAMES (server.ts: sanitizeGame/g
 PLUGINS.onMove, gdata в roomState) + вьюха в src/arena/games/* + строка в GAME_VIEWS;
 пул, голоса, комнаты, таймеры, реванши, чат — общие. Неизвестная игра — заглушка.
 Вторая игра доказывает: дурак (движок arena/durak.ts + DurakTable + приватные руки 'hand').
+Третья игра доказывает дуэль: шахматы (движок arena/chess.ts + ChessBoard,
+открытая позиция в gdata, ход минута, флаг — поражение, сдача и мировая).
 FINISH: unreviewed and undocumented is unfinished; this build ends with the
 finish review, the verdict, DESIGN.md, and every shipping raster carrying
 its provenance.
