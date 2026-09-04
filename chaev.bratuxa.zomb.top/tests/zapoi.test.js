@@ -397,3 +397,11 @@ describe('хилки-пикули 42', () => {
     expect(syringe(d)).toBeNull();
   });
 });
+
+describe('пойло демона 42', () => {
+  it('у демона два вида пойла: обычное и для формы', () => {
+    const d = CHARACTERS.find((c) => c.id === 'demon');
+    expect(d.drink).toBe('jager/demon.jpg');
+    expect(d.drinkForm).toBe('jager/demon-form.jpg');
+  });
+});
