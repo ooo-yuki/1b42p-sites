@@ -133,6 +133,12 @@ border-radius:999px;padding:12px 16px;cursor:pointer;box-shadow:0 4px 0 #b86a00}
 #flipTap{background:#e8d5ff !important;font-size:22px !important;padding:14px 26px !important}
 #flipStart{background:var(--gold) !important}
 #flipClose{background:#eef5e6 !important}
+/* чайка-скример 4.2% */
+#gull{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;flex-direction:column;background:#000;animation:gullFlash .12s infinite}
+#gullBig{font-size:min(52vw,280px);line-height:1;animation:gullShake .1s infinite}
+#gullTxt{color:#ff0;font-weight:bold;font-size:min(9vw,42px);text-shadow:0 0 20px #f00;margin-top:8px}
+@keyframes gullFlash{0%{background:#300}50%{background:#000}100%{background:#400}}
+@keyframes gullShake{0%{transform:translate(-12px,8px) rotate(-8deg) scale(1.15)}50%{transform:translate(12px,-8px) rotate(8deg) scale(1.3)}100%{transform:translate(-8px,-10px) rotate(-5deg) scale(1.2)}}
 @media(max-width:640px){#saltoBtn{bottom:230px;font-size:13px;padding:10px 14px}#flipCompBtn{bottom:288px;font-size:13px;padding:10px 14px}}
 /* победа */
 #win{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(47,93,58,.45);z-index:20}
@@ -218,6 +224,7 @@ transition:transform 1.1s ease-out,opacity 1.1s}
 <button id="saltoBtn">🤸 Сальтуха (R)</button>
 <button id="flipCompBtn">🏆 Соревы по сальтухам!</button>
 <div id="flipComp"><div id="flipCompBox">🤸 <b>СОРЕВНОВАНИЯ ПО САЛЬТУХАМ!</b> 🤸<br><small id="flipCompText">Тапай САЛЬТУХА быстрее соперника за 5 сек! Проигрыш = −70% всех ресурсов 😱</small><div id="flipScore" style="font-weight:bold;font-size:18px;margin:8px 0">ТЫ 0 : 0 СОПЕРНИК</div><div id="flipTimer" style="font-weight:bold">5.0с</div><div><button id="flipTap">🤸 САЛЬТУХА!</button></div><div><button id="flipStart">▶️ Старт!</button><button id="flipClose">✖️ Закрыть</button></div></div></div>
+<div id="gull"><div id="gullBig">🪿</div><div id="gullTxt">ЧАЙКА!!! КЬЯЯЯ! 🪿</div></div>
 <div id="win"><div id="winBox">🏆 <b>МЫ УЖЕ ПОБЕДИЛИ!</b> 🏆<br>Эввград достиг 42 жителей! Город сияет, лес поёт! 🧝🌲✨<br><small>Игра продолжается — строй, крути сальтухи, участвуй в соревах! 🚀</small><br><button onclick="document.getElementById('win').style.display='none'">Продолжить играть 🚀</button></div></div>
 <div id="miqAd"><div id="miqAdBox">🛞 <b>МИККИЛ 42 — ТАНКИ!</b> 🛞<br>Броня, тактика и грохот гусениц! Батальонный танкодром уже ждёт!<br><a href="https://miqqil.bratuxa.zomb.top/" target="_blank">Играть →</a><div id="miqAdBtns"><button onclick="closeMiqAd(false)">Позже</button><button onclick="closeMiqAd(true)">Не показывать</button></div></div></div>
 <div id="travel"><div id="travelBox">🧳 <b>ГОРОДА БРАТУХ</b> 🧳<br><small>Куда едем? Сейв Эввграда уже записан!</small><a class="city" href="https://smolgrad.bratuxa.zomb.top">👑 Смолград<small>королевство царя smolskie</small></a><a class="city" href="https://denis.bratuxa.zomb.top">🏝️ Остров Дениса<small>пляж, город, WINLINE и пещера</small></a><a class="city" href="https://hub.bratuxa.zomb.top">🏠 Хаб 1Б42П<small>все игры батальона</small></a><button id="travelClose" onclick="closeTravel()">Остаюсь дома</button></div></div>
@@ -869,7 +876,9 @@ function clickCell(i){
   pay(b.cost);S.cells[i]={t:tool,l:1};
   var xz=idx2xz(i);floater(b.em+' построен!',xz[0],2.2,xz[1]);blip(620);
   toast(b.em+' '+b.n+' построен! '+b.desc+' 🏗️');
-  refreshCell(i);after();renderHUD();return;}
+  refreshCell(i);after();renderHUD();
+  if(Math.random()<0.042)setTimeout(gullScream,350);
+  return;}
  openInspector(i);}
 function buyTicket(){var now=Date.now();
  if(now<ticketCd){toast('Кассы печатают билеты... жди '+Math.ceil((ticketCd-now)/1000)+'с 🎟️');return;}
@@ -1938,6 +1947,19 @@ function netBack(){
  closeNet();refreshAll();renderHUD();after();
  toast('С возвращением домой! 🏠');blip(880);
 }
+/* ===== ЧАЙКА-СКРИМЕР 4.2% ===== */
+function gullSqueak(){try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+ if(AC.state==='suspended')AC.resume();var t=AC.currentTime;
+ for(var k=0;k<3;k++){var o=AC.createOscillator(),g=AC.createGain();o.type='sawtooth';
+  var t0=t+k*0.28;o.frequency.setValueAtTime(2800,t0);o.frequency.exponentialRampToValueAtTime(400,t0+0.25);
+  g.gain.setValueAtTime(0.35,t0);g.gain.exponentialRampToValueAtTime(0.01,t0+0.27);
+  o.connect(g);g.connect(AC.destination);o.start(t0);o.stop(t0+0.3);}}catch(e){}}
+function gullScream(){var g=document.getElementById('gull');if(!g)return;
+ g.style.display='flex';gullSqueak();
+ try{if(navigator.vibrate)navigator.vibrate([200,80,200,80,300]);}catch(e){}
+ setTimeout(function(){g.style.display='none';},1400);
+ toast('🪿 ЧАЙКА! КЬЯЯЯ! Евв эльф одобряет 😱');
+}
 /* --- старт --- */
 load();
 document.getElementById('giftBtn').onclick=gather;
@@ -1962,6 +1984,7 @@ document.getElementById('flipCompBtn').onclick=function(){openFlipComp();};
 document.getElementById('flipTap').onclick=function(){compTap();};
 document.getElementById('flipStart').onclick=function(){startFlipComp();};
 document.getElementById('flipClose').onclick=function(){closeFlipComp();};
+document.getElementById('gull').onclick=function(){document.getElementById('gull').style.display='none';};
 document.getElementById('netReg').onclick=function(){netAuth('register');};
 document.getElementById('netLogin').onclick=function(){netAuth('login');};
 document.getElementById('netLogout').onclick=function(){netLogout();};
@@ -2008,7 +2031,9 @@ window.__elf={get:function(){return S;},tool:function(){return tool;},build:func
  compTap:function(){compTap();return compMe;},
  compEnd:function(){endFlipComp();return {me:compMe,rival:compRival,gold:Math.floor(S.gold)};},
  flips:function(){return {total:flipTotal,best:flipBest,anim:flipAnim};},
+ gull:function(){gullScream();return true;},
  fp:function(){return {mode:fpMode,type:fpType,x:Math.round(fpPos.x*100)/100,z:Math.round(fpPos.z*100)/100};}};
 </script>
+<script>/* 42-трекер онлайна */(function(){var SITE='evaelph';try{var s=null;try{s=localStorage.getItem('t42_sid');}catch(e){}if(!s||!/^[0-9a-f]{32}$/.test(s)){s='';var h='0123456789abcdef';for(var i=0;i<32;i++)s+=h[Math.floor(Math.random()*16)];try{localStorage.setItem('t42_sid',s);}catch(e){}}function b(){try{fetch('https://hub.bratuxa.zomb.top/api/track',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({site:SITE,sid:s}),keepalive:true});}catch(e){}}b();setInterval(b,30000);}catch(e){}})();</script>
 </body>
 </html>
