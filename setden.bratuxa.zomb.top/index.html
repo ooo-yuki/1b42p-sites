@@ -2,18 +2,34 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>СЕТДЕН 42 — React + 3D Tornado</title>
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
 <style>
-body{background:#0a0a0a;color:#fff;font-family:Arial,sans-serif;margin:0;padding:20px;text-align:center}
+body{background:#0a0a0a;color:#fff;font-family:Arial,sans-serif;margin:0;padding:20px;text-align:center;-webkit-tap-highlight-color:transparent}
 .num{font-size:64px;background:#060;border:5px solid #0f6;display:inline-block;padding:5px 25px;transform:rotate(3deg)}
 .card{background:#111;border:3px solid #0f6;border-radius:15px;padding:18px;margin:16px auto;max-width:640px}
-#can3d{width:100%;max-width:600px;height:420px;border:3px solid #0f6;border-radius:12px;background:#000}
+#can3d{width:100%;max-width:600px;height:420px;border:3px solid #0f6;border-radius:12px;background:#000;touch-action:none;cursor:grab;display:block;margin:0 auto}
 button{background:#0f6;border:none;font-weight:bold;font-size:18px;padding:10px 24px;border-radius:10px;cursor:pointer}
+button:active{transform:scale(.96)}
+.hud{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:10px 0;font-weight:bold}
+.hud span{background:#000;border:2px solid #0f6;border-radius:10px;padding:6px 12px;font-size:15px}
+#flavors{display:flex;gap:8px;justify-content:flex-start;overflow-x:auto;padding:10px 4px;margin-top:10px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+.flav{flex:0 0 auto;border:3px solid #333;border-radius:12px;padding:8px 14px;font-size:15px;color:#fff;cursor:pointer;opacity:.65}
+.flav.active{opacity:1;transform:scale(1.06)}
+.flav small{display:block;font-weight:normal;font-size:11px;opacity:.85}
+#bonus{font-size:14px;min-height:20px;color:#ffd23f;font-weight:bold;margin-top:6px}
+@media(max-width:600px){
+  body{padding:10px}
+  .num{font-size:44px}
+  .card{padding:12px;margin:10px auto}
+  #can3d{height:300px}
+  button{font-size:16px;padding:10px 18px}
+  .hud span{font-size:13px;padding:5px 9px}
+}
 </style>
 </head>
 <body>
@@ -25,9 +41,13 @@ button{background:#0f6;border:none;font-weight:bold;font-size:18px;padding:10px 
 </div>
 <div class="card">
 <h2>🥫 3D-БАНКА TORNADO ENERGY ⚡</h2>
-<p>Таскай мышью — крутится. Кнопка — встряхнуть!</p>
-<canvas id="can3d"></canvas><br><br>
-<button onclick="shake()">ВСТРЯХНУТЬ 🌪️</button>
+<p>Тапай/свайпай по банке — трясётся! Крути — drag. Вкус — кнопки ниже 👇</p>
+<div class="hud"><span id="hShakes">🥫 Встрясок: 0</span><span id="hScore">⭐ Очки: 0</span><span id="hCombo">🔥 Комбо: x1</span></div>
+<canvas id="can3d"></canvas>
+<div id="bonus"></div>
+<div id="flavors"></div>
+<br><button id="shakeBtn">ВСТРЯХНУТЬ 🌪️</button>
+<button id="resetBtn" style="background:#333;color:#fff;font-size:14px;padding:10px 14px">Сброс</button>
 </div>
 
 <script type="text/babel">
@@ -48,10 +68,22 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 
 <script>
-// Three.js energy can
+// ===== 3D-банка Сетдена: встряска, вкусы, частицы, звук, localStorage =====
+const FLAVORS=[
+ {id:'storm', name:'🌪️ Шторм',  bg:'#061', fg:'#0f6',    lid:0xcccccc, desc:'+тряска',       tip:'Шторм: мощность тряски ×1.6'},
+ {id:'apple', name:'🍏 Яблоко',  bg:'#1a2b00',fg:'#a6ff00', lid:0x9dff00, desc:'комбо ×',      tip:'Яблоко: комбо-множитель очков (тапни серией!)'},
+ {id:'mango', name:'🥭 Манго',   bg:'#2b1200',fg:'#ff9500', lid:0xffb300, desc:'замедление',   tip:'Манго: тряска длится дольше (slow-mo)'},
+ {id:'sakura',name:'🌸 Сакура',  bg:'#2b0018',fg:'#ff4fd8', lid:0xff9fe6, desc:'автопшик',     tip:'Сакура: автопшик каждые 3 сек'},
+ {id:'mix42', name:'🏆 42 микс', bg:'#00222b',fg:'#00e5ff', lid:0xffd23f, desc:'ВСЁ СРАЗУ',    tip:'42 микс: +тряска, комбо, slow-mo и автопшик!'},
+];
+let shakes=parseInt(localStorage.getItem('setden_shakes')||'0',10)||0;
+let score=parseInt(localStorage.getItem('setden_score')||'0',10)||0;
+let flavorId=localStorage.getItem('setden_flavor')||'storm';
+if(!FLAVORS.find(f=>f.id===flavorId))flavorId='storm';
+let combo=1,comboTimer=null;
+
 const cv=document.getElementById('can3d');
 const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
-renderer.setSize(cv.clientWidth||600,420);
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x000000);
 const cam=new THREE.PerspectiveCamera(45,600/420,0.1,100);
@@ -59,37 +91,210 @@ cam.position.set(0,1,6);
 scene.add(new THREE.AmbientLight(0xffffff,0.7));
 const l1=new THREE.PointLight(0x00ff66,2,20);l1.position.set(3,3,3);scene.add(l1);
 const l2=new THREE.PointLight(0xff00ff,2,20);l2.position.set(-3,-2,3);scene.add(l2);
-// texture with text
-function makeTex(){
+
+function makeTex(f){
   const c=document.createElement('canvas');c.width=512;c.height=512;
   const g=c.getContext('2d');
-  g.fillStyle='#061';g.fillRect(0,0,512,512);
-  g.fillStyle='#0f6';g.font='bold 90px Arial';g.fillText('TORNADO',30,150);
-  g.fillStyle='gold';g.font='bold 160px Arial';g.fillText('42',150,350);
-  g.fillStyle='#fff';g.font='bold 50px Arial';g.fillText('SETDEN EDITION ⚡',40,450);
-  const t=new THREE.CanvasTexture(c);return t;
+  g.fillStyle=f.bg;g.fillRect(0,0,512,512);
+  g.fillStyle=f.fg;g.font='bold 80px Arial';g.fillText('TORNADO',30,140);
+  g.fillStyle='#fff';g.font='bold 60px Arial';g.fillText(f.name,30,230);
+  g.fillStyle='gold';g.font='bold 160px Arial';g.fillText('42',150,400);
+  g.fillStyle='#fff';g.font='bold 44px Arial';g.fillText('SETDEN EDITION ⚡',40,470);
+  return new THREE.CanvasTexture(c);
 }
-const tex=makeTex();
 const geo=new THREE.CylinderGeometry(1,1,2.6,48);
-const mat=new THREE.MeshStandardMaterial({map:tex,metalness:0.6,roughness:0.3});
+let mat=new THREE.MeshStandardMaterial({map:makeTex(FLAVORS.find(f=>f.id===flavorId)),metalness:0.6,roughness:0.3});
 const can=new THREE.Mesh(geo,mat);scene.add(can);
-const topGeo=new THREE.CylinderGeometry(1,1,0.15,48);
-const topMat=new THREE.MeshStandardMaterial({color:0xcccccc,metalness:0.9,roughness:0.2});
-const lid=new THREE.Mesh(topGeo,topMat);lid.position.y=1.35;can.add?scene.add(lid):0;
-let rx=0.3,shakeV=0,drag=false,px=0;
-cv.addEventListener('pointerdown',e=>{drag=true;px=e.clientX;});
-window.addEventListener('pointerup',()=>drag=false);
-window.addEventListener('pointermove',e=>{if(drag){can.rotation.y+=(e.clientX-px)*0.02;px=e.clientX;}});
-function shake(){shakeV=1;}
+const lid=new THREE.Mesh(
+  new THREE.CylinderGeometry(1,1,0.15,48),
+  new THREE.MeshStandardMaterial({color:0xcccccc,metalness:0.9,roughness:0.2})
+);
+lid.position.y=1.38;scene.add(lid);
+
+// --- частицы-брызги ---
+const PMAX=220;
+const pGeo=new THREE.BufferGeometry();
+const pPos=new Float32Array(PMAX*3);
+const pVel=[];
+for(let i=0;i<PMAX;i++){pPos[i*3+1]=-999;pVel.push(new THREE.Vector3());}
+pGeo.setAttribute('position',new THREE.BufferAttribute(pPos,3));
+const pMat=new THREE.PointsMaterial({color:0x00ff66,size:0.09,transparent:true,opacity:0.95});
+const pts=new THREE.Points(pGeo,pMat);scene.add(pts);
+let pLife=new Float32Array(PMAX);
+function burst(n,power){
+  const f=FLAVORS.find(x=>x.id===flavorId);
+  pMat.color.set(f.fg);
+  let c=0;
+  for(let i=0;i<PMAX&&c<n;i++){
+    if(pLife[i]<=0){
+      pLife[i]=0.6+Math.random()*0.6;
+      pPos[i*3]=(Math.random()-0.5)*0.6;
+      pPos[i*3+1]=1.3;
+      pPos[i*3+2]=(Math.random()-0.5)*0.6;
+      pVel[i].set((Math.random()-0.5)*4*power,2+Math.random()*3*power,(Math.random()-0.5)*4*power);
+      c++;
+    }
+  }
+}
+
+// --- звук через WebAudio: пшик встряски ---
+let AC=null;
+function pshik(power){
+  try{
+    AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+    if(AC.state==='suspended')AC.resume();
+    const t=AC.currentTime;
+    // шум-шипение
+    const len=0.25+0.15*power;
+    const buf=AC.createBuffer(1,AC.sampleRate*len,AC.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*(1-i/d.length);
+    const src=AC.createBufferSource();src.buffer=buf;
+    const bp=AC.createBiquadFilter();bp.type='bandpass';
+    bp.frequency.setValueAtTime(3000,t);bp.frequency.exponentialRampToValueAtTime(800,t+len);
+    const g=AC.createGain();g.gain.setValueAtTime(0.35,t);g.gain.exponentialRampToValueAtTime(0.01,t+len);
+    src.connect(bp);bp.connect(g);g.connect(AC.destination);src.start(t);
+    // низкий «бульк»
+    const o=AC.createOscillator();o.type='sine';
+    o.frequency.setValueAtTime(220,t);o.frequency.exponentialRampToValueAtTime(60,t+0.2);
+    const g2=AC.createGain();g2.gain.setValueAtTime(0.25,t);g2.gain.exponentialRampToValueAtTime(0.01,t+0.22);
+    o.connect(g2);g2.connect(AC.destination);o.start(t);o.stop(t+0.25);
+  }catch(e){}
+}
+
+// --- HUD + localStorage ---
+function hud(){
+  document.getElementById('hShakes').textContent='🥫 Встрясок: '+shakes;
+  document.getElementById('hScore').textContent='⭐ Очки: '+score;
+  document.getElementById('hCombo').textContent='🔥 Комбо: x'+combo;
+  const f=FLAVORS.find(x=>x.id===flavorId);
+  document.getElementById('bonus').textContent=f.tip;
+}
+function save(){localStorage.setItem('setden_shakes',shakes);localStorage.setItem('setden_score',score);localStorage.setItem('setden_flavor',flavorId);}
+
+// --- вкусы: кнопки + свайп по полосе ---
+const bar=document.getElementById('flavors');
+function renderFlavors(){
+  bar.innerHTML='';
+  FLAVORS.forEach(f=>{
+    const b=document.createElement('button');
+    b.className='flav'+(f.id===flavorId?' active':'');
+    b.style.background=f.bg;b.style.borderColor=f.fg;
+    b.innerHTML=f.name+' <small>'+f.desc+'</small>';
+    b.onclick=()=>setFlavor(f.id);
+    bar.appendChild(b);
+  });
+}
+function setFlavor(id){
+  flavorId=id;
+  const f=FLAVORS.find(x=>x.id===id);
+  mat.map=makeTex(f);mat.needsUpdate=true;
+  lid.material.color.set(f.lid);
+  document.getElementById('can3d').style.borderColor=f.fg;
+  renderFlavors();save();hud();
+}
+// свайп-переключение: горизонтальный свайп по канвасу с зажатым вторым пальцем? Нет — стрелки клавиатуры + свайп по полосе вкусов уже нативный (scroll). Дополнительно: быстрый свайп по банке влево/вправо меняет вкус:
+let swipeX=null;
+function flavorStep(dir){
+  const i=FLAVORS.findIndex(f=>f.id===flavorId);
+  setFlavor(FLAVORS[(i+dir+FLAVORS.length)%FLAVORS.length].id);
+}
+window.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight')flavorStep(1);
+  if(e.key==='ArrowLeft')flavorStep(-1);
+});
+
+// --- встряска ---
+let shakeV=0,rx=0.3;
+function powerOf(){
+  return (flavorId==='storm'||flavorId==='mix42')?1.6:1.0;
+}
+function shake(power){
+  power=power||powerOf();
+  shakeV=Math.min(1.6,shakeV+0.7*power);
+  shakes++;
+  // комбо для яблока и микса
+  if(flavorId==='apple'||flavorId==='mix42'){
+    combo=Math.min(9,combo+1);
+    clearTimeout(comboTimer);
+    comboTimer=setTimeout(()=>{combo=1;hud();},2000);
+  } else combo=1;
+  const pts_=(flavorId==='apple'||flavorId==='mix42')?combo:1;
+  score+=pts_;
+  burst(40,Math.min(2,power));
+  pshik(power);
+  save();hud();
+  if(navigator.vibrate)try{navigator.vibrate(30);}catch(e){}
+}
+
+// клик/тап/свайп по банке
+let drag=false,px=0,py=0,downT=0,moved=0;
+cv.addEventListener('pointerdown',e=>{drag=true;px=e.clientX;py=e.clientY;downT=Date.now();moved=0;swipeX=e.clientX;cv.setPointerCapture&&cv.setPointerCapture(e.pointerId);});
+window.addEventListener('pointerup',e=>{
+  if(!drag)return;drag=false;
+  const dt=Date.now()-downT;
+  if(moved<12){shake();}
+  else if(moved>60&&dt<400){
+    // резкий свайп: сила от скорости + смена вкуса при чисто горизонтальном
+    const dx=e.clientX-swipeX, dy=e.clientY-py;
+    if(Math.abs(dx)>120&&Math.abs(dx)>Math.abs(dy)*2){flavorStep(dx>0?1:-1);}
+    shake(Math.min(2,powerOf()*(0.7+moved/150)));
+  }
+});
+window.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  const dx=e.clientX-px;
+  can.rotation.y+=dx*0.02;
+  moved+=Math.abs(dx);
+  px=e.clientX;
+});
+document.getElementById('shakeBtn').onclick=()=>shake();
+document.getElementById('resetBtn').onclick=()=>{shakes=0;score=0;combo=1;save();hud();};
+
+// автопшик сакуры и микса
+setInterval(()=>{
+  if(flavorId==='sakura'||flavorId==='mix42'){
+    shakeV=Math.min(1.2,shakeV+0.35);
+    burst(12,0.7);
+    try{pshik(0.5);}catch(e){}
+  }
+},3000);
+
+// ресайз + адаптив
+function fit(){
+  const w=cv.clientWidth||600;
+  const h=window.innerWidth<600?300:420;
+  renderer.setSize(w,h,false);
+  cam.aspect=w/h;cam.updateProjectionMatrix();
+}
+window.addEventListener('resize',fit);
+
 function anim(){
   requestAnimationFrame(anim);
+  const decay=(flavorId==='mango'||flavorId==='mix42')?0.97:0.94;
   can.rotation.y+=0.01+shakeV*0.3;
   can.rotation.x=rx+Math.sin(Date.now()*0.02)*shakeV*0.4;
   can.position.y=Math.sin(Date.now()*0.005)*0.1+shakeV*0.3;
-  shakeV*=0.94;
+  lid.position.y=1.38+shakeV*0.3+Math.sin(Date.now()*0.005)*0.1;
+  lid.rotation.y=can.rotation.y;
+  shakeV*=decay;
+  if(shakeV<0.01)shakeV=0;
+  // частицы
+  const pos=pGeo.attributes.position.array;
+  for(let i=0;i<PMAX;i++){
+    if(pLife[i]>0){
+      pLife[i]-=0.016;
+      pVel[i].y-=9*0.016;
+      pos[i*3]+=pVel[i].x*0.016;
+      pos[i*3+1]+=pVel[i].y*0.016;
+      pos[i*3+2]+=pVel[i].z*0.016;
+      if(pLife[i]<=0)pos[i*3+1]=-999;
+    }
+  }
+  pGeo.attributes.position.needsUpdate=true;
   renderer.render(scene,cam);
 }
-anim();
+renderFlavors();setFlavor(flavorId);hud();fit();anim();
 </script>
 </body>
 </html>
