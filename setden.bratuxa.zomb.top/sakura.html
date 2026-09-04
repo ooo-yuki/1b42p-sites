@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Торнадо-Сакура: Сад вихрей 🌸🌪️ — Игры Сетдена</title>
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
 <style>
 :root{--neon:#ff4fd8;--neon2:#00ffcc;--bg:#0b0614}
 *{box-sizing:border-box}
@@ -36,6 +37,16 @@ button.ghost{background:#1c1033;border:2px solid var(--neon2)}
 .log{font-size:13px;color:#ffb9ec;min-height:20px}
 a{color:var(--neon2)}
 @media(max-width:480px){.cell{min-height:72px}.cell .em{font-size:24px}h1{font-size:22px}}
+#modelWrap{background:#140a24;border:2px solid var(--neon2);border-radius:12px;padding:10px;margin:10px auto;max-width:520px}
+#sakura3d{width:100%;max-width:480px;height:300px;border-radius:10px;background:#0b0614;display:block;margin:0 auto;touch-action:none}
+#flavBar{display:flex;gap:6px;overflow-x:auto;padding:8px 2px;margin-top:8px;-webkit-overflow-scrolling:touch}
+#flavBar button{flex:0 0 auto;font-size:12px;padding:6px 10px}
+#flavBar button.active{outline:2px solid gold}
+#rarBar{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:6px}
+#rarBar button{font-size:12px;padding:6px 10px}
+#rarBar button.active{outline:2px solid #fff}
+#modelName{font-weight:bold;color:var(--neon2);margin-top:6px;font-size:15px}
+@media(max-width:480px){#sakura3d{height:240px}}
 </style>
 </head>
 <body>
@@ -52,6 +63,14 @@ a{color:var(--neon2)}
 </div>
 <div class="panel">Посадка: <b id="plantCost">25</b> 🪙 · Тап = +1 уровень (цена ×1.42) · Сбор: тап даёт +лепестки · Ячеек: <b id="unlocked">6</b>/16 (+1 каждые 10 ур.)</div>
 <div class="grid" id="grid"></div>
+<div id="modelWrap">
+<div class="slogan" style="margin-bottom:6px">🌸 3D-витрина видов — low-poly 🌸</div>
+<canvas id="sakura3d"></canvas>
+<div id="modelName">Сакура · обычный</div>
+<div id="flavBar"></div>
+<div id="rarBar"></div>
+<div style="font-size:12px;color:#aaa;margin-top:6px">Тап по цветку в саду тоже показывает его 3D-модель 👆 · крутить — drag по модели</div>
+</div>
 <div>
 <button id="plantBtn" onclick="plant()">🌱 Посадить цветок</button>
 <button class="ghost" onclick="buyRare()">✨ Редкое семя (10 🌱)</button>
@@ -160,6 +179,188 @@ load();render();
 setInterval(()=>{const inc=cps();S.coins+=inc;S.petals+=gardenLvl()*0.02;S.lastSeen=Date.now();
   if(inc>0||gardenLvl()>0){document.getElementById('coins').textContent=Math.floor(S.coins);document.getElementById('petals').textContent=Math.floor(S.petals);document.getElementById('cps').textContent=cps().toFixed(1);document.getElementById('glvl').textContent=gardenLvl();}
   save();},1000);
+</script>
+<script>
+// ===== 3D-витрина видов сакуры: low-poly модели (Three.js, примитивы + flatShading) =====
+(function(){
+  var wrap=document.getElementById('modelWrap');
+  if(!wrap)return;
+  if(typeof THREE==='undefined'){wrap.innerHTML='<div class="slogan">🌸 3D-витрина видов</div><div style="font-size:13px;color:#ffb9ec">Нет соединения с CDN (three.js) — модели появятся онлайн 🌸</div>';return;}
+  // Параметры low-poly модели для каждого из 14 видов (FLAVORS в игре выше)
+  var P={
+  'Шторм':{petal:0x8fb8d8,center:0x2b4a5a,n:6,kind:'cone',tilt:0.55},
+  'Сакура':{petal:0xff9fc6,center:0xffd23f,n:5,kind:'cone'},
+  'Вихрь':{petal:0x00ffcc,center:0x0a5555,n:7,kind:'box',spiral:true},
+  'Манго':{petal:0xff9500,center:0x7a2e00,n:6,kind:'ball'},
+  'Личи':{petal:0xff3355,center:0xfff2f2,n:5,kind:'ball',small:true},
+  'Юдзу':{petal:0xffe600,center:0x8a6d00,n:4,kind:'cone'},
+  'Матча':{petal:0x4caf50,center:0x1b3a1b,n:5,kind:'box',thick:true},
+  'Кибер':{petal:0xff2fd6,center:0x00e5ff,n:6,kind:'tetra',emissive:0xff2fd6},
+  'Неон':{petal:0x00ffff,center:0xffffff,n:5,kind:'cone',emissive:0x00ffff},
+  'Гроза':{petal:0x7a5cff,center:0x1a0b2e,n:6,kind:'long'},
+  'Тайфун':{petal:0x3af0ff,center:0x003a55,n:8,kind:'cone'},
+  'Дракон':{petal:0xff2211,center:0xffd23f,n:6,kind:'tetra',spikes:true},
+  'Кола':{petal:0x6b3a1f,center:0x2b1508,n:5,kind:'box'},
+  '42 микс':{petal:0xffd23f,center:0xff2fb3,n:7,kind:'mix'}
+  };
+  var RAINBOW=[0xff3355,0xff9500,0xffe600,0x4caf50,0x00ffcc,0x3af0ff,0xc07bff];
+  var NAMES=Object.keys(P);
+  var curFlavor='Сакура',curRar=0;
+  var cv=document.getElementById('sakura3d');
+  var renderer;
+  try{renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});}
+  catch(e){wrap.innerHTML='<div style="font-size:13px">WebGL недоступен на этом устройстве 🌸</div>';return;}
+  var scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x0b0614);
+  var cam=new THREE.PerspectiveCamera(42,480/300,0.1,100);
+  cam.position.set(0,3.0,7.2);
+  cam.lookAt(0,1.6,0);
+  scene.add(new THREE.AmbientLight(0xffffff,0.75));
+  var d=new THREE.DirectionalLight(0xffffff,1.1);d.position.set(3,5,4);scene.add(d);
+  var pl=new THREE.PointLight(0xff4fd8,1.4,20);pl.position.set(-3,2,3);scene.add(pl);
+  var ground=new THREE.Mesh(new THREE.CircleGeometry(1.5,9),
+    new THREE.MeshStandardMaterial({color:0x1c1033,roughness:1,flatShading:true}));
+  ground.rotation.x=-Math.PI/2;scene.add(ground);
+  var pot=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.36,0.45,7),
+    new THREE.MeshStandardMaterial({color:0x8b4513,roughness:0.9,flatShading:true}));
+  pot.position.y=0.22;scene.add(pot);
+  var holder=new THREE.Group();scene.add(holder);
+  function flatMat(color,emissive){
+    return new THREE.MeshStandardMaterial({color:color,roughness:0.85,metalness:0.05,
+      flatShading:true,emissive:emissive||0x000000,emissiveIntensity:emissive?0.55:0});
+  }
+  function petalGeo(kind,i){
+    if(kind==='tetra')return new THREE.TetrahedronGeometry(0.42);
+    if(kind==='box')return new THREE.BoxGeometry(0.52,0.13,0.72);
+    if(kind==='ball'){var g=new THREE.IcosahedronGeometry(0.34,0);g.scale(1,0.45,1.35);return g;}
+    if(kind==='long')return new THREE.ConeGeometry(0.2,1.3,4);
+    if(kind==='mix'){var gg=new THREE.ConeGeometry(0.3,0.85,4);return gg;}
+    return new THREE.ConeGeometry(0.3,0.85,5);
+  }
+  function buildModel(name,rar){
+    var cfg=P[name]||P['Сакура'];
+    var g=new THREE.Group();
+    var stemH=1.5+(rar*0.12);
+    var stem=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.11,stemH,5),
+      flatMat(0x2e7d32));
+    stem.position.y=0.45+stemH/2;g.add(stem);
+    // листья — два low-poly конуса по бокам
+    for(var s=-1;s<=1;s+=2){
+      var leaf=new THREE.Mesh(new THREE.ConeGeometry(0.2,0.7,4),flatMat(0x388e3c));
+      leaf.scale.z=0.4;leaf.position.set(s*0.3,1.0,0);leaf.rotation.z=s*1.2;g.add(leaf);
+    }
+    var headY=0.45+stemH+0.15;
+    var head=new THREE.Group();head.position.y=headY;g.add(head);
+    var ctr=new THREE.Mesh(new THREE.IcosahedronGeometry(cfg.small?0.2:0.3,0),
+      flatMat(cfg.center,cfg.emissive));
+    head.add(ctr);
+    // шипы дракона — маленькие тетраэдры вокруг центра
+    if(cfg.spikes){
+      for(var sp=0;sp<cfg.n;sp++){
+        var a=sp/cfg.n*Math.PI*2;
+        var th=new THREE.Mesh(new THREE.TetrahedronGeometry(0.14),
+          flatMat(0xffd23f));
+        th.position.set(Math.cos(a)*0.42,0.15,Math.sin(a)*0.42);head.add(th);
+      }
+    }
+    for(var i=0;i<cfg.n;i++){
+      var ang=i/cfg.n*Math.PI*2+(cfg.spiral?headY*0.4:0);
+      var col=(cfg.kind==='mix')?RAINBOW[i%RAINBOW.length]:cfg.petal;
+      var m=new THREE.Mesh(petalGeo(cfg.kind,i),flatMat(col,cfg.emissive));
+      var r=cfg.kind==='long'?0.35:0.55;
+      m.position.set(Math.cos(ang)*r,(cfg.kind==='long'?0.35:0.05)+((i%2)*0.04),Math.sin(ang)*r);
+      m.rotation.y=-ang;
+      m.rotation.x=cfg.tilt||0.35;
+      if(cfg.thick)m.scale.set(1.2,1.4,1.2);
+      if(cfg.small)m.scale.set(0.8,0.8,0.8);
+      // лепесток смотрит наружу
+      m.rotateX(-0.5);
+      head.add(m);
+    }
+    // редкость: масштаб + кольцо (epic — серебро, myth — золото)
+    var sc=[1,1.12,1.28,1.45][rar]||1;
+    g.scale.set(sc,sc,sc);
+    if(rar===2){
+      var ring2=new THREE.Mesh(new THREE.TorusGeometry(0.95,0.05,5,12),
+        new THREE.MeshStandardMaterial({color:0x9fd8ff,metalness:0.8,roughness:0.3,flatShading:true}));
+      ring2.rotation.x=Math.PI/2;ring2.position.y=headY;g.add(ring2);
+    }
+    if(rar===3){
+      var ring=new THREE.Mesh(new THREE.TorusGeometry(1.05,0.07,5,14),
+        new THREE.MeshStandardMaterial({color:0xffd23f,metalness:0.9,roughness:0.25,flatShading:true,emissive:0x6b4e00,emissiveIntensity:0.4}));
+      ring.rotation.x=Math.PI/2;ring.position.y=headY;g.add(ring);
+    }
+    return g;
+  }
+  var model=buildModel(curFlavor,curRar);
+  holder.add(model);
+  var label=document.getElementById('modelName');
+  var flavBar=document.getElementById('flavBar');
+  var rarBar=document.getElementById('rarBar');
+  var RARN=['обычный','необычный','редкий','мифический'];
+  function refreshBars(){
+    flavBar.innerHTML='';
+    NAMES.forEach(function(n){
+      var b=document.createElement('button');
+      b.textContent=n;b.className='ghost'+(n===curFlavor?' active':'');
+      b.onclick=function(){show(n,curRar);};
+      flavBar.appendChild(b);
+    });
+    rarBar.innerHTML='';
+    RARN.forEach(function(n,i){
+      var b=document.createElement('button');
+      b.textContent=n;b.className='ghost'+(i===curRar?' active':'');
+      b.onclick=function(){show(curFlavor,i);};
+      rarBar.appendChild(b);
+    });
+  }
+  function show(name,rar){
+    curFlavor=name;curRar=rar;
+    holder.remove(model);
+    // освободить геометрию старой модели
+    model.traverse(function(o){if(o.geometry)o.geometry.dispose();});
+    model=buildModel(name,rar);
+    holder.add(model);
+    label.textContent=name+' · '+RARN[rar];
+    refreshBars();
+  }
+  // expose для headless-проверки и дебага
+  window.__sakuraPreview=show;
+  window.__sakuraModels=NAMES.slice();
+  refreshBars();show(curFlavor,curRar);
+  // тап по цветку в саду → показать его модель
+  document.getElementById('grid').addEventListener('click',function(e){
+    try{
+      var cell=e.target.closest?e.target.closest('.cell'):null;
+      if(!cell||!cell.parentNode)return;
+      var idx=Array.prototype.indexOf.call(cell.parentNode.children,cell);
+      var S_=null;
+      try{S_=JSON.parse(localStorage.getItem('sakura242_v1'));}catch(_){}
+      var c=S_&&S_.cells?S_.cells[idx]:null;
+      if(c&&P[c.name]!==undefined){show(c.name,c.rar);}
+    }catch(_){}
+  });
+  // drag-вращение
+  var dragging=false,px=0,rotY=0;
+  cv.addEventListener('pointerdown',function(e){dragging=true;px=e.clientX;cv.setPointerCapture&&cv.setPointerCapture(e.pointerId);});
+  window.addEventListener('pointerup',function(){dragging=false;});
+  window.addEventListener('pointermove',function(e){if(!dragging)return;rotY+=(e.clientX-px)*0.02;px=e.clientX;});
+  function fit(){
+    var w=cv.clientWidth||480,h=cv.clientHeight||300;
+    renderer.setSize(w,h,false);
+    cam.aspect=w/h;cam.updateProjectionMatrix();
+  }
+  window.addEventListener('resize',fit);
+  var t0=Date.now();
+  (function anim(){
+    requestAnimationFrame(anim);
+    var t=(Date.now()-t0)/1000;
+    holder.rotation.y=t*0.6+rotY;
+    holder.position.y=Math.sin(t*1.6)*0.05;
+    renderer.render(scene,cam);
+  })();
+  fit();
+})();
 </script>
 </body>
 </html>
