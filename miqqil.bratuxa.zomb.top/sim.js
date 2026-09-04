@@ -3,7 +3,7 @@
 // Стиль 42: Мы уже победили 🏆
 import {
   getVehicle, calcDamage, applyHit, zoneDps, zoneRadius,
-  pickBots, botVehicleIds, mulberry32,
+  pickBots, botVehicleIds, mulberry32, isBotNick,
   BOT_AIM, botAimError, botReactionTime,
 } from './game-logic.js';
 
@@ -69,12 +69,22 @@ export function spawnPositions(n, size = ARENA_SIZE) {
   return pts;
 }
 
+export function freeBotNick(world) {
+  const used = new Set([...world.units.values()].map(u => u.nick));
+  let i = 1;
+  while (used.has('Бот' + i)) i++;
+  return 'Бот' + i;
+}
+
 export function addUnit(world, { id, nick, vid, isBot = false, owner = null }) {
   const spec = getVehicle(vid);
   const midRound = world.round.phase === 'live';
   const pos = spawnPoint(world);
+  // Жёсткое правило: бот — только БотN. Чужой ник молча чиним в свободный БотN.
+  let cleanNick = String(nick || 'Братуха').slice(0, 16);
+  if (isBot && !isBotNick(cleanNick)) cleanNick = freeBotNick(world);
   const u = {
-    id, nick: String(nick || 'Братуха').slice(0, 16), vid, spec, isBot, owner,
+    id, nick: cleanNick, vid, spec, isBot, owner,
     x: pos.x, z: pos.z, y: spec.fly || 0,
     yaw: Math.random() * Math.PI * 2, turYaw: 0,
     hp: spec.hp, maxhp: spec.hp,

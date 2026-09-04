@@ -95,15 +95,22 @@ export function botReactionTime(rng) {
   return BOT_AIM.reactMin + rng() * (BOT_AIM.reactMax - BOT_AIM.reactMin);
 }
 
-const BOT_NICKS = ['Бот1', 'Бот2', 'Бот3', 'Бот4', 'Бот5', 'Бот6', 'Бот7', 'Бот8', 'Бот9', 'Бот10'];
+// Правило батальона: ники ботов — ТОЛЬКО «БотN» (Бот1, Бот2, ...), никаких человеческих имён.
+// Человеческие ники путали ботов с живыми братухами — так больше не делаем.
+export const BOT_NICK_RE = /^Бот\d+$/;
+export function isBotNick(nick) { return BOT_NICK_RE.test(String(nick ?? '')); }
+const BOT_NICKS = Array.from({ length: 10 }, (_, i) => 'Бот' + (i + 1));
 
 export function pickBots(n, seedFn = Math.random) {
-  const pool = [...BOT_NICKS];
+  const count = Math.max(0, Math.floor(Number(n) || 0));
+  // Пул растёт за запросом: Бот11, Бот12... — формат всегда БотN, лимита в 10 нет.
+  const pool = [];
+  for (let i = 1; i <= Math.max(count, BOT_NICKS.length); i++) pool.push('Бот' + i);
   const out = [];
-  while (out.length < n && pool.length) {
+  while (out.length < count && pool.length) {
     out.push(pool.splice(Math.floor(seedFn() * pool.length), 1)[0]);
   }
-  return out;
+  return out.filter(isBotNick);
 }
 
 export function botVehicleIds(n, seedFn = Math.random) {

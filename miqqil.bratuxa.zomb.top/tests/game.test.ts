@@ -1,6 +1,6 @@
 // bun test — логика выбора техники, урона и рейтинга
 import { describe, test, expect } from 'bun:test';
-import { VEHICLES, vehicleList, getVehicle, calcDamage, applyHit, zoneDps, zoneRadius, placementScore, updateRating, pickBots, botVehicleIds, BOT_AIM, botAimError, botReactionTime } from '../game-logic.js';
+import { VEHICLES, vehicleList, getVehicle, calcDamage, applyHit, zoneDps, zoneRadius, placementScore, updateRating, pickBots, botVehicleIds, BOT_AIM, botAimError, botReactionTime, isBotNick, BOT_NICK_RE } from '../game-logic.js';
 
 describe('техника', () => {
   test('минимум 3 танка + корабль + самолёт', () => {
@@ -111,6 +111,12 @@ describe('боты', () => {
     const bots = pickBots(7);
     expect(bots.length).toBe(7);
     expect(new Set(bots).size).toBe(7);
+  });
+  test('ники только БотN, без человеческих имён', () => {
+    for (const n of pickBots(12, () => 0.5)) expect(n).toMatch(BOT_NICK_RE);
+    expect(isBotNick('Бот1')).toBe(true);
+    expect(isBotNick('Бот42')).toBe(true);
+    for (const bad of ['Саша', 'Miqqil', 'Братуха', 'Бот', 'Bot1', 'Бот 1', '']) expect(isBotNick(bad)).toBe(false);
   });
   test('ботовская техника валидна', () => {
     for (const id of botVehicleIds(7)) expect(() => getVehicle(id)).not.toThrow();
