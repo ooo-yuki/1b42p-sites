@@ -22,6 +22,7 @@ export const BIBLE_SOUL_REGEN = 2; // библия: +2/сек к регену д
 export const BIBLE_DEAL_P = 0.15; // библия: шанс скидки 5% → 15%
 export const BAN_FORM_SECS = 15; // бан: форма 15 сек вместо 10
 export const BAN_FORM_MULT = 6; // бан: мульт формы ×6 вместо ×5
+export const FORM_BANK_MAX = 30; // пикули копят время формы максимум до 30 сек
 
 /** Есть ли у забега артефакт (без зацикливания на synergies). */
 export function owned(z: ZapoiState, id: string): boolean {
@@ -73,6 +74,12 @@ export function shopDiscount(z: ZapoiState): number {
 // Длительность демонической формы: 10 сек, с баном — 15.
 export function formDuration(z: ZapoiState): number {
   return owned(z, 'ban2w') ? BAN_FORM_SECS : DEMON_FORM_SECS;
+}
+
+// Обновление формы: не срезает набранное пикулями время, а держит
+// максимум (текущее или базовое). Механика «жги, пока жив».
+export function refreshForm(z: ZapoiState): number {
+  return Math.min(FORM_BANK_MAX, Math.max(z.demonForm, formDuration(z)));
 }
 
 // Эффективный мульт с учётом персонажа.

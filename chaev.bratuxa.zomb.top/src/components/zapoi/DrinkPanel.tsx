@@ -1,5 +1,5 @@
 // Витрина забега: статистика + большая кнопка глотка ягера.
-import { dmgPerSip, effMult, fmtZ, hangoverRate, jagerClick, sipPreview, charDiscount } from '../../game/zapoi/index';
+import { effMult, fmtZ, hangoverRate, jagerClick, sipPreview } from '../../game/zapoi/index';
 import type { Character, ZapoiState } from '../../game/zapoi/index';
 import type { MutateFn } from '../../hooks/useZapoiState';
 import ImgButton from '../ui/ImgButton';
@@ -24,18 +24,18 @@ export default function DrinkPanel({ z, charDef, drinkImg, mutate, onShattered, 
       <p>Здоровье: <b style={{ color: '#7f7', fontSize: 20 }}>{Math.ceil(z.hp)}/{z.maxhp}</b></p>
       <div className="hpbar-wrap"><div className="hpbar" style={{ width: pct + '%' }}></div></div>
       {z.char === 'ghost' && (
-        <p>👻 Остатки души: <b style={{ color: '#c9f', fontSize: 20 }}>{Math.ceil(z.soul)}/100</b> <span className="hint">(реген +2/сек, глоток −5; в 0 — бутылка бьётся!)</span></p>
+        <p>👻 Остатки души: <b style={{ color: '#c9f', fontSize: 20 }}>{Math.ceil(z.soul)}/100</b> <span className="hint">(душа восстанавливается, глоток её тратит; в 0 — бутылка бьётся!)</span></p>
       )}
       {z.char === 'demon' && z.demonForm > 0 && (
-        <p style={{ color: 'red', fontWeight: 'bold', fontSize: 20 }}>😈 ДЕМОНИЧЕСКАЯ ФОРМА ×5: {z.demonForm} сек!</p>
+        <p style={{ color: 'red', fontWeight: 'bold', fontSize: 20 }}>😈 ДЕМОНИЧЕСКАЯ ФОРМА: {z.demonForm} сек — жги!</p>
       )}
-      {z.char === 'vladimir' && charDiscount(z) > 0 && (
-        <p className="hint">🧔 Солидность: клик +{(z.sips * 0.02).toFixed(1)}, скидки −{(charDiscount(z) * 100).toFixed(0)}%</p>
+      {z.char === 'vladimir' && z.sips > 0 && (
+        <p className="hint">🧔 Солидность растёт: глоток сильнее, цены ниже</p>
       )}
-      {z.char === 'ghost' && charDiscount(z) > 0 && (
-        <p className="hint">✨ Святость: скидки −{(charDiscount(z) * 100).toFixed(1)}%</p>
+      {z.char === 'ghost' && z.deals > 0 && (
+        <p className="hint">✨ Святость: цены ниже</p>
       )}
-      <p className="hint">урон/глоток {dmgPerSip(z).toFixed(1)} HP • реген {z.regen.toFixed(1)}/с • toxic×{z.toxic.toFixed(2)} • mult×{z.mult.toFixed(2)}</p>
+      <p className="hint">Качай ветки — глоток сильнее, пойло добрее</p>
       <div style={{ margin: '10px 0' }}>
         {drinkImg && <img src={drinkImg} alt="Пойло персонажа" style={{ width: 120, borderRadius: 12, border: '2px solid gold', verticalAlign: 'middle' }} />}
       </div>
@@ -47,13 +47,13 @@ export default function DrinkPanel({ z, charDef, drinkImg, mutate, onShattered, 
           if (ev === 'hangover') {
             const rate = hangoverRate(n);
             const lost = n._hangoverLost ?? Math.floor(n.m * rate / (1 - rate));
-            return `🤢 Похмелье! −${lost} бухла (${Math.round(rate * 100)}%), здоровье 30%. Рассолу накати!`;
+            return `🤢 Похмелье! −${lost} бухла, здоровье упало. Пикулей накати!`;
           }
           if (ev === 'shattered') {
             setTimeout(onShattered, 50);
             return '💥 Бутылка разбилась! Возвращаю к выбору персонажа…';
           }
-          if (ev === 'demonform') return '😈 ДЕМОНИЧЕСКАЯ ФОРМА ×5 на 10 сек! ЖГИ!';
+          if (ev === 'demonform') return '😈 ДЕМОНИЧЕСКАЯ ФОРМА! ЖГИ, ПОКА ЖИВ!';
           return '';
         }, 400)}
         style={{ background: 'linear-gradient(180deg,#ff7a00,#c50)', color: '#fff', fontSize: 22, padding: '14px 30px' }}

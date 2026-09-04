@@ -476,7 +476,7 @@ describe('именные: польза всем персонажам', () => {
     expect(z.toxic).toBeCloseTo(0.85);
   });
   it('бан: любому персонажу +25% ко всему бухлу', () => {
-    const z = createZapoiState(); z.char = 'winline'; z.m = 1e9;
+    const z = createZapoiState(); z.char = 'vladimir'; z.m = 1e9;
     z.completed = { vladimir: 1, demon: 1 };
     expect(buyArt(z, 'ban2w')).not.toBe(false);
     expect(z.mult).toBeCloseTo(1.25);
@@ -514,5 +514,33 @@ describe('винлайн 2.0: честное казино + удача', () => {
     }
     // шанс 2%: за 30 попыток пустышек мало (допуск < 6)
     expect(blanks).toBeLessThan(6);
+  });
+});
+
+describe('форма демона: обновление без среза', () => {
+  it('повторная смерть не срезает набранное пикулями время', () => {
+    const z = createZapoiState(); z.char = 'demon'; z.m = 1e9; z.hp = 0;
+    z.demonForm = 25;
+    jagerClick(z);
+    expect(z.demonForm).toBe(25);
+  });
+  it('обновление с нуля даёт базу 10 (15 с баном)', () => {
+    const z = createZapoiState(); z.char = 'demon'; z.m = 1e9; z.hp = 0;
+    jagerClick(z);
+    expect(z.demonForm).toBe(10);
+    z.completed = { vladimir: 1, demon: 1 };
+    buyArt(z, 'ban2w');
+    z.demonForm = 0;
+    jagerClick(z);
+    expect(z.demonForm).toBe(15);
+  });
+  it('пикули копят максимум до 30', () => {
+    const z = createZapoiState(); z.char = 'demon'; z.m = 1e9; z.hp = 50;
+    z.demonForm = 25;
+    demonPickle(z);
+    expect(z.demonForm).toBe(30);
+    z.m = 1e9;
+    demonPickle(z);
+    expect(z.demonForm).toBe(30);
   });
 });

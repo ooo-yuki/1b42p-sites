@@ -7,7 +7,7 @@ import {
   JACKPOT_MAX, JACKPOT_MULT, LUCK_JACKPOT_STEP,
   VLADIMIR_CLICK_STEP, VLADIMIR_PASSIVE,
   WINLINE_BIG_P, WINLINE_JACKPOT_P,
-  dmgPerSip, effMult, formDuration, owned,
+  dmgPerSip, effMult, owned, refreshForm,
 } from './formulas';
 import { hangoverRate } from '../synergies';
 
@@ -54,7 +54,7 @@ export function jagerClick(z: ZapoiState): ZapoiEvent {
     return null;
   }
   if (z.hp <= 0) {
-    if (z.char === 'demon') { z.demonForm = formDuration(z); return 'demonform'; }
+    if (z.char === 'demon') { z.demonForm = refreshForm(z); return 'demonform'; }
     applyHangover(z);
     return 'hangover';
   }
@@ -80,7 +80,7 @@ export function jagerClick(z: ZapoiState): ZapoiEvent {
   z.hp -= dmg;
   if (z.hp <= 0) {
     z.hp = 0;
-    if (z.char === 'demon') { z.demonForm = formDuration(z); return 'demonform'; }
+    if (z.char === 'demon') { z.demonForm = refreshForm(z); return 'demonform'; }
     applyHangover(z);
     return 'hangover';
   }
@@ -107,7 +107,7 @@ export function tickZapoi(z: ZapoiState): ZapoiEvent {
   }
   z.hp = Math.max(0, Math.min(z.maxhp, z.hp));
   if (z.hp <= 0) {
-    if (z.char === 'demon' && z.demonForm <= 0) { z.demonForm = formDuration(z); return 'demonform'; }
+    if (z.char === 'demon' && z.demonForm <= 0) { z.demonForm = refreshForm(z); return 'demonform'; }
     if (z.char === 'ghost') return 'shattered';
     applyHangover(z);
     return 'hangover';
