@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🧝 Эльфоград 42 — строй город эльфов!</title>
+<style>
+:root{--neon:#7CFC00;--neon2:#ffd23f;--bg:#07130b}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;color:#fff;min-height:100vh;padding:12px;text-align:center;
+background:radial-gradient(1000px 500px at 20% 0%,#0e3a1c 0%,var(--bg) 60%),radial-gradient(800px 400px at 90% 100%,#123a2e 0%,var(--bg) 60%)}
+h1{color:var(--neon);text-shadow:0 0 12px var(--neon);margin:8px 0}
+.slogan{color:var(--neon2);font-weight:bold;text-shadow:0 0 10px var(--neon2)}
+.wrap{max-width:720px;margin:0 auto}
+.stats{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:10px 0}
+.stat{background:#0a1f12;border:2px solid var(--neon);border-radius:12px;padding:8px 12px;min-width:104px;font-size:15px}
+.stat b{color:var(--neon2)}
+#grid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin:12px auto;max-width:520px}
+.cell{aspect-ratio:1;background:#0d2417;border:2px solid #2e6b3c;border-radius:10px;display:flex;flex-direction:column;
+align-items:center;justify-content:center;font-size:24px;cursor:pointer;min-height:56px;transition:transform .1s;user-select:none}
+.cell:hover{transform:scale(1.05)}
+.cell.buildable{border-style:dashed}
+.cell .lv{font-size:10px;color:var(--neon2);font-weight:bold}
+.cell.sel{outline:3px solid gold}
+#palette{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:10px 0}
+#palette button{font-size:13px}
+button{background:linear-gradient(90deg,#2e7d32,#00c853);border:none;color:#fff;font-weight:bold;font-size:15px;
+padding:10px 16px;border-radius:10px;cursor:pointer;margin:4px}
+button:disabled{opacity:.4;cursor:default}
+button.ghost{background:#0a1f12;border:2px solid var(--neon)}
+button.active{outline:3px solid gold}
+.panel{background:#0a1f12;border:2px solid var(--neon);border-radius:12px;padding:10px;margin:10px auto;max-width:520px;font-size:14px}
+.log{font-size:13px;color:#c6ffb6;min-height:20px}
+#win{display:none;background:#0a1f12;border:3px solid gold;border-radius:16px;padding:20px;margin:12px auto;max-width:520px;
+font-size:18px;box-shadow:0 0 30px gold}
+a{color:var(--neon)}
+@media(max-width:480px){.cell{font-size:19px;min-height:44px}h1{font-size:22px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>🧝 Эльфоград 42 🌲</h1>
+<div class="slogan">Построй город эльфов до 42 жителей — мы уже победили! 🏆</div>
+<p><a href="index.html">← Хаб 1Б42П</a> · <strong>Мы уже победили 🏆</strong></p>
+<div class="stats">
+<div class="stat">🪙 <b id="gold">0</b><br><small>золото</small></div>
+<div class="stat">💧 <b id="mana">0</b><br><small>мана</small></div>
+<div class="stat">🌲 <b id="wood">0</b><br><small>дерево</small></div>
+<div class="stat">🧝 <b id="pop">0</b>/<b id="cap">0</b><br><small>жители</small></div>
+<div class="stat">⏱️ <b id="inc">0</b>/с<br><small>золото</small></div>
+</div>
+<div class="panel">Клик по клетке — построить выбранное · повторный клик по зданию — улучшить (до 3 ур.) · режим 🚫 — снести (возврат 50%)</div>
+<div id="palette"></div>
+<div id="grid"></div>
+<div class="log" id="log">Выбери здание и кликай по клеткам! 🧝</div>
+<div>
+<button onclick="gather()">🎁 Дар леса (+дерево и мана)</button>
+<button class="ghost" onclick="doReset()">🗑 Новый город</button>
+</div>
+<div class="panel"><small>🏠 дома дают жильё · 🧝 жители платят налоги 🪙 · 🌲 роща даёт дерево · 🔮 башня даёт ману · 🏪 рынок даёт золото · 🌸 сад ускоряет рост · 🗼 Шпиль 42 — венец города</small></div>
+<div id="win">🏆 <b>МЫ УЖЕ ПОБЕДИЛИ!</b> 🏆<br>Эльфоград достиг 42 жителей! Город сияет, лес поёт! 🧝🌲✨</div>
+</div>
+<script>
+var KEY='elfograd42_v1';
+var B={
+ house:{em:'🏠',n:'Дом эльфа',cost:{gold:50,wood:20},house:4,desc:'+4 жилья'},
+ grove:{em:'🌲',n:'Роща',cost:{gold:30},prod:{wood:0.4},desc:'+дерево/с'},
+ tower:{em:'🔮',n:'Башня маны',cost:{gold:80,wood:40},prod:{mana:0.3},desc:'+мана/с'},
+ market:{em:'🏪',n:'Рынок',cost:{gold:60,wood:30},prod:{gold:0.5},desc:'+золото/с'},
+ garden:{em:'🌸',n:'Сад',cost:{mana:40,wood:20},boost:1,desc:'ускоряет рост'},
+ spire:{em:'🗼',n:'Шпиль 42',cost:{gold:300,wood:150,mana:100},prod:{gold:2,mana:1,wood:1},house:10,desc:'венец города!'}
+};
+var S,tool='house',bulldoze=false;
+function def(){return{gold:120,mana:20,wood:60,pop:0,cells:Array(64).fill(null),lastSeen:Date.now(),win:false};}
+function load(){try{S=JSON.parse(localStorage.getItem(KEY))||def();}catch(e){S=def();}
+ var now=Date.now(),dt=Math.min((now-(S.lastSeen||now))/1000,8*3600);
+ if(dt>30){var g=prod().gold*dt;if(g>0){S.gold+=Math.floor(g);setTimeout(function(){say('🌙 Оффлайн: +'+Math.floor(g)+' 🪙');},500);}}
+ S.lastSeen=now;save();}
+function save(){S.lastSeen=Date.now();try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+function say(t){document.getElementById('log').textContent=t;}
+function lvlMult(l){return l;}
+function prod(){var p={gold:0,mana:0,wood:0};
+ S.cells.forEach(function(c){if(!c)return;var b=B[c.t],m=lvlMult(c.l);
+  if(b.prod){for(var k in b.prod)p[k]+=b.prod[k]*m;}});
+ var gardens=S.cells.filter(function(c){return c&&c.t==='garden';}).length;
+ if(gardens>0){p.gold*= (1+gardens*0.2);p.mana*=(1+gardens*0.2);p.wood*=(1+gardens*0.2);}
+ return p;}
+function cap(){var c=0;S.cells.forEach(function(x){if(x&&B[x.t].house)c+=B[x.t].house*lvlMult(x.l);});return c;}
+function canPay(cost){for(var k in cost)if((S[k]||0)<cost[k])return false;return true;}
+function pay(cost){for(var k in cost)S[k]-=cost[k];}
+function upCost(c){var base=B[c.t].cost,r={};for(var k in base)r[k]=Math.floor(base[k]*1.8*c.l);return r;}
+function fmtCost(cost){var a=[];var em={gold:'🪙',mana:'💧',wood:'🌲'};
+ for(var k in cost)a.push(cost[k]+' '+em[k]);return a.join(' ');}
+function clickCell(i){
+ var c=S.cells[i];
+ if(bulldoze){
+  if(!c){say('Тут пусто — сносить нечего 🌲');return;}
+  var base=B[c.t].cost;for(var k in base)S[k]+=Math.floor(base[k]*c.l*0.5);
+  say(B[c.t].em+' снесён, вернули половину ресурсов 🚫');S.cells[i]=null;after();render();return;}
+ if(!c){
+  var b=B[tool];
+  if(!canPay(b.cost)){say('Не хватает ресурсов: нужно '+fmtCost(b.cost)+' 💸');return;}
+  pay(b.cost);S.cells[i]={t:tool,l:1};
+  say(b.em+' построен: '+b.n+'! '+b.desc+' 🏗️');after();render();return;}
+ // улучшить
+ if(c.l>=3){say('Макс. уровень (3)! Мы уже победили 🏆');return;}
+ var uc=upCost(c);
+ if(!canPay(uc)){say('Улучшение стоит '+fmtCost(uc)+' 💸');return;}
+ pay(uc);c.l++;say(B[c.t].em+' улучшен до '+c.l+' ур! ✨');after();render();}
+function gather(){var g=10+S.pop;S.wood+=g;S.mana+=Math.floor(g/2);
+ say('🎁 Дар леса: +'+g+' 🌲 и +'+Math.floor(g/2)+' 💧');save();render();}
+function doReset(){if(confirm('Начать новый город?')){S=def();save();render();say('🌱 Новый Эльфоград! Мы уже победили 🏆');}}
+function after(){
+ var gardens=S.cells.filter(function(c){return c&&c.t==='garden';}).length;
+ var c=cap();
+ if(S.pop<c){var step=1+gardens;S.pop=Math.min(c,S.pop+0);/*рост в тике*/}
+ if(S.pop>=42&&!S.win){S.win=true;document.getElementById('win').style.display='block';
+  say('🏆 42 ЖИТЕЛЯ! МЫ УЖЕ ПОБЕДИЛИ! 🏆');}
+ save();}
+function render(){
+ document.getElementById('gold').textContent=Math.floor(S.gold);
+ document.getElementById('mana').textContent=Math.floor(S.mana);
+ document.getElementById('wood').textContent=Math.floor(S.wood);
+ document.getElementById('pop').textContent=S.pop;
+ document.getElementById('cap').textContent=cap();
+ document.getElementById('inc').textContent=prod().gold.toFixed(1);
+ if(S.win)document.getElementById('win').style.display='block';
+ var pal=document.getElementById('palette');pal.innerHTML='';
+ Object.keys(B).forEach(function(k){var b=B[k];
+  var btn=document.createElement('button');
+  btn.className=(!bulldoze&&tool===k)?'active':'ghost';
+  btn.innerHTML=b.em+' '+b.n+'<br><small>'+fmtCost(b.cost)+'</small>';
+  btn.title=b.desc;
+  btn.onclick=function(){tool=k;bulldoze=false;say(b.em+' '+b.n+': '+b.desc+'. Кликай по клетке!');render();};
+  pal.appendChild(btn);});
+ var bz=document.createElement('button');
+ bz.textContent='🚫 Снести';bz.className=bulldoze?'active':'ghost';
+ bz.onclick=function(){bulldoze=!bulldoze;say(bulldoze?'Режим сноса: кликай по зданиям 🚫':'Режим стройки 🏗️');render();};
+ pal.appendChild(bz);
+ var gr=document.getElementById('grid');gr.innerHTML='';
+ for(var i=0;i<64;i++){var d=document.createElement('div');d.className='cell'+(S.cells[i]?'':' buildable');
+  (function(idx){d.onclick=function(){clickCell(idx);};})(i);
+  if(S.cells[i]){var c=S.cells[i];d.innerHTML='<div>'+B[c.t].em+'</div><div class="lv">ур.'+c.l+'</div>';}
+  else d.innerHTML='<div style="opacity:.35">·</div>';
+  gr.appendChild(d);}}
+load();render();
+// тик: доход + рост населения
+setInterval(function(){var p=prod();S.gold+=p.gold;S.mana+=p.mana;S.wood+=p.wood;
+ var c=cap(),gardens=S.cells.filter(function(x){return x&&x.t==='garden';}).length;
+ if(S.pop<c&&Math.random()<0.25*(1+gardens*0.5)){S.pop++;if(S.pop>=42&&!S.win){S.win=true;
+  document.getElementById('win').style.display='block';say('🏆 42 ЖИТЕЛЯ! МЫ УЖЕ ПОБЕДИЛИ! 🏆');}}
+ S.lastSeen=Date.now();save();
+ document.getElementById('gold').textContent=Math.floor(S.gold);
+ document.getElementById('mana').textContent=Math.floor(S.mana);
+ document.getElementById('wood').textContent=Math.floor(S.wood);
+ document.getElementById('pop').textContent=S.pop;
+ document.getElementById('cap').textContent=c;
+ document.getElementById('inc').textContent=p.gold.toFixed(1);
+},1000);
+// крючок для тестов
+window.__elf={get:function(){return S;},build:function(t){tool=t;bulldoze=false;
+ var i=S.cells.findIndex(function(c){return !c;});if(i>=0)clickCell(i);return i;}};
+</script>
+</body>
+</html>
