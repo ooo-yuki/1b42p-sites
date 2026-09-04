@@ -269,7 +269,7 @@ export default function ZapoiGame() {
           ОЧИЩЕНИЕ: снять форму за {heal2cost(z)} бухла</button>
       )}
       <div className="zlog">{log}</div>
-      <h3 style={{ color: 'gold' }}>🏺 Артефакты по качествам ({ownedArts}/{ARTS.length})</h3>
+      <h3 style={{ color: 'gold' }}><img src="arts/logo.png" alt="Артефакты" style={{ width: 34, height: 34, verticalAlign: 'middle', borderRadius: 8, marginRight: 8 }} />Артефакты по качествам ({ownedArts}/{ARTS.length})</h3>
       <div>
         {[1, 2, 3, 4].map((q) => {
           const list = ARTS.filter((a) => (a.q || 3) === q);
