@@ -90,6 +90,7 @@ export default function Arena(): JSX.Element {
           players: m.players, host: m.host, private: m.private,
           round: m.round, alive: m.alive, contenders: m.contenders,
           rolls: m.rolls, winner: m.winner,
+          gdata: (m.gdata ?? {}) as Record<string, unknown>,
         });
         setErr('');
         break;
@@ -220,16 +221,17 @@ export default function Arena(): JSX.Element {
                 onStop={() => send({ t: 'stop' })}
                 onVoteEnter={yes => send({ t: 'voteEnter', yes })}
                 onVoteWait={yes => send({ t: 'voteWait', yes })}
-                onCreate={() => send({ t: 'create' })}
+                onCreate={g => send({ t: 'create', game: g })}
                 onJoin={code => send({ t: 'join', code })} />
             )}
             {room && (
-              <Room me={myId} room={room} feed={feed} chat={chat}
+              <Room me={myId} room={room} games={games} feed={feed} chat={chat}
                 myRolled={myRolled} secsLeft={secsLeft}
-                onRoll={() => send({ t: 'roll' })}
+                onRoll={() => send({ t: 'move', move: { kind: 'roll' } })}
                 onLeave={() => send({ t: 'leave' })}
                 onStart={() => send({ t: 'start' })}
                 onRematch={() => send({ t: 'rematch' })}
+                onPickGame={g => send({ t: 'pickGame', game: g })}
                 onChat={t => send({ t: 'chat', text: t })} />
             )}
             {err && room && <p className="aerr" role="alert">{err}</p>}

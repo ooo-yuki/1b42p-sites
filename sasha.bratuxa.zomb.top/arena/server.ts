@@ -42,6 +42,7 @@ type Room = {
   timer: ReturnType<typeof setTimeout> | null;
   createdAt: number;
   winner: string | null;
+  gdata: Record<string, unknown>; // витрина игры для клиента; кости держат всё в rolls/alive
 };
 
 type Pool = {
@@ -98,7 +99,7 @@ function roomState(r: Room): Record<string, unknown> {
     players: memberViews(r), host: r.host,
     private: r.private,
     round: r.round, alive: [...r.alive], contenders: [...r.contenders],
-    rolls: { ...r.rolls }, winner: r.winner,
+    rolls: { ...r.rolls }, winner: r.winner, gdata: { ...r.gdata },
   };
 }
 
@@ -205,15 +206,32 @@ export function decideGame(ids: string[]): string {
   return top[Math.floor(Math.random() * top.length)];
 }
 
+/* ---------- платформа игр: реестр, лимиты, плагины ----------
+   Новая игра = запись в GAMES + вьюха в src/arena/games/*. Больше ничего:
+   пул, голоса, комнаты, таймеры и реванши — общие. */
+
+export function sanitizeGame(v: unknown): string {
+  const s = String(v ?? '');
+  return GAMES[s] ? s : 'dice';
+}
+
+export function gameCap(game: string): number {
+  return GAMES[game]?.max ?? 5;
+}
+
+export function fitMembers(ids: string[], game: string): string[] {
+  return ids.slice(0, gameCap(game));
+}
+
 function formRoom(ids: string[]): void {
-  const fitted = ids.slice(0, 5);
+  const game = decideGame(ids.filter(id => clients.has(id)));
+  const fitted = fitMembers(ids.filter(id => clients.has(id)), game);
   if (fitted.length < 2) return;
   const code = makeCode();
-  const game = decideGame(fitted);
   const r: Room = {
     code, players: [], host: fitted[0], private: false, game,
     phase: 'lobby', alive: [], contenders: [], rolls: {}, round: 0,
-    timer: null, createdAt: now(), winner: null,
+    timer: null, createdAt: now(), winner: null, gdata: {},
   };
   rooms.set(code, r);
   for (const id of fitted) {
@@ -260,7 +278,7 @@ function resolveWait(): void {
       const c = clients.get(id);
       if (c) send(c.ws, { t: 'log', text: 'Ждать не стали — в бой!' });
     }
-    formRoom(members.slice(0, 5));
+    formRoom(members);
     return;
   } else {
     // один в поле — молча продлеваем, голосовать не с кем
@@ -332,13 +350,13 @@ function onVoteWait(c: Client, yes: unknown): void {
 
 /* ---------- приватные комнаты (доп-функция) ---------- */
 
-function onCreate(c: Client): void {
+function onCreate(c: Client, game: unknown): void {
   if (c.roomId) detach(c);
   const code = makeCode();
   const r: Room = {
-    code, players: [c.id], host: c.id, private: true, game: 'dice',
+    code, players: [c.id], host: c.id, private: true, game: sanitizeGame(game),
     phase: 'lobby', alive: [], contenders: [], rolls: {}, round: 0,
-    timer: null, createdAt: now(), winner: null,
+    timer: null, createdAt: now(), winner: null, gdata: {},
   };
   rooms.set(code, r);
   c.roomId = code;
@@ -346,17 +364,27 @@ function onCreate(c: Client): void {
   pushOnline();
 }
 
+/** Хост приватной комнаты меняет игру до старта. */
+function onPickGame(c: Client, game: unknown): void {
+  const r = c.roomId ? rooms.get(c.roomId) : undefined;
+  if (!r || !r.private || r.phase !== 'lobby') return;
+  if (r.host !== c.id) return send(c.ws, { t: 'err', msg: 'игру выбирает хост' });
+  r.game = sanitizeGame(game);
+  broadcast(r, roomState(r));
+}
+
 function onJoin(c: Client, code: unknown): void {
   const cc = String(code ?? '').toUpperCase().trim();
   const r = rooms.get(cc);
   if (!r) return send(c.ws, { t: 'err', msg: 'комнаты с таким кодом нет' });
-  if (r.players.length >= 5) return send(c.ws, { t: 'err', msg: 'комната полна (5/5)' });
+  if (r.players.length >= gameCap(r.game)) return send(c.ws, { t: 'err', msg: `комната полна (${r.players.length}/${gameCap(r.game)})` });
   if (r.phase === 'play') return send(c.ws, { t: 'err', msg: 'бой уже идёт — дождись конца' });
   if (c.roomId) detach(c);
   c.roomId = r.code;
   r.players.push(c.id);
   send(c.ws, roomState(r));
   broadcast(r, { t: 'join', id: c.id, name: c.name }, c.id);
+  broadcast(r, roomState(r), c.id); // хост и остальные видят новый состав сразу
   pushOnline();
 }
 
@@ -469,6 +497,21 @@ function onRoll(c: Client): void {
   else broadcast(r, roomState(r));
 }
 
+/* ---------- плагины ходов: generic move, у костей roll — его частный случай ---------- */
+
+type Plugin = { onMove(c: Client, mv: Record<string, unknown>): void };
+
+const PLUGINS: Record<string, Plugin> = {
+  dice: { onMove(c, mv) { if (mv.kind === 'roll') onRoll(c); } },
+};
+
+function onMove(c: Client, mv: unknown): void {
+  const r = c.roomId ? rooms.get(c.roomId) : undefined;
+  if (!r || r.phase !== 'play') return;
+  const m = (mv ?? {}) as Record<string, unknown>;
+  (PLUGINS[r.game] ?? PLUGINS.dice).onMove(c, m);
+}
+
 function onMessage(c: Client, raw: string): void {
   if (raw.length > 65536) return; // флуд-контроль размера
   let m: Record<string, unknown>;
@@ -486,25 +529,30 @@ function onMessage(c: Client, raw: string): void {
     case 'voteGame': return onVoteGame(c, m.game);
     case 'voteEnter': return onVoteEnter(c, m.yes);
     case 'voteWait': return onVoteWait(c, m.yes);
-    case 'create': return onCreate(c);
+    case 'create': return onCreate(c, m.game);
+    case 'pickGame': return onPickGame(c, m.game);
     case 'join': return onJoin(c, m.code);
     case 'leave': return leaveRoom(c);
     case 'start': return onStart(c);
     case 'rematch': return onRematch(c);
     case 'roll': return onRoll(c);
+    case 'move': return onMove(c, m.move);
     case 'chat': return onChat(c, m.text);
   }
 }
 
 function sweep(): void {
   const t = now();
+  let gone = false;
   for (const [id, c] of clients) {
     if (t - c.lastSeen > IDLE_SECS * 1000) {
       try { c.ws.close(); } catch { /* уже мёртв */ }
       detach(c);
       clients.delete(id);
+      gone = true;
     }
   }
+  if (gone) pushOnline();
   for (const [code, r] of rooms) {
     if (r.players.length === 0 || t - r.createdAt > 2 * 3600 * 1000) destroyRoom(code);
   }

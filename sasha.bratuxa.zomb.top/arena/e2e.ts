@@ -90,9 +90,53 @@ while (!over && Date.now() - t0 < 120000) {
 }
 if (!over) throw new Error('бой не кончился!');
 console.log('winner:', over.name);
+
+// приватный трек: создание с битой игрой → dice, битый pickGame → dice,
+// вход по коду, старт хостом, бой через generic move (путь плагина).
+const D = client('Тест-Д');
+const E = client('Тест-Е');
+await Promise.all([D.ready, E.ready]);
+const wD = await D.waitFor((m) => m.t === 'welcome');
+const wE = await E.waitFor((m) => m.t === 'welcome');
+idOf.set(D, wD.id);
+idOf.set(E, wE.id);
+D.send({ t: 'create', game: 'zzz' });
+const rc = await D.waitFor((m) => m.t === 'room' && m.private);
+if (rc.game !== 'dice') throw new Error('битая игра не погасилась в dice!');
+console.log('private room:', rc.code, 'game:', rc.game);
+D.send({ t: 'pickGame', game: 'zzz' });
+const rc2 = await D.waitFor((m) => m.t === 'room' && m.private && m.game === 'dice');
+if (rc2.code !== rc.code) throw new Error('pickGame сменил комнату!');
+E.send({ t: 'join', code: rc.code });
+await E.waitFor((m) => m.t === 'room' && m.code === rc.code);
+await D.waitFor((m) => m.t === 'join' && m.id === wE.id);
+D.send({ t: 'start' });
+let overP: any = null;
+const t1 = Date.now();
+const duo = [D, E];
+while (!overP && Date.now() - t1 < 120000) {
+  const roundP = await Promise.race([
+    D.waitFor((m) => m.t === 'round'),
+    D.waitFor((m) => m.t === 'over', 120000),
+  ]);
+  if (roundP.t === 'over') { overP = roundP; break; }
+  const need2: string[] = roundP.need;
+  for (const p of duo) {
+    if (need2.includes(idOf.get(p))) p.send({ t: 'move', move: { kind: 'roll' } });
+  }
+  const maybeOver = await Promise.race([
+    D.waitFor((m) => m.t === 'over', 25000).catch(() => null),
+    D.waitFor((m) => m.t === 'round').then(() => null),
+  ]);
+  if (maybeOver) { overP = maybeOver; break; }
+}
+if (!overP) throw new Error('приватный бой не кончился!');
+console.log('private winner:', overP.name);
 const check = await fetch('http://127.0.0.1:8094/api/online').then((r) => r.json());
 console.log('online:', JSON.stringify(check));
 if (check.online < 3) throw new Error('онлайн врёт!');
 for (const p of players) p.ws.close();
+for (const p of duo) p.ws.close();
+V.ws.close();
 console.log('ARENA E2E v2 PASS 🏆');
 process.exit(0);

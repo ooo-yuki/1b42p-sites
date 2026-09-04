@@ -22,7 +22,7 @@ type Props = {
   onStop: () => void;
   onVoteEnter: (yes: boolean) => void;
   onVoteWait: (yes: boolean) => void;
-  onCreate: () => void;
+  onCreate: (game: string) => void;
   onJoin: (code: string) => void;
 };
 
@@ -145,7 +145,10 @@ export default function Lobby({ me, online, pool, games, searching, busy, myVote
             onKeyDown={e => { if (e.key === 'Enter') go(); }}
             aria-label="Код комнаты" disabled={busy} />
           <Button variant="outline" disabled={busy || code.trim().length < 3} onClick={go}>Войти</Button>
-          <Button variant="secondary" disabled={busy} onClick={() => { arenaClick(); onCreate(); }}>Создать</Button>
+          <Button variant="secondary" disabled={busy}
+            onClick={() => { arenaClick(); onCreate(myVote !== 'any' && games[myVote] ? myVote : 'dice'); }}>
+            Создать{myVote !== 'any' && games[myVote] ? `: ${games[myVote].label}` : ''}
+          </Button>
         </div>
       </details>
 

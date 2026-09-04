@@ -15,6 +15,7 @@ export type RoomView = {
   contenders: string[];
   rolls: Record<string, number>;
   winner: string | null;
+  gdata: Record<string, unknown>;
 };
 
 export type PoolMember = { id: string; name: string; vote: string; enter: boolean };
@@ -53,12 +54,14 @@ export type CMsg =
   | { t: 'voteGame'; game: string }
   | { t: 'voteEnter'; yes: boolean }
   | { t: 'voteWait'; yes: boolean }
-  | { t: 'create' }
+  | { t: 'create'; game?: string }
+  | { t: 'pickGame'; game: string }
   | { t: 'join'; code: string }
   | { t: 'leave' }
   | { t: 'start' }
   | { t: 'rematch' }
   | { t: 'roll' }
+  | { t: 'move'; move: { kind: string } }
   | { t: 'chat'; text: string };
 
 export const NAME_KEY = 'sasha_arena_name';

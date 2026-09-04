@@ -1,7 +1,8 @@
 /* Юнит-тесты голосований арены: decideGame — большинство, все-«любое», ничья.
+   Плюс швы игровой платформы: sanitizeGame, gameCap, fitMembers.
    bun test arena/vote.test.ts */
 import { describe, expect, test } from 'bun:test';
-import { clients, decideGame } from './server';
+import { clients, decideGame, fitMembers, gameCap, sanitizeGame } from './server';
 
 function seed(votes: Record<string, string>): string[] {
   clients.clear();
@@ -46,5 +47,27 @@ describe('decideGame', () => {
   test('детерминизм при явном большинстве (20 прогонов)', () => {
     const ids = seed({ a: 'dice', b: 'dice', c: 'dice' });
     for (let k = 0; k < 20; k++) expect(decideGame(ids)).toBe('dice');
+  });
+});
+
+describe('game platform seams', () => {
+  test('sanitizeGame пропускает известную игру', () => {
+    expect(sanitizeGame('dice')).toBe('dice');
+  });
+
+  test('sanitizeGame гасит битую игру в dice', () => {
+    expect(sanitizeGame('zzz')).toBe('dice');
+    expect(sanitizeGame(undefined)).toBe('dice');
+    expect(sanitizeGame('any')).toBe('dice');
+  });
+
+  test('gameCap отдаёт лимит правилами игры', () => {
+    expect(gameCap('dice')).toBe(5);
+    expect(gameCap('zzz')).toBe(5);
+  });
+
+  test('fitMembers режет пати лимитом игры, порядок держит', () => {
+    expect(fitMembers(['a', 'b', 'c', 'd', 'e', 'f'], 'dice')).toEqual(['a', 'b', 'c', 'd', 'e']);
+    expect(fitMembers(['a', 'b'], 'dice')).toEqual(['a', 'b']);
   });
 });

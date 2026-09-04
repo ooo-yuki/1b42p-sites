@@ -17,6 +17,9 @@ FIRST VIEWPORT: счётчик онлайна, имя бойца в настро
 дуэль карт игр (ToggleGroup-голосование) + боевая кнопка «Искать бой»,
 пул-пилюли с кворум-барами, приват по коду — доп-функцией внизу;
 FORM: лобби+комната+игра в одном экране по состояниям, без перезагрузок.
+PLATFORM: новая игра = запись в GAMES (server.ts: sanitizeGame/gameCap/fitMembers,
+PLUGINS.onMove, gdata в roomState) + вьюха в src/arena/games/* + строка в GAME_VIEWS;
+пул, голоса, комнаты, таймеры, реванши, чат — общие. Неизвестная игра — заглушка.
 FINISH: unreviewed and undocumented is unfinished; this build ends with the
 finish review, the verdict, DESIGN.md, and every shipping raster carrying
 its provenance.

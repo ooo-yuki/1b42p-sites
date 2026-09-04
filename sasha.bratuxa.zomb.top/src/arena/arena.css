@@ -168,6 +168,15 @@
 .aprivate .aroom-row{padding:0 16px 14px}
 .ar-game{font-size:12.5px; color:#808080; border:1px solid rgba(128,128,128,.4);
   border-radius:999px; padding:5px 12px}
+/* пикер игры хоста в приватной комнате */
+.apick{display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  background:#0d1428; border:1px solid rgba(0,96,170,.35); border-radius:12px;
+  padding:10px 14px; font-size:13.5px; color:#808080}
+.apick-group.apick-group{display:flex; flex-wrap:wrap; gap:8px; width:auto}
+.apick-item.apick-item{border:1px solid rgba(255,255,255,.15); border-radius:999px;
+  padding:6px 14px; font-size:13px; color:#fff; background:transparent; cursor:pointer}
+.apick-item.apick-item[data-state="on"]{border-color:#fff; box-shadow:0 0 14px rgba(0,96,170,.4)}
+.apick-item.apick-item:hover:not(:disabled){border-color:#fff}
 
 @media (prefers-reduced-motion:reduce){
   .gcard,.f-pop,.afight,.aneon{transition:none; animation:none}
