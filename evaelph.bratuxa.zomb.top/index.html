@@ -1779,7 +1779,7 @@ function doSalto(){
  return flipTotal;
 }
 var compOn=false,compMe=0,compRival=0,compRivalName='Чаев',compRivalSkill=0.75,compT=0,compTimer=null;
-var RIVALS=[{n:'Чаев 🤸',s:0.7},{n:'Миккил 🛞',s:0.8},{n:'Торнадо ⚡',s:0.9},{n:'Денис 🚗',s:1.0},{n:'Святослав ⚡',s:0.75},{n:'Смольград 🏰',s:0.85}];
+var RIVALS=[{n:'Чаев 🤸',s:0.7},{n:'Миккил 🛞',s:0.8},{n:'Торнадо ⚡',s:0.9},{n:'Денис 🚗',s:1.0},{n:'Святослав ⚡',s:0.75},{n:'Смолград 🏰',s:0.85}];
 function openFlipComp(){
  document.getElementById('flipComp').style.display='flex';
  document.getElementById('flipScore').textContent='ТЫ 0 : 0 СОПЕРНИК';
@@ -1792,14 +1792,15 @@ function startFlipComp(){
  var rv=RIVALS[Math.floor(Math.random()*RIVALS.length)];
  compRivalName=rv.n;compRivalSkill=rv.s;
  compMe=0;compRival=0;compOn=true;compT=50;
- document.getElementById('flipCompText').textContent='Соперник: '+compRivalName+'! Тапай 🤸 как можно быстрее! 5 сек!';
+ var diff=compRivalSkill<0.78?'⭐ лёгкий':(compRivalSkill<0.9?'⭐⭐ средний':'⭐⭐⭐ жёсткий');
+ document.getElementById('flipCompText').textContent='Соперник: '+compRivalName+' ('+diff+')! Тапай 🤸 как можно быстрее! 5 сек!';
  document.getElementById('flipScore').textContent='ТЫ 0 : 0 '+compRivalName;
  blip(800);
  if(compTimer)clearInterval(compTimer);
  compTimer=setInterval(function(){
   compT--;
   document.getElementById('flipTimer').textContent=(compT/10).toFixed(1)+'с';
-  if(Math.random()<0.75*compRivalSkill)compRival+=(Math.random()<0.25?2:1);
+  if(Math.random()<0.30*compRivalSkill)compRival+=(Math.random()<0.25?2:1);
   document.getElementById('flipScore').textContent='ТЫ '+compMe+' : '+compRival+' '+compRivalName;
   if(compT<=0)endFlipComp();
  },100);
