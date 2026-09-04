@@ -1,0 +1,42 @@
+/* ГАЗОН — топот, пыль, бейдж лидера, фотофиниш. */
+
+.turf{position:relative}
+.runner .cic{width:34px; height:34px; display:block}
+.turf.racing .runner .cic{animation:gallop .34s ease-in-out infinite}
+@keyframes gallop{
+  0%,100%{transform:translateY(0) rotate(-4deg)}
+  50%{transform:translateY(-4px) rotate(4deg)}
+}
+.runner .dust{position:absolute; left:-6px; bottom:0; width:14px; height:12px; pointer-events:none; opacity:0}
+.turf.racing .runner .dust{opacity:1}
+.runner .dust i{
+  position:absolute; bottom:0; border-radius:50%;
+  background:radial-gradient(circle, rgba(210,190,150,.7), transparent 70%);
+}
+.runner .dust i:nth-child(1){left:0; width:8px; height:8px; animation:puff .7s ease-out infinite}
+.runner .dust i:nth-child(2){left:4px; width:6px; height:6px; animation:puff .7s ease-out .22s infinite}
+.runner .dust i:nth-child(3){left:8px; width:5px; height:5px; animation:puff .7s ease-out .44s infinite}
+@keyframes puff{
+  from{transform:translate(0,0) scale(.5); opacity:.8}
+  to{transform:translate(-14px,-10px) scale(1.4); opacity:0}
+}
+.runner.lead::after{animation:leap 1s ease-in-out infinite}
+@keyframes leap{0%,100%{opacity:1}50%{opacity:.55}}
+.lane-name small{white-space:nowrap}
+.photo{
+  position:absolute; inset:auto 0 0 0; display:flex; flex-direction:column;
+  align-items:center; gap:2px; padding:14px 10px 16px;
+  background:linear-gradient(180deg, transparent, rgba(4,6,14,.88) 45%);
+  animation:photoin .35s ease-out;
+}
+@keyframes photoin{from{opacity:0; transform:translateY(10px)}to{opacity:1; transform:none}}
+.photo-flash{position:absolute; inset:0; background:#fff; opacity:.9; animation:flash .5s ease-out forwards; pointer-events:none}
+@keyframes flash{to{opacity:0}}
+.photo b{font-size:22px; color:#fff; text-shadow:0 0 24px rgba(0,96,170,.8); position:relative}
+.photo small{color:#9fe8bd; font-size:13px; position:relative}
+
+@media (prefers-reduced-motion:reduce){
+  .turf.racing .runner .cic,.runner .dust i,.runner.lead::after{animation:none}
+  .photo,.photo-flash{animation:none}
+  .photo-flash{display:none}
+}

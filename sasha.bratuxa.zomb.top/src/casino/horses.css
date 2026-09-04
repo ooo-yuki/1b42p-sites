@@ -26,9 +26,10 @@
  font-size:10px;color:#ffffff;white-space:nowrap}
 .post{position:absolute;right:0;top:0;bottom:0;width:6px;border-radius:3px;
  background:repeating-linear-gradient(180deg,#ffffff 0 6px,#0d1428 6px 12px)}
-.lane-name{flex:none;width:74px;font-size:12.5px;color:#f0f0f0}
+.lane-name{flex:none;width:86px;font-size:12.5px;color:#f0f0f0;display:flex;flex-direction:column;line-height:1.3}
+.lane-name small{color:#9fe8bd;font-size:11px}
 
-.betdesk{margin-top:14px;border-radius:14px;padding:14px 16px;background:rgba(90,90,90,.85);
+.betdesk{margin-top:14px;border-radius:14px;padding:14px 16px;background:rgba(13,20,40,.85);
  border:1px solid rgba(255,255,255,.16)}
 .betdesk .crow{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .betdesk .fine{margin:10px 0 0;font-size:12.5px;color:#f0f0f0}

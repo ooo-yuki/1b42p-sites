@@ -1,0 +1,22 @@
+/* БУДКА — голос заезда. */
+
+.booth{
+  margin-top:12px; display:flex; align-items:center; gap:12px;
+  background:#0d1428; border:1px solid rgba(255,255,255,.12);
+  border-radius:12px; padding:10px 14px;
+}
+.booth.live{border-color:rgba(0,96,170,.55); box-shadow:0 0 22px rgba(0,96,170,.18)}
+.booth-mic .cic{width:30px; height:30px; flex:none}
+.booth-mic{filter:drop-shadow(0 0 10px rgba(0,96,170,.5))}
+.booth-lines{flex:1; display:flex; flex-direction:column; gap:2px; min-width:0}
+.booth-lines p{margin:0; font-size:13.5px; color:#808080; line-height:1.45}
+.booth-lines p.idle{color:#808080}
+.booth-lines p.fresh{color:#fff; animation:say .3s ease-out}
+@keyframes say{from{opacity:0; transform:translateY(6px)}to{opacity:1; transform:none}}
+.booth-dot{flex:none; width:10px; height:10px; border-radius:50%; background:#3a3f4a}
+.booth-dot.on{background:#E31E25; box-shadow:0 0 10px rgba(227,30,37,.9); animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:.4}}
+
+@media (prefers-reduced-motion:reduce){
+  .booth-lines p.fresh,.booth-dot.on{animation:none}
+}

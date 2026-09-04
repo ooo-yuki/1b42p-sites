@@ -1,0 +1,25 @@
+/* КАССА — пре-сеты, превью выплаты, кнопка с нажимом. */
+
+.betdesk .presets{display:flex; gap:8px; margin-top:12px}
+.preset{
+  flex:1; padding:7px 0; border-radius:999px; cursor:pointer;
+  background:#0d1428; color:#fff; font-size:13.5px; font-weight:700;
+  font-variant-numeric:tabular-nums; border:1px solid rgba(255,255,255,.25);
+  transition:border-color .15s, box-shadow .15s, transform .12s;
+}
+.preset:hover:not(:disabled){border-color:#0060AA}
+.preset:active:not(:disabled){transform:scale(.95)}
+.preset.sel{border-color:#fff; box-shadow:0 0 10px rgba(0,96,170,.35)}
+.preset:disabled{opacity:.5; cursor:default}
+.betdesk .crow{margin-top:12px}
+.betdesk .crow input{max-width:120px}
+.betdesk .crow button.press{transform:scale(.93)}
+.betdesk .crow button{transition:transform .12s, box-shadow .15s}
+.betdesk .crow button:not(:disabled):hover{box-shadow:0 0 16px rgba(0,96,170,.5)}
+.betdesk .crow button:not(:disabled):active{transform:scale(.94)}
+.preview{font-size:13.5px; color:#808080; font-variant-numeric:tabular-nums}
+.preview.good{color:#fff}
+
+@media (prefers-reduced-motion:reduce){
+  .preset,.betdesk .crow button{transition:none}
+}

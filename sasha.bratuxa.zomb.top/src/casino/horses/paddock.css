@@ -1,0 +1,31 @@
+/* ПАДДОК — наклон, шёлк, форма, превью выплаты. */
+
+.paddock{perspective:1100px}
+.mount{
+  --tilt-x:0deg; --tilt-y:0deg;
+  transform:rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
+  transform-style:preserve-3d;
+  position:relative; overflow:hidden;
+}
+.mount::before{
+  content:''; position:absolute; inset:0; pointer-events:none; opacity:0;
+  background:radial-gradient(90% 55% at 50% 0%, rgba(0,96,170,.2), transparent 70%);
+  transition:opacity .25s;
+}
+.mount:hover::before,.mount.sel::before{opacity:1}
+.mount:focus-visible{outline:2px solid #0060AA; outline-offset:2px}
+.mount.locked{cursor:default; filter:saturate(.8)}
+.mount .m-art{box-shadow:0 0 0 2px var(--silks); transition:transform .2s}
+.mount:hover .m-art{transform:translateZ(20px) scale(1.06)}
+.mount.sel .m-art{transform:translateZ(20px) scale(1.1)}
+.mount .m-pay{font-size:12px; color:#fff; font-variant-numeric:tabular-nums; min-height:17px}
+.mount .m-form{display:flex; gap:4px; align-items:center; min-height:14px}
+.mount .m-form em{font-style:normal; font-size:11px; color:#808080; letter-spacing:.05em}
+.mount .m-form i{width:10px; height:10px; border-radius:3px; background:#3a3f4a}
+.mount .m-form i.w{background:#2f9e44; box-shadow:0 0 6px rgba(47,158,68,.7)}
+.mount .m-form i.l{background:#E31E25; opacity:.75}
+
+@media (prefers-reduced-motion:reduce){
+  .mount{transform:none}
+  .mount:hover .m-art,.mount.sel .m-art{transform:none}
+}

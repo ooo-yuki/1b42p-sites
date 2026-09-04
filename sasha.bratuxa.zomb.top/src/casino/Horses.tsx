@@ -1,109 +1,114 @@
-import { useState } from 'react';
-import { Api, Log, Num, parseStake } from './shared';
-import { ItemIcon } from '../casino-icons';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { useMemo, useState } from 'react';
+import { Log, parseStake, type Api } from './shared';
+import Paddock from './horses/Paddock';
+import Track from './horses/Track';
+import Commentator from './horses/Commentator';
+import BetDesk from './horses/BetDesk';
+import HorseHistory, { formOf, loadHorseHist, saveHorseHist, type HorseEntry } from './horses/History';
+import {
+  DEFAULT_BET, DEFAULT_HORSE, HORSES, MIN_STAKE,
+  TICK_MS, TICK_MS_REDUCED, payout, tickRace, validateHorses,
+} from './horses/data';
+import { crowd, gallopTick, photoClick, startBell } from './horses/fanfare';
 import './horses.css';
+import './horses/paddock.css';
+import './horses/track.css';
+import './horses/booth.css';
+import './horses/betdesk.css';
+import './horses/hhist.css';
 
-/* ЗАЛ «СКАЧКИ» — ипподром 42. Четыре лошади, трибуна, фотофиниш.
-   Правила святы: кэфы, механика заезда и минималка не менялись. */
-
-type Horse = { id: string; icon: string; name: string; odds: number; silks: string };
-const HORSES: Horse[] = [
-  { id: 'tornado', icon: 'steed-gray', name: 'Торнадо', odds: 1.8, silks: '#808080' },
-  { id: 'bratuxa', icon: 'steed-blue', name: 'Братуха', odds: 2.5, silks: '#0060AA' },
-  { id: 'vihr', icon: 'steed-brown', name: 'Вихрь', odds: 4, silks: '#E31E25' },
-  { id: 'pyat', icon: 'steed-gold', name: 'Пятёрка', odds: 7, silks: '#ffffff' },
-];
+/* ЗАЛ «СКАЧКИ» — ипподром 42. Оркестрация: паддок → будка → газон → касса → протоколы.
+   Правила святы: кэфы, минималка 10, тик +1.5+rnd*5 до 100, выплата floor(ставка×кэф). */
 
 export default function Horses({ api }: { api: Api }): JSX.Element {
-  const [horse, setHorse] = useState(HORSES[1].id);
-  const [hbet, setHbet] = useState('50');
+  const [horse, setHorse] = useState(DEFAULT_HORSE);
+  const [hbet, setHbet] = useState(DEFAULT_BET);
   const [racing, setRacing] = useState(false);
   const [pos, setPos] = useState<number[]>(HORSES.map(() => 0));
   const [leader, setLeader] = useState(-1);
+  const [winner, setWinner] = useState(-1);
+  const [lines, setLines] = useState<string[]>([]);
+  const [hist, setHist] = useState<HorseEntry[]>(() => loadHorseHist());
+  const [seq, setSeq] = useState(() => Date.now());
+
+  useMemo(() => {
+    const bad = validateHorses(HORSES);
+    if (bad.length > 0) console.error('[horses] святыня нарушена:', bad.join('; '));
+  }, []);
+
+  const form = useMemo(() => formOf(hist), [hist]);
+  const rawStake = Math.floor(Number(hbet));
+  const stakeNum = Number.isFinite(rawStake) && rawStake > 0 ? rawStake : 0;
+
+  const say = (s: string): void => setLines(prev => [...prev.slice(-2), s]);
 
   const start = (): void => {
     if (racing) return;
-    const stake = parseStake(hbet, 10, api);
+    const stake = parseStake(hbet, MIN_STAKE, api);
     if (stake === null) return;
+    startBell();
     setRacing(true);
     setPos(HORSES.map(() => 0));
     setLeader(-1);
+    setWinner(-1);
+    setLines([`${HORSES.find(h => h.id === horse)?.name ?? ''} под седлом. Старт!`]);
     const p = HORSES.map(() => 0);
+    let prevBest = -1;
+    let halfway = false;
+    let alt = false;
     const timer = window.setInterval(() => {
-      let winner = -1;
-      let best = -1;
-      for (let i = 0; i < p.length; i++) {
-        p[i] += 1.5 + Math.random() * 5;
-        if (p[i] > (p[best] ?? -1)) best = i;
-        if (p[i] >= 100 && winner < 0) winner = i;
-      }
+      const { winner: w, best } = tickRace(p);
+      alt = !alt;
+      if (!api.reduced) gallopTick(alt, Math.max(...p) / 100);
       setPos([...p]);
       setLeader(best);
-      if (winner >= 0) {
+      if (best !== prevBest) {
+        prevBest = best;
+        say(`${HORSES[best].name} вырывается вперёд!`);
+      }
+      if (!halfway && p.some(v => v >= 50)) {
+        halfway = true;
+        say('Половина дистанции — трибуна встала!');
+      }
+      if (w >= 0) {
         window.clearInterval(timer);
-        const h = HORSES[winner];
-        if (h.id === horse) {
-          const win = Math.floor(stake * h.odds);
-          api.credit(win);
-          api.say(`${h.name} первый! ×${h.odds}: +${win}`, 'win');
+        photoClick();
+        const h = HORSES[w];
+        const mine = h.id === horse;
+        const ret = mine ? payout(stake, h.odds) : 0;
+        crowd(mine);
+        if (mine) {
+          api.credit(ret);
+          api.say(`${h.name} первый! ×${h.odds}: +${ret}`, 'win');
         } else {
           api.say(`${h.name} первый. Твоя лошадь мимо, минус ${stake}`, 'lose');
         }
+        say(`${h.name} — первый! Фотофиниш подтверждает.`);
+        setHist(prev => {
+          const next = [{
+            id: seq, horseId: h.id, horseName: h.name, icon: h.icon,
+            stake, ret, profit: ret - stake, t: Date.now(),
+          }, ...prev].slice(0, 30);
+          saveHorseHist(next);
+          return next;
+        });
+        setSeq(s => s + 1);
+        setWinner(w);
         setRacing(false);
       }
-    }, api.reduced ? 30 : 120);
+    }, api.reduced ? TICK_MS_REDUCED : TICK_MS);
   };
 
   return (
     <section className="horses-hall">
       <Log msg={api.msg} tone={api.tone} />
-      <div className="paddock">
-        {HORSES.map(h => (
-          <button key={h.id} className={`mount${horse === h.id ? ' sel' : ''}`}
-            onClick={() => !racing && setHorse(h.id)} disabled={racing} aria-pressed={horse === h.id}>
-            <span className="m-art" style={{ ['--silks' as string]: h.silks }}><ItemIcon name={h.icon} /></span>
-            <b>{h.name}</b>
-            <Badge variant="secondary">×{h.odds}</Badge>
-          </button>
-        ))}
-      </div>
-      <div className="turf">
-        <div className="stand">Трибуна 42</div>
-        {HORSES.map((h, i) => (
-          <div className="lane" key={h.id}>
-            <span className="lane-no">{i + 1}</span>
-            <div className="lane-track">
-              {[25, 50, 75].map(m => <i key={m} className="mark" style={{ left: `${m}%` }} />)}
-              <span className={`runner${leader === i && racing ? ' lead' : ''}`}
-                style={{ left: `calc(${Math.min(94, pos[i])}% )` }}>
-                <ItemIcon name={h.icon} />
-              </span>
-              <span className="post" />
-            </div>
-            <span className="lane-name">{h.name}</span>
-          </div>
-        ))}
-      </div>
-      <div className="betdesk">
-        <ToggleGroup type="single" value={horse}
-          onValueChange={v => { if (v && !racing) setHorse(v); }}
-          disabled={racing} className="flex-wrap justify-start">
-          {HORSES.map(h => (
-            <ToggleGroupItem key={h.id} value={h.id}>
-              <ItemIcon name={h.icon} /> {h.name} ×{h.odds}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-        <div className="crow" style={{ marginTop: 12 }}>
-          <Input value={hbet} onChange={e => setHbet(e.target.value)} inputMode="numeric" aria-label="Ставка на скачки" />
-          <Button disabled={racing} onClick={start}>{racing ? 'Скачут…' : 'Старт'}</Button>
-        </div>
-        <p className="fine">Кэфы честные: чем выше риск, тем выше выплата.</p>
-      </div>
+      <Paddock horses={HORSES} selId={horse} stake={stakeNum}
+        racing={racing} form={form} onPick={setHorse} />
+      <Commentator lines={lines} racing={racing} />
+      <Track horses={HORSES} pos={pos} leader={leader} racing={racing && !api.reduced} winner={winner} />
+      <BetDesk horses={HORSES} horse={horse} hbet={hbet}
+        racing={racing} onHorse={setHorse} onBet={setHbet} onStart={start} />
+      <HorseHistory entries={hist} onClear={() => { setHist([]); saveHorseHist([]); }} />
     </section>
   );
 }
