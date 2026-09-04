@@ -10,13 +10,16 @@ interface DrinkPanelProps {
   drinkImg: string | null;
   mutate: MutateFn;
   onShattered: () => void;
+  onChangeChar: () => void;
 }
 
-export default function DrinkPanel({ z, charDef, drinkImg, mutate, onShattered }: DrinkPanelProps) {
+export default function DrinkPanel({ z, charDef, drinkImg, mutate, onShattered, onChangeChar }: DrinkPanelProps) {
   const pct = Math.max(0, Math.min(100, (z.hp / z.maxhp) * 100));
   return (
     <>
-      <p><img src={charDef.img} alt={charDef.name} style={{ width: 64, borderRadius: 12, border: '2px solid gold', verticalAlign: 'middle', marginRight: 10 }} /><b style={{ fontSize: 18 }}>{charDef.emoji} {charDef.name}</b></p>
+      <p><img src={charDef.img} alt={charDef.name} style={{ width: 64, borderRadius: 12, border: '2px solid gold', verticalAlign: 'middle', marginRight: 10 }} /><b style={{ fontSize: 18 }}>{charDef.emoji} {charDef.name}</b>{' '}
+        <button onClick={onChangeChar} style={{ fontSize: 12 }}>сменить</button>
+      </p>
       <p>Бухло: <b style={{ color: 'gold', fontSize: 26 }}>{Math.floor(z.m).toLocaleString('ru-RU')} 🍾</b> <span className="hint">(+{Math.round(z.auto * effMult(z) + (z.char === 'vladimir' ? 0.2 * z.mult : 0))}/с • это {fmtZ(z.m)} запоя)</span></p>
       <p>Здоровье: <b style={{ color: '#7f7', fontSize: 20 }}>{Math.ceil(z.hp)}/{z.maxhp}</b></p>
       <div className="hpbar-wrap"><div className="hpbar" style={{ width: pct + '%' }}></div></div>

@@ -1,47 +1,28 @@
+// Дино-игра 42: рендер canvas + HUD. Логика — в game/dinoEngine, звук — в ui/sound.
 import { useEffect, useRef, useState } from 'react';
-import { createDinoState, stepDino, jumpDino, GROUND_Y, FLOOR_Y, W, H } from '../game/dinoEngine.js';
+import { FLOOR_Y, H, W, createDinoState, jumpDino, stepDino } from '../game/dinoEngine';
+import { blip, sndJump, sndLevel, sndLose } from './ui/sound';
 
-// WebAudio-бипы без файлов — 1-в-1 из legacy.html.
-let AC = null;
-function beep(f0, f1, dur, type, vol) {
-  try {
-    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
-    if (AC.state === 'suspended') AC.resume();
-    const o = AC.createOscillator(), g = AC.createGain();
-    o.type = type || 'square';
-    o.frequency.setValueAtTime(f0, AC.currentTime);
-    o.frequency.exponentialRampToValueAtTime(Math.max(f1, 1), AC.currentTime + dur);
-    g.gain.setValueAtTime(vol || 0.08, AC.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + dur);
-    o.connect(g); g.connect(AC.destination);
-    o.start(); o.stop(AC.currentTime + dur);
-  } catch (e) { /* тихо */ }
-}
-const sndJump = () => beep(300, 700, 0.15, 'square', 0.07);
-const sndLose = () => { beep(400, 80, 0.5, 'sawtooth', 0.1); setTimeout(() => beep(300, 60, 0.5, 'sawtooth', 0.08), 120); };
-const sndLevel = () => beep(500, 1000, 0.12, 'square', 0.06);
+// Совместимый реэкспорт: ZapoiGame/Lovers раньше брали blip отсюда.
+export { blip };
 
-export function blip(f) {
-  try {
-    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
-    if (AC.state === 'suspended') AC.resume();
-    const o = AC.createOscillator(), g = AC.createGain();
-    o.type = 'square'; o.frequency.value = f;
-    g.gain.setValueAtTime(0.12, AC.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + 0.15);
-    o.connect(g); g.connect(AC.destination);
-    o.start(); o.stop(AC.currentTime + 0.16);
-  } catch (e) { /* тихо */ }
+interface Hud {
+  score: number;
+  record: number;
+  level: number;
+  alive: boolean;
 }
 
 export default function DinoGame() {
-  const canvasRef = useRef(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const stateRef = useRef(createDinoState());
-  const [hud, setHud] = useState({ score: 0, record: 0, level: 1, alive: true });
+  const [hud, setHud] = useState<Hud>({ score: 0, record: 0, level: 1, alive: true });
 
   useEffect(() => {
     const cv = canvasRef.current;
+    if (!cv) return;
     const ctx = cv.getContext('2d');
+    if (!ctx) return;
     const s = stateRef.current;
     s.record = +(localStorage.getItem('chaev42') || 0);
     const dinoImg = new Image();
@@ -53,13 +34,13 @@ export default function DinoGame() {
     let naxOk = false;
     naxImg.onload = () => { naxOk = true; };
 
-    const doJump = () => {
+    const doJump = (): void => {
       const wasDead = !s.alive;
       jumpDino(s);
       if (wasDead) setHud((h) => ({ ...h, alive: true }));
       else sndJump();
     };
-    const onKey = (e) => {
+    const onKey = (e: KeyboardEvent): void => {
       if (e.code === 'Space') { e.preventDefault(); doJump(); }
     };
     document.addEventListener('keydown', onKey);
@@ -67,7 +48,7 @@ export default function DinoGame() {
 
     let raf = 0;
     let lastHud = 0;
-    const loop = () => {
+    const loop = (): void => {
       ctx.clearRect(0, 0, W, H);
       ctx.fillStyle = '#222';
       ctx.fillRect(0, FLOOR_Y, W, 15);
@@ -80,12 +61,12 @@ export default function DinoGame() {
         sndLose();
         if (s.score > s.record) {
           s.record = s.score;
-          try { localStorage.setItem('chaev42', s.record); } catch (e) { /* тихо */ }
+          try { localStorage.setItem('chaev42', String(s.record)); } catch { /* тихо */ }
         }
       }
       if (s.alive && s.score > s.record) {
         s.record = s.score;
-        try { localStorage.setItem('chaev42', s.record); } catch (e) { /* тихо */ }
+        try { localStorage.setItem('chaev42', String(s.record)); } catch { /* тихо */ }
       }
 
       if (s.level >= 4) {
@@ -143,9 +124,10 @@ export default function DinoGame() {
     };
   }, []);
 
-  const reset = () => {
+  const reset = (): void => {
+    const keep = stateRef.current.record;
     Object.assign(stateRef.current, createDinoState());
-    stateRef.current.record = hud.record;
+    stateRef.current.record = keep || hud.record;
     setHud((h) => ({ ...h, score: 0, level: 1, alive: true }));
   };
 

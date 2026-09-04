@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createDinoState, stepDino, jumpDino, levelForScore, speedForScore, gapForLevel } from '../src/game/dinoEngine.js';
+import { createDinoState, stepDino, jumpDino, levelForScore, speedForScore, gapForLevel } from '../src/game/dinoEngine';
 
 describe('дино-движок 42', () => {
   it('уровень = 1+floor(score/400)', () => {

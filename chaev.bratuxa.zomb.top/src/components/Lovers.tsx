@@ -1,19 +1,22 @@
+// Список любовников Чаева: localStorage + бэкенд /api/lovers.
 import { useEffect, useState } from 'react';
-import { blip } from './DinoGame.jsx';
+import { blip } from './ui/sound';
 
 const DEFAULT_LOVERS = ['тюленька'];
 const LS_KEY = 'chaev42_lovers';
 
-function loadLocal() {
+function loadLocal(): string[] {
   try {
-    const s = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
-    if (Array.isArray(s)) return [...DEFAULT_LOVERS, ...s.filter((n) => !DEFAULT_LOVERS.includes(n))];
-  } catch (e) { /* тихо */ }
+    const s = JSON.parse(localStorage.getItem(LS_KEY) || '[]') as unknown;
+    if (Array.isArray(s)) return [...DEFAULT_LOVERS, ...(s as string[]).filter((n) => !DEFAULT_LOVERS.includes(n))];
+  } catch {
+    /* тихо */
+  }
   return [...DEFAULT_LOVERS];
 }
 
 export default function Lovers() {
-  const [lovers, setLovers] = useState(loadLocal);
+  const [lovers, setLovers] = useState<string[]>(loadLocal);
   const [form, setForm] = useState(false);
   const [nick, setNick] = useState('');
   const [ph, setPh] = useState('Твой ник, красавчик 😉');
@@ -23,17 +26,17 @@ export default function Lovers() {
     let dead = false;
     fetch('/api/lovers', { headers: { Accept: 'application/json' } })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
+      .then((d: { lovers?: string[] } | null) => {
         if (!d || dead || !Array.isArray(d.lovers)) return;
-        const merged = [...DEFAULT_LOVERS, ...d.lovers.filter((n) => !DEFAULT_LOVERS.includes(n))];
+        const merged = [...DEFAULT_LOVERS, ...(d.lovers as string[]).filter((n) => !DEFAULT_LOVERS.includes(n))];
         setLovers(merged);
       })
       .catch(() => { /* бэкенда нет — живём на localStorage */ });
     return () => { dead = true; };
   }, []);
 
-  const persist = (list) => {
-    try { localStorage.setItem(LS_KEY, JSON.stringify(list)); } catch (e) { /* тихо */ }
+  const persist = (list: string[]): void => {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(list)); } catch { /* тихо */ }
     fetch('/api/lovers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -41,7 +44,7 @@ export default function Lovers() {
     }).catch(() => { /* бэкенда нет — не страшно */ });
   };
 
-  const confirm = () => {
+  const confirm = (): void => {
     const name = (nick || '').trim().slice(0, 30);
     if (!name) { setPh('Сначала впиши ник! 😏'); return; }
     if (!lovers.includes(name)) {
@@ -51,7 +54,7 @@ export default function Lovers() {
     }
     setNick('');
     setForm(false);
-    try { blip(800); } catch (e) { /* тихо */ }
+    try { blip(800); } catch { /* тихо */ }
   };
 
   return (

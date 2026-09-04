@@ -1,3 +1,4 @@
+// Хайп-шапка Чаева: счётчик хайпа +42.
 import { useState } from 'react';
 
 export default function Hype() {

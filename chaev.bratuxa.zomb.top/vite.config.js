@@ -10,7 +10,7 @@ export default defineConfig({
     emptyOutDir: true,
   },
   test: {
-    include: ['tests/**/*.test.js'],
+    include: ['tests/**/*.test.{js,ts}'],
   },
   server: {
     port: 5173,

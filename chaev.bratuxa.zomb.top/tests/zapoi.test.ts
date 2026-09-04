@@ -7,21 +7,21 @@ import {
   CHARACTERS, isUnlocked, isAllBought, BOTTLE_COST, buyBottle, newRun, bet,
   artCost, charDiscount, effMult, cleanseDemon,
   pickleSmall, demonPickle, holyPickle, syringe, HEALS,
-} from '../src/game/zapoiLogic.js';
-import { SYNS, hangoverRate } from '../src/game/synergies.js';
+} from '../src/game/zapoi/index';
+import { SYNS, hangoverRate } from '../src/game/synergies';
 
 describe('цены апгрейдов: base × growth^уровень', () => {
   it('12 апгрейдов в древе', () => {
     expect(TREE).toHaveLength(12);
   });
   it('глотка: 10×4^ур', () => {
-    const b = TREE.find((x) => x.id === 'throat');
+    const b = TREE.find((x) => x.id === 'throat')!;
     expect(upgradeCost(b, 0)).toBe(10);
     expect(upgradeCost(b, 1)).toBe(40);
     expect(upgradeCost(b, 2)).toBe(160);
   });
   it('компания: 100×8^ур', () => {
-    const b = TREE.find((x) => x.id === 'party');
+    const b = TREE.find((x) => x.id === 'party')!;
     expect(upgradeCost(b, 0)).toBe(100);
     expect(upgradeCost(b, 1)).toBe(800);
   });
@@ -78,7 +78,7 @@ describe('лечилки: рассол и капельница', () => {
     z.m = 1000; z.hp = 50;
     const c0 = heal1cost(z);
     const r = healSmall(z);
-    expect(r.v).toBe(15);
+    expect(r!.v).toBe(15);
     expect(heal1cost(z)).toBeGreaterThan(c0);
   });
   it('полное HP — отказ', () => {
@@ -91,8 +91,8 @@ describe('лечилки: рассол и капельница', () => {
     const z = createZapoiState();
     z.m = 1000; z.hp = 10;
     const r = healBig(z);
-    expect(r.v).toBe(60);
-    expect(r.c).toBe(150);
+    expect(r!.v).toBe(60);
+    expect(r!.c).toBe(150);
     expect(z.hp).toBe(70);
   });
 });
@@ -317,7 +317,7 @@ describe('очищение демона', () => {
     const cost = heal2cost(z);
     const r = cleanseDemon(z);
     expect(r && r.cleansed).toBe(true);
-    expect(r.c).toBe(cost);
+    expect(r!.c).toBe(cost);
     expect(z.demonForm).toBe(0);
     expect(z.hp).toBe(Math.round(z.maxhp * 0.3));
     expect(z.m).toBe(10000 - cost);
@@ -329,7 +329,7 @@ describe('очищение демона', () => {
     z.hp = 10;
     const r = cleanseDemon(z);
     expect(r && !r.cleansed).toBe(true);
-    expect(z.hp).toBe(10 + r.v);
+    expect(z.hp).toBe(10 + r!.v);
   });
   it('без денег — отказ', () => {
     const z = createZapoiState();
@@ -361,13 +361,13 @@ describe('хилки-пикули 42', () => {
   it('демонические пикули: хил + продление формы на 10 сек', () => {
     const z = createZapoiState(); z.char = 'demon'; z.m = 5000; z.hp = 50; z.demonForm = 8;
     const r = demonPickle(z);
-    expect(r).not.toBeNull(); expect(r.extended).toBe(true);
+    expect(r).not.toBeNull(); expect(r!.extended).toBe(true);
     expect(z.demonForm).toBe(18); expect(z.hp).toBeGreaterThan(50);
   });
   it('демонические пикули вне формы: хил без продления', () => {
     const z = createZapoiState(); z.char = 'demon'; z.m = 5000; z.hp = 50; z.demonForm = 0;
     const r = demonPickle(z);
-    expect(r).not.toBeNull(); expect(r.extended).toBe(false);
+    expect(r).not.toBeNull(); expect(r!.extended).toBe(false);
   });
   it('святые пикули: лечат душу с капом 100, чужим недоступны', () => {
     const z = createZapoiState(); z.char = 'ghost'; z.m = 5000; z.soul = 60;
@@ -390,7 +390,7 @@ describe('хилки-пикули 42', () => {
   it('шприц: полное HP, только Владимир и Винлайн', () => {
     const z = createZapoiState(); z.char = 'vladimir'; z.m = 50000; z.hp = 10; z.maxhp = 100;
     const r = syringe(z);
-    expect(r).not.toBeNull(); expect(z.hp).toBe(100); expect(r.v).toBe(90);
+    expect(r).not.toBeNull(); expect(z.hp).toBe(100); expect(r!.v).toBe(90);
     const g = createZapoiState(); g.char = 'ghost'; g.m = 50000;
     expect(syringe(g)).toBeNull();
     const d = createZapoiState(); d.char = 'demon'; d.m = 50000; d.hp = 10;
@@ -401,7 +401,7 @@ describe('хилки-пикули 42', () => {
 describe('пойло демона 42', () => {
   it('у демона два вида пойла: обычное и для формы', () => {
     const d = CHARACTERS.find((c) => c.id === 'demon');
-    expect(d.drink).toBe('jager/demon.jpg');
-    expect(d.drinkForm).toBe('jager/demon-form.jpg');
+    expect(d!.drink).toBe('jager/demon.jpg');
+    expect(d!.drinkForm).toBe('jager/demon-form.jpg');
   });
 });
