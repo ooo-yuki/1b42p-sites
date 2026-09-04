@@ -71,12 +71,6 @@ export default function Roulette({ api }: { api: Api }): JSX.Element {
 
   return (
     <section className="roulette-hall">
-      <header className="ch-head">
-        <div>
-          <h2>Рулетка</h2>
-          <p>Европейская: красное и чёрное ×2, зеро ×14, точное число ×35.</p>
-        </div>
-      </header>
       <Log msg={api.msg} tone={api.tone} />
       <div className="rl-grid">
         <div className="wheel-box">

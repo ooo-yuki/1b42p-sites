@@ -1,8 +1,6 @@
 /* ЗАЛ «КРАШ» — ночной старт: площадка, звёзды, телеметрия. */
 
-.crash-hall .ch-head{display:flex;align-items:flex-start;gap:14px;margin:6px 0 4px}
-.crash-hall .ch-head h2{margin:0;font-size:26px}
-.crash-hall .ch-head p{margin:4px 0 0;color:var(--dim);font-size:14px;line-height:1.5}
+.crash-hall .lamp-row{display:flex;justify-content:flex-end;margin:6px 0 4px}
 .lamp{margin-left:auto;flex:none;font-size:12.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
  padding:7px 14px;border-radius:999px;border:1px solid rgba(232,237,255,.25);color:var(--dim)}
 .lamp.live{color:#0b2b1a;background:#37d67a;border-color:#37d67a;box-shadow:0 0 18px rgba(55,214,122,.55)}

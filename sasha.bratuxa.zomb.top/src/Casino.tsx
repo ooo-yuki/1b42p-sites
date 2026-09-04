@@ -51,14 +51,14 @@ const reduced =
 
 type View = 'lobby' | 'crash' | 'cases' | 'horses' | 'roulette' | 'mines' | 'bj' | 'slots';
 
-const VIEWS: Array<{ id: View; name: string; icon: string; tag: string; min: string }> = [
-  { id: 'crash', name: 'Краш', icon: 'rocket', tag: 'до ×∞', min: 'от 10' },
-  { id: 'cases', name: 'Кейсы', icon: 'barracks', tag: 'до 10000', min: 'от 100' },
-  { id: 'horses', name: 'Скачки', icon: 'steed-brown', tag: 'до ×7', min: 'от 10' },
-  { id: 'roulette', name: 'Рулетка', icon: 'dices', tag: 'до ×35', min: 'от 10' },
-  { id: 'mines', name: 'Мины', icon: 'bomb', tag: 'твой риск', min: 'от 10' },
-  { id: 'bj', name: 'Блэкджек', icon: 'spade', tag: '×2.5', min: 'от 10' },
-  { id: 'slots', name: 'Слоты', icon: 'seven', tag: '1000', min: '50' },
+const VIEWS: Array<{ id: View; name: string; icon: string; tag: string; min: string; desc: string }> = [
+  { id: 'crash', name: 'Краш', icon: 'rocket', tag: 'до ×∞', min: 'от 10', desc: 'Множитель растёт, пока ракета летит. Забирай до крэша — иначе ставка сгорает.' },
+  { id: 'cases', name: 'Кейсы', icon: 'barracks', tag: 'до 10000', min: 'от 100', desc: 'Платишь за сейф — лента крутится, что выпало, то твоё. Шансы написаны честно.' },
+  { id: 'horses', name: 'Скачки', icon: 'steed-brown', tag: 'до ×7', min: 'от 10', desc: 'Выбери лошадь, поставь фишки. Кто первый до финиша — тот и прав.' },
+  { id: 'roulette', name: 'Рулетка', icon: 'dices', tag: 'до ×35', min: 'от 10', desc: 'Европейская: красное и чёрное ×2, зеро ×14, точное число ×35.' },
+  { id: 'mines', name: 'Мины', icon: 'bomb', tag: 'твой риск', min: 'от 10', desc: 'Открывай клетки. Кристалл растит множитель, мина сжигает ставку.' },
+  { id: 'bj', name: 'Блэкджек', icon: 'spade', tag: '×2.5', min: 'от 10', desc: 'Набери 21, но не больше. Дилер тянет до 17. Блэкджек с раздачи платит ×2.5.' },
+  { id: 'slots', name: 'Слоты', icon: 'seven', tag: '1000', min: '50', desc: 'Автомат «Семёрка». Спин — 50 фишек, таблица выплат выбита на корпусе.' },
 ];
 
 const GAMES: Record<Exclude<View, 'lobby'>, (p: { api: Api }) => JSX.Element> = {
@@ -183,6 +183,7 @@ export default function Casino(): JSX.Element {
               <span className="sp" />
               <Badge variant="secondary">{cur?.tag}</Badge>
             </div>
+            {cur && <p className="gdesc">{cur.desc}</p>}
             <Game api={api} />
           </main>
         )}

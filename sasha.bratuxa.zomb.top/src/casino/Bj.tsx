@@ -106,12 +106,6 @@ export default function Bj({ api }: { api: Api }): JSX.Element {
 
   return (
     <section className="bj-hall">
-      <header className="ch-head">
-        <div>
-          <h2>Блэкджек</h2>
-          <p>Набери 21, но не больше. Дилер тянет до 17. Блэкджек с раздачи платит ×2.5.</p>
-        </div>
-      </header>
       <Log msg={api.msg} tone={api.tone} />
       <div className="felt">
         <div className="felt-arc" aria-hidden />

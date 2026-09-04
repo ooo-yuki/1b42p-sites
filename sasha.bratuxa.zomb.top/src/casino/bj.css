@@ -1,8 +1,5 @@
 /* ЗАЛ «БЛЭКДЖЕК» — карточный салон на сукне. */
 
-.bj-hall .ch-head h2{margin:0;font-size:26px}
-.bj-hall .ch-head p{margin:4px 0 0;color:var(--dim);font-size:14px;line-height:1.5}
-
 .felt{position:relative;margin-top:12px;border-radius:18px;overflow:hidden;padding:22px 18px 18px;
  background:radial-gradient(120% 100% at 50% 0%,#12603a 0%,#0a3a24 55%,#062015 100%);
  border:1px solid rgba(55,214,122,.35)}

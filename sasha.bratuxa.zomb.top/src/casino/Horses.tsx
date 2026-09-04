@@ -60,12 +60,6 @@ export default function Horses({ api }: { api: Api }): JSX.Element {
 
   return (
     <section className="horses-hall">
-      <header className="ch-head">
-        <div>
-          <h2>Скачки</h2>
-          <p>Выбери лошадь, поставь фишки. Кто первый до финиша — тот и прав.</p>
-        </div>
-      </header>
       <Log msg={api.msg} tone={api.tone} />
       <div className="paddock">
         {HORSES.map(h => (

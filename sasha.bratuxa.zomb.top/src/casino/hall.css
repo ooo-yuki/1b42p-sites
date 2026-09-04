@@ -50,6 +50,7 @@
 .ghead h2{margin:0;font-size:26px;display:flex;align-items:center;gap:10px}
 .ghead h2 .cic{width:30px;height:30px}
 .ghead .sp{flex:1}
+.gdesc{margin:2px 0 8px;color:var(--dim);font-size:14px;line-height:1.5}
 
 @media (max-width:760px){
  .hall{flex-direction:column}

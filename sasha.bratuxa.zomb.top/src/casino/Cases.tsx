@@ -85,12 +85,6 @@ export default function Cases({ api }: { api: Api }): JSX.Element {
 
   return (
     <section className="cases-hall">
-      <header className="ch-head">
-        <div>
-          <h2>Кейсы</h2>
-          <p>Платишь за сейф — лента крутится, что выпало, то твоё. Шансы написаны честно.</p>
-        </div>
-      </header>
       <Log msg={api.msg} tone={api.tone} />
       <div className="vaults">
         {CASES.map(c => {

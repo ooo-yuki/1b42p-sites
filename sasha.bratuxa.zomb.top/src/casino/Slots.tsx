@@ -47,12 +47,6 @@ export default function Slots({ api }: { api: Api }): JSX.Element {
 
   return (
     <section className="slots-hall">
-      <header className="ch-head">
-        <div>
-          <h2>Слоты</h2>
-          <p>Автомат «Семёрка». Спин — 50 фишек, таблица выплат выбита на корпусе.</p>
-        </div>
-      </header>
       <Log msg={api.msg} tone={api.tone} />
       <div className="cabinet">
         <div className="marquee" aria-hidden>

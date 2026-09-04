@@ -1,8 +1,5 @@
 /* ЗАЛ «КЕЙСЫ» — арсенал: сейфы, тикет-лента, пьедестал. */
 
-.cases-hall .ch-head h2{margin:0;font-size:26px}
-.cases-hall .ch-head p{margin:4px 0 0;color:var(--dim);font-size:14px;line-height:1.5}
-
 .vaults{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
 @media (max-width:700px){.vaults{grid-template-columns:1fr}}
 .vault{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:18px 12px 14px;

@@ -101,15 +101,11 @@ export default function Crash({ api }: { api: Api }): JSX.Element {
 
   return (
     <section className={`crash-hall${dead ? ' shake' : ''}`}>
-      <header className="ch-head">
-        <div>
-          <h2>Краш</h2>
-          <p>Множитель растёт, пока ракета летит. Забирай до крэша — иначе ставка сгорает.</p>
-        </div>
+      <div className="lamp-row">
         <span className={`lamp ${phase}`}>
           {phase === 'idle' ? 'Ожидание' : phase === 'live' ? 'Полёт' : 'Крэш'}
         </span>
-      </header>
+      </div>
       <Log msg={api.msg} tone={api.tone} />
       <div className="ch-grid">
         <div className="pad" aria-hidden>

@@ -1,8 +1,5 @@
 /* ЗАЛ «МИНЫ» — сапёрный полигон: бункер, лесенка, поле. */
 
-.mines-hall .ch-head h2{margin:0;font-size:26px}
-.mines-hall .ch-head p{margin:4px 0 0;color:var(--dim);font-size:14px;line-height:1.5}
-
 .mn-grid{display:grid;grid-template-columns:minmax(230px,300px) 1fr;gap:14px;margin-top:12px;align-items:start}
 @media (max-width:700px){.mn-grid{grid-template-columns:1fr}}
 

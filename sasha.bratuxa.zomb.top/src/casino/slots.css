@@ -1,8 +1,5 @@
 /* ЗАЛ «СЛОТЫ» — автомат «Семёрка»: корпус, гирлянда, рычаг, таблица. */
 
-.slots-hall .ch-head h2{margin:0;font-size:26px}
-.slots-hall .ch-head p{margin:4px 0 0;color:var(--dim);font-size:14px;line-height:1.5}
-
 .cabinet{margin-top:12px;border-radius:18px;padding:18px 18px 16px;max-width:560px;
  background:linear-gradient(170deg,#2a1f3d,#120b20 70%);border:1px solid rgba(255,210,63,.45);
  box-shadow:0 0 40px rgba(255,210,63,.12)}

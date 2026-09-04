@@ -76,12 +76,6 @@ export default function Mines({ api }: { api: Api }): JSX.Element {
 
   return (
     <section className="mines-hall">
-      <header className="ch-head">
-        <div>
-          <h2>Мины</h2>
-          <p>Открывай клетки. Кристалл растит множитель, мина сжигает ставку.</p>
-        </div>
-      </header>
       <Log msg={api.msg} tone={api.tone} />
       <div className="mn-grid">
         <div className="bunker">
