@@ -295,6 +295,7 @@ function tower(x,z,w,hgt,ci){const cols=Math.max(3,Math.round(w/3)),rows=Math.ma
  if(hgt>26){const ant=new THREE.Mesh(new THREE.CylinderGeometry(.2,.3,8,6),new THREE.MeshStandardMaterial({color:0x881111}));ant.position.set(x,hgt+4.5,z);scene.add(ant);
   const tip=new THREE.Mesh(new THREE.SphereGeometry(.4,8,6),new THREE.MeshBasicMaterial({color:0xff0022}));tip.position.set(x,hgt+8.5,z);scene.add(tip);}
  solids.push({x,z,hx:w/2+.6,hz:w/2+.6,mesh:m,extra:[roof]});}
+function faceRoad(x,z){const dx=x-Math.round(x/50)*50,dz=z-Math.round(z/50)*50;if(Math.abs(dx)<Math.abs(dz))return dx>0?-Math.PI/2:Math.PI/2;return dz>0?Math.PI:0;} // витриной к ближайшей дороге
 const _shopGlassM=new THREE.MeshStandardMaterial({color:0x9fd8ff,emissive:0x86c5ff,emissiveIntensity:.55,roughness:.15,metalness:.3,transparent:true,opacity:.9});
 const _shopInM=new THREE.MeshBasicMaterial({color:0xffd9a0});
 const _shopDarkM=new THREE.MeshStandardMaterial({color:0x14141c,roughness:.9});
@@ -304,7 +305,7 @@ const _neonCols=['#ff44ff','#00ffee','#ff8800','#aaff00'];
 const _goodsG=new THREE.BoxGeometry(1,1,1);
 const _goodsM=[0xff5555,0xffd700,0x55ff88,0x55aaff,0xff88cc].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.7}));
 function awningShop(x,z,ci,sign){const w=14,hgt=5.5,D=10,fz=D/2;
- const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
+ const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=faceRoad(x,z);scene.add(g);
  const wm=new THREE.MeshStandardMaterial({color:_unitCols[ci%_unitCols.length],roughness:.85,transparent:true});
  function bx(w2,h2,d2,px,py,pz,mat){const m=new THREE.Mesh(new THREE.BoxGeometry(w2,h2,d2),mat||wm);m.position.set(px,py,pz);m.castShadow=true;m.receiveShadow=true;g.add(m);return m;}
  const m=bx(w,hgt,D,0,hgt/2,0);buildings.push(m);
@@ -333,9 +334,9 @@ function awningShop(x,z,ci,sign){const w=14,hgt=5.5,D=10,fz=D/2;
   const dg=new THREE.Mesh(new THREE.PlaneGeometry(1.2,2.6),_shopGlassM);dg.position.set(0,1.7,fz+0.16);g.add(dg);
   const po=new THREE.Mesh(new THREE.PlaneGeometry(1.1,1.5),new THREE.MeshBasicMaterial({color:0xff66aa}));po.position.set(-3.6,1.8,fz+0.15);g.add(po);
  }
- solids.push({x,z,hx:w/2+.6,hz:5.6,mesh:m,extra:[]});} // торговый ряд как на фото: витрина/роллеты, неон-скоропись
+ solids.push({x,z,hx:Math.abs(Math.abs(g.rotation.y)-Math.PI/2)<0.01?5.6:w/2+.6,hz:Math.abs(Math.abs(g.rotation.y)-Math.PI/2)<0.01?w/2+.6:5.6,mesh:m,extra:[]});} // торговый ряд как на фото: витрина/роллеты, неон-скоропись
 function kiosk(x,z){
- const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
+ const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=faceRoad(x,z)+(z>=125?0:Math.PI);scene.add(g); // прилавком к дороге; на пляже — к городу
  const bm=new THREE.MeshStandardMaterial({color:0x4a4238,roughness:.9,transparent:true});
  function bx(w,h,d,px,py,pz,mat){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat||bm);m.position.set(px,py,pz);m.castShadow=true;g.add(m);return m;}
  const m=bx(4,2.2,3,0,1.1,0);buildings.push(m);
@@ -346,7 +347,7 @@ function kiosk(x,z){
  for(const px of [-2.1,2.1])for(const pz of [-1.7,1.7])bx(0.18,3.4,0.18,px,1.7,pz,_shopDarkM);
  bx(4.8,0.25,4.0,0,3.5,0,_shopDarkM);
  const band=new THREE.Mesh(new THREE.PlaneGeometry(3.4,0.7),new THREE.MeshBasicMaterial({color:0xffc37a}));band.position.set(0,3.1,-2.01);band.rotation.y=Math.PI;g.add(band);
- solids.push({x,z,hx:2.6,hz:2.2,mesh:m,extra:[]});} // ларёк-прилавок: товар, навес, световое меню
+ solids.push({x,z,hx:2.6,hz:2.6,mesh:m,extra:[]});} // ларёк-прилавок: товар, навес, световое меню
 function bench(x,z,rot){const b=new THREE.Group();b.position.set(x,0,z);b.rotation.y=rot||0;scene.add(b);
  const seat=new THREE.Mesh(new THREE.BoxGeometry(3,.25,1),new THREE.MeshStandardMaterial({color:0x6b4a2b}));seat.position.y=.8;seat.castShadow=true;b.add(seat);
  [[-1.2],[1.2]].forEach(s=>{const leg=new THREE.Mesh(new THREE.BoxGeometry(.25,.8,1),new THREE.MeshStandardMaterial({color:0x333}));leg.position.set(s[0],.4,0);b.add(leg);});
