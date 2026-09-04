@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "bunx @tailwindcss/cli -i ./src/tw.css -o ./src/tw.out.css --minify && bun build ./index.html ./game.html ./stats.html ./casino.html ./arena.html --outdir ./dist --minify",
+    "build": "bunx @tailwindcss/cli -i ./src/tw.css -o ./src/tw.out.css --minify && bun build ./index.html ./game.html ./stats.html ./casino.html ./arena.html ./tapo4ek.html --outdir ./dist --minify",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
