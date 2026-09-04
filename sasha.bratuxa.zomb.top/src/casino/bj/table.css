@@ -1,0 +1,32 @@
+/* СУКНО — касса, пре-сеты, лента исхода. */
+
+.felt{position:relative}
+.felt .ribbon{animation:ribbonpop .35s cubic-bezier(.2,1.4,.4,1)}
+@keyframes ribbonpop{from{opacity:0; transform:scale(.6)}to{opacity:1; transform:scale(1)}}
+.felt .ribbon.r-win{border-color:#0060AA; box-shadow:0 0 26px rgba(0,96,170,.4)}
+.felt .ribbon.r-lose{border-color:rgba(227,30,37,.6)}
+.felt .ribbon.r-push{border-color:rgba(128,128,128,.6)}
+.felt-bar{flex-direction:column; align-items:stretch; justify-content:flex-start}
+.felt-bar .presets{display:flex; gap:8px; width:100%}
+.felt-bar .crow{display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:center}
+.felt-bar .crow input{max-width:120px}
+.felt-bar .preset{
+  flex:1; padding:7px 0; border-radius:999px; cursor:pointer;
+  background:#0d1428; color:#fff; font-size:13.5px; font-weight:700;
+  font-variant-numeric:tabular-nums; border:1px solid rgba(255,255,255,.25);
+  transition:border-color .15s, box-shadow .15s, transform .12s;
+}
+.felt-bar .preset:hover:not(:disabled){border-color:#0060AA}
+.felt-bar .preset:active:not(:disabled){transform:scale(.95)}
+.felt-bar .preset.sel{border-color:#fff; box-shadow:0 0 10px rgba(0,96,170,.35)}
+.felt-bar .preset:disabled{opacity:.5; cursor:default}
+.felt-bar .crow button.press{transform:scale(.93)}
+.felt-bar .crow button{transition:transform .12s, box-shadow .15s}
+.felt-bar .crow button:not(:disabled):hover{box-shadow:0 0 16px rgba(0,96,170,.5)}
+.felt-bar .crow button:not(:disabled):active{transform:scale(.94)}
+.felt-bar .preview{font-size:13.5px; color:#808080}
+.felt .fine{margin:10px 0 0; font-size:12.5px; color:#808080}
+
+@media (prefers-reduced-motion:reduce){
+  .felt .ribbon,.felt-bar .preset,.felt-bar .crow button{animation:none; transition:none}
+}

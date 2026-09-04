@@ -1,0 +1,32 @@
+/* ШУЗА — стопка рубашек, верхняя съезжает при сдаче. */
+
+.shoe{
+  position:absolute; top:14px; right:16px; z-index:2;
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+}
+.shoe-stack{position:relative; width:46px; height:64px}
+.shoe-stack i{
+  position:absolute; inset:0; border-radius:6px;
+  background:repeating-linear-gradient(45deg, #141b30 0 6px, #1a2340 6px 12px);
+  border:1px solid rgba(0,96,170,.6);
+}
+.shoe-stack i:nth-child(1){transform:translate(0,0)}
+.shoe-stack i:nth-child(2){transform:translate(2px,-2px)}
+.shoe-stack i:nth-child(3){transform:translate(4px,-4px)}
+.shoe-stack i:nth-child(4){transform:translate(6px,-6px)}
+.shoe-top{
+  position:absolute; inset:0; border-radius:6px; transform:translate(8px,-8px);
+  background:repeating-linear-gradient(45deg, #141b30 0 6px, #1a2340 6px 12px);
+  border:1px solid #0060AA; box-shadow:0 0 12px rgba(0,96,170,.5);
+}
+.shoe-top.deal{animation:shoedeal .35s ease-out}
+@keyframes shoedeal{
+  0%{transform:translate(8px,-8px)}
+  40%{transform:translate(-30px,30px) rotate(-14deg)}
+  100%{transform:translate(8px,-8px)}
+}
+.shoe small{font-size:10px; color:#808080; max-width:110px; text-align:center; line-height:1.35}
+
+@media (prefers-reduced-motion:reduce){
+  .shoe-top.deal{animation:none}
+}

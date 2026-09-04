@@ -1,90 +1,102 @@
-import { useState } from 'react';
-import { Api, Log, Num, parseStake } from './shared';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { useMemo, useState } from 'react';
+import { Log, parseStake, type Api } from './shared';
+import Table from './bj/Table';
+import BjHistory, { loadBjHist, saveBjHist, type BJEntry } from './bj/History';
+import {
+  MIN_STAKE, NATURAL_MULT, dealerPlay, drawCard, handValue, rank,
+  validateBj, type Card, type Phase,
+} from './bj/data';
+import { cardSnap, chipPlace, dealerWin, playerWin, pushKnock, shuffleRiffle } from './bj/jingle';
 import './bj.css';
+import './bj/shoe.css';
+import './bj/hand.css';
+import './bj/table.css';
+import './bj/bhist.css';
 
-/* ЗАЛ «БЛЭКДЖЕК» — карточный салон. Сукно, дилер, открытая игра.
-   Правила святы: дилер тянет до 17, блэкджек с раздачи ×2.5. */
-
-type Card = { r: number; s: string };
-const SUITS = ['♠', '♥', '♦', '♣'];
-const RED = new Set(['♥', '♦']);
-
-const drawCard = (): Card => ({
-  r: 1 + Math.floor(Math.random() * 13),
-  s: SUITS[Math.floor(Math.random() * 4)],
-});
-
-function handValue(h: Card[]): number {
-  let t = 0, aces = 0;
-  for (const c of h) {
-    if (c.r === 1) { aces++; t += 11; }
-    else t += Math.min(10, c.r);
-  }
-  while (t > 21 && aces > 0) { t -= 10; aces--; }
-  return t;
-}
-
-function rank(r: number): string {
-  return r === 1 ? 'A' : r === 11 ? 'J' : r === 12 ? 'Q' : r === 13 ? 'K' : String(r);
-}
-
-function PCard({ c, back }: { c?: Card; back?: boolean }): JSX.Element {
-  if (back || !c) return <span className="pcard back" aria-label="Закрытая карта" />;
-  return (
-    <span className={`pcard${RED.has(c.s) ? ' red' : ''}`}>
-      <b>{rank(c.r)}</b><i>{c.s}</i><em>{c.s}</em>
-    </span>
-  );
-}
+/* ЗАЛ «БЛЭКДЖЕК» — карточный салон. Оркестрация: сукно → счета.
+   Правила святы: дилер тянет до 17, блэкджек с раздачи ×2.5,
+   победа ×2, ничья — возврат, те же ленты и фразы. */
 
 export default function Bj({ api }: { api: Api }): JSX.Element {
   const [bjbet, setBjbet] = useState('50');
   const [bjp, setBjp] = useState<Card[]>([]);
   const [bjd, setBjd] = useState<Card[]>([]);
-  const [phase, setPhase] = useState<'idle' | 'player' | 'done'>('idle');
+  const [phase, setPhase] = useState<Phase>('idle');
   const [stake, setStake] = useState(0);
   const [ribbon, setRibbon] = useState('');
+  const [ribbonKind, setRibbonKind] = useState<'' | 'win' | 'lose' | 'push'>('');
+  const [roundId, setRoundId] = useState(0);
+  const [hist, setHist] = useState<BJEntry[]>(() => loadBjHist());
+  const [seq, setSeq] = useState(() => Date.now());
+
+  useMemo(() => {
+    const bad = validateBj();
+    if (bad.length > 0) console.error('[bj] святыня нарушена:', bad.join('; '));
+  }, []);
+
+  const pushHist = (e: Omit<BJEntry, 'id' | 't'>): void => {
+    setHist(prev => {
+      const next = [{ ...e, id: seq, t: Date.now() }, ...prev].slice(0, 30);
+      saveBjHist(next);
+      return next;
+    });
+    setSeq(s => s + 1);
+  };
+
+  const show = (text: string, kind: '' | 'win' | 'lose' | 'push'): void => {
+    setRibbon(text);
+    setRibbonKind(kind);
+  };
 
   const deal = (): void => {
     if (phase === 'player') return;
-    const s = parseStake(bjbet, 10, api);
+    const s = parseStake(bjbet, MIN_STAKE, api);
     if (s === null) return;
+    chipPlace();
+    if (!api.reduced) shuffleRiffle();
     setStake(s);
     const p = [drawCard(), drawCard()];
     const d = [drawCard(), drawCard()];
-    setBjp(p); setBjd(d); setPhase('player'); setRibbon('');
+    setBjp(p); setBjd(d); setPhase('player');
+    setRoundId(r => r + 1);
+    show('', '');
     if (handValue(p) === 21) {
-      const win = Math.floor(s * 2.5);
+      const win = Math.floor(s * NATURAL_MULT);
       api.credit(win);
       setPhase('done');
-      setRibbon('Блэкджек с раздачи!');
+      show('Блэкджек с раздачи!', 'win');
+      if (!api.reduced) playerWin(true);
       api.say(`БЛЭКДЖЕК! +${win}`, 'win');
+      pushHist({ stake: s, pv: 21, dv: handValue(d), outcome: 'natural', ret: win, profit: win - s });
     } else {
+      if (!api.reduced) { cardSnap(); }
       api.say(`Твои ${handValue(p)}, у дилера ${rank(d[0].r)}${d[0].s} + ?. Ещё или хватит?`);
     }
   };
 
   const stand = (): void => {
     if (phase !== 'player') return;
-    const d = [...bjd];
-    while (handValue(d) < 17) d.push(drawCard());
+    const d = dealerPlay(bjd);
     setBjd(d);
     setPhase('done');
     const pv = handValue(bjp), dv = handValue(d);
     if (dv > 21 || pv > dv) {
       api.credit(stake * 2);
-      setRibbon('Стол твой!');
+      show('Стол твой!', 'win');
+      if (!api.reduced) playerWin(false);
       api.say(`Твои ${pv} против ${dv} — победа! +${stake * 2}`, 'win');
+      pushHist({ stake, pv, dv, outcome: 'win', ret: stake * 2, profit: stake });
     } else if (pv === dv) {
       api.credit(stake);
-      setRibbon('Ничья — фишки вернулись.');
+      show('Ничья — фишки вернулись.', 'push');
+      if (!api.reduced) pushKnock();
       api.say(`Ничья ${pv}:${dv} — ставка вернулась`);
+      pushHist({ stake, pv, dv, outcome: 'push', ret: stake, profit: 0 });
     } else {
-      setRibbon('Дилер забрал банк.');
+      show('Дилер забрал банк.', 'lose');
+      if (!api.reduced) dealerWin();
       api.say(`Твои ${pv} против ${dv} — дилер забрал ${stake}`, 'lose');
+      pushHist({ stake, pv, dv, outcome: 'lose', ret: 0, profit: -stake });
     }
   };
 
@@ -92,11 +104,14 @@ export default function Bj({ api }: { api: Api }): JSX.Element {
     if (phase !== 'player') return;
     const p = [...bjp, drawCard()];
     setBjp(p);
+    if (!api.reduced) cardSnap();
     const v = handValue(p);
     if (v > 21) {
       setPhase('done');
-      setRibbon('Перебор.');
+      show('Перебор.', 'lose');
+      if (!api.reduced) dealerWin();
       api.say(`Перебор: ${v}. Минус ${stake}`, 'lose');
+      pushHist({ stake, pv: v, dv: handValue(bjd), outcome: 'bust', ret: 0, profit: -stake });
     } else if (v === 21) {
       stand();
     } else {
@@ -107,30 +122,10 @@ export default function Bj({ api }: { api: Api }): JSX.Element {
   return (
     <section className="bj-hall">
       <Log msg={api.msg} tone={api.tone} />
-      <div className="felt">
-        <div className="felt-arc" aria-hidden />
-        <div className="seat dealer">
-          <div className="seat-tag">Дилер {bjd.length > 0 && phase !== 'player' ? <Badge variant="secondary"><Num>{handValue(bjd)}</Num></Badge> : ''}</div>
-          <div className="hand">
-            {bjd.length === 0 && <span className="ghost">место дилера</span>}
-            {bjd.map((c, i) => <PCard key={i} c={c} back={i === 1 && phase === 'player'} />)}
-          </div>
-        </div>
-        {ribbon && <div className="ribbon">{ribbon}</div>}
-        <div className="seat player">
-          <div className="hand">
-            {bjp.length === 0 && <span className="ghost">твоё место — жми «Раздать»</span>}
-            {bjp.map((c, i) => <PCard key={i} c={c} />)}
-          </div>
-          <div className="seat-tag">Ты {bjp.length > 0 ? <Badge variant="secondary"><Num>{handValue(bjp)}</Num></Badge> : ''}</div>
-        </div>
-        <div className="felt-bar">
-          <Input value={bjbet} onChange={e => setBjbet(e.target.value)} inputMode="numeric" aria-label="Ставка на блэкджек" />
-          {phase === 'player'
-            ? <><Button onClick={hit}>Ещё</Button><Button variant="outline" onClick={stand}>Хватит</Button></>
-            : <Button onClick={deal}>Раздать</Button>}
-        </div>
-      </div>
+      <Table bjp={bjp} bjd={bjd} phase={phase} ribbon={ribbon} ribbonKind={ribbonKind}
+        bjbet={bjbet} dealToken={roundId} stake={stake}
+        onBet={setBjbet} onDeal={deal} onHit={hit} onStand={stand} />
+      <BjHistory entries={hist} onClear={() => { setHist([]); saveBjHist([]); }} />
     </section>
   );
 }
