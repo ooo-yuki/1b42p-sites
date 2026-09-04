@@ -12,11 +12,12 @@
 <meta name="apple-mobile-web-app-title" content="Эввград">
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
 <style>
 :root{--cream:#fffdf4;--ink:#2f5d3a;--berry:#ff7bac;--leaf:#58b368;--gold:#ffd23f;--sky:#cdeffd}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;padding:0;height:100%;overflow:hidden;font-family:'Trebuchet MS','Segoe UI',Arial,sans-serif;color:var(--ink)}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;font-family:'Baloo 2','Trebuchet MS','Segoe UI',Arial,sans-serif;color:var(--ink)}
 #scene{position:fixed;inset:0}
 #scene canvas{display:block}
 /* верхняя панель */
@@ -91,7 +92,7 @@ border:2px solid rgba(255,255,255,.5);display:none}
 #stick{position:absolute;left:50%;top:50%;width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.55);
 transform:translate(-50%,-50%)}
 /* тост */
-#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:108px;background:var(--ink);color:#fff;font-size:14px;font-weight:bold;
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:108px;background:#b34a7d;color:#fff;font-size:14px;font-weight:bold;
 padding:10px 20px;border-radius:999px;z-index:10;opacity:0;transition:opacity .25s;pointer-events:none;max-width:92vw;text-align:center}
 /* кнопка дара леса */
 #giftBtn{position:fixed;right:12px;bottom:108px;z-index:10;border:3px solid var(--ink);background:var(--berry);color:#fff;
@@ -351,6 +352,16 @@ function smoke(parent,x,y,z){for(var i=0;i<3;i++){var m=new THREE.Mesh(new THREE
 function spark(parent,r,h,n,col){for(var i=0;i<n;i++){var m=new THREE.Mesh(new THREE.SphereGeometry(0.05,6,5),
  new THREE.MeshBasicMaterial({color:col||0xfff6b8}));m.castShadow=false;
  m.userData={orbit:{r:r,h:h,sp:1.5+i*0.3,ph:i*2.1}};parent.add(m);}}
+/* --- кавайные мордочки: глазки, румянец, улыбка 💖 --- */
+function kawaii(p,y,sp,z,s){s=s||1;
+ var ew=new THREE.MeshBasicMaterial({color:0xffffff});
+ var ep=new THREE.MeshBasicMaterial({color:0x3a3f5e});
+ var bl=new THREE.MeshBasicMaterial({color:0xff9eb5});
+ [-1,1].forEach(function(k){
+  var e=new THREE.Mesh(new THREE.SphereGeometry(0.09*s,10,8),ew);e.position.set(k*sp,y,z);e.castShadow=false;p.add(e);
+  var pu=new THREE.Mesh(new THREE.SphereGeometry(0.045*s,8,6),ep);pu.position.set(k*sp,y,z+0.07*s);pu.castShadow=false;p.add(pu);
+  var b=new THREE.Mesh(new THREE.SphereGeometry(0.06*s,8,6),bl);b.scale.set(1,0.6,0.5);b.position.set(k*sp*1.8,y-0.1*s,z-0.02*s);b.castShadow=false;p.add(b);});
+ var sm=new THREE.Mesh(new THREE.TorusGeometry(0.05*s,0.015*s,5,10,Math.PI),ep);sm.position.set(0,y-0.07*s,z+0.01);sm.rotation.z=Math.PI;sm.castShadow=false;p.add(sm);}
 /* --- домики --- */
 function buildHouse(l){var g=new THREE.Group();
  var wallC=0xf6f1e7,woodC=0x9a7355,darkC=0x3a3f4a,glassE=0xffe6b3;
@@ -404,12 +415,15 @@ function buildHouse(l){var g=new THREE.Group();
   var s=octa(0.13,mat(0xffd23f,0x6b4e00,0.5));s.position.set(0,roofY+(l>=2?0.95:0.5),-0.05);g.add(s);
   spark(g,0.5,roofY+0.4,2,0xfff6b8);
  }
+ kawaii(g,0.38,0.11,0.49,1); // мордочка на фасаде 💖
  return g;}
 function elfTree(x,z,s,blossom){var g=new THREE.Group();
  g.add(put(cyl(0.09*s,0.13*s,0.5*s,5,mat(0x8b5e3c)),0,0.25*s,0));
  var c=ico(0.42*s,mat(blossom?0xffb7d5:0x58b368));c.position.y=0.75*s;g.add(c);
  var c2=ico(0.28*s,mat(blossom?0xff8fbf:0x6fca7f));c2.position.set(0.2*s,1.0*s,0.1*s);g.add(c2);
- g.position.set(x,0,z);g.userData={sway:true,swayAmp:0.05,swaySp:1.2,ph:x+z};return g;}
+ g.position.set(x,0,z);g.userData={sway:true,swayAmp:0.05,swaySp:1.2,ph:x+z};
+ if(blossom)kawaii(g,0.78*s,0.13*s,0.34*s,s); // цветущие ёлки улыбаются 🌸
+ return g;}
 function buildGrove(l){var g=new THREE.Group();var s=0.9+l*0.15;
  g.add(elfTree(-0.45,0.2,s,l>=2));g.add(elfTree(0.45,-0.15,s*0.9,false));g.add(elfTree(0.05,0.5,s*0.7,l>=3));
  return g;}
@@ -436,6 +450,7 @@ function buildMarket(l){var g=new THREE.Group();
  cp.add(put(cyl(0.16,0.16,0.05,10,mat(0xffd23f,0x6b4e00,0.4)),0,0,0)); // монетка крутится
  if(l>=2)g.add(put(box(0.5,0.7,0.5,mat(0xfff3d6)),0.75,0.35,0.3)); // прилавок+
  if(l>=3){var s=octa(0.14,mat(0xffd23f,0x6b4e00,0.5));s.position.set(0,1.6,0);g.add(s);}
+ kawaii(g,0.26,0.15,0.47,1); // мордочка на прилавке 💖
  return g;}
 function miniFlower(x,z,c1){var g=new THREE.Group();
  g.add(put(cyl(0.03,0.03,0.3,4,mat(0x2f7d3a)),0,0.15,0));
@@ -712,8 +727,8 @@ function refreshAll(){for(var i=0;i<N*N;i++)refreshCell(i);}
 function initThree(){
  if(typeof THREE==='undefined'){document.getElementById('toast').textContent='Нет соединения с CDN — 3D появится онлайн 🌲';return false;}
  scene=new THREE.Scene();
- scene.background=C(0xcdeffd);
- scene.fog=new THREE.Fog(0xcdeffd,40,95);
+ scene.background=C(0xffd9ec);
+ scene.fog=new THREE.Fog(0xffd9ec,40,95);
  camera=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,0.1,200);
  renderer=new THREE.WebGLRenderer({antialias:true});
  renderer.setSize(innerWidth,innerHeight);
@@ -724,8 +739,8 @@ function initThree(){
  renderer.toneMapping=THREE.ACESFilmicToneMapping;
  renderer.toneMappingExposure=1.1;
  document.getElementById('scene').appendChild(renderer.domElement);
- scene.add(new THREE.HemisphereLight(0xeaf7ff,0x77b06f,0.9));
- var sun=new THREE.DirectionalLight(0xfff2d0,1.6);
+ scene.add(new THREE.HemisphereLight(0xfff4fa,0x8fd694,1.05));
+ var sun=new THREE.DirectionalLight(0xffe9c4,1.6);
  sun.position.set(10,16,8);sun.castShadow=true;
  sun.shadow.mapSize.set(1024,1024);
  sun.shadow.camera.left=-24;sun.shadow.camera.right=24;
@@ -733,7 +748,7 @@ function initThree(){
  sun.shadow.camera.far=70;sun.shadow.bias=-0.0005;
  scene.add(sun);
  // остров-основа
- var base=new THREE.Mesh(new THREE.CylinderGeometry(22,20.5,1.2,28),mat(0x6fbf73));
+ var base=new THREE.Mesh(new THREE.CylinderGeometry(22,20.5,1.2,28),mat(0x86e3a1));
  base.position.y=-0.75;base.receiveShadow=true;scene.add(base);
  var rim=new THREE.Mesh(new THREE.TorusGeometry(22,0.4,6,40),mat(0xfff3d6));
  rim.rotation.x=Math.PI/2;rim.position.y=-0.15;scene.add(rim);
@@ -741,7 +756,7 @@ function initThree(){
  for(var i=0;i<N*N;i++){var xz=idx2xz(i);
   var r=Math.floor(i/N),c=i%N;
   var t=new THREE.Mesh(new THREE.BoxGeometry(TILE-0.12,0.3,TILE-0.12),
-   mat(((r+c)%2)?0x8fd694:0x7ccf8a));
+   mat(((r+c)%2)?0xa9f0bd:0x93e6ab));
   t.position.set(xz[0],0.15,xz[1]);t.receiveShadow=true;
   t.userData.idx=i;scene.add(t);tileMeshes.push(t);}
  // декор вокруг: ёлки и камни детерминированно
@@ -788,15 +803,40 @@ function initThree(){
  scene.add(elfTree(19.2,3.2,1.3,false));scene.add(elfTree(18,-3.0,1.1,true));
  // облака
  for(var cl=0;cl<5;cl++){var cg=new THREE.Group();
-  for(var p=0;p<3;p++){var puff=ico(0.7+rnd()*0.5,mat(0xffffff));puff.position.set(p*0.9-0.9,rnd()*0.3,0);
+  for(var p=0;p<4;p++){var puff=ico(1.0+rnd()*0.7,mat(0xfff5fa));puff.position.set(p*0.9-1.35,rnd()*0.3,0);
    puff.castShadow=false;cg.add(puff);}
   cg.position.set(-26+rnd()*52,9+rnd()*3,-20+rnd()*32);
   cg.userData.speed=0.2+rnd()*0.3;scene.add(cg);clouds.push(cg);}
+ // --- радуга и улыбающееся солнышко: мультяшность 💖 ---
+ var rbCols=[0xff8fbf,0xffb347,0xfff6b8,0x9be15d,0x7fd4ff,0xc07bff];
+ for(var ri=0;ri<6;ri++){var arc=new THREE.Mesh(new THREE.TorusGeometry(12+ri*0.9,0.45,6,26,Math.PI),
+  new THREE.MeshBasicMaterial({color:rbCols[ri],transparent:true,opacity:0.85}));arc.position.set(0,0,-26);scene.add(arc);}
+ var scv=document.createElement('canvas');scv.width=scv.height=128;var sx=scv.getContext('2d');
+ sx.fillStyle='#ffd93f';sx.beginPath();sx.arc(64,64,60,0,7);sx.fill();
+ sx.fillStyle='#5b3a1e';sx.beginPath();sx.arc(44,52,8,0,7);sx.arc(84,52,8,0,7);sx.fill();
+ sx.strokeStyle='#5b3a1e';sx.lineWidth=6;sx.lineCap='round';sx.beginPath();sx.arc(64,66,26,0.5,Math.PI-0.5);sx.stroke();
+ sx.fillStyle='rgba(255,120,150,.7)';sx.beginPath();sx.arc(32,72,9,0,7);sx.arc(96,72,9,0,7);sx.fill();
+ var sunTex=new THREE.CanvasTexture(scv);sunTex.colorSpace=THREE.SRGBColorSpace;
+ var sunSpr=new THREE.Sprite(new THREE.SpriteMaterial({map:sunTex,transparent:true,depthWrite:false}));
+ sunSpr.position.set(26,17,-30);sunSpr.scale.set(9,9,1);scene.add(sunSpr);
+ spawnHearts();
  raycaster=new THREE.Raycaster();mouseV=new THREE.Vector2();
  bindInput();updateCam();fit();
  window.addEventListener('resize',fit);
  return true;}
 var clouds=[];
+var hearts=[];
+function heartTex(){var c=document.createElement('canvas');c.width=c.height=64;var x=c.getContext('2d');
+ x.fillStyle='#ffffff';x.beginPath();x.moveTo(32,54);
+ x.bezierCurveTo(4,30,8,8,24,8);x.bezierCurveTo(29,8,32,13,32,17);
+ x.bezierCurveTo(32,13,35,8,40,8);x.bezierCurveTo(56,8,60,30,32,54);x.fill();
+ var t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;}
+function spawnHearts(){var t=heartTex();var cols=[0xff8fbf,0xff6b9d,0xffb7d5,0xffd23f];
+ for(var i=0;i<12;i++){var m=new THREE.SpriteMaterial({map:t,color:cols[i%4],transparent:true,opacity:0.9,depthWrite:false});
+  var s=new THREE.Sprite(m);var a=Math.random()*Math.PI*2,r=4+Math.random()*11;
+  s.position.set(Math.cos(a)*r,1.5+Math.random()*6,Math.sin(a)*r);
+  var sc=0.5+Math.random()*0.5;s.scale.set(sc,sc,1);
+  s.userData={hs:0.4+Math.random()*0.5,ph:Math.random()*6};scene.add(s);hearts.push(s);}}
 function fit(){if(!renderer)return;renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}
 function updateCam(){if(!camera)return;
  var sp=Math.sin(pitch),cp=Math.cos(pitch);
@@ -1676,6 +1716,8 @@ function loop(){requestAnimationFrame(loop);
  var t=Date.now()/1000;
  for(var ci=0;ci<clouds.length;ci++){clouds[ci].position.x+=clouds[ci].userData.speed*dt;
   if(clouds[ci].position.x>32)clouds[ci].position.x=-32;}
+ for(var hi=0;hi<hearts.length;hi++){var hh=hearts[hi];hh.position.y+=hh.userData.hs*dt;
+  hh.position.x+=Math.sin(t*1.5+hh.userData.ph)*dt*0.3;if(hh.position.y>9)hh.position.y=1.5;}
  scene.traverse(function(o){var u=o.userData;if(!u)return;
   if(u.pulse){var s=1+Math.sin(t*3)*0.12;o.scale.set(s,s,s);}
   if(u.spin){o.rotation.z+=dt*(u.spinSp||2);}
