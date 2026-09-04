@@ -10,6 +10,7 @@ STATIC_ROOTS = {"chaev.bratuxa.zomb.top": "dist", "sasha.bratuxa.zomb.top": "dis
 API_BACKENDS = {"miqqil.bratuxa.zomb.top": 8091, "evaelph.bratuxa.zomb.top": 8092, "hub.bratuxa.zomb.top": 8093}
 
 class VHostHandler(SimpleHTTPRequestHandler):
+    timeout = 30
     def _ws_proxy(self):
         # прозрачный TCP-туннель для WebSocket-апгрейда: TLS терминируется тут,
         # дальше — сырой поток байт до Bun (127.0.0.1:8091), который сам ведёт WS-рукопожатие.
@@ -106,7 +107,8 @@ class VHostHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
         if self._api_proxy():
             return
-        return super().do_POST()
+        self.send_response(404)
+        self.end_headers()
 
     def do_OPTIONS(self):
         # CORS-префлайт для кросс-доменных маяков/POSTов на /api/*
@@ -140,10 +142,15 @@ class VHostHandler(SimpleHTTPRequestHandler):
         pass
 
 def serve_http():
-    ThreadingHTTPServer(("0.0.0.0", 80), VHostHandler).serve_forever()
+    srv = ThreadingHTTPServer(("0.0.0.0", 80), VHostHandler)
+    srv.request_queue_size = 128
+    srv.timeout = 30
+    srv.serve_forever()
 
 def serve_https():
     srv = ThreadingHTTPServer(("0.0.0.0", 443), VHostHandler)
+    srv.request_queue_size = 128
+    srv.timeout = 30
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.load_cert_chain(CERT, KEY)
     srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
