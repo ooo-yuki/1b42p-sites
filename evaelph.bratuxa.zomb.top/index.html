@@ -883,7 +883,7 @@ function clickCell(i){
 function buyTicket(){var now=Date.now();
  if(now<ticketCd){toast('Кассы печатают билеты... жди '+Math.ceil((ticketCd-now)/1000)+'с 🎟️');return;}
  if(S.gold<50){toast('Билет стоит 50 🪙 💸');blip(200);return;}
- if(S.pop>=42){toast('Эввград полон: 42 жителя! Новые не едут 🏆');return;}
+ if(!S.win&&S.pop>=42){toast('Эввград полон: 42 жителя! Добей победу — и город рванёт дальше 🏆');return;}
  if(S.pop>=cap()){toast('Нет жилья для отдыхающих! Построй дома 🏠');return;}
  S.gold-=50;S.pop=Math.min(cap(),S.pop+2);ticketCd=now+45000;
  toast('🎟️ +2 отдыхающих приехали на пляж!');blip(760);save();renderHUD();}
@@ -2004,7 +2004,7 @@ document.getElementById('surfQuit').onclick=function(){surfEnd(false);};
 if(initThree()){refreshAll();renderHUD();loop();
  setInterval(function(){var p=prod();S.gold+=p.gold;S.mana+=p.mana;S.wood+=p.wood;
   var c=cap(),g=gardens();
-  if(S.pop<c&&S.pop<42&&Math.random()<0.25*(1+g*0.5)*(1+countT('tavern')*0.5+countT('glade')*0.25+countT('theatre')*0.4+countT('cinema')*0.3+countT('barber')*0.2+countT('hospital')*0.6+countT('park')*0.3+countT('railway')*0.4+countT('bus')*0.3+countT('stadium')*0.5)){S.pop++;
+  if(S.pop<c&&(S.pop<42||S.win)&&Math.random()<0.25*(1+g*0.5)*(1+countT('tavern')*0.5+countT('glade')*0.25+countT('theatre')*0.4+countT('cinema')*0.3+countT('barber')*0.2+countT('hospital')*0.6+countT('park')*0.3+countT('railway')*0.4+countT('bus')*0.3+countT('stadium')*0.5)){S.pop++;
    if(S.pop>=42&&!S.win){S.win=true;document.getElementById('win').style.display='flex';toast('🏆 42 ЖИТЕЛЯ! МЫ УЖЕ ПОБЕДИЛИ! 🏆');}}
   S.lastSeen=Date.now();save();renderHUD();},1000);}
 else{renderHUD();}
