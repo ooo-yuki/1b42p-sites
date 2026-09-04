@@ -162,8 +162,7 @@ var B={
  airport:{em:'✈️',n:'Аэропорт',cost:{gold:500,wood:300,mana:200},prod:{gold:3,mana:1},house:6,desc:'Ворота в небо'},
  railway:{em:'🚂',n:'ЖД вокзал',cost:{gold:280,wood:200},prod:{gold:1.5},desc:'Поезда везут жителей'},
  bus:{em:'🚌',n:'Автовокзал',cost:{gold:150,wood:100},prod:{gold:0.9},desc:'Автобусы со всех сторон'},
- stadium:{em:'🏟️',n:'Стадион',cost:{gold:450,wood:250,mana:150},prod:{gold:2.8},house:4,desc:'Болельщики переезжают'},
- pvo:{em:'🚀',n:'ПВО',cost:{gold:200,wood:100,mana:80},desc:'Сбивает вражеские дроны'}
+ stadium:{em:'🏟️',n:'Стадион',cost:{gold:450,wood:250,mana:150},prod:{gold:2.8},house:4,desc:'Болельщики переезжают'}
 };
 var ORDER=['house','grove','tower','market','garden','spire'];
 var S,tool='house',bulldoze=false,selIdx=-1,openGroup=null;
@@ -171,7 +170,7 @@ var S,tool='house',bulldoze=false,selIdx=-1,openGroup=null;
 var GROUPS=[
  {id:'city',em:'🏠',n:'Город',items:['house','market','tavern','treasury','shop','admin','airport','railway','bus']},
  {id:'nature',em:'🌲',n:'Природа',items:['grove','garden','sawmill','glade']},
- {id:'magic',em:'🔮',n:'Магия',items:['tower','runes','portal','spire','pvo']},
+ {id:'magic',em:'🔮',n:'Магия',items:['tower','runes','portal','spire']},
  {id:'fun',em:'🎭',n:'Развлечения',items:['mall','cinema','theatre','ferris','beach','barber','hospital','park','stadium']}
 ];
 var ticketCd=0;
@@ -182,6 +181,11 @@ function load(){try{S=JSON.parse(localStorage.getItem(KEY))||def();}catch(e){S=d
    for(var mr=0;mr<8;mr++)for(var mc=0;mc<8;mc++)big[(mr+4)*16+(mc+4)]=S.cells[mr*8+mc];
    S.cells=big;setTimeout(function(){toast('🗺️ Город расширен до 16×16! Старый центр на месте 🏙️');},800);}
   else S.cells=Array(256).fill(null);}
+ var pvoRef={gold:0,wood:0,mana:0},hadPvo=false;
+ S.cells.forEach(function(c,i){if(c&&c.t==='pvo'){var b0={gold:200,wood:100,mana:80};
+  for(var k in b0)pvoRef[k]+=Math.floor(b0[k]*c.l*0.5);S.cells[i]=null;hadPvo=true;}});
+ if(hadPvo){for(var k in pvoRef)S[k]+=pvoRef[k];
+  setTimeout(function(){toast('🚀 ПВО демонтировано, половина ресурсов возвращена');},800);}
  var now=Date.now(),dt=Math.min((now-(S.lastSeen||now))/1000,8*3600);
  if(dt>30){var g=prod().gold*dt;if(g>0){S.gold+=Math.floor(g);setTimeout(function(){toast('🌙 Пока тебя не было: +'+Math.floor(g)+' 🪙');},800);}}
  S.lastSeen=now;save();}
@@ -507,20 +511,14 @@ function buildStadium(){var g=new THREE.Group();
   g.add(put(box(0.2,0.12,0.1,mat(0xffffff,0xffffff,0.9)),Math.cos(a)*1.05,1.25,Math.sin(a)*1.05));}
  var b=new THREE.Mesh(new THREE.SphereGeometry(0.12,8,6),mat(0xffffff));b.position.set(0,0.12,0);g.add(b);
  return g;}
-function buildPvo(){var g=new THREE.Group();
- g.add(put(box(1.0,0.3,1.0,mat(0x5d6b5d)),0,0.15,0));
- g.add(put(cyl(0.12,0.16,1.0,6,mat(0x8f9aa3)),0,0.8,0));
- var dish=new THREE.Group();dish.position.set(0,1.4,0);dish.userData={spinY:true,spinSp:1.5};g.add(dish);
- var cap=new THREE.Mesh(new THREE.SphereGeometry(0.4,8,5,0,Math.PI*2,0,Math.PI/2),mat(0xe8e2d0));
- cap.rotation.x=Math.PI/3;dish.add(cap);
- for(var i=-1;i<=1;i+=2)g.add(put(cyl(0.06,0.06,0.7,5,mat(0xc00040)),i*0.35,0.65,0.3));
- return g;}
 function fpGoal(){var g=new THREE.Group();
  g.add(put(box(0.12,1.2,0.12,mat(0xffffff)),-0.9,0.6,0));
  g.add(put(box(0.12,1.2,0.12,mat(0xffffff)),0.9,0.6,0));
  g.add(put(box(1.9,0.12,0.12,mat(0xffffff)),0,1.2,0));return g;}
-var BUILDERS={house:buildHouse,grove:buildGrove,tower:buildTower,market:buildMarket,garden:buildGarden,spire:buildSpire,tavern:buildTavern,treasury:buildTreasury,sawmill:buildSawmill,glade:buildGlade,runes:buildRunes,portal:buildPortal,mall:buildMall,cinema:buildCinema,theatre:buildTheatre,ferris:buildFerris,beach:buildBeach,shop:buildShop,barber:buildBarber,hospital:buildHospital,admin:buildAdmin,park:buildPark,airport:buildAirport,railway:buildRailway,bus:buildBus,stadium:buildStadium,pvo:buildPvo};
+var BUILDERS={house:buildHouse,grove:buildGrove,tower:buildTower,market:buildMarket,garden:buildGarden,spire:buildSpire,tavern:buildTavern,treasury:buildTreasury,sawmill:buildSawmill,glade:buildGlade,runes:buildRunes,portal:buildPortal,mall:buildMall,cinema:buildCinema,theatre:buildTheatre,ferris:buildFerris,beach:buildBeach,shop:buildShop,barber:buildBarber,hospital:buildHospital,admin:buildAdmin,park:buildPark,airport:buildAirport,railway:buildRailway,bus:buildBus,stadium:buildStadium};
 function refreshCell(i){
+ var c0=S.cells[i];
+ if(c0&&!BUILDERS[c0.t]){S.cells[i]=null;c0=null;}
  var old=bGroups[i];
  if(old){scene.remove(old);old.traverse(function(o){if(o.geometry)o.geometry.dispose();});delete bGroups[i];}
  var c=S.cells[i];if(!c)return;
@@ -709,81 +707,6 @@ function clickCell(i){
   toast(b.em+' '+b.n+' построен! '+b.desc+' 🏗️');
   refreshCell(i);after();renderHUD();return;}
  openInspector(i);}
-/* ===== ВРАЖЕСКИЕ ДРОНЫ и ПВО ===== */
-var drones=[],missiles=[],debris=[],flashes=[],nextDroneAt=Date.now()+60000,combatT=0,pvoCd={};
-function siren(){try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();
- if(AC.state==='suspended')AC.resume();var t=AC.currentTime;
- for(var i=0;i<3;i++){var o=AC.createOscillator(),g=AC.createGain();o.type='sawtooth';
-  o.frequency.setValueAtTime(400,t+i*0.35);o.frequency.linearRampToValueAtTime(800,t+i*0.35+0.17);
-  o.frequency.linearRampToValueAtTime(400,t+i*0.35+0.34);
-  g.gain.setValueAtTime(0.08,t+i*0.35);g.gain.exponentialRampToValueAtTime(0.01,t+i*0.35+0.34);
-  o.connect(g);g.connect(AC.destination);o.start(t+i*0.35);o.stop(t+i*0.35+0.36);}}catch(e){}}
-function builtCount(){return S.cells.filter(Boolean).length;}
-function spawnDrone(){var occ=[];for(var i=0;i<S.cells.length;i++)if(S.cells[i])occ.push(i);
- if(!occ.length)return;var tgt=occ[Math.floor(Math.random()*occ.length)];
- var xz=idx2xz(tgt),a=Math.random()*Math.PI*2;
- var g=new THREE.Group();
- g.add(put(box(0.55,0.18,0.75,mat(0x3a3f4a)),0,0,0));
- var eye=new THREE.Mesh(new THREE.SphereGeometry(0.09,7,6),
-  new THREE.MeshBasicMaterial({color:0xff2222}));eye.position.set(0,0,0.4);eye.userData={fadePulse:true};g.add(eye);
- for(var r=0;r<4;r++){g.add(put(box(0.5,0.05,0.08,mat(0x22262e)),(r%2?0.3:-0.3),0.1,(r<2?0.3:-0.3)));
-  var rot=put(cyl(0.16,0.16,0.03,8,mat(0x9aa3b2)),(r%2?0.42:-0.42),0.14,(r<2?0.42:-0.42));
-  rot.userData={spinY:true,spinSp:25};g.add(rot);}
- g.position.set(Math.cos(a)*26,5.5,Math.sin(a)*26);scene.add(g);
- drones.push({g:g,tx:xz[0],tz:xz[1],tgt:tgt,state:'fly'});
- toast('🚨 Вражеский дрон с границы! Строй ПВО 🚀');siren();}
-function explode(x,y,z,col,big){var n=big?10:6;
- for(var i=0;i<n;i++){var m=new THREE.Mesh(new THREE.IcosahedronGeometry(0.09+Math.random()*0.1,0),
-  new THREE.MeshBasicMaterial({color:Math.random()<0.5?col:0x333333}));
-  m.position.set(x,y,z);scene.add(m);
-  debris.push({m:m,vx:(Math.random()-0.5)*7,vy:Math.random()*5+2,vz:(Math.random()-0.5)*7,life:1.2});}
- var f=new THREE.Mesh(new THREE.SphereGeometry(0.5,10,8),
-  new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:0.8}));
- f.position.set(x,y,z);scene.add(f);flashes.push({m:f,t:0});
- blip(110);}
-function damageBuilding(i){var c=S.cells[i];
- if(!c)return;
- if(c.l>1){c.l--;toast('💥 Дрон врезался в '+B[c.t].n+': −1 уровень! Строй ПВО 🚀');}
- else{S.cells[i]=null;toast('💥 Дрон уничтожил '+B[c.t].n+'! Строй ПВО 🚀');}
- refreshCell(i);after();renderHUD();}
-function droneTick(){var now=Date.now(),n=builtCount();
- if(n>=3&&now>=nextDroneAt&&drones.length<3){spawnDrone();
-  nextDroneAt=now+Math.max(25000,75000-n*2000)+Math.random()*15000;}}
-function pvoScan(){var now=Date.now();
- for(var i=0;i<S.cells.length;i++){var c=S.cells[i];if(!c||c.t!=='pvo')continue;
-  if(pvoCd[i]&&pvoCd[i]>now)continue;
-  var xz=idx2xz(i),bx=xz[0],bz=xz[1];
-  for(var d=0;d<drones.length;d++){var dr=drones[d];
-   var dx=dr.g.position.x-bx,dz=dr.g.position.z-bz;
-   if(Math.hypot(dx,dz)<13){pvoCd[i]=now+2500;
-    var m=new THREE.Mesh(new THREE.SphereGeometry(0.12,7,6),
-     new THREE.MeshBasicMaterial({color:0xffd23f}));
-    m.position.set(bx,2.5,bz);scene.add(m);
-    missiles.push({m:m,d:dr});blip(900);break;}}}}
-function updateCombat(dt){combatT+=dt;if(combatT>0.5){combatT=0;pvoScan();}
- for(var i=drones.length-1;i>=0;i--){var dr=drones[i],p=dr.g.position;
-  var ty=dr.state==='fly'?5:1.2,dx=dr.tx-p.x,dz=dr.tz-p.z,dy=ty-p.y;
-  var dist=Math.hypot(dx,dy,dz),sp=(dr.state==='fly'?4.5:7)*dt;
-  if(dist<0.8){explode(p.x,p.y,p.z,0xff6622,true);damageBuilding(dr.tgt);
-   scene.remove(dr.g);drones.splice(i,1);continue;}
-  p.x+=dx/dist*sp;p.y+=dy/dist*sp;p.z+=dz/dist*sp;
-  var d2=Math.hypot(dx,dz);if(dr.state==='fly'&&d2<0.6)dr.state='dive';}
- for(var k=missiles.length-1;k>=0;k--){var ms=missiles[k];
-  if(drones.indexOf(ms.d)<0){scene.remove(ms.m);missiles.splice(k,1);continue;}
-  var tp=ms.d.g.position,mp=ms.m.position;
-  var mx=tp.x-mp.x,my=tp.y-mp.y,mz=tp.z-mp.z,md=Math.hypot(mx,my,mz);
-  if(md<0.9){explode(tp.x,tp.y,tp.z,0x9fd8ff,false);
-   scene.remove(ms.d.g);drones.splice(drones.indexOf(ms.d),1);
-   var xz2=idx2xz(ms.d.tgt);floater('🎯 сбит!',xz2[0],3,xz2[1]);
-   scene.remove(ms.m);missiles.splice(k,1);continue;}
-  var msp=15*dt;mp.x+=mx/md*msp;mp.y+=my/md*msp;mp.z+=mz/md*msp;}
- for(var j=debris.length-1;j>=0;j--){var db=debris[j];db.life-=dt;
-  if(db.life<=0){scene.remove(db.m);debris.splice(j,1);continue;}
-  db.vy-=12*dt;db.m.position.x+=db.vx*dt;db.m.position.y+=db.vy*dt;db.m.position.z+=db.vz*dt;
-  if(db.m.position.y<0.1){db.m.position.y=0.1;db.vy*=-0.4;}}
- for(var f=flashes.length-1;f>=0;f--){var fl=flashes[f];fl.t+=dt*2.5;
-  if(fl.t>=1){scene.remove(fl.m);flashes.splice(f,1);continue;}
-  var sc=1+fl.t*3;fl.m.scale.set(sc,sc,sc);fl.m.material.opacity=0.8*(1-fl.t);}}
 function buyTicket(){var now=Date.now();
  if(now<ticketCd){toast('Кассы печатают билеты... жди '+Math.ceil((ticketCd-now)/1000)+'с 🎟️');return;}
  if(S.gold<50){toast('Билет стоит 50 🪙 💸');blip(200);return;}
@@ -1167,14 +1090,7 @@ function inStadium(){curIn.add(fpGrass(10,0x58b368));fpBounds={x:[-5,5],z:[-5,5]
  for(var i=0;i<4;i++){var a=i/4*Math.PI*2+Math.PI/4,fx=Math.cos(a)*6.5,fz=Math.sin(a)*6.5;
   curIn.add(put(cyl(0.08,0.08,3.5,5,mat(0x8f9aa3)),fx,1.75,fz));
   curIn.add(put(box(0.7,0.4,0.15,mat(0xffffff,0xffffff,0.8)),fx,3.6,fz));}}
-function inPvo(){curIn.add(fpRoom(10,8,0x3a4a5a,0x5d6b7a));
- for(var m=-1;m<=1;m+=2){var scr=new THREE.Mesh(new THREE.PlaneGeometry(1.6,1.0),
-  new THREE.MeshBasicMaterial({color:0x0a2a0a}));scr.position.set(m*1.8,1.7,-3.82);curIn.add(scr);
-  var dot=new THREE.Mesh(new THREE.CircleGeometry(0.25,10),
-   new THREE.MeshBasicMaterial({color:0x00ff66}));dot.position.set(m*1.8,1.7,-3.8);curIn.add(dot);}
- fpAt(fpCounter(),2.5,2.8,1.3);fpAt(fpStool(),-1.5,2.8,0.4);fpAt(fpStool(),1.5,2.8,0.4);
- fpAt(fpShelf(),-3.5,-2.8,1.0);}
-var IN={house:inHouse,tavern:inTavern,market:inMarket,treasury:inTreasury,grove:inGrove,garden:inGarden,sawmill:inSawmill,glade:inGlade,tower:inTower,runes:inRunes,portal:inPortal,spire:inSpire,mall:inMall,cinema:inCinema,theatre:inTheatre,ferris:inFerris,beach:inBeach,shop:inShop,barber:inBarber,hospital:inHospital,admin:inAdmin,park:inPark,airport:inAirport,railway:inRailway,bus:inBus,stadium:inStadium,pvo:inPvo};
+var IN={house:inHouse,tavern:inTavern,market:inMarket,treasury:inTreasury,grove:inGrove,garden:inGarden,sawmill:inSawmill,glade:inGlade,tower:inTower,runes:inRunes,portal:inPortal,spire:inSpire,mall:inMall,cinema:inCinema,theatre:inTheatre,ferris:inFerris,beach:inBeach,shop:inShop,barber:inBarber,hospital:inHospital,admin:inAdmin,park:inPark,airport:inAirport,railway:inRailway,bus:inBus,stadium:inStadium};
 function buildInterior(type){fpClear();fpObstacles.length=0;
  if(!interiorRoot){interiorRoot=new THREE.Group();interiorRoot.position.set(FPX,0,0);scene.add(interiorRoot);}
  curIn=new THREE.Group();interiorRoot.add(curIn);
@@ -1250,7 +1166,6 @@ function loop(){requestAnimationFrame(loop);
   fpPos.z=Math.min(fpBounds.z[1],Math.max(fpBounds.z[0],fpPos.z));
   camera.position.set(FPX+fpPos.x,1.6,fpPos.z);
   camera.rotation.y=fpYaw;camera.rotation.x=fpPitch;camera.rotation.z=0;}
- updateCombat(dt);
  renderer.render(scene,camera);}
 /* --- старт --- */
 load();
@@ -1270,14 +1185,12 @@ if(initThree()){refreshAll();renderHUD();loop();
   var c=cap(),g=gardens();
   if(S.pop<c&&Math.random()<0.25*(1+g*0.5)*(1+countT('tavern')*0.5+countT('glade')*0.25+countT('theatre')*0.4+countT('cinema')*0.3+countT('barber')*0.2+countT('hospital')*0.6+countT('park')*0.3+countT('railway')*0.4+countT('bus')*0.3+countT('stadium')*0.5)){S.pop++;
    if(S.pop>=42&&!S.win){S.win=true;document.getElementById('win').style.display='flex';toast('🏆 42 ЖИТЕЛЯ! МЫ УЖЕ ПОБЕДИЛИ! 🏆');}}
-  S.lastSeen=Date.now();save();renderHUD();droneTick();},1000);}
+  S.lastSeen=Date.now();save();renderHUD();},1000);}
 else{renderHUD();}
 /* крючок для тестов */
 window.__elf={get:function(){return S;},tool:function(){return tool;},build:function(t){tool=t;bulldoze=false;
  var i=S.cells.findIndex(function(c){return !c;});if(i>=0)clickCell(i);return i;},
  tiles:function(){return tileMeshes.length;},
- drone:function(){spawnDrone();return drones.length;},
- drones:function(){return drones.length;},
  enter:function(i){enterBuilding(i);},exit:function(){exitBuilding();},
  fp:function(){return {mode:fpMode,type:fpType,x:Math.round(fpPos.x*100)/100,z:Math.round(fpPos.z*100)/100};}};
 </script>
