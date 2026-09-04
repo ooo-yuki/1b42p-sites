@@ -155,7 +155,7 @@ function slopeBlock(px,pz,nx,nz){
  return [nx,nz];
 }
 const ZONE_COL={beach:new THREE.Color(0xd9b84a),shore:new THREE.Color(0xc9a94e),city:new THREE.Color(0x1c1c24),forest:new THREE.Color(0x1e6a34),mtn:new THREE.Color(0x3e7a33),road:new THREE.Color(0x33333d)};
-const _trailCol=new THREE.Color(0xc9b083); // тропа к пещере
+const _trailCol=new THREE.Color(0x1c1c24); // тропа в цвет пола города — не выделяется
 function zoneColor(x,z,out){
  let isCF=false;
  if(z<=-150||(x>=140&&z<=-30)) out.copy(ZONE_COL.mtn);
@@ -317,7 +317,7 @@ function parkedCar(x,z,rot){if(!freePt(x,z,3))return;const col=CARC[(rnd()*CARC.
  solids.push({x,z,hx:1.7,hz:2.8,mesh:b,extra:[]});}
 function lampCold(x,z){const pp=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,8,8),new THREE.MeshStandardMaterial({color:0x333}));pp.position.set(x,4,z);scene.add(pp);
  const bb=new THREE.Mesh(new THREE.SphereGeometry(.45,8,6),new THREE.MeshBasicMaterial({color:0xffdda0}));bb.position.set(x,8.2,z);scene.add(bb);}
-for(let gx=-150;gx<=150;gx+=50)for(let gz=-150;gz<=150;gz+=30)lampCold(gx+6,gz);
+for(let gx=-150;gx<=150;gx+=50)for(let gz=-150;gz<=150;gz+=30){if(rawZoneH(gx+6,gz)>1.0)continue;lampCold(gx+6,gz);} // фонари только на городе и пляже, не на горах/лесу
 const BC=[-125,-75,-25,25,75,125];let parkMade=false,ci=0;
 for(const bx of BC)for(const bz of BC){const cx=bx+(rnd()*16-8),cz=bz+(rnd()*16-8);if(!freePt(cx,cz,0))continue;ci++;
  const kind=rnd();
@@ -913,7 +913,7 @@ function pine(x,z){const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
 function rock(x,z,s){const m=new THREE.Mesh(new THREE.ConeGeometry(4*s,7*s,5),new THREE.MeshStandardMaterial({color:0x5a3232,roughness:1,flatShading:true}));m.position.set(x,3.5*s,z);m.castShadow=true;scene.add(m);solids.push({x,z,hx:3.5*s,hz:3.5*s,mesh:m,extra:[]});}
 (function(){let placed=0,guard=0;
  while(placed<10&&guard++<90){const x=45+Math.random()*135,z=-20+Math.random()*130;if(!decorFree(x,z,5))continue;pine(x,z);placed++;}
- for(const sp of [[-60,-160],[-20,-165],[20,-160],[100,-160],[160,-90],[165,-50]]){if(decorFree(sp[0],sp[1],7))rock(sp[0],sp[1],1+Math.random()*.6);}
+ for(const sp of [[-60,-160],[-20,-165],[20,-160],[100,-160],[160,-90],[165,-50]]){} // коричневые конусы убраны — остались серые валуны
  placed=0;guard=0;
  while(placed<6&&guard++<70){const x=-170+Math.random()*340,z=132+Math.random()*50;if(!decorFree(x,z,5))continue;palm(x,z);placed++;}
 })();
@@ -1307,7 +1307,7 @@ mm.fillStyle='gold';mm.font='bold '+Math.round(9*k)+'px Arial';mm.fillText('H',W
 // SLAY
 mm.fillStyle='#ff7700';mm.fillRect(WX(-30),WX(-160),60*W2M,40*W2M);mm.fillStyle='#fff';mm.fillText('SLAY',WX(-12),WX(-138));
 mm.fillStyle='#00ffcc';mm.fillRect(WX(CAVE.x)-2*k,WX(CAVE.z)-2*k,4*k,4*k);mm.fillStyle='#fff';mm.font='bold '+Math.round(8*k)+'px Arial';mm.fillText('ПЕЩЕРА',WX(CAVE.x)-20*k,WX(CAVE.z)-6*k);
-try{mm.strokeStyle='#c9b083';mm.lineWidth=Math.max(1.5,2*k);mm.beginPath();for(let _pi=0;_pi<PATH.length;_pi++){const _px=WX(PATH[_pi].x),_pz=WX(PATH[_pi].z);if(_pi===0)mm.moveTo(_px,_pz);else mm.lineTo(_px,_pz);}mm.stroke();}catch(_){}
+try{mm.strokeStyle='#2e2e38';mm.lineWidth=Math.max(1.5,2*k);mm.beginPath();for(let _pi=0;_pi<PATH.length;_pi++){const _px=WX(PATH[_pi].x),_pz=WX(PATH[_pi].z);if(_pi===0)mm.moveTo(_px,_pz);else mm.lineTo(_px,_pz);}mm.stroke();}catch(_){}
 mm.fillStyle='#ff0022';mm.fillRect(WX(SHOP.x)-2*k,WX(SHOP.z)-2*k,4*k,4*k);
 // спреи
 mm.fillStyle='#f0f';try{sprays.forEach(s=>{if(!s.done)mm.fillRect(WX(s.x)-1*k,WX(s.z)-1*k,2*k,2*k);});}catch(_){}
