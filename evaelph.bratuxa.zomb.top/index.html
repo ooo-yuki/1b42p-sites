@@ -52,6 +52,12 @@ padding:14px;z-index:10;display:none;box-shadow:0 6px 0 rgba(47,93,58,.35)}
 color:var(--ink);font-weight:bold;font-size:15px;border-radius:999px;padding:10px 18px;cursor:pointer;box-shadow:0 4px 0 rgba(47,93,58,.35)}
 #fpHint{position:absolute;left:50%;transform:translateX(-50%);bottom:14px;background:rgba(0,0,0,.55);color:#fff;
 font-size:13px;padding:8px 16px;border-radius:999px;white-space:nowrap;max-width:94vw}
+#talkBtn{position:absolute;left:50%;transform:translateX(-50%);bottom:62px;pointer-events:auto;display:none;
+border:3px solid var(--ink);background:var(--gold);color:#5d4a00;font-weight:bold;font-size:15px;
+border-radius:999px;padding:12px 22px;cursor:pointer;box-shadow:0 4px 0 #b98f00}
+#npcBubble{position:absolute;left:50%;transform:translateX(-50%);bottom:118px;pointer-events:none;display:none;
+background:var(--cream);border:3px solid var(--ink);border-radius:16px;padding:10px 14px;max-width:88vw;
+font-size:14px;font-weight:bold;color:var(--ink);box-shadow:0 4px 0 rgba(47,93,58,.35);text-align:center}
 #joy{position:absolute;left:18px;bottom:60px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.15);
 border:2px solid rgba(255,255,255,.5);display:none}
 #stick{position:absolute;left:50%;top:50%;width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.55);
@@ -131,8 +137,10 @@ transition:transform 1.1s ease-out,opacity 1.1s}
 </div>
 <div id="toast"></div>
 <div id="fpUI">
- <div id="cross">+</div>
+ <div id="cross" style="display:none">+</div>
  <button id="exitFp">🚪 Выйти</button>
+ <div id="npcBubble"></div>
+ <button id="talkBtn">💬 Поговорить (E)</button>
  <div id="fpHint">WASD — ходить · мышь — осмотр · ESC — выйти</div>
  <div id="joy"><div id="stick"></div></div>
 </div>
@@ -818,6 +826,7 @@ var FPX=100;
 var fpMode=false,fpType=null,fpLvl=1,fpYaw=0,fpPitch=0;
 var fpPos={x:0,z:0},fpBounds={x:[-4,4],z:[-3,3]},fpObstacles=[];
 var interiorRoot=null,curIn=null,keys={},joyVec={x:0,y:0},joyId=null,lookId=null,lookLast=null,fpLast=null;
+var fpAvatar=null,fpNPCs=[],fpVy=0,fpAir=false,talkCd=0,npcTalkIx=0;
 var IS_TOUCH=('ontouchstart' in window);
 function fpClear(){if(!interiorRoot)return;
  interiorRoot.traverse(function(o){if(o.geometry)o.geometry.dispose();
@@ -1127,12 +1136,83 @@ function fpTankO(){var g=new THREE.Group();
  g.add(put(cyl(0.7,0.7,1.6,10,mat(0xe8e2d0)),0,0.8,0));
  g.add(put(new THREE.Mesh(new THREE.SphereGeometry(0.7,10,6,0,Math.PI*2,0,Math.PI/2),mat(0xe8e2d0)),0,1.6,0));
  return g;}
-function buildInterior(type){fpClear();fpObstacles.length=0;
+/* --- РОБЛОКС-режим: аватары и братухи-жители --- */
+function makeNameSprite(text){var c=document.createElement('canvas');c.width=256;c.height=64;
+ var g=c.getContext('2d');g.fillStyle='rgba(47,93,58,0.92)';g.beginPath();
+ if(g.roundRect)g.roundRect(6,8,244,48,14);else g.rect(6,8,244,48);g.fill();
+ g.strokeStyle='#ffd23f';g.lineWidth=4;g.stroke();
+ g.fillStyle='#fff';g.font='bold 26px Trebuchet MS,Arial';g.textAlign='center';g.textBaseline='middle';
+ g.fillText(text.slice(0,14),128,33);
+ var t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
+ var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,depthTest:false}));
+ sp.scale.set(1.7,0.42,1);sp.position.y=2.15;return sp;}
+function makeBratuha(shirt,name){var g=new THREE.Group();
+ g.add(put(box(0.5,0.65,0.32,mat(shirt)),0,0.62,0));
+ g.add(put(box(0.52,0.18,0.34,mat(0x2f5d3a)),0,0.95,0));
+ var head=new THREE.Mesh(new THREE.SphereGeometry(0.26,10,8),mat(0xffd9b3));head.position.y=1.28;head.castShadow=true;g.add(head);
+ g.add(put(box(0.5,0.12,0.1,mat(0x2f5d3a)),0,1.42,0));
+ var e1=put(box(0.07,0.09,0.02,mat(0x222222)),-0.09,1.3,0.24);g.add(e1);
+ var e2=put(box(0.07,0.09,0.02,mat(0x222222)),0.09,1.3,0.24);g.add(e2);
+ g.add(put(box(0.16,0.5,0.16,mat(shirt)),-0.35,0.6,0));
+ g.add(put(box(0.16,0.5,0.16,mat(shirt)),0.35,0.6,0));
+ g.add(put(box(0.17,0.35,0.17,mat(0x5d4a7a)),-0.15,0.17,0));
+ g.add(put(box(0.17,0.35,0.17,mat(0x5d4a7a)),0.15,0.17,0));
+ g.add(makeNameSprite(name));return g;}
+var NPC_NAMES=['Братуха-42','Эльф-Строй','Лесной','Фугофрейтор','Легенда42','Пятёра'];
+var NPC_PHRASES={
+ tavern:['Эль подоспел! За 42! 🍺','Садись, братуха, стол свободный!','Таверна держится на нас! Мы уже победили 🏆'],
+ market:['Скидка для своих, братуха! 🛒','Торговля идёт — золото капает!','Бери яблоки, свежие!'],
+ house:['Уютный дом — крепкий город! 🏠','Заходи ещё, дверь открыта!'],
+ tower:['Мана гудит, кристалл в норме 🔮','Не трогай кристалл, он хрупкий!'],
+ cinema:['Сеанс «Торнадо» через минуту! 🎬','Попкорн бери, места занимай!'],
+ theatre:['Культура — тоже атака 42! 🎭','Тише, спектакль идёт!'],
+ stadium:['Болей за наших! 🏟️','Гол! Мы уже победили!'],
+ hospital:['Здоровый братуха — сильный батальон! 🏥','Выпей рассолу, полегчает!'],
+ park:['Карусель крутится, залетай! 🎢','Веселись, братуха!'],
+ beach:['Водичка тёплая, лежак свободный! 🏖️','Касса пляжа приветствует!'],
+ shop:['Продукты свежие, заходи! 🛒'],
+ barber:['Стрижка как у легенды 42! 💈','Красота притягивает жителей!'],
+ admin:['Порядок в городе — дело 42! 🏛️','Налоги в казну, братуха!'],
+ airport:['Рейс на Пиксельбаттл объявляется! ✈️'],
+ railway:['Поезд на 42 отбывает! 🚂'],
+ bus:['Автобус до центра, посадка! 🚌'],
+ spire:['Шпиль сияет — город жив! 🗼'],
+ portal:['Портал стабилен, проходи! 🌀']};
+function npcPhrase(type,name){var arr=NPC_PHRASES[type]||['Привет, братуха! За 42! 🤝','Эввград растёт благодаря тебе! 🌲','Мы уже победили 🏆'];
+ return arr[npcTalkIx%arr.length];}
+function spawnBratuhi(type){fpNPCs=[];
+ var n=2+Math.floor(Math.random()*2);
+ var shirts=[0xc00040,0x2f5d8a,0x2f9e44,0xff7bac,0xffb347];
+ for(var i=0;i<n;i++){var nm=NPC_NAMES[Math.floor(Math.random()*NPC_NAMES.length)];
+  var av=makeBratuha(shirts[Math.floor(Math.random()*shirts.length)],nm);
+  var px=(Math.random()*2-1)*fpBounds.x[1]*0.7,pz=(Math.random()*2-1)*fpBounds.z[1]*0.7;
+  av.position.set(px,0,pz);curIn.add(av);
+  fpNPCs.push({g:av,name:nm,tx:px,tz:pz,wt:Math.random()*2,ph:Math.random()*6});}
+ if(!fpAvatar){fpAvatar=makeBratuha(0x58b368,'ТЫ • 42');curIn.add(fpAvatar);}}
+function buildInterior(type){fpClear();fpObstacles.length=0;fpAvatar=null;
  if(!interiorRoot){interiorRoot=new THREE.Group();interiorRoot.position.set(FPX,0,0);scene.add(interiorRoot);}
  curIn=new THREE.Group();interiorRoot.add(curIn);
  (IN[type]||inHouse)();
  var rl=new THREE.PointLight(0xfff2d0,14,22,2);rl.position.set(0,2.6,0.5);curIn.add(rl);
- fpPos={x:0,z:fpBounds.z[1]-1.0};fpYaw=0;fpPitch=0;}
+ fpPos={x:0,z:fpBounds.z[1]-1.0};fpYaw=0;fpPitch=0.25;fpVy=0;fpAir=false;npcTalkIx=0;talkCd=0;
+ spawnBratuhi(type);
+ if(fpAvatar)fpAvatar.position.set(fpPos.x,0,fpPos.z);}
+function nearestBratuha(){var best=null,bd=1.9;
+ for(var i=0;i<fpNPCs.length;i++){var n=fpNPCs[i];
+  var d=Math.hypot(fpPos.x-n.g.position.x,fpPos.z-n.g.position.z);
+  if(d<bd){bd=d;best=n;}}return best;}
+function showBubble(name,text){var b=document.getElementById('npcBubble');
+ b.innerHTML='🧝 <b>'+name+':</b> '+text;b.style.display='block';
+ clearTimeout(b._t);b._t=setTimeout(function(){b.style.display='none';},3200);}
+function talkToBratuha(){if(!fpMode||Date.now()<talkCd)return;
+ var n=nearestBratuha();if(!n){toast('Подойди ближе к братухе 🤝');return;}
+ talkCd=Date.now()+1200;var ph=npcPhrase(fpType,n.name);npcTalkIx++;
+ showBubble(n.name,ph);blip(660);
+ n.tx=n.g.position.x;n.tz=n.g.position.z;n.wt=3;
+ if(npcTalkIx%3===0){var gift={gold:5,mana:3,wood:5}[['gold','mana','wood'][Math.floor(Math.random()*3)]];
+  var gk=['gold','mana','wood'][Math.floor(Math.random()*3)];S[gk]+=5;save();renderHUD();
+  floater('+5 '+(gk==='gold'?'🪙':gk==='mana'?'💧':'🌲'),FPX+n.g.position.x,2.4,n.g.position.z);
+  toast('🎁 '+n.name+' подогнал +5! За 42!');}}
 function enterBuilding(i){var c=S.cells[i];if(!c||!scene)return;
  fpMode=true;fpType=c.t;fpLvl=c.l;buildInterior(c.t);
  document.getElementById('dock').style.display='none';
@@ -1141,16 +1221,19 @@ function enterBuilding(i){var c=S.cells[i];if(!c||!scene)return;
  document.getElementById('giftBtn').style.display='none';
  document.getElementById('ticketBtn').style.display='none';
  document.getElementById('fpUI').style.display='block';
- document.getElementById('fpHint').textContent=IS_TOUCH?'Левый стик — ходить · свайп справа — осмотр':'WASD — ходить · клик — осмотр мышью · ESC — выйти';
+ document.getElementById('npcBubble').style.display='none';
+ document.getElementById('fpHint').textContent=IS_TOUCH?'Стик — ходить · свайп — камера · подойди и жми 💬':'WASD — ходить · Space — прыжок · E — поговорить · мышь — камера · ESC — выйти';
  document.getElementById('joy').style.display=IS_TOUCH?'block':'none';
- camera.rotation.order='YXZ';selIdx=-1;closeShop();
- toast('Ты внутри: '+B[fpType].n+'! 🏠');blip(700);}
-function exitBuilding(){if(!fpMode)return;fpMode=false;fpClear();
+ camera.rotation.order='XYZ';selIdx=-1;closeShop();
+ toast('Ты внутри: '+B[fpType].n+'! Тут живут братухи 🤝');blip(700);}
+function exitBuilding(){if(!fpMode)return;fpMode=false;fpClear();fpNPCs=[];fpAvatar=null;
  if(document.exitPointerLock&&document.pointerLockElement){try{document.exitPointerLock();}catch(e){}}
  document.getElementById('dock').style.display='';
  document.getElementById('giftBtn').style.display='';
  document.getElementById('ticketBtn').style.display='';
  document.getElementById('fpUI').style.display='none';
+ document.getElementById('talkBtn').style.display='none';
+ document.getElementById('npcBubble').style.display='none';
  camera.rotation.order='XYZ';camera.rotation.set(0,0,0);updateCam();renderHUD();
  toast('Снова в городе! 🏙️');}
 function fpPress(e){fpLast={x:e.clientX,y:e.clientY};
@@ -1161,6 +1244,7 @@ function fpDrag(e){
   fpLast={x:e.clientX,y:e.clientY};}
  fpPitch=Math.max(-1.2,Math.min(1.2,fpPitch));}
 window.addEventListener('keydown',function(e){if(!fpMode)return;keys[e.code]=true;
+ if(e.code==='KeyE'){talkToBratuha();}
  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].indexOf(e.code)>=0)e.preventDefault();});
 window.addEventListener('keyup',function(e){keys[e.code]=false;});
 /* --- цикл --- */
@@ -1193,15 +1277,45 @@ function loop(){requestAnimationFrame(loop);
   if(keys['KeyD']||keys['ArrowRight'])s+=1;if(keys['KeyA']||keys['ArrowLeft'])s-=1;
   f+=-joyVec.y;s+=joyVec.x;
   var fl=Math.hypot(f,s);if(fl>1){f/=fl;s/=fl;}
-  var msp=3.4*dt,sy=Math.sin(fpYaw),cy=Math.cos(fpYaw);
-  fpPos.x+=((-sy)*f+cy*s)*msp;fpPos.z+=((-cy)*f-sy*s)*msp;
+  var msp=3.6*dt,sy=Math.sin(fpYaw),cy=Math.cos(fpYaw);
+  var mx=((-sy)*f+cy*s),mz=((-cy)*f-sy*s);
+  fpPos.x+=mx*msp;fpPos.z+=mz*msp;
   for(var oi=0;oi<fpObstacles.length;oi++){var ob=fpObstacles[oi];
    var dx=fpPos.x-ob.x,dz=fpPos.z-ob.z,d=Math.hypot(dx,dz),min=ob.r+0.35;
    if(d<min&&d>0.001){fpPos.x=ob.x+dx/d*min;fpPos.z=ob.z+dz/d*min;}}
   fpPos.x=Math.min(fpBounds.x[1],Math.max(fpBounds.x[0],fpPos.x));
   fpPos.z=Math.min(fpBounds.z[1],Math.max(fpBounds.z[0],fpPos.z));
-  camera.position.set(FPX+fpPos.x,1.6,fpPos.z);
-  camera.rotation.y=fpYaw;camera.rotation.x=fpPitch;camera.rotation.z=0;}
+  if((keys['Space'])&&!fpAir){fpVy=4.2;fpAir=true;blip(440);}
+  var avY=fpAvatar?fpAvatar.position.y:0;
+  if(fpAir){avY+=fpVy*dt;fpVy-=11*dt;if(avY<=0){avY=0;fpAir=false;fpVy=0;}}
+  if(fpAvatar){fpAvatar.position.set(fpPos.x,avY,fpPos.z);
+   if(Math.hypot(mx,mz)>0.05){var want=Math.atan2(mx,mz);
+    var cur=fpAvatar.rotation.y,df=want-cur;
+    while(df>Math.PI)df-=Math.PI*2;while(df<-Math.PI)df+=Math.PI*2;
+    fpAvatar.rotation.y=cur+df*Math.min(1,dt*12);
+    fpAvatar.position.y=avY+Math.abs(Math.sin(t*11))*0.06;}
+   else fpAvatar.position.y=avY+Math.sin(t*2.2)*0.015;}
+  for(var ni=0;ni<fpNPCs.length;ni++){var npc=fpNPCs[ni],np=npc.g.position;
+   if(npc.wt>0){npc.wt-=dt;}
+   else{if(Math.hypot(npc.tx-np.x,npc.tz-np.z)<0.25||Math.random()<0.005){
+     npc.tx=np.x+(Math.random()*2-1)*2.4;npc.tz=np.z+(Math.random()*2-1)*2.4;
+     npc.tx=Math.min(fpBounds.x[1],Math.max(fpBounds.x[0],npc.tx));
+     npc.tz=Math.min(fpBounds.z[1],Math.max(fpBounds.z[0],npc.tz));npc.wt=Math.random()*1.5;}
+    var vx=npc.tx-np.x,vz=npc.tz-np.z,vl=Math.hypot(vx,vz);
+    if(vl>0.05){vx/=vl;vz/=vl;np.x+=vx*0.9*dt;np.z+=vz*0.9*dt;
+     var w2=Math.atan2(vx,vz),c2=npc.g.rotation.y,d2=w2-c2;
+     while(d2>Math.PI)d2-=Math.PI*2;while(d2<-Math.PI)d2+=Math.PI*2;
+     npc.g.rotation.y=c2+d2*Math.min(1,dt*6);}}
+   npc.g.position.y=Math.abs(Math.sin(t*3+npc.ph))*0.03;
+   var pd=Math.hypot(fpPos.x-np.x,fpPos.z-np.z);
+   if(pd<1.9){npc.g.rotation.y=Math.atan2(fpPos.x-np.x,fpPos.z-np.z);}}
+  var cd=4.2,cp=Math.max(-0.15,Math.min(1.1,fpPitch));
+  var cc=Math.cos(cp),ss2=Math.sin(cp);
+  camera.position.set(FPX+fpPos.x+sy*cc*cd,2.1+ss2*cd,fpPos.z+cy*cc*cd);
+  camera.lookAt(FPX+fpPos.x,1.15+avY*0.5,fpPos.z);
+  var near=nearestBratuha(),tb=document.getElementById('talkBtn');
+  if(tb)tb.style.display=near?'block':'none';
+  if(tb&&near)tb.textContent='💬 '+near.name+' (E)';}
  renderer.render(scene,camera);}
 /* --- старт --- */
 load();
@@ -1216,6 +1330,7 @@ document.getElementById('demoBtn').onclick=function(){var i=selIdx;if(i<0)return
  bulldoze=true;clickCell(i);bulldoze=false;renderHUD();};
 document.getElementById('enterBtn').onclick=function(){if(selIdx>=0)enterBuilding(selIdx);};
 document.getElementById('exitFp').onclick=exitBuilding;
+document.getElementById('talkBtn').onclick=function(){talkToBratuha();};
 if(initThree()){refreshAll();renderHUD();loop();
  setInterval(function(){var p=prod();S.gold+=p.gold;S.mana+=p.mana;S.wood+=p.wood;
   var c=cap(),g=gardens();
@@ -1228,6 +1343,9 @@ window.__elf={get:function(){return S;},tool:function(){return tool;},build:func
  var i=S.cells.findIndex(function(c){return !c;});if(i>=0)clickCell(i);return i;},
  tiles:function(){return tileMeshes.length;},
  enter:function(i){enterBuilding(i);},exit:function(){exitBuilding();},
+ npcs:function(){return fpNPCs.map(function(n){return {name:n.name,x:Math.round(n.g.position.x*100)/100,z:Math.round(n.g.position.z*100)/100};});},
+ near:function(){var n=nearestBratuha();return n?n.name:null;},
+ talk:function(){talkToBratuha();return document.getElementById('npcBubble').textContent;},
  fp:function(){return {mode:fpMode,type:fpType,x:Math.round(fpPos.x*100)/100,z:Math.round(fpPos.z*100)/100};}};
 </script>
 </body>
