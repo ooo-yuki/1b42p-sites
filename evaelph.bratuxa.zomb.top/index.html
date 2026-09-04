@@ -55,6 +55,12 @@ font-size:13px;padding:8px 16px;border-radius:999px;white-space:nowrap;max-width
 #talkBtn{position:absolute;left:50%;transform:translateX(-50%);bottom:62px;pointer-events:auto;display:none;
 border:3px solid var(--ink);background:var(--gold);color:#5d4a00;font-weight:bold;font-size:15px;
 border-radius:999px;padding:12px 22px;cursor:pointer;box-shadow:0 4px 0 #b98f00}
+#glockBtn{position:absolute;right:12px;bottom:120px;pointer-events:auto;
+border:3px solid var(--ink);background:#3a3f4a;color:#fff;font-weight:bold;font-size:15px;
+border-radius:999px;padding:12px 16px;cursor:pointer;box-shadow:0 4px 0 #111}
+#fireBtn{position:absolute;right:12px;bottom:180px;pointer-events:auto;display:none;
+border:3px solid var(--ink);background:#c00040;color:#fff;font-weight:bold;font-size:16px;
+border-radius:50%;width:72px;height:72px;cursor:pointer;box-shadow:0 4px 0 #7a0028}
 #npcBubble{position:absolute;left:50%;transform:translateX(-50%);bottom:118px;pointer-events:none;display:none;
 background:var(--cream);border:3px solid var(--ink);border-radius:16px;padding:10px 14px;max-width:88vw;
 font-size:14px;font-weight:bold;color:var(--ink);box-shadow:0 4px 0 rgba(47,93,58,.35);text-align:center}
@@ -141,6 +147,8 @@ transition:transform 1.1s ease-out,opacity 1.1s}
  <button id="exitFp">🚪 Выйти</button>
  <div id="npcBubble"></div>
  <button id="talkBtn">💬 Поговорить (E)</button>
+ <button id="glockBtn">🔫 Глок (G)</button>
+ <button id="fireBtn">🔥</button>
  <div id="fpHint">WASD — ходить · мышь — осмотр · ESC — выйти</div>
  <div id="joy"><div id="stick"></div></div>
 </div>
@@ -827,6 +835,7 @@ var fpMode=false,fpType=null,fpLvl=1,fpYaw=0,fpPitch=0;
 var fpPos={x:0,z:0},fpBounds={x:[-4,4],z:[-3,3]},fpObstacles=[];
 var interiorRoot=null,curIn=null,keys={},joyVec={x:0,y:0},joyId=null,lookId=null,lookLast=null,fpLast=null;
 var fpAvatar=null,fpNPCs=[],fpVy=0,fpAir=false,talkCd=0,npcTalkIx=0;
+var glockOut=false,fpShots=[],shootCd=0,glockMesh=null;
 var IS_TOUCH=('ontouchstart' in window);
 function fpClear(){if(!interiorRoot)return;
  interiorRoot.traverse(function(o){if(o.geometry)o.geometry.dispose();
@@ -1187,18 +1196,24 @@ function spawnBratuhi(type){fpNPCs=[];
   var av=makeBratuha(shirts[Math.floor(Math.random()*shirts.length)],nm);
   var px=(Math.random()*2-1)*fpBounds.x[1]*0.7,pz=(Math.random()*2-1)*fpBounds.z[1]*0.7;
   av.position.set(px,0,pz);curIn.add(av);
-  fpNPCs.push({g:av,name:nm,tx:px,tz:pz,wt:Math.random()*2,ph:Math.random()*6});}
- if(!fpAvatar){fpAvatar=makeBratuha(0x58b368,'ТЫ • 42');curIn.add(fpAvatar);}}
+  fpNPCs.push({g:av,name:nm,tx:px,tz:pz,wt:Math.random()*2,ph:Math.random()*6,down:false,resp:0});}
+ if(!fpAvatar){fpAvatar=makeBratuha(0x58b368,'ТЫ • 42');curIn.add(fpAvatar);
+  glockMesh=new THREE.Group();
+  glockMesh.add(put(box(0.12,0.14,0.42,mat(0x222831)),0,0,0));
+  glockMesh.add(put(box(0.1,0.22,0.12,mat(0x5d4a7a)),0,-0.15,0.12));
+  glockMesh.position.set(0.32,0.85,0.25);glockMesh.visible=false;
+  fpAvatar.add(glockMesh);}}
 function buildInterior(type){fpClear();fpObstacles.length=0;fpAvatar=null;
  if(!interiorRoot){interiorRoot=new THREE.Group();interiorRoot.position.set(FPX,0,0);scene.add(interiorRoot);}
  curIn=new THREE.Group();interiorRoot.add(curIn);
  (IN[type]||inHouse)();
  var rl=new THREE.PointLight(0xfff2d0,14,22,2);rl.position.set(0,2.6,0.5);curIn.add(rl);
  fpPos={x:0,z:fpBounds.z[1]-1.0};fpYaw=0;fpPitch=0.25;fpVy=0;fpAir=false;npcTalkIx=0;talkCd=0;
+ glockOut=false;fpShots=[];shootCd=0;glockMesh=null;
  spawnBratuhi(type);
  if(fpAvatar)fpAvatar.position.set(fpPos.x,0,fpPos.z);}
 function nearestBratuha(){var best=null,bd=1.9;
- for(var i=0;i<fpNPCs.length;i++){var n=fpNPCs[i];
+ for(var i=0;i<fpNPCs.length;i++){var n=fpNPCs[i];if(n.down)continue;
   var d=Math.hypot(fpPos.x-n.g.position.x,fpPos.z-n.g.position.z);
   if(d<bd){bd=d;best=n;}}return best;}
 function showBubble(name,text){var b=document.getElementById('npcBubble');
@@ -1206,6 +1221,7 @@ function showBubble(name,text){var b=document.getElementById('npcBubble');
  clearTimeout(b._t);b._t=setTimeout(function(){b.style.display='none';},3200);}
 function talkToBratuha(){if(!fpMode||Date.now()<talkCd)return;
  var n=nearestBratuha();if(!n){toast('Подойди ближе к братухе 🤝');return;}
+ if(n.down){toast('Братуха отдыхает... подожди 😅');return;}
  talkCd=Date.now()+1200;var ph=npcPhrase(fpType,n.name);npcTalkIx++;
  showBubble(n.name,ph);blip(660);
  n.tx=n.g.position.x;n.tz=n.g.position.z;n.wt=3;
@@ -1213,6 +1229,25 @@ function talkToBratuha(){if(!fpMode||Date.now()<talkCd)return;
   var gk=['gold','mana','wood'][Math.floor(Math.random()*3)];S[gk]+=5;save();renderHUD();
   floater('+5 '+(gk==='gold'?'🪙':gk==='mana'?'💧':'🌲'),FPX+n.g.position.x,2.4,n.g.position.z);
   toast('🎁 '+n.name+' подогнал +5! За 42!');}}
+function toggleGlock(){if(!fpMode)return;glockOut=!glockOut;blip(glockOut?880:330);
+ document.getElementById('glockBtn').textContent=glockOut?'🔫 Убрать':'🔫 Глок (G)';
+ document.getElementById('fireBtn').style.display=glockOut?'block':'none';
+ if(glockMesh)glockMesh.visible=glockOut;
+ toast(glockOut?'Глок достал, парень 🔫':'Глок убрал 🤝');}
+function pewSnd(){try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+ if(AC.state==='suspended')AC.resume();var t0=AC.currentTime;
+ var o=AC.createOscillator(),g=AC.createGain();o.type='square';
+ o.frequency.setValueAtTime(880,t0);o.frequency.exponentialRampToValueAtTime(120,t0+0.12);
+ g.gain.setValueAtTime(0.15,t0);g.gain.exponentialRampToValueAtTime(0.01,t0+0.13);
+ o.connect(g);g.connect(AC.destination);o.start(t0);o.stop(t0+0.14);}catch(e){blip(180);}}
+function shootGlock(){if(!fpMode||!glockOut||Date.now()<shootCd)return;shootCd=Date.now()+280;
+ pewSnd();if(!fpAvatar)return;
+ var dir=new THREE.Vector3(0,0,1).applyEuler(fpAvatar.rotation);dir.y=0.1;dir.normalize();
+ var m=new THREE.Mesh(new THREE.SphereGeometry(0.09,8,6),
+  new THREE.MeshBasicMaterial({color:0xffe066}));
+ m.position.set(FPX+fpPos.x+dir.x*0.7,1.25,fpPos.z+dir.z*0.7);
+ curIn.add(m);fpShots.push({m:m,vx:dir.x*11,vy:dir.y*11,vz:dir.z*11,life:1.4});
+ fpAvatar.rotation.y+=0;}
 function enterBuilding(i){var c=S.cells[i];if(!c||!scene)return;
  fpMode=true;fpType=c.t;fpLvl=c.l;buildInterior(c.t);
  document.getElementById('dock').style.display='none';
@@ -1222,11 +1257,13 @@ function enterBuilding(i){var c=S.cells[i];if(!c||!scene)return;
  document.getElementById('ticketBtn').style.display='none';
  document.getElementById('fpUI').style.display='block';
  document.getElementById('npcBubble').style.display='none';
- document.getElementById('fpHint').textContent=IS_TOUCH?'Стик — ходить · свайп — камера · подойди и жми 💬':'WASD — ходить · Space — прыжок · E — поговорить · мышь — камера · ESC — выйти';
+ document.getElementById('glockBtn').textContent='🔫 Глок (G)';
+ document.getElementById('fireBtn').style.display='none';
+ document.getElementById('fpHint').textContent=IS_TOUCH?'Стик — ходить · свайп — камера · 💬 — болтать · 🔫 — глок':'WASD — ходить · Space — прыжок · E — поговорить · G — глок · F — выстрел · мышь — камера · ESC — выйти';
  document.getElementById('joy').style.display=IS_TOUCH?'block':'none';
  camera.rotation.order='XYZ';selIdx=-1;closeShop();
  toast('Ты внутри: '+B[fpType].n+'! Тут живут братухи 🤝');blip(700);}
-function exitBuilding(){if(!fpMode)return;fpMode=false;fpClear();fpNPCs=[];fpAvatar=null;
+function exitBuilding(){if(!fpMode)return;fpMode=false;fpClear();fpNPCs=[];fpAvatar=null;glockOut=false;fpShots=[];glockMesh=null;
  if(document.exitPointerLock&&document.pointerLockElement){try{document.exitPointerLock();}catch(e){}}
  document.getElementById('dock').style.display='';
  document.getElementById('giftBtn').style.display='';
@@ -1234,6 +1271,7 @@ function exitBuilding(){if(!fpMode)return;fpMode=false;fpClear();fpNPCs=[];fpAva
  document.getElementById('fpUI').style.display='none';
  document.getElementById('talkBtn').style.display='none';
  document.getElementById('npcBubble').style.display='none';
+ document.getElementById('fireBtn').style.display='none';
  camera.rotation.order='XYZ';camera.rotation.set(0,0,0);updateCam();renderHUD();
  toast('Снова в городе! 🏙️');}
 function fpPress(e){fpLast={x:e.clientX,y:e.clientY};
@@ -1245,6 +1283,8 @@ function fpDrag(e){
  fpPitch=Math.max(-1.2,Math.min(1.2,fpPitch));}
 window.addEventListener('keydown',function(e){if(!fpMode)return;keys[e.code]=true;
  if(e.code==='KeyE'){talkToBratuha();}
+ if(e.code==='KeyG'){toggleGlock();}
+ if(e.code==='KeyF'){shootGlock();}
  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].indexOf(e.code)>=0)e.preventDefault();});
 window.addEventListener('keyup',function(e){keys[e.code]=false;});
 /* --- цикл --- */
@@ -1296,6 +1336,12 @@ function loop(){requestAnimationFrame(loop);
     fpAvatar.position.y=avY+Math.abs(Math.sin(t*11))*0.06;}
    else fpAvatar.position.y=avY+Math.sin(t*2.2)*0.015;}
   for(var ni=0;ni<fpNPCs.length;ni++){var npc=fpNPCs[ni],np=npc.g.position;
+   if(npc.down){npc.resp-=dt;
+    npc.g.rotation.x+=(-Math.PI/2-npc.g.rotation.x)*Math.min(1,dt*8);
+    if(npc.resp<=0){npc.down=false;npc.g.rotation.x=0;
+     np.x=(Math.random()*2-1)*fpBounds.x[1]*0.7;np.z=(Math.random()*2-1)*fpBounds.z[1]*0.7;
+     npc.tx=np.x;npc.tz=np.z;showBubble(npc.name,'Я снова в строю! За 42! 💪');}
+    continue;}
    if(npc.wt>0){npc.wt-=dt;}
    else{if(Math.hypot(npc.tx-np.x,npc.tz-np.z)<0.25||Math.random()<0.005){
      npc.tx=np.x+(Math.random()*2-1)*2.4;npc.tz=np.z+(Math.random()*2-1)*2.4;
@@ -1309,6 +1355,20 @@ function loop(){requestAnimationFrame(loop);
    npc.g.position.y=Math.abs(Math.sin(t*3+npc.ph))*0.03;
    var pd=Math.hypot(fpPos.x-np.x,fpPos.z-np.z);
    if(pd<1.9){npc.g.rotation.y=Math.atan2(fpPos.x-np.x,fpPos.z-np.z);}}
+  for(var si=fpShots.length-1;si>=0;si--){var sh=fpShots[si];
+   sh.m.position.x+=sh.vx*dt;sh.m.position.y+=sh.vy*dt;sh.m.position.z+=sh.vz*dt;
+   sh.vy-=4*dt;sh.life-=dt;var hit=null;
+   for(var hi=0;hi<fpNPCs.length;hi++){var hn=fpNPCs[hi];if(hn.down)continue;
+    var hx=sh.m.position.x-(FPX+hn.g.position.x),hz=sh.m.position.z-hn.g.position.z,hy=sh.m.position.y-(hn.g.position.y+0.9);
+    if(hx*hx+hz*hz<0.45&&Math.abs(hy)<1.2){hit=hn;break;}}
+   if(hit){hit.down=true;hit.resp=5;hit.wt=0;
+    showBubble(hit.name,'Ай! Парень, ты чего?! 😅');
+    floater('💫 бах!',FPX+hit.g.position.x,2.4,hit.g.position.z);
+    var gk2=['gold','mana','wood'][Math.floor(Math.random()*3)];S[gk2]+=5;save();renderHUD();
+    floater('+5 '+(gk2==='gold'?'🪙':gk2==='mana'?'💧':'🌲'),FPX+hit.g.position.x,2.0,hit.g.position.z);
+    toast('🎯 '+hit.name+' прилёг отдохнуть... +5 тебе за меткость!');
+    curIn.remove(sh.m);fpShots.splice(si,1);continue;}
+   if(sh.life<=0||sh.m.position.y<0){curIn.remove(sh.m);fpShots.splice(si,1);}}
   var cd=4.2,cp=Math.max(-0.15,Math.min(1.1,fpPitch));
   var cc=Math.cos(cp),ss2=Math.sin(cp);
   camera.position.set(FPX+fpPos.x+sy*cc*cd,2.1+ss2*cd,fpPos.z+cy*cc*cd);
@@ -1331,6 +1391,8 @@ document.getElementById('demoBtn').onclick=function(){var i=selIdx;if(i<0)return
 document.getElementById('enterBtn').onclick=function(){if(selIdx>=0)enterBuilding(selIdx);};
 document.getElementById('exitFp').onclick=exitBuilding;
 document.getElementById('talkBtn').onclick=function(){talkToBratuha();};
+document.getElementById('glockBtn').onclick=function(){toggleGlock();};
+document.getElementById('fireBtn').onclick=function(){shootGlock();};
 if(initThree()){refreshAll();renderHUD();loop();
  setInterval(function(){var p=prod();S.gold+=p.gold;S.mana+=p.mana;S.wood+=p.wood;
   var c=cap(),g=gardens();
@@ -1346,6 +1408,8 @@ window.__elf={get:function(){return S;},tool:function(){return tool;},build:func
  npcs:function(){return fpNPCs.map(function(n){return {name:n.name,x:Math.round(n.g.position.x*100)/100,z:Math.round(n.g.position.z*100)/100};});},
  near:function(){var n=nearestBratuha();return n?n.name:null;},
  talk:function(){talkToBratuha();return document.getElementById('npcBubble').textContent;},
+ glock:function(){toggleGlock();return glockOut;},
+ fire:function(){shootGlock();return fpShots.length;},
  fp:function(){return {mode:fpMode,type:fpType,x:Math.round(fpPos.x*100)/100,z:Math.round(fpPos.z*100)/100};}};
 </script>
 </body>
