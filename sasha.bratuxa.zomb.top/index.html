@@ -36,24 +36,12 @@ h1.mega .r{color:var(--red);text-shadow:0 0 34px rgba(255,59,59,.55)}
 h1.mega .b{color:var(--blue);text-shadow:0 0 34px rgba(59,130,255,.55)}
 .sub{margin:0;max-width:60ch;color:#c6cdf2;font-size:min(4.6vw,19px);line-height:1.55}
 .sub b{color:#fff}
-#score{margin-top:0;pointer-events:auto;cursor:pointer;user-select:none;
- border:1px solid var(--gold);border-radius:999px;padding:10px 26px;
- background:#0d1428;
- font-variant-numeric:tabular-nums;font-size:17px;letter-spacing:.06em}
-#score b{color:var(--gold);font-size:20px}
-#depBtn{margin-top:0;pointer-events:auto;cursor:pointer;user-select:none;
- border:1px solid var(--gold);border-radius:999px;padding:10px 26px;
- background:var(--gold);color:#231a00;font-weight:800;font-size:16px;letter-spacing:.04em}
-#depBtn:active{transform:scale(.96)}
-#rocket3d{position:fixed;inset:0;z-index:8;display:none;pointer-events:none}
-#flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:9}
+#playBtn{margin-top:0;pointer-events:auto;cursor:pointer;
+ border:1px solid var(--gold);border-radius:999px;padding:12px 42px;
+ background:var(--gold);color:#231a00;font-weight:800;font-size:18px;letter-spacing:.04em;
+ text-decoration:none}
+#playBtn:active{transform:scale(.96)}
 #hint{position:fixed;bottom:14px;width:100%;text-align:center;color:var(--dim);font-size:13px;pointer-events:none}
-#secret{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;
- background:rgba(4,6,14,.94);z-index:10;color:var(--gold);text-align:center;padding:24px}
-#secret .big{font-size:min(30vw,200px);line-height:1}
-#secret h2{color:#fff;margin:.4em 0 .2em}
-#ring{position:fixed;border:2px solid var(--gold);border-radius:50%;pointer-events:none;z-index:6;
- width:14px;height:14px;margin:-7px 0 0 -7px;opacity:0}
 :focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 @media (prefers-reduced-motion:reduce){#cv{display:none}}
 </style>
@@ -66,279 +54,36 @@ h1.mega .b{color:var(--blue);text-shadow:0 0 34px rgba(59,130,255,.55)}
  <div class="gridcol" id="gridcol">
  <div class="kicker" id="kicker">личная страница · <b>Саша ⁴²</b></div>
  <h1 class="mega" id="mega"><span class="r">4</span><span class="b">2</span></h1>
- <p class="sub" id="sub">Красно-синяя территория батальона. <b>Тыкай куда угодно</b> — цифры разлетаются,
- а счётчик копит очки. Доберись до <b>1764</b> — откроется секрет.</p>
- <div id="score" role="button" tabindex="0" title="Тыкай по экрану">счёт · <b id="scoreNum">0</b></div>
- <button id="depBtn" title="Вся зарплата — в счёт!">💰 Депнуть всю зарплату</button>
+ <p class="sub" id="sub">Красно-синяя территория батальона.<br>А внутри — игра: клики, счёт, депозит зарплаты и ракета <b>ZOV</b>.</p>
+ <a id="playBtn" href="game.html">🎮 Играть</a>
  </div>
 </main>
-<canvas id="rocket3d"></canvas>
-<div id="flash"></div>
-<div id="ring"></div>
 <div id="hint">а ещё 42 спрятаны… ищи 👀</div>
-<div id="secret"><div class="big">4️⃣2️⃣</div><h2>Ты нашёл все 42, Саша!</h2><p>Мы уже победили 🏆</p></div>
 <!-- тут тоже 42 -->
-<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script>
-/* Саша ⁴² · v2: GSAP-хореография + канвас-дождь */
-var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),P=[],score=0;
+/* Саша ⁴² · витрина: только дождь по клеткам, без кликов/счёта/ракеты */
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),P=[];
 var reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
 function fit(){cv.width=innerWidth;cv.height=innerHeight;}fit();addEventListener('resize',fit);
 /* дождь строго по клеткам сетки 64px: колонки ровные, падения отвесные */
 var CELL=64;
-function colX(x){return Math.round(x/CELL)*CELL+CELL/2;}
-function spawn(x,y,big){
+function spawn(x,y){
  if(x==null)x=Math.floor(Math.random()*Math.ceil(cv.width/CELL))*CELL+CELL/2;
- else x=colX(x);
  P.push({x:x,y:y==null?-50:y,
-  vy:(big?2.2:0.9)+Math.random()*(big?1.6:1.4),
-  s:big?44+Math.random()*38:13+Math.random()*24,
+  vy:0.9+Math.random()*1.4,
+  s:13+Math.random()*24,
   r:Math.random()<0.5,deep:Math.random()<0.4});
 }
 var RAIN_N=reduced?0:42;
 for(var i=0;i<RAIN_N;i++)spawn(Math.random()*innerWidth,Math.random()*innerHeight);
 if(!reduced)setInterval(function(){if(P.length<140)spawn();},450);
-var scoreNum=document.getElementById('scoreNum');
-function ring(x,y){
- if(reduced||!window.gsap)return;
- var r=document.getElementById('ring');
- gsap.killTweensOf(r);
- gsap.set(r,{x:x,y:y,scale:1,autoAlpha:1});
- gsap.to(r,{scale:9,autoAlpha:0,duration:.7,ease:'power2.out'});
-}
-function burst(x,y){
- if(reduced)return;
- for(var i=0;i<24;i++)spawn(x,y);
- score+=42;scoreNum.textContent=score;
- if(window.gsap)gsap.fromTo('#score',{scale:1},{scale:1.12,duration:.12,yoyo:true,repeat:1,ease:'power2.out'});
- ring(x,y);
- if(score>=42*42)launchRocket(x,y);
-}
-/* депозит всей зарплаты — всё в счёт, с ракетой! */
-function depositSalary(){
- if(reduced){score+=42000;scoreNum.textContent=score;showSecret();return;}
- var raw=null;
- try{raw=prompt('Сколько депнешь? Впиши ВСЮ зарплату:', '42000');}catch(e){raw=null;}
- if(raw===null)return;
- var amt=Math.floor(Number(String(raw).replace(/\s/g,'')));
- if(!isFinite(amt)||amt<1)amt=42;
- amt=Math.min(amt,999999999);
- score+=amt;scoreNum.textContent=score;
- var b=document.getElementById('depBtn'),r=b.getBoundingClientRect();
- if(window.gsap)gsap.fromTo('#depBtn',{scale:1},{scale:1.15,duration:.14,yoyo:true,repeat:1,ease:'power2.out'});
- ring(r.left+r.width/2,r.top+r.height/2);
- launchRocket(r.left+r.width/2,r.top);
-}
-/* --- ROCKET ZOV (three.js): из кнопки прямо в зрителя + эпичный взрыв --- */
-var RKT=null;
-function zovTexture(){
- var c=document.createElement('canvas');c.width=256;c.height=128;
- var g=c.getContext('2d');
- g.fillStyle='#c81e1e';g.fillRect(0,0,256,128);
- g.fillStyle='#fff';g.font='900 76px system-ui,sans-serif';
- g.textAlign='center';g.textBaseline='middle';
- g.fillText('ZOV',64,68);g.fillText('ZOV',192,68);
- var t=new THREE.CanvasTexture(c);return t;
-}
-function buildRocket(){
- var grp=new THREE.Group();
- var steel=new THREE.MeshStandardMaterial({color:0xdfe6f5,roughness:.35,metalness:.7});
- var red=new THREE.MeshStandardMaterial({color:0xc81e1e,roughness:.5,metalness:.3});
- var body=new THREE.Mesh(new THREE.CylinderGeometry(.34,.34,1.7,24),
-  new THREE.MeshStandardMaterial({map:zovTexture(),roughness:.5,metalness:.3}));
- grp.add(body);
- var bandT=new THREE.Mesh(new THREE.CylinderGeometry(.355,.355,.16,24),red);
- bandT.position.y=.7;grp.add(bandT);
- var bandB=bandT.clone();bandB.position.y=-.7;grp.add(bandB);
- var nose=new THREE.Mesh(new THREE.ConeGeometry(.34,.75,24),red);
- nose.position.y=1.22;grp.add(nose);
- var win=new THREE.Mesh(new THREE.SphereGeometry(.14,16,16),
-  new THREE.MeshStandardMaterial({color:0xffd23f,roughness:.15,metalness:.9,emissive:0x664400}));
- win.position.set(0,.45,.3);grp.add(win);
- for(var i=0;i<3;i++){
-  var fin=new THREE.Mesh(new THREE.BoxGeometry(.08,.6,.42),
-   new THREE.MeshStandardMaterial({color:0x3b82ff,roughness:.5,metalness:.4}));
-  var a=i/3*Math.PI*2;
-  fin.position.set(Math.cos(a)*.42,-.85,Math.sin(a)*.42);
-  fin.rotation.y=-a;grp.add(fin);
- }
- var flame=new THREE.Mesh(new THREE.ConeGeometry(.22,.9,16),
-  new THREE.MeshBasicMaterial({color:0xffa500,transparent:true,opacity:.95}));
- flame.position.y=-1.55;flame.rotation.x=Math.PI;flame.name='flame';grp.add(flame);
- var glow=new THREE.PointLight(0xff8c00,3,9);glow.position.y=-1.4;grp.add(glow);
- grp.userData={flame:flame,glow:glow};
- return grp;
-}
-function boomBits(scene,pos,n,spread,up){
- var geo=new THREE.BufferGeometry(),arr=new Float32Array(n*3),vel=[];
- for(var i=0;i<n;i++){
-  arr[i*3]=pos.x;arr[i*3+1]=pos.y;arr[i*3+2]=pos.z;
-  var th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1),sp=spread*(0.4+Math.random());
-  vel.push({x:Math.sin(ph)*Math.cos(th)*sp,y:Math.abs(Math.cos(ph))*sp*up,z:Math.sin(ph)*Math.sin(th)*sp,l:1});
- }
- geo.setAttribute('position',new THREE.BufferAttribute(arr,3));
- var mat=new THREE.PointsMaterial({color:0xffb020,size:.14,transparent:true,opacity:1,
-  blending:THREE.AdditiveBlending,depthWrite:false});
- var pts=new THREE.Points(geo,mat);scene.add(pts);
- return {pts:pts,vel:vel,geo:geo,mat:mat};
-}
-/* гимн + клёкот орла после взрыва (WebAudio, без файлов) */
-var AU=null;
-function auCtx(){try{
- if(!AU){var C=window.AudioContext||window.webkitAudioContext;if(!C)return null;AU=new C();}
- if(AU.state==='suspended')AU.resume();
- return AU;
-}catch(e){return null;}}
-function playAnthem(){
- try{
-  var ac=auCtx();if(!ac)return;
-  var seq=[[392,.22],[392,.22],[392,.4],[440,.4],[466.16,.4],[466.16,.4],[440,.22],[392,.22],[440,.9],[523.25,.9]];
-  var t0=ac.currentTime+.05,g=ac.createGain();g.gain.value=.22;g.connect(ac.destination);
-  var t=t0;
-  seq.forEach(function(n){
-   var o=ac.createOscillator();o.type='triangle';o.frequency.value=n[0];
-   var og=ac.createGain();og.gain.setValueAtTime(0,t);
-   og.gain.linearRampToValueAtTime(1,t+.03);og.gain.setValueAtTime(1,t+Math.max(.05,n[1]-.05));
-   og.gain.linearRampToValueAtTime(0,t+n[1]);
-   o.connect(og);og.connect(g);o.start(t);o.stop(t+n[1]+.05);t+=n[1]+.04;
-  });
- }catch(e){}
-}
-function eagleScream(delay){
- try{
-  var ac=auCtx();if(!ac)return;
-  var t0=ac.currentTime+(delay||0);
-  [1,.6].forEach(function(v,i){
-   var o=ac.createOscillator();o.type='sawtooth';
-   o.frequency.setValueAtTime(2400,t0+i*.4);
-   o.frequency.exponentialRampToValueAtTime(750,t0+i*.4+1.0);
-   var lfo=ac.createOscillator();lfo.frequency.value=28;
-   var lg=ac.createGain();lg.gain.value=.5*v;
-   lfo.connect(lg);
-   var g=ac.createGain();g.gain.value=.12*v;
-   lg.connect(g.gain);o.connect(g);g.connect(ac.destination);
-   o.start(t0+i*.4);o.stop(t0+i*.4+1.1);lfo.start(t0+i*.4);lfo.stop(t0+i*.4+1.1);
-  });
- }catch(e){}
-}
-function launchRocket(sx,sy){
- if(reduced||typeof THREE==='undefined'){showSecret();return;}
- if(RKT&&RKT.busy)return;
- var cv3=document.getElementById('rocket3d');
- cv3.style.display='block';
- var W=innerWidth,H=innerHeight;
- var renderer=new THREE.WebGLRenderer({canvas:cv3,alpha:true,antialias:true});
- renderer.setSize(W,H);renderer.setPixelRatio(Math.min(devicePixelRatio,2));
- var scene=new THREE.Scene();
- var camera=new THREE.PerspectiveCamera(60,W/H,.1,100);
- camera.position.set(0,0,6);camera.lookAt(0,0,0);
- scene.add(new THREE.AmbientLight(0xffffff,.7));
- var dl=new THREE.DirectionalLight(0xffffff,1.4);dl.position.set(4,6,6);scene.add(dl);
- var flashL=new THREE.PointLight(0xffffff,0,30);flashL.position.set(0,0,3);scene.add(flashL);
- var rocket=buildRocket();scene.add(rocket);
- var nx=(sx/W)*2-1,ny=-((sy/H)*2-1);
- var clock=new THREE.Clock(),t=0,bits=null,ringM=null,phase='fly',shake=0;
- var flashEl=document.getElementById('flash');
- RKT={busy:true};
- /* старт: маленькая у кнопки, летит прямо в зрителя */
- rocket.position.set(nx*4,ny*3,-9);rocket.scale.setScalar(.55);
- (function anim(){
-  if(!RKT||!RKT.busy)return;
-  var dt=Math.min(clock.getDelta(),.05);t+=dt;
-  if(phase==='fly'){
-   var k=Math.min(t/1.5,1),e=1-Math.pow(1-k,3);
-   rocket.position.z=-9+e*11.2;
-   rocket.position.x=nx*4*(1-e*.85);
-   rocket.position.y=ny*3*(1-e*.85);
-   rocket.scale.setScalar(.55+e*2.1);
-   rocket.rotation.z=Math.sin(t*30)*.06*(1+k*2);
-   rocket.rotation.y+=dt*2.5;
-   var f=rocket.userData.flame;
-   f.scale.set(1+Math.random()*.5,.8+Math.random()*.9,1+Math.random()*.5);
-   rocket.userData.glow.intensity=2.5+Math.random()*2;
-   shake=k*.12;
-   if(Math.random()<.8){
-    var sm=boomBits(scene,rocket.position.clone().add(new THREE.Vector3(0,-.9,0)),3,.5,.3);
-    sm.pts.material.color.set(0x8899aa);sm.pts.material.size=.1;
-    (RKT.trail=RKT.trail||[]).push({o:sm,age:0});
-   }
-   if(RKT.trail)for(var i=RKT.trail.length-1;i>=0;i--){
-    var tr=RKT.trail[i];tr.age+=dt;
-    var pa=tr.o.pts.geometry.attributes.position.array;
-    for(var j=0;j<tr.o.vel.length;j++){pa[j*3]+=tr.o.vel[j].x*dt;pa[j*3+1]+=tr.o.vel[j].y*dt;pa[j*3+2]+=tr.o.vel[j].z*dt;}
-    tr.o.pts.geometry.attributes.position.needsUpdate=true;
-    tr.o.pts.material.opacity=Math.max(0,.5-tr.age);
-    if(tr.age>.6){scene.remove(tr.o.pts);tr.o.geo.dispose();tr.o.mat.dispose();RKT.trail.splice(i,1);}
-   }
-   if(k>=1){
-    phase='boom';t=0;scene.remove(rocket);
-    bits=boomBits(scene,new THREE.Vector3(0,0,2),220,7,1);
-    var rg=new THREE.RingGeometry(.3,.5,48);
-    ringM=new THREE.Mesh(rg,new THREE.MeshBasicMaterial({color:0xffd23f,transparent:true,opacity:.95,side:THREE.DoubleSide}));
-    ringM.position.set(0,0,2);scene.add(ringM);
-    flashL.intensity=14;shake=.5;
-    flashEl.style.transition='none';flashEl.style.opacity='0.9';
-    requestAnimationFrame(function(){flashEl.style.transition='opacity .6s';flashEl.style.opacity='0';});
-    if(window.gsap)gsap.fromTo('#ring',{scale:1,autoAlpha:1},{scale:26,autoAlpha:0,duration:1,ease:'power2.out'});
-    try{if(navigator.vibrate)navigator.vibrate(80);}catch(e){}
-    if(!reduced){playAnthem();eagleScream(.3);}
-   }
-  }else{
-   var pa2=bits.pts.geometry.attributes.position.array;
-   for(var m=0;m<bits.vel.length;m++){
-    pa2[m*3]+=bits.vel[m].x*dt;pa2[m*3+1]+=bits.vel[m].y*dt-2.2*dt;pa2[m*3+2]+=bits.vel[m].z*dt;
-   }
-   bits.pts.geometry.attributes.position.needsUpdate=true;
-   bits.mat.opacity=Math.max(0,1-t*.9);
-   if(ringM){ringM.scale.addScalar(dt*14);ringM.material.opacity=Math.max(0,.95-t*.9);}
-   flashL.intensity=Math.max(0,14-t*16);
-   shake=Math.max(0,.5-t*.5);
-   if(t>1.4){
-    RKT.busy=false;
-    scene.traverse(function(o){
-     if(o.geometry)o.geometry.dispose();
-     if(o.material){(Array.isArray(o.material)?o.material:[o.material]).forEach(function(mm){if(mm.map)mm.map.dispose();mm.dispose();});}
-    });
-    renderer.dispose();cv3.style.display='none';
-    showSecret();return;
-   }
-  }
-  camera.position.set((Math.random()-.5)*shake,(Math.random()-.5)*shake,6);
-  camera.lookAt(0,0,0);
-  renderer.render(scene,camera);
-  requestAnimationFrame(anim);
- })();
-}
-function showSecret(){
- var s=document.getElementById('secret');s.style.display='flex';
- if(window.gsap){
-  gsap.fromTo('#secret .big',{scale:.4,rotation:-12,autoAlpha:0},{scale:1,rotation:0,autoAlpha:1,duration:.8,ease:'back.out(1.6)'});
-  gsap.fromTo('#secret h2',{y:26,autoAlpha:0},{y:0,autoAlpha:1,duration:.5,delay:.25,ease:'power2.out'});
- }
-}
-document.getElementById('secret').onclick=function(){this.style.display='none';score=0;scoreNum.textContent='0';};
-document.getElementById('score').onclick=function(e){e.stopPropagation();};
-document.getElementById('depBtn').onclick=function(e){e.stopPropagation();depositSalary();};
-/* крючок для тестов */
-window.__sasha42={score:function(){return score;},burst:function(x,y){burst(x||innerWidth/2,y||innerHeight/2);return score;},rocket:function(x,y){launchRocket(x||innerWidth/2,y||innerHeight/2);return !!(RKT&&RKT.busy);},three:function(){return typeof THREE}};
-addEventListener('pointerdown',function(e){
- if(e.target.closest&&e.target.closest('#secret'))return;
- burst(e.clientX,e.clientY);
-});
-/* скрытая 42: жми 4 потом 2 */
-var seq='';
-addEventListener('keydown',function(e){
- seq=(seq+e.key).slice(-2);
- if(seq==='42')showSecret();
- if((e.key==='Enter'||e.key===' ')&&e.target.id==='score')burst(innerWidth/2,innerHeight/2);
-});
 /* входная хореография */
 if(window.gsap&&!reduced){
  gsap.from('#kicker',{y:-18,autoAlpha:0,duration:.7,ease:'power2.out'});
  gsap.from('#mega span',{y:90,autoAlpha:0,rotation:function(){return Math.random()*30-15;},duration:1,stagger:.14,ease:'back.out(1.5)',delay:.15});
  gsap.from('#sub',{y:24,autoAlpha:0,duration:.7,delay:.7,ease:'power2.out'});
- gsap.from('#score',{y:24,autoAlpha:0,duration:.6,delay:.9,ease:'back.out(1.7)'});
+ gsap.from('#playBtn',{y:24,autoAlpha:0,duration:.6,delay:.9,ease:'back.out(1.7)'});
  gsap.from('#hint',{autoAlpha:0,duration:1,delay:1.2});
 }else{
  var m=document.getElementById('mega');
@@ -348,7 +93,6 @@ if(window.gsap&&!reduced){
 (function loop(){
  ctx.clearRect(0,0,cv.width,cv.height);
  if(!reduced){
-  var t=Date.now()/1000;
   for(var i=P.length-1;i>=0;i--){var p=P[i];
    p.y+=p.vy*(p.deep?0.6:1);
    if(p.y>cv.height+60){P.splice(i,1);continue;}
