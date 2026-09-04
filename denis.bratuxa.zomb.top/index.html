@@ -7,7 +7,7 @@
 <style>
 *{box-sizing:border-box}body{margin:0;background:#000;color:#fff;font-family:Arial,sans-serif;overflow:hidden}
 #ui{position:fixed;inset:0;pointer-events:none}
-#stats{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.7);border:2px solid gold;border-radius:20px;padding:6px 12px;font-size:15px;font-weight:bold;white-space:nowrap}#guideBtn,#legendBtn{background:gold;border:none;border-radius:50%;width:24px;height:24px;font-size:13px;cursor:pointer;margin-left:4px;pointer-events:auto}#guide{position:absolute;top:52px;left:10px;max-width:300px;background:rgba(0,0,0,.7);border:1px solid #888;border-radius:10px;padding:6px 10px;font-size:12px;line-height:1.5}#mission{font-size:13px;max-width:260px}
+#stats{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.7);border:2px solid gold;border-radius:20px;padding:6px 12px;font-size:15px;font-weight:bold;white-space:nowrap}#guideBtn,#legendBtn,#vDn,#vUp{background:gold;border:none;border-radius:50%;width:24px;height:24px;font-size:13px;cursor:pointer;margin-left:4px;pointer-events:auto}#guide{position:absolute;top:52px;left:10px;max-width:300px;background:rgba(0,0,0,.7);border:1px solid #888;border-radius:10px;padding:6px 10px;font-size:12px;line-height:1.5}#mission{font-size:13px;max-width:260px}
 #mission{position:absolute;top:10px;right:10px;max-width:320px;background:rgba(0,0,0,.75);border:2px solid #0f6;border-radius:10px;padding:8px 12px;font-size:14px}
 #dialog{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);width:min(640px,92vw);background:#111;border:3px solid gold;border-radius:12px;padding:14px;font-size:16px;pointer-events:auto}
 #dialog button{background:gold;border:none;font-weight:bold;padding:8px 16px;border-radius:8px;cursor:pointer;margin-top:8px}
@@ -43,7 +43,7 @@ b.gold{color:gold}b.grn{color:#0f6}b.red{color:#f55}
 </head>
 <body>
 <div id="ui">
-<div id="stats">❤️ <span id="hp">100</span> 🏆 <span id="resp">0</span> 🪙 <span id="money">0</span> 🗺️ <span id="terr">15%</span> 📻 <span id="radio">VICE 42 FM</span> <button id="guideBtn" title="подсказки (H)">❓</button><button id="legendBtn" title="метки квестов">🏷️</button></div>
+<div id="stats">❤️ <span id="hp">100</span> 🏆 <span id="resp">0</span> 🪙 <span id="money">0</span> 🗺️ <span id="terr">15%</span> 📻 <span id="radio">VICE 42 FM</span> <button id="guideBtn" title="подсказки (H)">❓</button><button id="legendBtn" title="метки квестов">🏷️</button><button id="vDn" title="музыка тише (-)">🔉</button><button id="vUp" title="музыка громче (+)">🔊</button></div>
 <div id="guide">WASD — идти • Shift — бег • E — действие • F — тачка • ЛКМ — бита • C — камера<br><span class="pconly">ПКМ/колесо(зажать)/стрелки — взгляд • колесо — зум • R — радио • M — звук • V — озвучка • H — скрыть • N — карта •</span> <span class="mobonly">свайп — взгляд • 🔼🔽 — вверх/вниз •</span> 🥫 энергетик за 10 респекта • <span id="gfx">⚡АВТО</span></div>
 <div id="radiopop" style="position:absolute;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);border:2px solid magenta;border-radius:10px;padding:8px 18px;font-size:18px;display:none">📻 <span id="radiopop-t"></span></div>
 <div id="mission">📜 <b id="mtitle">Миссия 1: Возвращение</b><br><span id="mdesc">Иди в штаб (жёлтая метка H)</span></div>
@@ -496,6 +496,8 @@ let HIDE_HELP=false;
 document.getElementById('guideBtn').addEventListener('click',()=>{HIDE_HELP=!HIDE_HELP;for(const id of ['guide','mission','hint']){const el=document.getElementById(id);if(el)el.style.display=HIDE_HELP?'none':'';}});
 let LEG_HIDE=false;try{if(matchMedia('(pointer:coarse)').matches){LEG_HIDE=true;document.getElementById('maplegend').style.display='none';}}catch(_){}
 try{document.getElementById('legendBtn').addEventListener('click',()=>{LEG_HIDE=!LEG_HIDE;const el=document.getElementById('maplegend');if(el)el.style.display=LEG_HIDE?'none':'';});}catch(_){}
+try{document.getElementById('vDn').addEventListener('click',()=>{try{AU.setVol(-0.1);}catch(_){}});}catch(_){}
+try{document.getElementById('vUp').addEventListener('click',()=>{try{AU.setVol(0.1);}catch(_){}});}catch(_){}
 addEventListener('keydown',e=>{if(e.code==='KeyH'){HIDE_HELP=!HIDE_HELP;for(const id of ['guide','mission','hint']){const el=document.getElementById(id);if(el)el.style.display=HIDE_HELP?'none':'';}}});
 // тачка
 const car=new THREE.Group();
@@ -780,7 +782,7 @@ function dispatchKey(code){addEventListener('keydown',{},{once:true});const ev=n
 
 // ===== АТМОСФЕРНЫЙ САУНД — VICE CITY 42 =====
 // Всё процедурное на WebAudio, без внешних файлов. Старт после клика (autoplay-policy).
-const AU={ctx:null,muted:false,station:0,stations:[
+const AU={ctx:null,muted:false,vol:0.8,station:0,stations:[
  {name:'ТРЕК 42 🎵',anthem:true}],
  step:0,nextT:0,timer:null,eng:null,engGain:null,engFilter:null};
 AU.init=function(){
@@ -897,7 +899,7 @@ AU.viceSting=function(){if(!AU.ctx||AU.muted)return;[110,138,165,220,277].forEac
 AU.playAnthem=function(){
  const el=document.getElementById('anthem');if(!el)return;
  try{el.muted=false;if(AU.muted)el.muted=true;}catch(_){}
- try{el.volume=1;}catch(_){}
+ try{el.volume=AU.vol;}catch(_){}
  try{el.playbackRate=1;}catch(_){} // твой трек — родная скорость
  const pr=el.play();
  const popT=document.getElementById('radiopop-t');
@@ -921,9 +923,12 @@ AU.toggleMute=function(){
  try{document.getElementById('anthem').muted=AU.muted;}catch(_){}
  document.getElementById('radio').textContent=AU.muted?'🔇 БЕЗ ЗВУКА (M)':AU.stations[AU.station].name;
 };
+AU.setVol=function(d){AU.vol=Math.max(0,Math.min(1,Math.round((AU.vol+d)*10)/10));try{document.getElementById('anthem').volume=AU.vol;}catch(_){}try{const p=document.getElementById('radiopop');p.style.display='block';document.getElementById('radiopop-t').textContent='🔊 Музыка '+Math.round(AU.vol*100)+'%';setTimeout(()=>p.style.display='none',1200);}catch(_){}};
 addEventListener('keydown',e=>{
  if(e.code==='KeyR'){try{AU.nextStation();}catch(_){}}
  if(e.code==='KeyM'){try{AU.toggleMute();}catch(_){}}
+ if(e.code==='Minus'||e.code==='BracketLeft'){try{AU.setVol(-0.1);}catch(_){}}
+ if(e.code==='Equal'||e.code==='BracketRight'){try{AU.setVol(0.1);}catch(_){}}
  if(AU.ctx&&!AU.muted&&(e.code==='KeyW'||e.code==='KeyA'||e.code==='KeyS'||e.code==='KeyD')&&Math.random()<.04)AU.blip(200+Math.random()*80,.05,'sine',.03);
 });
 dnext.addEventListener('click',()=>{try{AU.blip(500+Math.random()*200,.07,'square',.08);}catch(_){}});
