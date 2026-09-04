@@ -1,5 +1,5 @@
 // Финал забега: разбитая бутылка за 50000, только когда всё скуплено.
-import { ARTS, BOTTLE_COST, SYNS, isAllBought } from '../../game/zapoi/index';
+import { BASE_ARTS, BOTTLE_COST, SYNS, isAllBought } from '../../game/zapoi/index';
 import type { ZapoiState } from '../../game/zapoi/index';
 
 interface BottleProps {
@@ -22,7 +22,7 @@ export default function Bottle({ z, charName, onShatter }: BottleProps) {
           <p className="hint">Бутылка разобьётся, забег завершится, {charName} будет закрыт ✅</p>
         </div>
       ) : (
-        <p className="hint">🔒 Бутылка появится, когда скупишь всё (древо MAX + {ARTS.length} артефактов + {SYNS.length} синергий) и накопишь {BOTTLE_COST.toLocaleString('ru-RU')} бухла.</p>
+        <p className="hint">🔒 Бутылка появится, когда скупишь всё (древо MAX + {BASE_ARTS.length} базовых артефактов + {SYNS.length} синергий, именные не нужны) и накопишь {BOTTLE_COST.toLocaleString('ru-RU')} бухла.</p>
       )}
     </>
   );
