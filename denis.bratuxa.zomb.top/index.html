@@ -105,9 +105,10 @@ function massif(x,z){
  const g1=30*Math.exp(-((x+40)*(x+40)+(z+182)*(z+182))/(2*52*52)); // главная вершина
  const g2=22*Math.exp(-((x-125)*(x-125)+(z-176)*(z-176))/(2*36*36)); // вторая вершина
  const g3=14*Math.exp(-((x-178)*(x-178)+(z-120)*(z-120))/(2*28*28)); // хребет
+ const g4=26*Math.exp(-((x-178)*(x-178)+(z-60)*(z-60))/(2*42*42)); // вторая гора (восток)
  const rg=1-Math.abs(Math.sin(x*0.11+1.3)*Math.sin(z*0.13+0.7)); // острые гребни
  const mo=Math.sin(x*0.23+0.5)*Math.cos(z*0.21+1.1)*2+Math.sin(x*0.05+2.2)*Math.cos(z*0.06)*3; // средние складки
- return (g1+g2+g3+rg*rg*7+mo)*mtnM;
+ return (g1+g2+g3+g4+rg*rg*7+mo)*mtnM;
 }
 function baseH(x,z){
  const r=10;
@@ -120,10 +121,38 @@ function groundHeight(x,z){
  let h=baseH(x,z);
  for(const f of AUTOPAD){const d=Math.hypot(x-f.x,z-f.z);if(d<f.r){const t=d/f.r,s=t*t*(3-2*t);h=f.h+(h-f.h)*s;}}
  for(const f of FLAT){const d=Math.hypot(x-f.x,z-f.z);if(d<f.r){const t=d/f.r,s=t*t*(3-2*t);h=f.h+(h-f.h)*s;}} // ровные площадки под зданиями
+ const ph=pathH(x,z);if(ph){const t=ph.d/9,s=t*t*(3-2*t);h=ph.h+(h-ph.h)*s;} // тропа к пещере
  return h;
 }
 function GY(x,z){return groundHeight(x,z);}
-const FLAT=[{x:0,z:-140,r:36,h:0.8},{x:60,z:-155,r:36,h:baseH(60,-155)}]; // площадки: SLAY ровно на городе, пещера ровно на склоне массива
+const FLAT=[{x:0,z:-140,r:36,h:0.8},{x:158,z:-108,r:36,h:baseH(158,-108)}]; // площадки: SLAY ровно на городе, пещера ровно на седловине
+// тропа к пещере между двумя горами (цепочка точек, высота сэмплится из рельефа)
+const PATH=[{x:95,z:-55},{x:110,z:-70},{x:125,z:-85},{x:140,z:-95},{x:150,z:-92},{x:156,z:-86}];
+PATH.forEach(p=>p.h=baseH(p.x,p.z));
+function pathH(x,z){
+ let best=null;
+ for(let i=0;i<PATH.length-1;i++){
+  const ax=PATH[i],bx=PATH[i+1];
+  const dx=bx.x-ax.x,dz=bx.z-ax.z,L2=dx*dx+dz*dz||1;
+  let t=((x-ax.x)*dx+(z-ax.z)*dz)/L2;t=t<0?0:(t>1?1:t);
+  const px=ax.x+dx*t,pz=ax.z+dz*t,d=Math.hypot(x-px,z-pz);
+  if(d<9){const h=ax.h+(bx.h-ax.h)*t;if(!best||d<best.d)best={d:d,h:h};}
+ }
+ return best;
+}
+// стена от крутых склонов: не пускает на резкий подъём, скользит вдоль
+function slopeBlock(px,pz,nx,nz){
+ const h0=GY(px,pz),h1=GY(nx,nz);
+ const d=Math.hypot(nx-px,nz-pz);
+ if(d<0.001)return [nx,nz];
+ if((h1-h0)/d>0.85){
+  const ax=Math.abs(nx-px)||0.001,az=Math.abs(nz-pz)||0.001;
+  if((GY(nx,pz)-h0)/ax<0.85)return [nx,pz];
+  if((GY(px,nz)-h0)/az<0.85)return [px,nz];
+  return [px,pz];
+ }
+ return [nx,nz];
+}
 const ZONE_COL={beach:new THREE.Color(0xd9b84a),shore:new THREE.Color(0xc9a94e),city:new THREE.Color(0x1c1c24),forest:new THREE.Color(0x1e6a34),mtn:new THREE.Color(0x3e7a33),road:new THREE.Color(0x33333d)};
 function zoneColor(x,z,out){
  let isCF=false;
@@ -821,7 +850,7 @@ addEventListener('keydown',e=>{
 dnext.addEventListener('click',()=>{try{AU.blip(500+Math.random()*200,.07,'square',.08);}catch(_){}});
 
 // ===== ПАСХАЛКА: ПЕЩЕРА-ЛАБИРИНТ (скрытая, без маркеров) =====
-const CAVE={x:60,z:-155,r:34,done:false,shardN:0,boss:null,bossState:0,bossDead:false,proj:[],shards:[],normiesSpawned:false,wings:null,flyT:0};
+const CAVE={x:158,z:-108,r:34,done:false,shardN:0,boss:null,bossState:0,bossDead:false,proj:[],shards:[],normiesSpawned:false,wings:null,flyT:0};
 QUEST.CAVE={x:CAVE.x,z:CAVE.z};
 try{marker(CAVE.x,CAVE.z+34,0x00ffcc,'⛰');}catch(_){} // пещера видна на карте (вход с юга)
 (function(){
@@ -896,7 +925,7 @@ function rock(x,z,s){const m=new THREE.Mesh(new THREE.ConeGeometry(4*s,7*s,5),ne
   if(Math.abs(baseH(x+4,z)-baseH(x-4,z))>7)continue; // слишком круто
   if(Math.abs(baseH(x,z+4)-baseH(x,z-4))>7)continue;
   if(!decorFree(x,z,4))continue;
-  if(Math.hypot(x-60,z+155)<42)continue; // не на пещере
+  if(Math.hypot(x-CAVE.x,z-CAVE.z)<42)continue; // не на пещере
   palm(x,z,1.1+rnd()*0.4);placed++;
  }
 })();
@@ -911,7 +940,7 @@ function rock(x,z,s){const m=new THREE.Mesh(new THREE.ConeGeometry(4*s,7*s,5),ne
   const sl=(Math.abs(baseH(x+2,z)-baseH(x-2,z))+Math.abs(baseH(x,z+2)-baseH(x,z-2)))/4;
   if(sl<0.35)continue; // валуны только на крутом
   if(!decorFree(x,z,4))continue;
-  if(Math.hypot(x-60,z+155)<42)continue;
+  if(Math.hypot(x-CAVE.x,z-CAVE.z)<42)continue;
   const s=1+rnd()*1.5;
   const m=new THREE.Mesh(new THREE.DodecahedronGeometry(s,0),new THREE.MeshStandardMaterial({color:0x5f5b55,roughness:1,flatShading:true}));m.position.set(x,s*0.4,z);m.rotation.set(rnd()*3,rnd()*3,rnd()*3);m.castShadow=true;scene.add(m);
   solids.push({x,z,hx:s,hz:s,mesh:m,extra:[]});
@@ -1200,23 +1229,23 @@ const _cs=Math.cos(camAng),_sn=Math.sin(camAng);
 let mx=ix*_cs-iy*_sn,mz=-ix*_sn-iy*_cs;
 const sp=10*run*dt;
 player.position.x+=mx*sp;player.position.z+=mz*sp;
-player.position.x=Math.max(-190,Math.min(190,player.position.x));player.position.z=Math.max(-190,Math.min(190,player.position.z));{const r=collide(player.position.x,player.position.z,1);player.position.x=r[0];player.position.z=r[1];}
+player.position.x=Math.max(-190,Math.min(190,player.position.x));player.position.z=Math.max(-190,Math.min(190,player.position.z));{const _ox=player.position.x-mx*sp,_oz=player.position.z-mz*sp;const r=collide(player.position.x,player.position.z,1);player.position.x=r[0];player.position.z=r[1];const sb=slopeBlock(_ox,_oz,player.position.x,player.position.z);player.position.x=sb[0];player.position.z=sb[1];}
 if(mx||mz)player.rotation.y=Math.atan2(mx,mz);
 // кот-анимация: лапы + хвост
 const wob=Math.sin(Date.now()*0.012)*((Math.abs(mx)+Math.abs(mz))>0.05?1:0);
 paws.forEach((p,i)=>{p.position.y=.4+((i%2?1:-1)*wob*.25);});
 tail.rotation.z=Math.sin(Date.now()*0.006)*.5;
 head.position.y=2.1+Math.abs(wob)*.06;
-player.visible=!inCar;try{AU.engineUpdate(0,false);}catch(_){}player.position.y=GY(player.position.x,player.position.z);
+player.visible=!inCar;try{AU.engineUpdate(0,false);}catch(_){}player.position.y+=(GY(player.position.x,player.position.z)-player.position.y)*Math.min(1,dt*6);
 }else if(inCar){
 let f=((keys['KeyW']?1:0)-(keys['KeyS']?1:0))-touchY;
 carSpeed+=f*20*dt;carSpeed*=0.98;carSpeed=Math.max(-12,Math.min(28,carSpeed));try{AU.engineUpdate(carSpeed,true);}catch(_){}
 if(keys['KeyA']||touchX<-0.3)car.rotation.y+=1.8*dt*(carSpeed>0?1:-1);
 if(keys['KeyD']||touchX>0.3)car.rotation.y-=1.8*dt*(carSpeed>0?1:-1);
-car.position.x+=Math.sin(car.rotation.y)*carSpeed*dt;car.position.z+=Math.cos(car.rotation.y)*carSpeed*dt;{const r=collide(car.position.x,car.position.z,2.5);if(Math.abs(r[0]-car.position.x)+Math.abs(r[1]-car.position.z)>0.001)carSpeed*=0.4;car.position.x=r[0];car.position.z=r[1];}
+car.position.x+=Math.sin(car.rotation.y)*carSpeed*dt;car.position.z+=Math.cos(car.rotation.y)*carSpeed*dt;{const _cx=car.position.x-Math.sin(car.rotation.y)*carSpeed*dt,_cz=car.position.z-Math.cos(car.rotation.y)*carSpeed*dt;const r=collide(car.position.x,car.position.z,2.5);if(Math.abs(r[0]-car.position.x)+Math.abs(r[1]-car.position.z)>0.001)carSpeed*=0.4;car.position.x=r[0];car.position.z=r[1];const sb2=slopeBlock(_cx,_cz,car.position.x,car.position.z);car.position.x=sb2[0];car.position.z=sb2[1];}
 car.userData.wheels.forEach(w=>w.rotation.x+=carSpeed*dt*2);
 car.position.x=Math.max(-190,Math.min(190,car.position.x));car.position.z=Math.max(-190,Math.min(190,car.position.z)); // вода-стена
-car.position.y=GY(car.position.x,car.position.z);
+car.position.y+=(GY(car.position.x,car.position.z)-car.position.y)*Math.min(1,dt*6);
 player.position.set(car.position.x,car.position.y,car.position.z);
 if(MI===5){MI5t-=dt;setM('Миссия 5: Гонка','До SLAY: '+Math.ceil(MI5t)+' сек — жми!');if(near(0,-120,16)){try{enterVinlineWorld();}catch(_){}}else if(MI5t<=0){MI5t=90;car.position.set(33,GY(33,95),95);carSpeed=0;}}
 }
@@ -1237,14 +1266,14 @@ try{caveTick(dt);}catch(_){}
 for(const e of enemies){if(e.hp<=0)continue;
  if(e.cave&&Math.hypot(player.position.x-CAVE.x,player.position.z-CAVE.z)>45)continue; // привязь: пещерные не уходят с арены
  if(e.parts){const w=Math.sin(Date.now()*0.01+e.phase);e.parts.legL.rotation.x=w*.6;e.parts.legR.rotation.x=-w*.6;e.parts.armL.rotation.x=-w*.5;e.parts.armR.rotation.x=w*.5;}
- const d=dist(player,e.mesh);if(d<30){const dx=(player.position.x-e.mesh.position.x)/d,dz=(player.position.z-e.mesh.position.z)/d;e.mesh.position.x+=dx*4*dt;e.mesh.position.z+=dz*4*dt;if(!e.fly)e.mesh.position.y=GY(e.mesh.position.x,e.mesh.position.z);
+ const d=dist(player,e.mesh);if(d<30){const dx=(player.position.x-e.mesh.position.x)/d,dz=(player.position.z-e.mesh.position.z)/d;e.mesh.position.x+=dx*4*dt;e.mesh.position.z+=dz*4*dt;if(!e.fly)e.mesh.position.y+=(GY(e.mesh.position.x,e.mesh.position.z)-e.mesh.position.y)*Math.min(1,dt*6);
 if(d<2.2){HP-=20*dt;document.getElementById('hp').textContent=Math.ceil(HP);if(HP<=0){HP=100;if(FIN.stage)player.position.set(0,GY(0,-100),-100);else player.position.set(25,GY(25,95),95);player.position.y=GY(player.position.x,player.position.z);document.getElementById('hp').textContent=100;}}}}
 // камера
 const focus=inCar?car.position:player.position;
 if(keys['ArrowLeft'])camAng-=2.2*dt;if(keys['ArrowRight'])camAng+=2.2*dt;
 if(keys['ArrowUp'])camPitch=clampPitch(camPitch-1.4*dt);if(keys['ArrowDown'])camPitch=clampPitch(camPitch+1.4*dt);
 {const cp=Math.cos(camPitch),sp=Math.sin(camPitch);
-const _gy=GY(focus.x,focus.z); // камера едет за высотой игрока/тачки
+const _gy=focus.position.y; // камера едет за плавной высотой игрока/тачки
 const camY=Math.max(_gy+1.2,_gy+2+sp*camDist),lookY=_gy+2-sp*camDist*0.55;
 cam.position.set(focus.x+Math.sin(camAng)*camDist*cp,camY,focus.z+Math.cos(camAng)*camDist*cp);
 cam.userData.lookY=lookY;}
