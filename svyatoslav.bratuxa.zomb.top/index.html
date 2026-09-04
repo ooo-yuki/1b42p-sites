@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>СВЯТОСЛАВ ПЛАТОНОВ — Казино 42 🏆</title>
+<title>Казино 42 🏆</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--red:#e63946;--blue:#1d3557;--gold:#ffd700;--bg:#0a0a1a}
@@ -61,7 +61,7 @@ footer{text-align:center;padding:20px;color:var(--gold);font-size:14px;border-to
 </head>
 <body>
 <header>
-<h1>СВЯТОСЛАВ ПЛАТОНОВ <span class="n42">× 42</span> 🎰</h1>
+<h1>КАЗИНО <span class="n42">× 42</span> 🎰</h1>
 <div class="sub">Мини-казино батальона: всё по 42, всё для победы!</div>
 <div><span class="mantra">Мы уже победили 🏆</span></div>
 </header>
@@ -80,7 +80,7 @@ footer{text-align:center;padding:20px;color:var(--gold);font-size:14px;border-to
 <!-- ROULETTE -->
 <section id="roulette" class="game active">
 <h2>🎡 РУЛЕТКА 42</h2>
-<div class="meme">«Святослав крутанул раз — выпало 42. Крутанул два — опять 42. Совпадение? Не думаем.» © батальон</div>
+<div class="meme">«Крутанул раз — выпало 42. Крутанул два — опять 42. Совпадение? Не думаем.» © батальон</div>
 <div class="hint">Европейская рулетка 0–36. Красное/чёрное ×2, число ×35! Ставка: 5 монет.</div>
 <div id="wheelWrap"><div id="pointer">👇</div><div id="wheel"></div></div>
 <div class="rControls">
@@ -104,7 +104,7 @@ footer{text-align:center;padding:20px;color:var(--gold);font-size:14px;border-to
 <!-- TIR -->
 <section id="tir" class="game">
 <h2>🔫 ТИР БАТАЛЬОНА</h2>
-<div class="meme">«Святослав попадает даже с закрытыми глазами. Мишени сами сдаются.» 🎯</div>
+<div class="meme">«Чемпион попадает даже с закрытыми глазами. Мишени сами сдаются.» 🎯</div>
 <div class="hint">Раунд 30 сек, вход 5 монет. Клик по мишени = выстрел. 🟡 золото +3 очка · 🔴 +2 · 🔵 +1. Награды: 10+ очков = +10, 20+ = +25, 35+ = +50, 50+ = +100 монет!</div>
 <div id="tirHud"><span>⏱ <span id="tTime">30</span>с</span><span>🎯 Очки: <span id="tScore">0</span></span><span>💥 Выстрелы: <span id="tShots">0</span></span></div>
 <div class="center" style="margin-bottom:10px"><button class="betBtn" id="tirBtn" onclick="startTir()">🔫 НАЧАТЬ РАУНД (5 монет)</button></div>
@@ -113,7 +113,7 @@ footer{text-align:center;padding:20px;color:var(--gold);font-size:14px;border-to
 </section>
 <div id="log"></div>
 </main>
-<footer>СВЯТОСЛАВ ПЛАТОНОВ × 42 🏆 Мы уже победили! 🏆 Монетки игрушечные, хайп настоящий. Батальон не прощает скуку.</footer>
+<footer>КАЗИНО × 42 🏆 Мы уже победили! 🏆 Монетки игрушечные, хайп настоящий. Батальон не прощает скуку.</footer>
 <script>
 // --- balance ---
 let coins = parseInt(localStorage.getItem('svyatoslav_coins'));
@@ -148,7 +148,7 @@ function roulette(type){
   rot += 1440 + Math.floor(Math.random()*720);
   // сдвигаем так, чтобы шарик визуально уехал
   document.getElementById('wheel').style.transform='rotate('+rot+'deg)';
-  document.getElementById('rResult').textContent='🌀 Шарик крутится... Святослав затаил дыхание...';
+  document.getElementById('rResult').textContent='🌀 Шарик крутится... Зал затаил дыхание...';
   setTimeout(()=>{
     spinning=false;
     let prize=0, msg='';
@@ -158,7 +158,7 @@ function roulette(type){
     else if(type==='num'&&numBet===win) prize=175;
     else if(type==='num'&&numBet===42){ msg='42 нет на колесе, но батальон уважает дерзость 😎 '; }
     if(prize>0){ coins+=prize; msg+='🏆 ВЫПАЛО '+win+' '+emoji+' — ВЫИГРЫШ +'+prize+'! Мы уже победили!'; }
-    else msg+='Выпало '+win+' '+emoji+'. Мимо! Святослав говорит: «ещё по 42!»';
+    else msg+='Выпало '+win+' '+emoji+'. Мимо! Дилер говорит: «ещё по 42!»';
     if(win===0) msg+=' 💚 ЗЕРО — число батальона!';
     document.getElementById('rResult').textContent=msg;
     save(); log('🎡 Рулетка: '+win+' ('+color+') '+(prize>0?'+'+prize:'−5'));
@@ -181,7 +181,7 @@ function spin(){
     slotBusy=false;
     let prize=0,msg='';
     const[a,b,c]=res;
-    if(a==='42'&&b==='42'&&c==='42'){prize=100;msg='🏆🏆🏆 ТРИ РАЗА ПО 42!!! +100! СВЯТОСЛАВ ЛЕГЕНДА!';}
+    if(a==='42'&&b==='42'&&c==='42'){prize=100;msg='🏆🏆🏆 ТРИ РАЗА ПО 42!!! +100! ДЖЕКПОТ БАТАЛЬОНА!';}
     else if(a==='🐶'&&b==='🐶'&&c==='🐶'){prize=40;msg='🐶🐶🐶 МОПС-ТРОЙНЯ! +40! Гав-гав!';}
     else if(a==='🛴'&&b==='🛴'&&c==='🛴'){prize=25;msg='🛴🛴🛴 САМОКАТНАЯ ЭСКАДРИЛЬЯ! +25!';}
     else if(a==='⭐'&&b==='⭐'&&c==='⭐'){prize=15;msg='⭐⭐⭐ Звёздный батальон! +15!';}
@@ -246,7 +246,7 @@ function endTir(){
   if(tScore>=50)prize=100; else if(tScore>=35)prize=50; else if(tScore>=20)prize=25; else if(tScore>=10)prize=10;
   coins+=prize; save();
   const acc=tShots>0?Math.round(tScore/Math.max(tShots,1)*100):0;
-  document.getElementById('tResult').textContent = prize>0 ? '🏆 '+tScore+' очков ('+tShots+' выстрелов)! Награда +'+prize+' монет! Мы уже победили!' : 'Набрано '+tScore+' очков. Надо 10+ для награды. Святослав верит в тебя! 🫡';
+  document.getElementById('tResult').textContent = prize>0 ? '🏆 '+tScore+' очков ('+tShots+' выстрелов)! Награда +'+prize+' монет! Мы уже победили!' : 'Набрано '+tScore+' очков. Надо 10+ для награды. Батальон верит в тебя! 🫡';
   log('🔫 Тир: '+tScore+' очков, '+tShots+' выстрелов'+(prize>0?' +'+prize:' +0'));
 }
 render();
