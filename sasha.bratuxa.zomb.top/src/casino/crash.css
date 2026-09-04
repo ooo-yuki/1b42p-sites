@@ -1,14 +1,14 @@
 /* ЗАЛ «КРАШ» — ночной стартовый комплекс: небо, площадка, дым, телеметрия. */
 
 .crash-hall .lamp-row{display:flex;align-items:center;gap:12px;margin:6px 0 4px}
-.ses-best{font-size:13px;color:#f0f0f0;font-variant-numeric:tabular-nums}
+.ses-best{font-size:13px;color:#808080;font-variant-numeric:tabular-nums}
 .lamp{margin-left:auto;flex:none;font-size:12.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
  padding:7px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.25);color:#f0f0f0}
 .lamp.live{color:#ffffff;background:#0060AA;border-color:#0060AA;box-shadow:0 0 18px rgba(0,96,170,.55)}
 .lamp.dead{color:#ffffff;background:var(--red);border-color:var(--red);box-shadow:0 0 18px rgba(227,30,37,.55)}
 
 .hist{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;min-height:30px;align-items:center}
-.hist-empty{font-size:12.5px;color:#f0f0f0}
+.hist-empty{font-size:12.5px;color:#808080}
 .hist .chip{font-size:13px;font-weight:800;padding:5px 10px;border-radius:999px;font-variant-numeric:tabular-nums;
  border:1px solid transparent}
 .hist .chip.bad{color:#E31E25;background:rgba(227,30,37,.12);border-color:rgba(227,30,37,.4)}
@@ -21,7 +21,7 @@
 
 /* сцена */
 .scene{position:relative;border-radius:14px;overflow:hidden;min-height:460px;
- background:linear-gradient(180deg,#4d4d4d 0%,#5f5f5f 55%,#5f5f5f 100%);
+ background:linear-gradient(180deg,#0a0f22 0%,#070b18 55%,#0a0f22 100%);
  border:1px solid rgba(0,96,170,.3)}
 .sky{position:absolute;inset:0}
 .sky .star{position:absolute;border-radius:50%;background:#cfe0ff;opacity:.7;animation:tw 2.8s ease-in-out infinite}
@@ -33,10 +33,10 @@
 .sky .cloud.c1{top:70px;width:150px;left:-160px}
 .sky .cloud.c2{top:130px;width:100px;left:-120px;animation-duration:38s;opacity:.7}
 @keyframes drift{to{transform:translateX(560px)}}
-.sky .city{position:absolute;left:0;right:0;bottom:12%;width:100%;height:60px;fill:#4d4d4d;opacity:.9}
+.sky .city{position:absolute;left:0;right:0;bottom:12%;width:100%;height:60px;fill:#0d1428;opacity:.9}
 .pad{position:absolute;inset:auto 0 0 0;height:44%}
 .pad .ground{position:absolute;left:0;right:0;bottom:0;height:26%;
- background:linear-gradient(180deg,#5f5f5f,#4d4d4d);border-top:2px solid rgba(0,96,170,.4)}
+ background:linear-gradient(180deg,#141b30,#0d1428);border-top:2px solid rgba(0,96,170,.4)}
 .pad .tower{position:absolute;left:16%;bottom:22%;width:26px;height:62%;display:flex;gap:4px;align-items:flex-end}
 .pad .tower i{flex:1;background:repeating-linear-gradient(180deg,#6f6f6f 0 6px,#5a5a5a 6px 12px);border-radius:2px;border:1px solid rgba(140,160,210,.35)}
 .pad .tower .cab{position:absolute;top:-8px;left:-6px;width:38px;height:16px;border-radius:4px;background:#0060AA;
@@ -64,18 +64,18 @@
 @keyframes bang{from{transform:scale(.4);opacity:1}to{transform:scale(1.5);opacity:0}}
 
 /* пульт */
-.console{border-radius:14px;padding:16px;background:rgba(90,90,90,.85);border:1px solid rgba(0,96,170,.3)}
+.console{border-radius:14px;padding:16px;background:rgba(13,20,40,.85);border:1px solid rgba(0,96,170,.3)}
 .console .mult{font-size:52px;font-weight:900;font-variant-numeric:tabular-nums;color:#fff;line-height:1.1;
  text-shadow:0 0 24px rgba(0,96,170,.55)}
 .console .mult.dead{color:var(--red);text-shadow:0 0 24px rgba(227,30,37,.45)}
-.console .curve{width:100%;height:150px;display:block;margin-top:8px;border-radius:10px;background:#6e6e6e;
+.console .curve{width:100%;height:150px;display:block;margin-top:8px;border-radius:10px;background:#070b18;
  border:1px solid rgba(0,96,170,.25)}
 .console .crow{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .ladder-mini{display:flex;gap:8px;margin-top:12px}
-.ladder-mini span{font-size:12.5px;font-weight:800;padding:5px 12px;border-radius:999px;color:#f0f0f0;
+.ladder-mini span{font-size:12.5px;font-weight:800;padding:5px 12px;border-radius:999px;color:#808080;
  border:1px solid rgba(255,255,255,.2);font-variant-numeric:tabular-nums}
 .ladder-mini span.hit{color:#ffffff;background:#0060AA;border-color:#0060AA}
-.console .fine{margin:10px 0 0;font-size:12.5px;color:#f0f0f0}
+.console .fine{margin:10px 0 0;font-size:12.5px;color:#808080}
 .crash-hall.shake{animation:shk .45s linear}
 @keyframes shk{0%,100%{transform:translate(0)}20%{transform:translate(-7px,3px)}40%{transform:translate(6px,-4px)}60%{transform:translate(-4px,-3px)}80%{transform:translate(3px,2px)}}
 @media (prefers-reduced-motion:reduce){.sky .star,.sky .cloud,.pad .beam,.pad .rocket .flame,.crash-hall.shake,.smoke .puff,.smoke .boom{animation:none}}
@@ -136,17 +136,17 @@
 .party b{font-size:56px;font-weight:900;color:#ffffff;text-shadow:0 0 30px rgba(0,96,170,.8);z-index:1}
 .party small{font-size:15px;color:#ffffff;z-index:1}
 .ach-toast{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:6;white-space:nowrap;
- background:rgba(90,90,90,.92);border:1px solid #0060AA;border-radius:999px;padding:8px 18px;
+ background:rgba(13,20,40,.92);border:1px solid #0060AA;border-radius:999px;padding:8px 18px;
  font-size:13.5px;color:#ffffff;box-shadow:0 0 22px rgba(0,96,170,.4);animation:toastin .3s ease-out}
 @keyframes toastin{from{transform:translate(-50%,-12px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
 .presets{display:flex;gap:8px;margin-top:12px}
-.presets button{flex:1;padding:7px 0;border-radius:10px;background:#6f6f6f;color:var(--paper);
+.presets button{flex:1;padding:7px 0;border-radius:10px;background:#0d1428;color:var(--paper);
  border:1px solid rgba(255,255,255,.25);cursor:pointer;font-size:13.5px;font-weight:700;font-variant-numeric:tabular-nums}
 .presets button.sel{border-color:#ffffff;color:#ffffff;box-shadow:0 0 10px rgba(0,96,170,.35)}
 .statbook{margin:12px 0 0;display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.statbook div{background:#6e6e6e;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:8px 12px;
+.statbook div{background:#0d1428;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:8px 12px;
  display:flex;flex-direction:column}
-.statbook dt{font-size:11px;color:#f0f0f0;letter-spacing:.05em;text-transform:uppercase}
+.statbook dt{font-size:11px;color:#808080;letter-spacing:.05em;text-transform:uppercase}
 .statbook dd{margin:2px 0 0;font-size:17px;font-weight:800;color:var(--paper);font-variant-numeric:tabular-nums}
 .ach-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
 .ach-row .medal{font-size:11.5px;padding:5px 10px;border-radius:999px;color:#f0f0f0;

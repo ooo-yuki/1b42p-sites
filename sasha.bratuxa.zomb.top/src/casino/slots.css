@@ -1,7 +1,7 @@
 /* ЗАЛ «СЛОТЫ» — автомат «Семёрка»: корпус, гирлянда, рычаг, таблица. */
 
 .cabinet{margin-top:12px;border-radius:18px;padding:18px 18px 16px;max-width:560px;
- background:linear-gradient(170deg,#545454,#545454 70%);border:1px solid rgba(0,96,170,.45);
+ background:linear-gradient(170deg,#141b30,#0d1428 70%);border:1px solid rgba(0,96,170,.45);
  box-shadow:0 0 40px rgba(0,96,170,.12)}
 .marquee{display:flex;justify-content:space-between;margin-bottom:10px}
 .marquee i{width:10px;height:10px;border-radius:50%;background:#4d4d4d;animation:bulb 1.4s ease-in-out infinite}
@@ -9,7 +9,7 @@
 @keyframes bulb{0%,100%{background:#4d4d4d;box-shadow:none}50%{background:#0060AA;box-shadow:0 0 12px rgba(0,96,170,.9)}}
 .cab-title{text-align:center;font-weight:900;letter-spacing:.35em;font-size:15px;color:#ffffff;
  text-shadow:0 0 16px rgba(0,96,170,.6);margin-bottom:12px}
-.windows{display:flex;gap:10px;justify-content:center;padding:14px;border-radius:12px;background:#808080;
+.windows{display:flex;gap:10px;justify-content:center;padding:14px;border-radius:12px;background:#070b18;
  border:1px solid rgba(255,255,255,.2)}
 .window{width:96px;height:104px;display:flex;align-items:center;justify-content:center;border-radius:10px;
  background:linear-gradient(180deg,#f2f5ff,#c9d2ee)}

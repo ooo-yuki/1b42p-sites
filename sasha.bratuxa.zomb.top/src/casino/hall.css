@@ -4,7 +4,7 @@
 
 /* сайдбар с семью дверями */
 .sbar{width:216px;flex:0 0 216px;display:flex;flex-direction:column;gap:6px;padding:18px 12px;
- border-right:1px solid rgba(0,96,170,.25);background:rgba(90,90,90,.92);
+ border-right:1px solid rgba(0,96,170,.25);background:rgba(10,15,32,.92);
  position:sticky;top:0;height:100vh}
 .slogo{display:flex;align-items:center;justify-content:center;font-weight:900;font-size:26px;color:#ffffff;
  text-decoration:none;margin-bottom:10px;text-shadow:0 0 18px rgba(0,96,170,.5)}
@@ -20,7 +20,7 @@
 /* сцена и верхняя плашка */
 .stage{flex:1;min-width:0;display:flex;flex-direction:column}
 .stop{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
- background:rgba(77,77,77,.92);backdrop-filter:blur(6px);padding:10px 12px;border-bottom:1px solid rgba(0,96,170,.35)}
+ background:rgba(7,11,24,.92);backdrop-filter:blur(6px);padding:10px 12px;border-bottom:1px solid rgba(0,96,170,.35)}
 .stop .sp{flex:1}
 
 /* лобби-шоу */
@@ -32,17 +32,17 @@
 @keyframes neon-in{0%{opacity:0}12%{opacity:.7}20%{opacity:.2}32%{opacity:1}45%{opacity:.6}60%,100%{opacity:1}}
 .ticker{display:inline-flex;align-items:baseline;gap:10px;border:1px solid rgba(0,96,170,.5);border-radius:999px;
  padding:8px 22px;margin:10px 0 22px;background:rgba(0,96,170,.07)}
-.tk-label{color:#f0f0f0;font-size:13px}
+.tk-label{color:#808080;font-size:13px}
 .tk-num{color:#ffffff;font-weight:900;font-size:24px;font-variant-numeric:tabular-nums}
 .tk-cur{color:#ffffff;font-size:13px}
 .portals{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;text-align:left}
 .portal{display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 10px 14px;border-radius:14px;
- background:#6f6f6f;border:1px solid rgba(0,96,170,.35);text-decoration:none;color:var(--paper);
+ background:#0d1428;border:1px solid rgba(0,96,170,.35);text-decoration:none;color:var(--paper);
  transition:transform .15s ease-out,border-color .15s,box-shadow .15s}
 .portal:hover{transform:translateY(-3px);border-color:#ffffff;box-shadow:0 8px 26px rgba(0,96,170,.18)}
 .portal .p-art .cic{width:56px;height:56px}
 .portal b{font-size:16px}
-.portal small{color:#f0f0f0;font-size:12.5px}
+.portal small{color:#808080;font-size:12.5px}
 
 /* зал игры */
 .gwrap{width:min(760px,94vw);margin:0 auto;padding:18px 0 60px}
@@ -50,7 +50,7 @@
 .ghead h2{margin:0;font-size:26px;display:flex;align-items:center;gap:10px}
 .ghead h2 .cic{width:30px;height:30px}
 .ghead .sp{flex:1}
-.gdesc{margin:2px 0 8px;color:#f0f0f0;font-size:14px;line-height:1.5}
+.gdesc{margin:2px 0 8px;color:#808080;font-size:14px;line-height:1.5}
 
 @media (max-width:760px){
  .hall{flex-direction:column}
