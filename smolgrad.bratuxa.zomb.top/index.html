@@ -1309,6 +1309,343 @@ window.__elf={get:function(){return S;},tool:function(){return tool;},build:func
  enter:function(i){enterBuilding(i);},exit:function(){exitBuilding();},
  fp:function(){return {mode:fpMode,type:fpType,x:Math.round(fpPos.x*100)/100,z:Math.round(fpPos.z*100)/100};}};
 </script>
+<style>
+#arenaBtn{position:fixed;right:8px;bottom:230px;z-index:40;font-size:15px;padding:12px 14px;border-radius:14px;border:3px solid var(--ink,#1d1d1f);background:#ffd76a;font-weight:bold;cursor:pointer;box-shadow:3px 3px 0 var(--ink,#1d1d1f)}
+#arenaBtn:active{transform:scale(.95)}
+#arena{position:fixed;inset:0;z-index:100;display:none;background:rgba(10,12,20,.96);overflow:auto;padding:10px}
+#arena.open{display:block}
+#arenaBox{max-width:460px;margin:0 auto;text-align:center;color:#fff}
+#arenaCv{width:min(92vw,420px);height:auto;border:3px solid gold;border-radius:12px;background:#2a7a3a;touch-action:none}
+#elixBar{height:14px;border-radius:8px;background:#332;background:#3a2a4a;overflow:hidden;margin:8px 0;border:2px solid gold}
+#elixFill{height:100%;width:0;background:linear-gradient(90deg,#ff66cc,#cc66ff)}
+#handRow{display:flex;gap:6px;justify-content:center;margin:6px 0}
+.clCard{flex:1;border:3px solid #888;border-radius:12px;background:#22283a;padding:6px 2px;cursor:pointer;min-width:0}
+.clCard .em{font-size:30px;display:block}
+.clCard b{font-size:11px;display:block}
+.clCard small{font-size:10px;color:#aab;display:block;min-height:26px}
+.clCard .cost{color:#ff66cc;font-weight:bold;font-size:13px}
+.clCard.sel{border-color:gold;box-shadow:0 0 12px gold}
+.clCard.poor{opacity:.45}
+#arenaTop{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+#arenaTop button{font-size:14px;padding:8px 12px;border-radius:10px;border:2px solid gold;background:#22283a;color:#fff;cursor:pointer}
+</style>
+<div id="arena"><div id="arenaBox">
+<div id="arenaTop"><button id="arenaClose">🏙️ В город</button><b>⚔️ АРЕНА 42</b><b id="arenaTimer">3:00</b></div>
+<canvas id="arenaCv" width="400" height="640"></canvas>
+<div id="elixBar"><div id="elixFill"></div></div>
+<div id="handRow"></div>
+<div id="arenaMsg" style="min-height:22px;color:gold;font-weight:bold"></div>
+</div></div>
+<script>
+/* ================= КЛЕШ 42: колода пародий + бой 1 на 1 с ботом ================= */
+var CLASH=[
+ {id:'log',em:'🍺',n:'Чаев-бревно',cost:3,desc:'Катится как бревно. Кружка с лицом и ручкой давит всех на линии'},
+ {id:'mops',em:'🐶',n:'Мопсы',cost:4,desc:'Стая мопсов-кабанчиков. Быстрые и злые'},
+ {id:'zov',em:'🚀',n:'Ракета ZOV',cost:6,desc:'Обычная ракета. Ба-бах по площади'},
+ {id:'nado',em:'🌪️',n:'Торнадо Russian',cost:3,desc:'Синяя ярость вкуса Russian: стягивает врагов и ускоряет своих'},
+ {id:'smol',em:'🗼',n:'Смолски-гроза',cost:5,desc:'Старый бог грозы без подиума. Наелся блох — мечет молнии из глаз'}
+];
+var CLA=null; // состояние боя
+function clashBotName(){return 'Бот'+(1+Math.floor(Math.random()*42));}
+function clashTowers(side){
+ var top=side<0;
+ function T(x,y,king){return{side:side,x:x,y:y,hp:king?1200:800,max:king?1200:800,king:!!king,cd:0,alive:true,r:king?7:6,dmg:king?80:60,range:king?32:30};}
+ return[T(30,top?20:140,false),T(70,top?20:140,false),T(50,top?8:152,true)];
+}
+function clashNew(){
+ CLA={units:[],fx:[],towers:clashTowers(1).concat(clashTowers(-1)),
+  elix:{me:5,bot:5},sel:null,time:180,over:null,botName:clashBotName(),botT:3};
+ CLA.msg='Бой с '+CLA.botName+'! Разрушь башни! 🏆';
+ clashMsg(CLA.msg);clashHand();
+}
+function clashMsg(t){try{document.getElementById('arenaMsg').textContent=t;}catch(e){}}
+function clashHand(){
+ var h=document.getElementById('handRow');h.innerHTML='';
+ CLASH.forEach(function(c){
+  var d=document.createElement('div');d.className='clCard'+(CLA&&CLA.sel===c.id?' sel':'')+((CLA&&CLA.elix.me<c.cost)?' poor':'');
+  d.innerHTML='<span class="em">'+c.em+'</span><b>'+c.n+'</b><small>'+c.desc+'</small><div class="cost">💧'+c.cost+'</div>';
+  d.onclick=function(){if(!CLA||CLA.over)return;
+   if(CLA.elix.me<c.cost){clashMsg('Не хватает эликсира! 💧');blip(200);return;}
+   CLA.sel=(CLA.sel===c.id?null:c.id);blip(620);clashHand();};
+  h.appendChild(d);});
+}
+function clashSideAlive(side,kingOnly){
+ var ts=CLA.towers.filter(function(t){return t.side===side&&t.alive&&(!kingOnly||t.king);});
+ return kingOnly?ts[0]:ts;
+}
+function clashNearest(x,y,side,range){
+ var best=null,bd=range||1e9;
+ CLA.units.forEach(function(u){if(u.side===side||u.hp<=0)return;var d=Math.hypot(u.x-x,u.y-y);if(d<bd){bd=d;best=u;}});
+ CLA.towers.forEach(function(t){if(t.side===side||!t.alive)return;var d=Math.hypot(t.x-x,t.y-y)-(t.r||5);if(d<bd){bd=d;best=t;}});
+ return best;
+}
+function clashSpawn(card,side,x,y){
+ if(card==='mops'){
+  for(var i=0;i<3;i++)CLA.units.push({side:side,x:x+(i-1)*5,y:y+(i%2)*4,hp:120,max:120,dmg:40,range:4,speed:11,cd:0,em:'🐶',r:3,rage:0});
+ }else if(card==='smol'){
+  CLA.units.push({side:side,x:x,y:y,hp:700,max:700,dmg:90,range:32,speed:0,cd:0,em:'🗼',r:5,static:true,life:45,rage:0});
+ }else if(card==='log'){
+  CLA.units.push({side:side,x:x,y:y,hp:1e9,max:1e9,dmg:150,range:4,speed:26,cd:0,em:'🍺',r:4,log:true,life:6,hit:{},rage:0});
+ }else if(card==='zov'){
+  CLA.fx.push({k:'boom',x:x,y:y,t:0,dur:0.6,r:13,dmg:600,side:side,done:false});
+  blip(150);
+ }else if(card==='nado'){
+  CLA.fx.push({k:'nado',x:x,y:y,t:0,dur:5,r:15,side:side});
+  blip(500);
+ }
+}
+function clashPlay(side,card,x,y){
+ var e=side>0?CLA.elix.me:CLA.elix.bot;
+ var def=null;CLASH.forEach(function(c){if(c.id===card)def=c;});
+ if(!def||e<def.cost)return false;
+ if(side>0)CLA.elix.me-=def.cost;else CLA.elix.bot-=def.cost;
+ clashSpawn(card,side,x,y);blip(760);clashHand();
+ return true;
+}
+function clashInRage(u){
+ for(var i=0;i<CLA.fx.length;i++){var f=CLA.fx[i];if(f.k!=='nado'||f.side!==u.side)continue;
+  if(Math.hypot(u.x-f.x,u.y-f.y)<f.r)return true;}
+ return u.rage>0;
+}
+function clashStep(dt){
+ if(!CLA||CLA.over)return;
+ CLA.time-=dt;
+ // эликсир
+ CLA.elix.me=Math.min(10,CLA.elix.me+dt/2.8);
+ CLA.elix.bot=Math.min(10,CLA.elix.bot+dt/2.8);
+ // бот
+ CLA.botT-=dt;
+ if(CLA.botT<=0){CLA.botT=2.5+Math.random()*3;clashBotMove();}
+ // эффекты
+ for(var fi=CLA.fx.length-1;fi>=0;fi--){var f=CLA.fx[fi];f.t+=dt;
+  if(f.k==='boom'&&!f.done){f.done=true;
+   CLA.units.forEach(function(u){if(u.side===f.side&&u.hp<1e8&&Math.hypot(u.x-f.x,u.y-f.y)<f.r){u.hp-=f.dmg;}});
+   CLA.towers.forEach(function(t){if(t.side===f.side&&t.alive&&Math.hypot(t.x-f.x,t.y-f.y)<f.r+t.r){t.hp-=f.dmg*0.6;if(t.hp<=0){t.hp=0;t.alive=false;}}});
+  }
+  if(f.k==='nado'){
+   CLA.units.forEach(function(u){if(u.hp<=0||u.log)return;
+    var d=Math.hypot(u.x-f.x,u.y-f.y);
+    if(u.side!==f.side&&d<f.r+6){var s=22*dt;u.x+=(f.x-u.x)/(d||1)*s;u.y+=(f.y-u.y)/(d||1)*s;}
+    if(u.side===f.side&&d<f.r)u.rage=2;});
+  }
+  if(f.t>=f.dur)CLA.fx.splice(fi,1);
+ }
+ // юниты
+ CLA.units.forEach(function(u){
+  if(u.hp<=0)return;
+  if(u.rage>0)u.rage-=dt;
+  if(u.life!==undefined){u.life-=dt;if(u.life<=0){u.hp=0;return;}}
+  var rage=clashInRage(u)?2:1;
+  var tgt=clashNearest(u.x,u.y,u.side,u.static?u.range:60);
+  var desX=50,desY=u.side>0?8:152,fight=false;
+  if(tgt){
+   var dd=Math.hypot(tgt.x-u.x,tgt.y-u.y)-((tgt.r||3));
+   if(dd<=(u.range||4))fight=true;
+   else{desX=tgt.x;desY=tgt.y;}
+  }
+  if(fight){ // бьём
+   u.cd-=dt;
+   if(u.cd<=0){u.cd=1;
+    if(u.log){/* урон бревна — по движению ниже */}
+    else if(u.static){clashZap(u);} // молния Смолски
+    else{tgt.hp-=u.dmg*rage;if(tgt.alive!==undefined&&tgt.hp<=0){tgt.hp=0;tgt.alive=false;blip(300);}}
+   }
+   return;
+  }
+  if(u.static)return;
+  // движение к цели (мосты через реку)
+  var mdx=desX-u.x,mdy=desY-u.y,md=Math.hypot(mdx,mdy)||1;
+  var sp=u.speed*rage;
+  var ny=u.y+mdy/md*sp*dt;
+  // река y 76..84: только по мостам x 22..38 / 62..78
+  if((u.y-84)*(ny-84)<0||(u.y-76)*(ny-76)<0){
+   var inB=(u.x>22&&u.x<38)||(u.x>62&&u.x<78);
+   if(!inB){var bx=u.x<50?30:70;u.x+=(bx-u.x)*Math.min(1,3*dt);return;}
+  }
+  u.x+=mdx/md*sp*dt;u.y=ny;
+  // бревно давит всех на пути
+  if(u.log){
+   var hit=false;
+   CLA.units.forEach(function(e){if(e.side===u.side||e.hp<=0||e.log)return;
+    if(u.hit[e]||Math.hypot(e.x-u.x,e.y-u.y)>5)return;u.hit[e]=1;e.hp-=u.dmg;hit=true;});
+   CLA.towers.forEach(function(t){if(t.side===u.side||!t.alive)return;
+    if(!u.hit[t]&&Math.hypot(t.x-u.x,t.y-u.y)<t.r+4){u.hit[t]=1;t.hp-=u.dmg;if(t.hp<=0){t.hp=0;t.alive=false;}hit=true;}});
+   if(hit)blip(400);
+  }
+ });
+ // башни стреляют
+ CLA.towers.forEach(function(t){
+  if(!t.alive)return;
+  if(t.king){var laneAlive=CLA.towers.some(function(o){return o.side===t.side&&!o.king&&o.alive;});
+   var threat=CLA.units.some(function(u){return u.side!==t.side&&u.hp>0&&((t.side>0&&u.y>110)||(t.side<0&&u.y<50));});
+   if(laneAlive&&!threat)return;}
+  t.cd-=dt;if(t.cd>0)return;
+  var e=clashNearest(t.x,t.y,t.side,t.range);
+  if(e&&e.hp!==undefined&&e.hp<1e8){t.cd=1;e.hp-=t.dmg;blip(900);}
+ });
+ // итоги
+ var kp=clashSideAlive(1,true),kb=clashSideAlive(-1,true);
+ function lanes(side){return CLA.towers.filter(function(t){return t.side===side&&!t.king&&t.alive;}).length;}
+ if(!kp||!kb){
+  clashEnd(!kp&&!kb?'draw':(!kb?'win':'lose'));return;
+ }
+ if(CLA.time<=0){
+  var lp=lanes(1),lb=lanes(-1);
+  clashEnd(lp===lb?'draw':(lb<lp?'win':'lose'));return;
+ }
+}
+function clashZap(u){
+ // молния из глаз Смолски: цепь до 3 целей
+ var hit=[],from={x:u.x,y:u.y};
+ for(var k=0;k<3;k++){
+  var best=null,bd=14;
+  CLA.units.forEach(function(e){if(e.side===u.side||e.hp<=0||e.log||hit.indexOf(e)>=0)return;
+   var d=Math.hypot(e.x-from.x,e.y-from.y);if(d<bd){bd=d;best=e;}});
+  if(!best)break;
+  hit.push(best);from=best;
+ }
+ if(!hit.length){var t=clashNearest(u.x,u.y,u.side,u.range);
+  if(t&&t.hp!==undefined&&t.hp<1e8)hit.push(t);}
+ hit.forEach(function(e){e.hp-=u.dmg;if(e.alive!==undefined&&e.hp<=0){e.hp=0;e.alive=false;}});
+ if(hit.length){CLA.fx.push({k:'zap',pts:[{x:u.x,y:u.y}].concat(hit.map(function(e){return{x:e.x,y:e.y};})),t:0,dur:0.25});blip(1200);}
+}
+function clashBotMove(){
+ if(!CLA||CLA.over)return;
+ var afford=CLASH.filter(function(c){return c.cost<=CLA.elix.bot;});
+ if(!afford.length||Math.random()<0.25)return;
+ var c=afford[Math.floor(Math.random()*afford.length)];
+ var lane=Math.random()<0.5?30:70;
+ if(c.id==='mops')clashPlay(-1,'mops',lane+(Math.random()*8-4),40+Math.random()*20);
+ else if(c.id==='log')clashPlay(-1,'log',lane,30);
+ else if(c.id==='smol'){
+  var threat=CLA.units.some(function(u){return u.side>0&&u.y<80;});
+  clashPlay(-1,'smol',threat?lane:50,threat?50:25);
+ }
+ else if(c.id==='zov'){
+  var grp=null,gn=0;
+  [[30,120],[70,120],[50,135]].forEach(function(p){
+   var n=CLA.units.filter(function(u){return u.side>0&&u.hp<1e8&&Math.hypot(u.x-p[0],u.y-p[1])<14;}).length;
+   if(n>gn){gn=n;grp=p;}});
+  if(gn>=2&&grp)clashPlay(-1,'zov',grp[0],grp[1]);
+ }
+ else if(c.id==='nado'){
+  var atk=CLA.units.filter(function(u){return u.side===-1&&!u.log&&u.hp<1e8;});
+  if(atk.length){var a=atk[Math.floor(Math.random()*atk.length)];clashPlay(-1,'nado',a.x,a.y-10);}
+ }
+}
+function clashEnd(res){
+ CLA.over=res;
+ var mm=clashMsg;
+ if(res==='win'){mm('🏆 ПОБЕДА! Башни '+CLA.botName+' разрушены! +100🪙 +50💧');S.gold+=100;S.mana+=50;blip(880);}
+ else if(res==='lose'){mm('💀 Поражение от '+CLA.botName+'. +20💧 за храбрость');S.mana+=20;blip(200);}
+ else{mm('🤝 Ничья! +30💧');S.mana+=30;blip(600);}
+ try{save();renderHUD();}catch(e){}
+ setTimeout(function(){if(CLA&&CLA.over)clashMsg((res==='win'?'🏆 ПОБЕДА!':res==='lose'?'💀 Поражение':'🤝 Ничья')+' — ещё? Жми карту! ⚔️');},2500);
+}
+function clashDraw(){
+ var cv=document.getElementById('arenaCv');if(!cv||!CLA)return;
+ var g=cv.getContext('2d'),W=400,H=640,SX=W/100,SY=H/160;
+ function X(x){return x*SX;}function Y(y){return y*SY;}
+ g.fillStyle='#3d9950';g.fillRect(0,0,W,H/2);
+ g.fillStyle='#2f7a3e';g.fillRect(0,H/2,W,H/2);
+ // река + мосты
+ g.fillStyle='#4aa3df';g.fillRect(0,Y(76),W,Y(84)-Y(76));
+ g.fillStyle='#c9a227';g.fillRect(X(22),Y(74),X(38)-X(22),Y(86)-Y(74));g.fillRect(X(62),Y(74),X(78)-X(62),Y(86)-Y(74));
+ // башни
+ CLA.towers.forEach(function(t){
+  if(!t.alive){g.globalAlpha=0.3;}
+  g.fillStyle=t.side>0?'#2b6cb0':'#c53030';
+  var w=(t.king?16:12)*SX/4;
+  g.fillRect(X(t.x)-w/2,Y(t.y)-(t.king?16:12),w,(t.king?16:12));
+  g.font='20px serif';g.textAlign='center';
+  g.fillText(t.king?'👑':'🗼',X(t.x),Y(t.y)-2);
+  g.fillStyle='#111';g.fillRect(X(t.x)-w/2,Y(t.y)+4,w,5);
+  g.fillStyle='#37d67a';g.fillRect(X(t.x)-w/2,Y(t.y)+4,w*Math.max(0,t.hp/t.max),5);
+  g.globalAlpha=1;
+ });
+ // эффекты под юнитами
+ CLA.fx.forEach(function(f){
+  if(f.k==='nado'){g.strokeStyle='rgba(120,180,255,0.9)';g.lineWidth=3;
+   for(var r=4;r<f.r;r+=4){g.beginPath();g.arc(X(f.x),Y(f.y),r*SX/4,f.t*4,f.t*4+4.5);g.stroke();}
+  }else if(f.k==='boom'){var k=f.t/f.dur;
+   g.fillStyle='rgba(255,'+Math.floor(200*(1-k))+',50,'+(1-k*0.5)+')';
+   g.beginPath();g.arc(X(f.x),Y(f.y),f.r*SX/4*(0.4+k),0,7);g.fill();
+  }
+ });
+ // юниты
+ CLA.units.forEach(function(u){
+  if(u.hp<=0)return;
+  g.font=(u.r*4+12)+'px serif';g.textAlign='center';
+  g.fillText(u.em,X(u.x),Y(u.y)+6);
+  if(u.hp<1e8){
+   g.fillStyle='#111';g.fillRect(X(u.x)-10,Y(u.y)-14,20,4);
+   g.fillStyle=u.side>0?'#37d67a':'#ff5555';
+   g.fillRect(X(u.x)-10,Y(u.y)-14,20*Math.max(0,u.hp/u.max),4);
+  }
+ });
+ // молнии поверх
+ CLA.fx.forEach(function(f){
+  if(f.k!=='zap')return;
+  g.strokeStyle='#ffe94a';g.lineWidth=2.5;g.beginPath();
+  f.pts.forEach(function(p,i){var px=X(p.x),py=Y(p.y);
+   if(i===0)g.moveTo(px,py);
+   else{var mx=(px+f.pts[i-1].x*SX/4)/2+(Math.random()*8-4),my=(py+Y(f.pts[i-1].y))/2;g.lineTo(mx,my);g.lineTo(px,py);}});
+  g.stroke();
+ });
+ // эликсир + таймер
+ try{
+  document.getElementById('elixFill').style.width=(CLA.elix.me*10)+'%';
+  var t=Math.max(0,Math.ceil(CLA.time)),m=Math.floor(t/60),s=('0'+t%60).slice(-2);
+  document.getElementById('arenaTimer').textContent=m+':'+s;
+ }catch(e){}
+}
+var clashRAF=null,clashLast=0;
+function clashLoop(){
+ if(!CLA||!document.getElementById('arena').classList.contains('open')){clashRAF=null;return;}
+ var now=Date.now(),dt=Math.min((now-clashLast)/1000||0.016,0.1);clashLast=now;
+ clashStep(dt);clashDraw();clashHandBar();
+ clashRAF=requestAnimationFrame(clashLoop);
+}
+function clashHandBar(){
+ try{
+  var cards=document.getElementById('handRow').children;
+  for(var i=0;i<cards.length&&i<CLASH.length;i++){
+   cards[i].classList.toggle('poor',CLA.elix.me<CLASH[i].cost);
+  }
+ }catch(e){}
+}
+function clashOpen(){
+ document.getElementById('arena').classList.add('open');
+ clashNew();clashLast=Date.now();
+ if(!clashRAF)clashRAF=requestAnimationFrame(clashLoop);
+ blip(700);
+}
+function clashClose(){
+ document.getElementById('arena').classList.remove('open');
+ CLA=null;clashRAF=null;
+ try{renderHUD();}catch(e){}
+}
+document.getElementById('arenaClose').onclick=clashClose;
+document.getElementById('arenaCv').onclick=function(e){
+ if(!CLA||CLA.over||!CLA.sel)return;
+ var cv=this,r=cv.getBoundingClientRect();
+ var x=(e.clientX-r.left)/r.width*100,y=(e.clientY-r.top)/r.height*160;
+ var c=CLA.sel;
+ if((c==='mops'||c==='smol')&&y<84){clashMsg('Своя половина — снизу! 🛡️');blip(200);return;}
+ if(clashPlay(1,c,x,y)){CLA.sel=null;clashHand();}
+ else{clashMsg('Не хватает эликсира! 💧');blip(200);}
+};
+(function(){
+ var b=document.createElement('button');b.id='arenaBtn';b.textContent='⚔️ Арена';
+ b.onclick=clashOpen;document.body.appendChild(b);
+})();
+/* крючок для тестов */
+window.__elf=window.__elf||{};
+window.__elf.clash={open:clashOpen,close:clashClose,
+ state:function(){return CLA;},
+ cards:function(){return CLASH.map(function(c){return c.id;});}};
+</script>
+
 <script>/* 42-трекер онлайна */(function(){var SITE='smolgrad';try{var s=null;try{s=localStorage.getItem('t42_sid');}catch(e){}if(!s||!/^[0-9a-f]{32}$/.test(s)){s='';var h='0123456789abcdef';for(var i=0;i<32;i++)s+=h[Math.floor(Math.random()*16)];try{localStorage.setItem('t42_sid',s);}catch(e){}}function b(){try{fetch('https://hub.bratuxa.zomb.top/api/track',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({site:SITE,sid:s}),keepalive:true}).catch(function(){});}catch(e){}}b();setInterval(b,30000);}catch(e){}})();</script>
 </body>
 </html>
