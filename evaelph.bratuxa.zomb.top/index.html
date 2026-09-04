@@ -57,8 +57,8 @@ font-weight:bold;font-size:15px;border-radius:999px;padding:12px 18px;cursor:poi
 background:var(--cream);border:3px solid var(--ink);border-radius:22px;padding:12px;max-width:96vw;width:470px;
 box-shadow:0 8px 0 rgba(47,93,58,.35)}
 #shop h4{margin:0 0 8px;font-size:17px}
-#shopGrid{display:flex;gap:10px}
-.shopCard{flex:1;border:3px solid var(--ink);border-radius:18px;background:#f3f9ec;padding:12px 8px;cursor:pointer;
+#shopGrid{display:flex;gap:10px;flex-wrap:wrap}
+.shopCard{flex:1 1 40%;border:3px solid var(--ink);border-radius:18px;background:#f3f9ec;padding:12px 8px;cursor:pointer;
 text-align:center;color:var(--ink);box-shadow:0 3px 0 rgba(47,93,58,.25)}
 .shopCard:active{transform:scale(.95)}
 .shopCard .em{font-size:48px;display:block}
@@ -118,15 +118,21 @@ var B={
  tower:{em:'🔮',n:'Башня маны',cost:{gold:80,wood:40},prod:{mana:0.3},desc:'Собирает ману'},
  market:{em:'🏪',n:'Рынок',cost:{gold:60,wood:30},prod:{gold:0.5},desc:'Торгует и даёт золото'},
  garden:{em:'🌸',n:'Сад',cost:{mana:40,wood:20},boost:1,desc:'Ускоряет весь доход и рост'},
- spire:{em:'🗼',n:'Шпиль 42',cost:{gold:300,wood:150,mana:100},prod:{gold:2,mana:1,wood:1},house:10,desc:'Венец города!'}
+ spire:{em:'🗼',n:'Шпиль 42',cost:{gold:300,wood:150,mana:100},prod:{gold:2,mana:1,wood:1},house:10,desc:'Венец города!'},
+ tavern:{em:'🍺',n:'Таверна',cost:{gold:70,wood:40},prod:{gold:0.3},desc:'Эль течёт, город растёт'},
+ treasury:{em:'🏦',n:'Казна',cost:{gold:150,wood:80},prod:{gold:1},desc:'Золото к золоту'},
+ sawmill:{em:'🪵',n:'Лесопилка',cost:{gold:100,wood:30},prod:{wood:0.8},desc:'Брёвна рекой'},
+ glade:{em:'🦋',n:'Поляна фей',cost:{wood:60,mana:20},prod:{mana:0.2},desc:'Феи ускоряют рост'},
+ runes:{em:'🗿',n:'Рунический круг',cost:{gold:120,wood:60},prod:{mana:0.6},desc:'Камни шепчут ману'},
+ portal:{em:'🌀',n:'Портал 42',cost:{gold:250,mana:150,wood:100},prod:{gold:1,mana:0.5,wood:0.5},house:6,desc:'Мини-Шпиль: всё сразу'}
 };
 var ORDER=['house','grove','tower','market','garden','spire'];
 var S,tool='house',bulldoze=false,selIdx=-1,openGroup=null;
 /* разделы магазина (как в Clash of Clans): внизу только группы */
 var GROUPS=[
- {id:'city',em:'🏠',n:'Город',items:['house','market']},
- {id:'nature',em:'🌲',n:'Природа',items:['grove','garden']},
- {id:'magic',em:'🔮',n:'Магия',items:['tower','spire']}
+ {id:'city',em:'🏠',n:'Город',items:['house','market','tavern','treasury']},
+ {id:'nature',em:'🌲',n:'Природа',items:['grove','garden','sawmill','glade']},
+ {id:'magic',em:'🔮',n:'Магия',items:['tower','runes','portal','spire']}
 ];
 function def(){return{gold:120,mana:20,wood:60,pop:0,cells:Array(64).fill(null),lastSeen:Date.now(),win:false};}
 function load(){try{S=JSON.parse(localStorage.getItem(KEY))||def();}catch(e){S=def();}
@@ -235,7 +241,55 @@ function buildSpire(){var g=new THREE.Group(),l=3;
  var orb=octa(0.3,mat(0xffffff,0xffd23f,1));orb.position.y=2.9;orb.userData.pulse=true;g.add(orb);
  g.add(put(cone(0.15,0.4,6,mat(0xffd23f)),0,3.25,0));
  return g;}
-var BUILDERS={house:buildHouse,grove:buildGrove,tower:buildTower,market:buildMarket,garden:buildGarden,spire:buildSpire};
+function buildTavern(l){var g=new THREE.Group();
+ var h=0.7+l*0.2;
+ g.add(put(box(1.3,h,1.0,mat(0xffe0b3)),0,h/2,0));
+ var r=put(cone(1.0,0.55,4,mat(0x9be15d)),0,h+0.27,0);r.rotation.y=Math.PI/4;g.add(r);
+ g.add(put(box(0.3,0.4,0.06,mat(0x6b3a1f)),0,0.2,0.51));
+ g.add(put(cyl(0.22,0.22,0.5,7,mat(0x8b5e3c)),0.85,0.25,0.2));
+ g.add(put(cyl(0.04,0.04,0.9,4,mat(0x8b5e3c)),-0.8,0.45,0.4));
+ g.add(put(box(0.4,0.25,0.05,mat(0xffd23f)),-0.8,0.85,0.4));
+ if(l>=3){var s=octa(0.13,mat(0xffd23f,0x6b4e00,0.5));s.position.set(0,h+0.8,0);g.add(s);}
+ return g;}
+function buildTreasury(l){var g=new THREE.Group();
+ g.add(put(box(1.1,0.8,1.0,mat(0xb9c4c9)),0,0.4,0));
+ var dome=new THREE.Mesh(new THREE.SphereGeometry(0.55,7,5,0,Math.PI*2,0,Math.PI/2),mat(0xffd23f,0x6b4e00,0.3));
+ dome.position.y=0.8;dome.castShadow=true;g.add(dome);
+ for(var i=0;i<l+1;i++){g.add(put(cyl(0.14,0.14,0.1+i*0.06,8,mat(0xffd23f)),-0.7,0.05+i*0.09,0.45));}
+ g.add(put(box(0.35,0.5,0.06,mat(0x6b4a2f)),0,0.25,0.51));
+ return g;}
+function buildSawmill(l){var g=new THREE.Group();
+ g.add(put(box(1.0,0.6,0.9,mat(0xc98f5a)),-0.2,0.3,0));
+ var r=put(cone(0.85,0.5,4,mat(0x8b5e3c)),-0.2,0.85,0);r.rotation.y=Math.PI/4;g.add(r);
+ for(var i=0;i<2+l;i++){var log=put(cyl(0.14,0.14,1.0,6,mat(0x8b5e3c)),0.55,0.14+(i%2)*0.28,-0.3+Math.floor(i/2)*0.3);
+  log.rotation.z=Math.PI/2;g.add(log);}
+ var saw=put(cyl(0.3,0.3,0.06,10,mat(0xcfd8dc)),0.55,0.6,0.35);saw.rotation.x=Math.PI/2;g.add(saw);
+ return g;}
+function buildGlade(l){var g=new THREE.Group();
+ var disc=new THREE.Mesh(new THREE.CircleGeometry(0.7,10),mat(0x9be15d));
+ disc.rotation.x=-Math.PI/2;disc.position.y=0.02;g.add(disc);
+ var cols=[0xff7bac,0x7fd4ff,0xc07bff];
+ for(var i=0;i<3+l;i++){var a=i/(3+l)*Math.PI*2,fx=Math.cos(a)*0.45,fz=Math.sin(a)*0.45;
+  g.add(put(cyl(0.03,0.03,0.3,4,mat(0x2f7d3a)),fx,0.15,fz));
+  var bl=ico(0.11,mat(cols[i%3],cols[i%3],0.7));bl.position.set(fx,0.36,fz);g.add(bl);}
+ return g;}
+function buildRunes(l){var g=new THREE.Group();
+ for(var i=0;i<5+l;i++){var a=i/(5+l)*Math.PI*2;
+  var st=put(box(0.18,0.5+l*0.1,0.18,mat(0x8f9aa3)),Math.cos(a)*0.55,0.25,Math.sin(a)*0.55);
+  st.rotation.y=a;g.add(st);}
+ var cr=octa(0.24,mat(0xc07bff,0xc07bff,0.8));cr.position.y=0.4;cr.userData.pulse=true;g.add(cr);
+ return g;}
+function buildPortal(){var g=new THREE.Group();
+ g.add(put(box(0.25,1.3,0.25,mat(0x5d4a7a)),-0.45,0.65,0));
+ g.add(put(box(0.25,1.3,0.25,mat(0x5d4a7a)),0.45,0.65,0));
+ g.add(put(box(1.15,0.2,0.25,mat(0x5d4a7a)),0,1.4,0));
+ var ring=new THREE.Mesh(new THREE.TorusGeometry(0.42,0.09,6,18),mat(0x00e5ff,0x00e5ff,0.9));
+ ring.position.y=0.75;ring.userData.spin=true;g.add(ring);
+ var glow=new THREE.Mesh(new THREE.CircleGeometry(0.34,14),
+  new THREE.MeshBasicMaterial({color:0xbff6ff,transparent:true,opacity:0.7}));
+ glow.position.y=0.75;g.add(glow);
+ return g;}
+var BUILDERS={house:buildHouse,grove:buildGrove,tower:buildTower,market:buildMarket,garden:buildGarden,spire:buildSpire,tavern:buildTavern,treasury:buildTreasury,sawmill:buildSawmill,glade:buildGlade,runes:buildRunes,portal:buildPortal};
 function refreshCell(i){
  var old=bGroups[i];
  if(old){scene.remove(old);old.traverse(function(o){if(o.geometry)o.geometry.dispose();});delete bGroups[i];}
@@ -353,6 +407,7 @@ function floater(txt,wx,wy,wz){try{var s=worldToScreen(new THREE.Vector3(wx,wy,w
  d.style.left=s.x+'px';d.style.top=s.y+'px';document.body.appendChild(d);
  requestAnimationFrame(function(){d.style.transform='translateY(-60px)';d.style.opacity=0;});
  setTimeout(function(){d.remove();},1200);}catch(e){}}
+function countT(t){return S.cells.filter(function(c){return c&&c.t===t;}).length;}
 function clickCell(i){
  var c=S.cells[i];
  if(bulldoze){
@@ -421,6 +476,8 @@ function fillInspector(){var c=S.cells[selIdx];if(!c)return;var b=B[c.t];
  var pr=[];if(b.prod){for(var k in b.prod)pr.push('+'+(b.prod[k]*c.l).toFixed(1)+' '+CEM[k]+'/с');}
  if(b.house)pr.push('+'+(b.house*c.l)+' 🧝 жилья');
  if(b.boost)pr.push('доход и рост ×'+(1+gardens()*0.2).toFixed(1));
+ if(c.t==='tavern')pr.push('рост жителей ×'+(1+countT('tavern')*0.5).toFixed(1));
+ if(c.t==='glade')pr.push('рост жителей ×'+(1+countT('glade')*0.25).toFixed(1));
  document.getElementById('inspDesc').textContent=b.desc;
  document.getElementById('inspProd').textContent=pr.join(' · ')||'—';
  var up=document.getElementById('upBtn');
@@ -434,7 +491,7 @@ function loop(){requestAnimationFrame(loop);
  var t=Date.now()/1000;
  for(var ci=0;ci<clouds.length;ci++){clouds[ci].position.x+=clouds[ci].userData.speed*dt;
   if(clouds[ci].position.x>18)clouds[ci].position.x=-18;}
- scene.traverse(function(o){if(o.userData&&o.userData.pulse){var s=1+Math.sin(t*3)*0.12;o.scale.set(s,s,s);}});
+ scene.traverse(function(o){if(o.userData&&o.userData.pulse){var s=1+Math.sin(t*3)*0.12;o.scale.set(s,s,s);}if(o.userData&&o.userData.spin){o.rotation.z+=dt*2;}});
  for(var p=pops.length-1;p>=0;p--){var a=pops[p];a.t+=dt*3;
   var bs=a.g.userData.base||1;
   if(a.t>=1){a.g.scale.set(bs,bs,bs);pops.splice(p,1);}
@@ -453,7 +510,7 @@ document.getElementById('demoBtn').onclick=function(){var i=selIdx;if(i<0)return
 if(initThree()){refreshAll();renderHUD();loop();
  setInterval(function(){var p=prod();S.gold+=p.gold;S.mana+=p.mana;S.wood+=p.wood;
   var c=cap(),g=gardens();
-  if(S.pop<c&&Math.random()<0.25*(1+g*0.5)){S.pop++;
+  if(S.pop<c&&Math.random()<0.25*(1+g*0.5)*(1+countT('tavern')*0.5+countT('glade')*0.25)){S.pop++;
    if(S.pop>=42&&!S.win){S.win=true;document.getElementById('win').style.display='flex';toast('🏆 42 ЖИТЕЛЯ! МЫ УЖЕ ПОБЕДИЛИ! 🏆');}}
   S.lastSeen=Date.now();save();renderHUD();},1000);}
 else{renderHUD();}
