@@ -28,11 +28,12 @@ button.gold{background:linear-gradient(180deg,#ffd23f,#ff7b00);color:#300}
 button:disabled{opacity:.45;cursor:default}
 .tabs{display:flex;gap:6px;overflow-x:auto;margin:10px 0;padding-bottom:4px}
 .tabs button{flex:0 0 auto;font-size:14px;padding:8px 12px}
-.adbanner{margin:16px auto;padding:22px 18px;max-width:560px;text-align:center;font-weight:bold;font-size:20px;border:3px solid #ffd23f;border-radius:18px;background:linear-gradient(180deg,#1c1400,#0a0800);box-shadow:0 0 28px #ffd23f88,0 0 70px #ff2d7844}
-.adbanner .adtitle{font-size:22px;margin-bottom:6px}
-.adbanner .adsub{font-size:14px;font-weight:normal;color:#ffe9a8;margin-bottom:10px}
-.adbtn{display:block;margin:12px auto 0;padding:18px 20px;max-width:420px;font-size:22px;border-radius:16px;color:#001 !important;font-weight:bold;text-decoration:none;background:linear-gradient(90deg,#ff2d78,#ffd23f,#00e5ff,#7CFC00,#ff2d78);background-size:300% 100%;animation:adflow 4s linear infinite;box-shadow:0 0 24px #ffd23fcc}
+.adbanner{margin:16px auto;padding:22px 18px;max-width:560px;text-align:center;font-weight:bold;font-size:20px;border:3px solid #ffe27a;border-radius:18px;background:linear-gradient(180deg,#4a3700,#1d1300);box-shadow:0 0 34px #ffd23fcc,0 0 90px #ff2d78aa;animation:adpulse 2s ease-in-out infinite}
+.adbanner .adtitle{font-size:22px;margin-bottom:6px;color:#fff;text-shadow:0 0 14px #ffd23f}
+.adbanner .adsub{font-size:14px;font-weight:normal;color:#fff3c4;margin-bottom:10px}
+.adbtn{display:block;margin:12px auto 0;padding:18px 20px;max-width:420px;font-size:22px;border-radius:16px;color:#001 !important;font-weight:bold;text-decoration:none;background:linear-gradient(90deg,#ff2d78,#ffd23f,#00e5ff,#7CFC00,#ff2d78);background-size:300% 100%;animation:adflow 4s linear infinite;box-shadow:0 0 30px #ffd23fff;border:2px solid #fff}
 @keyframes adflow{to{background-position:300% 0}}
+@keyframes adpulse{0%,100%{box-shadow:0 0 34px #ffd23fcc,0 0 90px #ff2d78aa}50%{box-shadow:0 0 50px #ffd23fff,0 0 130px #ff2d78ff}}
 .panel{background:#0b0b1acc;border:2px solid #00e5ff;border-radius:14px;padding:12px;margin-top:8px;display:none}
 .panel.on{display:block}
 .card{background:#111128;border:1px solid #7b2fff;border-radius:10px;padding:8px 10px;margin:6px 0;font-size:14px}
