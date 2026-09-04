@@ -1,5 +1,5 @@
 // Витрина забега: статистика + большая кнопка глотка ягера.
-import { VLADIMIR_PASSIVE, effMult, fmtZ, hangoverRate, jagerClick, sipPreview } from '../../game/zapoi/index';
+import { charDiscount, dmgPerSip, effMult, fmtZ, hangoverRate, jagerClick, sipPreview } from '../../game/zapoi/index';
 import type { Character, ZapoiState } from '../../game/zapoi/index';
 import type { MutateFn } from '../../hooks/useZapoiState';
 import ImgButton from '../ui/ImgButton';
@@ -21,10 +21,16 @@ export default function DrinkPanel({ z, charDef, drinkImg, mutate, onShattered, 
         <button onClick={onChangeChar} style={{ fontSize: 12 }}>сменить</button>
       </p>
       <p>Бухло: <b style={{ color: 'gold', fontSize: 26 }}>{Math.floor(z.m).toLocaleString('ru-RU')} 🍾</b> <span className="hint">(+{Math.round(z.auto * effMult(z) + (z.char === 'vladimir' ? 0.2 * z.mult : 0))}/с • это {fmtZ(z.m)} запоя)</span></p>
-      <p>Здоровье: <b style={{ color: '#7f7', fontSize: 20 }}>{Math.ceil(z.hp)}/{z.maxhp}</b></p>
-      <div className="hpbar-wrap"><div className="hpbar" style={{ width: pct + '%' }}></div></div>
-      {z.char === 'ghost' && (
-        <p>👻 Остатки души: <b style={{ color: '#c9f', fontSize: 20 }}>{Math.ceil(z.soul)}/100</b> <span className="hint">(реген +2/сек, глоток −5; в 0 — бутылка бьётся!)</span></p>
+      {z.char === 'ghost' ? (
+        <>
+          <p>👻 Остатки души: <b style={{ color: '#c9f', fontSize: 20 }}>{Math.ceil(z.soul)}/100</b> <span className="hint">(душа тает от глотков; в 0 — бутылка бьётся!)</span></p>
+          <div className="hpbar-wrap"><div className="hpbar" style={{ width: Math.max(0, Math.min(100, z.soul)) + '%' }}></div></div>
+        </>
+      ) : (
+        <>
+          <p>Здоровье: <b style={{ color: '#7f7', fontSize: 20 }}>{Math.ceil(z.hp)}/{z.maxhp}</b></p>
+          <div className="hpbar-wrap"><div className="hpbar" style={{ width: pct + '%' }}></div></div>
+        </>
       )}
       {z.char === 'demon' && z.demonForm > 0 && (
         <p style={{ color: 'red', fontWeight: 'bold', fontSize: 20 }}>😈 ДЕМОНИЧЕСКАЯ ФОРМА ×5: {z.demonForm} сек!</p>
