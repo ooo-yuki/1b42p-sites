@@ -451,6 +451,7 @@ export default function Casino(): JSX.Element {
   return (
     <>
       <div className="cbar">
+        <a className="cbtn ghost" href="index.html" style={{ textDecoration: 'none' }} title="На главную">🏠</a>
         <span>🪙</span><span className="bal">{balance}</span>
         <span className="sp" />
         <button className="cbtn ghost" onClick={takeBonus}>+500 фишек</button>

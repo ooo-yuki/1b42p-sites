@@ -1,4 +1,5 @@
 /* Казино 42 — сукно, золото и красно-синяя территория Саши */
+html{overflow:auto;height:auto}
 body.casino{overflow:auto;height:auto}
 body.casino main{position:static;display:block;text-align:left;padding:0 0 60px;pointer-events:auto}
 .cwrap{width:min(760px,94vw);margin:0 auto}
