@@ -1,0 +1,111 @@
+// Формулы запоя 42, 1-в-1 из legacy.html. Все цены и валы — только здесь.
+import type { UpgradeDef, ArtDef, ZapoiState } from './types';
+
+// --- Скидки персонажей ---
+export const SIP_DISCOUNT_STEP = 0.002; // −0.2% за глоток/сделку
+export const SIP_DISCOUNT_MAX = 0.2; // потолок −20%
+// --- Мульты персонажей ---
+export const GHOST_MULT = 1.25;
+export const GHOST_SIP_MULT = 3; // глоток призрака ×3
+export const DEMON_SIP_MULT = 2; // глоток демона ×2
+export const DEMON_FORM_MULT = 5; // демоническая форма ×5
+export const DEMON_FORM_SECS = 10; // длительность формы, сек
+export const WINLINE_SIP_AVG = 1.5; // средний глоток винлайна (для превью кнопки)
+// --- Пассивки ---
+export const VLADIMIR_CLICK_STEP = 0.02; // +к клику за глоток, навсегда
+export const VLADIMIR_PASSIVE = 0.2; // бухла/сек
+export const GHOST_SOUL_REGEN = 2; // реген души/сек
+export const GHOST_SOUL_SIP = 5; // душа за глоток
+export const AUTO_SELF_DMG = 0.05; // урон/сек за единицу auto
+// --- Винлайн-ставка ---
+export const BET_STAKE_RATE = 0.1; // 10% бухла
+export const BET_MIN_STAKE = 50;
+export const BET_WIN_P = 0.45; // шанс возврата ×2
+export const BET_RETURN_MULT = 2;
+// --- Похмелье ---
+export const HANGOVER_HP_RATE = 0.3; // здоровье 30%
+export const HANGOVER_RATE = 0.2; // −20% бухла
+export const HANGOVER_RATE_GOD = 0.1; // −10% с РЕЖИМОМ БОГА
+// --- Шансы ---
+export const WINLINE_BLANK_P = 0.1; // пустышка артефакта
+export const WINLINE_DOUBLE_P = 0.8; // порог двойного эффекта (roll > 0.8)
+export const HOLY_DEAL_P = 0.05; // 5% — скидка святым пикулем
+
+// Скидка Владимира: −0.2% за глоток, макс −20%. Святые пикули дают
+// призраку такую же скидку: 5% шанс −0.2% навсегда (стакается до −20%).
+export function charDiscount(z: ZapoiState): number {
+  if (z.char === 'vladimir') return Math.min(SIP_DISCOUNT_MAX, (z.sips || 0) * SIP_DISCOUNT_STEP);
+  if (z.char === 'ghost') return Math.min(SIP_DISCOUNT_MAX, (z.deals || 0) * SIP_DISCOUNT_STEP);
+  return 0;
+}
+
+// Эффективный мульт с учётом персонажа.
+export function effMult(z: ZapoiState): number {
+  let m = z.mult;
+  if (z.char === 'ghost') m *= GHOST_MULT;
+  if (z.char === 'demon') {
+    const missing = 1 - z.hp / Math.max(1, z.maxhp);
+    m *= 1 + missing * 2;
+    if (z.demonForm > 0) m *= DEMON_FORM_MULT;
+  }
+  return m;
+}
+
+// Цена апгрейда = base × growth^уровень (со скидкой персонажа).
+export function upgradeCost(def: UpgradeDef, level: number, discount = 0): number {
+  return Math.floor(def.base * Math.pow(def.g, level) * (1 - discount));
+}
+
+// Цена артефакта со скидкой персонажа.
+export function artCost(z: ZapoiState, a: ArtDef): number {
+  return Math.floor(a.cost * (1 - charDiscount(z)));
+}
+
+export function dmgPerSip(z: ZapoiState): number {
+  return (0.6 + z.m / 4000) * z.toxic;
+}
+
+// --- Хилки: валы и цены (единый подсчёт, синергия balance + Владимир) ---
+function withBalance(v: number, z: ZapoiState): number {
+  return z.syn.balance ? Math.round(v * 1.3) : v;
+}
+
+function withVladimir(v: number, z: ZapoiState): number {
+  return z.char === 'vladimir' ? Math.round(v * 1.25) : v;
+}
+
+export function heal1val(z: ZapoiState): number {
+  const v = Math.round(15 * (1 + 0.5 * (z.up.rassol || 0)));
+  return withVladimir(withBalance(v, z), z);
+}
+
+export function heal1cost(z: ZapoiState): number {
+  let c = Math.floor(20 * Math.pow(1.35, z.heals));
+  if (z.syn.balance) c = Math.floor(c * 0.8);
+  return Math.floor(c * (1 - charDiscount(z)));
+}
+
+export function heal2val(z: ZapoiState): number {
+  const v = Math.round(60 * (1 + 0.4 * (z.up.kapel || 0)));
+  return withVladimir(withBalance(v, z), z);
+}
+
+export function heal2cost(z: ZapoiState): number {
+  let c = Math.floor(150 * Math.pow(1.4, z.heals) * Math.pow(0.9, z.up.kapel || 0));
+  if (z.syn.balance) c = Math.floor(c * 0.8);
+  return Math.floor(c * (1 - charDiscount(z)));
+}
+
+// Сколько даст глоток (для кнопки; у винлайна — среднее).
+export function sipPreview(z: ZapoiState): number {
+  if (z.char === 'ghost') return Math.round(z.click * effMult(z) * GHOST_SIP_MULT);
+  if (z.char === 'demon') return Math.round(z.click * effMult(z) * DEMON_SIP_MULT);
+  if (z.char === 'winline') return Math.round(z.click * effMult(z) * WINLINE_SIP_AVG);
+  return Math.round(z.click * effMult(z));
+}
+
+export function fmtZ(m: number): string {
+  if (m < 60) return Math.floor(m) + ' мин';
+  if (m < 3600) return (m / 60).toFixed(1) + ' ч';
+  return (m / 3600).toFixed(1) + ' сут';
+}

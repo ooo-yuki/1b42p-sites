@@ -222,7 +222,7 @@ export default function ZapoiGame() {
           if (!r) return '';
           return r.win ? `🎰 Ставка зашла! +${r.stake} бухла чистыми!` : `🎰 Ставка сгорела… −${r.stake} бухла. Рискуй ещё!`;
         }, 650)} style={{ fontSize: 15 }}>
-          <img src="heals/lever.jpg" alt="" style={{ height: 30, verticalAlign: 'middle', borderRadius: 8, marginRight: 8 }} />
+          <img src="heals/lever.png" alt="" style={{ height: 30, verticalAlign: 'middle', borderRadius: 8, marginRight: 8 }} />
           РУЧКА: 10% бухла, 45% — возврат ×2</button>
       )}{' '}
       {(z.char === 'vladimir' || z.char === 'winline') && (
@@ -230,7 +230,7 @@ export default function ZapoiGame() {
           const r = pickleSmall(n);
           return r ? `🥒 Пикули: +${r.v} HP за ${r.c} бухла` : '';
         }, 500)} style={{ fontSize: 15 }}>
-          <img src="heals/pickle.jpg" alt="" style={{ height: 30, verticalAlign: 'middle', borderRadius: 8, marginRight: 8 }} />
+          <img src="heals/pickle.png" alt="" style={{ height: 30, verticalAlign: 'middle', borderRadius: 8, marginRight: 8 }} />
           ПИКУЛИ: +{heal1val(z)} HP за {heal1cost(z)} бухла</button>
       )}{' '}
       {z.char === 'demon' && (
@@ -239,7 +239,7 @@ export default function ZapoiGame() {
           if (!r) return '';
           return `🔥 Демонические пикули: +${r.v} HP за ${r.c} бухла${r.extended ? ', форма +10 сек!' : ''}`;
         }, 500)} style={{ fontSize: 15 }}>
-          <img src="heals/dpickle.jpg" alt="" style={{ height: 30, verticalAlign: 'middle', borderRadius: 8, marginRight: 8 }} />
+          <img src="heals/dpickle.png" alt="" style={{ height: 30, verticalAlign: 'middle', borderRadius: 8, marginRight: 8 }} />
           ДЕМОНИЧЕСКИЕ ПИКУЛИ: +{heal1val(z)} HP за {heal1cost(z)} бухла</button>
       )}{' '}
       {z.char === 'ghost' && (
@@ -248,7 +248,7 @@ export default function ZapoiGame() {
           if (!r) return '';
           return `✨ Святые пикули: +${r.v} души за ${r.c} бухла${r.deal ? ', скидка −0.2% навсегда!' : ''}`;
         }, 500)} style={{ fontSize: 15 }}>
-          <img src="heals/hpickle.jpg" alt="" style={{ height: 30, verticalAlign: 'middle', borderRadius: 8, marginRight: 8 }} />
+          <img src="heals/hpickle.png" alt="" style={{ height: 30, verticalAlign: 'middle', borderRadius: 8, marginRight: 8 }} />
           СВЯТЫЕ ПИКУЛИ: +{heal1val(z)} души за {heal1cost(z)} бухла</button>
       )}{' '}
       {(z.char === 'vladimir' || z.char === 'winline') && (
@@ -256,7 +256,7 @@ export default function ZapoiGame() {
           const r = syringe(n);
           return r ? `💉 Шприц: полное HP за ${r.c} бухла` : '';
         }, 700)} style={{ fontSize: 15 }}>
-          <img src="heals/syringe.jpg" alt="" style={{ height: 30, verticalAlign: 'middle', borderRadius: 8, marginRight: 8 }} />
+          <img src="heals/syringe.png" alt="" style={{ height: 30, verticalAlign: 'middle', borderRadius: 8, marginRight: 8 }} />
           ШПРИЦ: полное HP за {heal2cost(z)} бухла</button>
       )}{' '}
       {z.char === 'demon' && (

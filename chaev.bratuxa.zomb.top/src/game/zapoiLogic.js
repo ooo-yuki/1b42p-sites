@@ -259,11 +259,11 @@ export function cleanseDemon(Z) {
 // У каждого персонажа свои лечилки с логотипами вместо эмодзи.
 // Цены и формулы — те же что у Рассола (малые) и Капельницы (шприц).
 export const HEALS = {
-  pickle: { name: 'Обычные пикули', img: 'heals/pickle.jpg', chars: ['vladimir', 'winline'] },
-  dpickle: { name: 'Демонические пикули', img: 'heals/dpickle.jpg', chars: ['demon'] },
-  hpickle: { name: 'Святые пикули', img: 'heals/hpickle.jpg', chars: ['ghost'] },
-  lever: { name: 'Ручка игрового аппарата', img: 'heals/lever.jpg', chars: ['winline'] },
-  syringe: { name: 'Шприц 42', img: 'heals/syringe.jpg', chars: ['vladimir', 'winline'] },
+  pickle: { name: 'Обычные пикули', img: 'heals/pickle.png', chars: ['vladimir', 'winline'] },
+  dpickle: { name: 'Демонические пикули', img: 'heals/dpickle.png', chars: ['demon'] },
+  hpickle: { name: 'Святые пикули', img: 'heals/hpickle.png', chars: ['ghost'] },
+  lever: { name: 'Ручка игрового аппарата', img: 'heals/lever.png', chars: ['winline'] },
+  syringe: { name: 'Шприц 42', img: 'heals/syringe.png', chars: ['vladimir', 'winline'] },
 };
 
 // Обычные пикули: малый хил (формула Рассола). Владимир и Винлайн.
