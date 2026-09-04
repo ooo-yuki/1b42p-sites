@@ -4,6 +4,7 @@
 import {
   getVehicle, calcDamage, applyHit, zoneDps, zoneRadius,
   pickBots, botVehicleIds, mulberry32,
+  BOT_AIM, botAimError, botReactionTime,
 } from './game-logic.js';
 
 const ARENA_SIZE = 400;
@@ -80,6 +81,7 @@ export function addUnit(world, { id, nick, vid, isBot = false, owner = null }) {
     reload: 0, kills: 0, dead: false, deadAt: 0,
     speed2d: 0,
     aiT: Math.random() * 2, aiWx: 0, aiWz: 0,
+    aiTarget: null, aiLock: 0, aiErrT: 0, aimErr: 0,
     invuln: midRound ? 3 : 0,
     fullRound: !midRound,
     input: { dx: 0, dz: 0, aimYaw: 0, fire: false },
@@ -199,7 +201,6 @@ function tryFire(world, u, events) {
     const ang = Math.acos(Math.max(-1, Math.min(1, (dx * dir.x + dz * dir.z) / (d || 1))));
     if (ang < 0.14 && d < bestD) { best = e; bestD = d; }
   }
-  if (u.isBot && best && Math.random() < 0.35) best = null;
   if (best) {
     const dmg = calcDamage(u.spec.damage, bestD, u.spec.range);
     const r = applyHit(best.hp, dmg);
@@ -252,9 +253,26 @@ function updateBotAI(world, u, dt, events) {
   let mx = u.aiWx, mz = u.aiWz;
   if (target && distP < u.spec.range * 0.35) { mx = -dx / distP; mz = -dz / distP; }
   moveUnit(world.arena, u, dt, mx * 0.75, mz * 0.75, u.spec.turn);
+
+  // Наводка: бот не снайпер. Новая цель — пауза на реакцию, плюс постоянно
+  // гуляющая ошибка прицела, которая растёт с дистанцией. Мажет по-настоящему.
+  const tid = target ? target.id : null;
+  if (tid !== u.aiTarget) {
+    u.aiTarget = tid;
+    u.aiLock = botReactionTime(Math.random);
+    u.aiErrT = 0;
+  }
+  if (u.aiLock > 0) u.aiLock = Math.max(0, u.aiLock - dt);
+  u.aiErrT -= dt;
+  if (u.aiErrT <= 0) {
+    u.aiErrT = 0.6 + Math.random() * 0.9;
+    u.aimErr = botAimError(Math.random, distP, u.spec.range);
+  }
   if (target && distP < u.spec.range) {
-    turnTurret(u, Math.atan2(dx, -dz), dt);
-    if (Math.random() < dt * 0.9) tryFire(world, u, events);
+    turnTurret(u, Math.atan2(dx, -dz) + u.aimErr, dt);
+    if (u.aiLock <= 0 && distP < u.spec.range * BOT_AIM.rangeFrac && Math.random() < dt * 0.9) {
+      tryFire(world, u, events);
+    }
   }
 }
 
@@ -284,6 +302,7 @@ function startRound(world, events) {
   ids.forEach((id, i) => {
     const u = world.units.get(id);
     u.hp = u.maxhp; u.dead = false; u.deadAt = 0; u.kills = 0; u.reload = 0; u.invuln = 1.5;
+    u.aiTarget = null; u.aiLock = 0; u.aiErrT = 0; u.aimErr = 0;
     u.x = pts[i].x; u.z = pts[i].z; u.y = u.spec.fly || 0;
     u.yaw = Math.atan2(-pts[i].x, -pts[i].z); u.turYaw = u.yaw;
     u.fullRound = true;

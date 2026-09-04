@@ -1,6 +1,6 @@
 // bun test — логика выбора техники, урона и рейтинга
 import { describe, test, expect } from 'bun:test';
-import { VEHICLES, vehicleList, getVehicle, calcDamage, applyHit, zoneDps, zoneRadius, placementScore, updateRating, pickBots, botVehicleIds } from '../game-logic.js';
+import { VEHICLES, vehicleList, getVehicle, calcDamage, applyHit, zoneDps, zoneRadius, placementScore, updateRating, pickBots, botVehicleIds, BOT_AIM, botAimError, botReactionTime } from '../game-logic.js';
 
 describe('техника', () => {
   test('минимум 3 танка + корабль + самолёт', () => {
@@ -78,6 +78,31 @@ describe('рейтинг', () => {
   test('placementScore моно Stern', () => {
     expect(placementScore(1, 8)).toBe(1);
     expect(placementScore(2, 8)).toBeGreaterThanOrEqual(placementScore(6, 8));
+  });
+});
+
+describe('меткость ботов', () => {
+  test('ошибка наведения растёт с дистанцией', () => {
+    const near = botAimError(() => 1, 0, 100);   // rng=1 → максимальный плюсовой увод
+    const far = botAimError(() => 1, 100, 100);
+    expect(near).toBeCloseTo(BOT_AIM.errNear, 6);
+    expect(far).toBeCloseTo(BOT_AIM.errFar, 6);
+    expect(far).toBeGreaterThan(near);
+  });
+  test('ошибка знаковая и в заявленных границах', () => {
+    expect(botAimError(() => 0, 100, 100)).toBeCloseTo(-BOT_AIM.errFar, 6);
+    expect(botAimError(() => 0.5, 50, 100)).toBeCloseTo(0, 6);
+    for (let i = 0; i < 200; i++) {
+      const e = botAimError(Math.random, Math.random() * 120, 120);
+      expect(Math.abs(e)).toBeLessThanOrEqual(BOT_AIM.errFar + 1e-9);
+    }
+  });
+  test('ошибка заметно больше конуса попадания (0.14 рад) на дистанции', () => {
+    expect(BOT_AIM.errFar).toBeGreaterThan(0.14);
+  });
+  test('задержка реакции в границах', () => {
+    expect(botReactionTime(() => 0)).toBeCloseTo(BOT_AIM.reactMin, 6);
+    expect(botReactionTime(() => 1)).toBeCloseTo(BOT_AIM.reactMax, 6);
   });
 });
 

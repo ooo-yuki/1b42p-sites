@@ -71,6 +71,30 @@ export function updateRating(playerRating, avgEnemy, placement, total, kills) {
   return { newRating: Math.max(100, playerRating + delta), delta };
 }
 
+// ---- Меткость ботов: крутится этими четырьмя числами ----
+// Бот мажет физически — ствол реально уходит мимо конуса попадания (0.14 рад в sim.js),
+// а не «попал, но мы бросили кубик и решили, что нет».
+export const BOT_AIM = {
+  // Конус попадания в sim.js — 0.14 рад, так что разброс шире него:
+  // ~40% попаданий в упор и ~28% на пределе огня. Раньше боты били почти в точку.
+  errNear: 0.34,   // разброс наведения в упор, рад
+  errFar: 0.50,    // разброс на предельной дальности, рад
+  reactMin: 0.4,   // задержка реакции на новую цель, с
+  reactMax: 0.8,
+  rangeFrac: 0.8,  // дальше range*rangeFrac бот вообще не открывает огонь
+};
+
+// Знаковая ошибка наведения: чем дальше цель, тем сильнее бот мажет.
+export function botAimError(rng, dist, range) {
+  const q = Math.max(0, Math.min(1, (dist || 0) / (range || 1)));
+  const spread = BOT_AIM.errNear + (BOT_AIM.errFar - BOT_AIM.errNear) * q;
+  return (rng() * 2 - 1) * spread;
+}
+
+export function botReactionTime(rng) {
+  return BOT_AIM.reactMin + rng() * (BOT_AIM.reactMax - BOT_AIM.reactMin);
+}
+
 const BOT_NICKS = ['Кизяк', 'Чаев', 'Свят', 'Денчик', 'Бротовод', 'Слай', 'Винлайн', 'Дамафан', 'Триавзерос', 'Хасан'];
 
 export function pickBots(n, seedFn = Math.random) {

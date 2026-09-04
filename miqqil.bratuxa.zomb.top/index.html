@@ -2,13 +2,13 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>MIQQIL TANKS — battle royale батальона 1Б42П 🏆</title>
 <style>
   :root{ --gold:#f5c518; --bg:#0d0f14; --panel:#161a22; --line:#2a3040; }
   *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body{ margin:0; height:100%; background:var(--bg); color:#e8eaf0; font-family:system-ui,'Segoe UI',Roboto,Arial,sans-serif; overflow:hidden; }
-  #c3d{ position:fixed; inset:0; }
+  html,body{ margin:0; height:100%; background:var(--bg); color:#e8eaf0; font-family:system-ui,'Segoe UI',Roboto,Arial,sans-serif; overflow:hidden; overscroll-behavior:none; }
+  #c3d{ position:fixed; inset:0; touch-action:none; }
   canvas.game{ display:block; }
   .screen{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; z-index:10; background:rgba(8,10,14,.88); padding:16px; overflow:auto; }
   .hidden{ display:none !important; }
@@ -30,31 +30,38 @@
   table.lb,table.res{ width:100%; border-collapse:collapse; font-size:14px; }
   table.lb td,table.lb th,table.res td,table.res th{ border-bottom:1px solid var(--line); padding:4px 6px; text-align:left; }
   table.res tr.me td{ color:var(--gold); font-weight:700; }
-  /* HUD */
+  /* HUD — все внешние отступы учитывают чёлку/скруглённые углы телефона (safe-area) */
   #hud{ position:fixed; inset:0; pointer-events:none; z-index:5; }
-  #hpwrap{ position:absolute; left:12px; bottom:12px; width:min(300px,40vw); background:#000a; border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
+  #hpwrap{ position:absolute; left:calc(12px + env(safe-area-inset-left)); bottom:calc(12px + env(safe-area-inset-bottom)); width:min(300px,40vw); background:#000a; border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
   #hpbar{ height:14px; background:#3a1420; border-radius:6px; overflow:hidden; }
   #hpfill{ height:100%; width:100%; background:linear-gradient(90deg,#37d67a,#f5c518); }
-  #stats{ position:absolute; left:12px; top:12px; background:#000a; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:14px; }
-  #zoneinfo{ position:absolute; top:12px; left:50%; transform:translateX(-50%); background:#000a; border:1px solid var(--gold); color:var(--gold); border-radius:8px; padding:8px 12px; font-weight:700; }
-  #killfeed{ position:absolute; right:12px; top:12px; font-size:13px; text-align:right; color:#c6cddb; }
+  #stats{ position:absolute; left:calc(12px + env(safe-area-inset-left)); top:calc(12px + env(safe-area-inset-top)); background:#000a; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:14px; }
+  #debug{ position:absolute; left:calc(12px + env(safe-area-inset-left)); top:calc(52px + env(safe-area-inset-top)); background:#000a; border:1px solid var(--line); border-radius:8px; padding:4px 8px; font-size:11px; color:#7bd88f; font-family:ui-monospace,Consolas,monospace; white-space:nowrap; }
+  #zoneinfo{ position:absolute; top:calc(12px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%); background:#000a; border:1px solid var(--gold); color:var(--gold); border-radius:8px; padding:8px 12px; font-weight:700; }
+  #rightPanel{ position:absolute; right:calc(12px + env(safe-area-inset-right)); top:calc(12px + env(safe-area-inset-top)); display:flex; flex-direction:column; align-items:flex-end; gap:8px; max-width:44vw; }
+  #killfeed{ font-size:13px; text-align:right; color:#c6cddb; }
   #labels{ position:absolute; inset:0; overflow:hidden; }
-  .lbl{ position:absolute; transform:translate(-50%,-100%); font-size:12px; background:#000b; padding:2px 6px; border-radius:6px; border:1px solid var(--line); white-space:nowrap; }
+  .lbl{ position:absolute; left:0; top:0; will-change:transform; font-size:12px; background:#000b; padding:2px 6px; border-radius:6px; border:1px solid var(--line); white-space:nowrap; }
   .lbl.me{ border-color:var(--gold); color:var(--gold); }
   .lbl .bar{ height:4px; background:#333; border-radius:2px; margin-top:2px; }
   .lbl .bar i{ display:block; height:100%; background:#37d67a; border-radius:2px; }
-  #minimap{ position:absolute; right:12px; bottom:12px; border:1px solid var(--line); border-radius:8px; background:#000c; }
-  #reload{ position:absolute; bottom:12px; left:50%; transform:translateX(-50%); font-size:13px; color:#9aa3b5; background:#000a; padding:4px 10px; border-radius:6px; }
+  #minimap{ border:1px solid var(--line); border-radius:8px; background:#000c; width:150px; height:150px; }
+  @media (max-width:820px){ #minimap{ width:110px; height:110px; } }
+  #reload{ position:absolute; bottom:calc(12px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%); font-size:13px; color:#9aa3b5; background:#000a; padding:4px 10px; border-radius:6px; }
   #crosshair{ position:absolute; left:50%; top:50%; width:22px; height:22px; margin:-11px 0 0 -11px; }
-  #crosshair::before,#crosshair::after{ content:''; position:absolute; background:#f5c518cc; }
+  #crosshair::before,#crosshair::after{ content:''; position:absolute; background:#9aa3b5bb; transition:background .1s; }
   #crosshair::before{ left:50%; top:0; width:2px; height:100%; margin-left:-1px; }
   #crosshair::after{ top:50%; left:0; height:2px; width:100%; margin-top:-1px; }
-  #crosshair i{ position:absolute; inset:0; border:2px solid #f5c51877; border-radius:50%; }
+  #crosshair i{ position:absolute; inset:0; border:2px solid #9aa3b555; border-radius:50%; transition:border-color .1s; }
+  #crosshair.locked::before,#crosshair.locked::after{ background:#f5c518dd; }
+  #crosshair.locked i{ border-color:#f5c51899; }
   #lockhint{ position:absolute; left:50%; top:58%; transform:translate(-50%,0); background:#000c; border:1px solid var(--gold); color:var(--gold); padding:10px 16px; border-radius:8px; font-weight:700; text-align:center; }
-  /* touch */
-  #joy{ position:fixed; left:18px; bottom:90px; width:160px; height:160px; border-radius:50%; border:2px solid #ffffff33; background:#ffffff11; z-index:6; display:none; }
+  body.touch #lockhint{ display:none !important; } /* захвата курсора на тач-устройствах нет */
+  /* touch — джойстик динамический: появляется под пальцем, а не в фиксированной точке */
+  #joy{ position:fixed; width:160px; height:160px; border-radius:50%; border:2px solid #ffffff33; background:#ffffff11; z-index:6; display:none; touch-action:none; opacity:0; transition:opacity .1s; }
+  #joy.active{ opacity:1; }
   #stick{ position:absolute; left:48px; top:48px; width:64px; height:64px; border-radius:50%; background:#ffffff44; }
-  #firebtn{ position:fixed; right:24px; bottom:110px; width:96px; height:96px; border-radius:50%; background:#f5c518; color:#111; font-weight:800; font-size:18px; z-index:6; display:none; border:none; }
+  #firebtn{ position:fixed; right:calc(24px + env(safe-area-inset-right)); bottom:calc(110px + env(safe-area-inset-bottom)); width:96px; height:96px; border-radius:50%; background:#f5c518; color:#111; font-weight:800; font-size:18px; z-index:6; display:none; border:none; touch-action:none; }
   body.touch #joy,body.touch #firebtn{ display:block; }
   #err{ position:fixed; bottom:0; left:0; right:0; z-index:99; color:#ff8080; font-size:12px; padding:4px 8px; }
 </style>
@@ -69,14 +76,14 @@
 <div id="c3d"></div>
 <div id="hud" class="hidden">
   <div id="stats">Фраги: <b id="kills">0</b> • Живо: <b id="alive">8</b> • Онлайн: <b id="online">—</b> • <span id="ping"></span> • <span id="pname"></span></div>
+  <div id="debug" class="hidden"></div>
   <div id="zoneinfo">Зона: <span id="ztimer">30</span>с</div>
-  <div id="killfeed"></div>
+  <div id="rightPanel"><div id="killfeed"></div><canvas id="minimap" width="150" height="150"></canvas></div>
   <div id="labels"></div>
   <div id="crosshair"><i></i></div>
   <div id="lockhint" class="hidden">Клик по полю боя — взять управление камерой 🖱️<br><span style="font-weight:400;font-size:12px;color:#c6cddb">(или Q/E — вращать без захвата курсора)</span></div>
   <div id="hpwrap"><div id="hpbar"><div id="hpfill"></div></div><div id="hptext">100/100</div></div>
   <div id="reload"></div>
-  <canvas id="minimap" width="150" height="150"></canvas>
 </div>
 <div id="joy"><div id="stick"></div></div>
 <button id="firebtn">ОГОНЬ</button>
@@ -113,6 +120,13 @@
       <button id="btnLogout" class="ghost">Сменить позывной</button>
     </div>
     <div style="margin-top:6px;font-size:13px;color:#9aa3b5">Мой рейтинг: <b id="myrating" style="color:#f5c518">1000</b></div>
+    <div style="margin-top:8px;font-size:13px;color:#9aa3b5">Качество графики:
+      <select id="quality" style="padding:4px 8px;font-size:13px">
+        <option value="high">высокое</option>
+        <option value="medium">среднее</option>
+        <option value="low">низкое</option>
+      </select>
+    </div>
   </div>
   <div class="card"><b style="color:#f5c518">Топ батальона</b><div id="lbTop">…</div></div>
 </div>
@@ -181,16 +195,84 @@ const AU = { ctx: null,
 function sfxShot() { AU.shot(); }
 function sfxBoom(big) { AU.boom(big); }
 
+// ---------- тиры качества: страховка на слабом железе, не основной приём ----------
+// Основной выигрыш FPS идёт из models.js (слитые меши, пулы эффектов, тень по
+// игроку) и работает на любом тире. Тиры лишь подстраховывают совсем слабые
+// телефоны понижением dpr/сглаживания/теней.
+const QUALITY = {
+  high:   { dpr: Math.min(devicePixelRatio, 2),   shadow: true,  shadowSize: 1024, antialias: true },
+  medium: { dpr: Math.min(devicePixelRatio, 1.5), shadow: true,  shadowSize: 1024, antialias: false },
+  low:    { dpr: 1,                               shadow: false, shadowSize: 512,  antialias: false },
+};
+function detectQuality() {
+  const saved = store.get('quality', null);
+  if (saved && QUALITY[saved]) return saved;
+  const coarse = matchMedia('(pointer:coarse)').matches;
+  const mem = navigator.deviceMemory || 4;
+  const cores = navigator.hardwareConcurrency || 4;
+  if (coarse && (mem <= 4 || cores <= 4)) return 'low';
+  if (coarse || mem <= 4) return 'medium';
+  return 'high';
+}
+let quality = detectQuality();
+
 // ---------- three.js: сцена строится один раз при загрузке ----------
 let renderer, scene, camera, sun;
 function boot3D() {
-  renderer = M.buildRenderer($('c3d'));
-  ({ scene, camera, sun } = M.buildScene(renderer, Sim.CONSTS.ARENA_SIZE));
+  const q = QUALITY[quality];
+  renderer = M.buildRenderer($('c3d'), { pixelRatio: q.dpr, antialias: q.antialias });
+  renderer.shadowMap.enabled = q.shadow;
+  ({ scene, camera, sun } = M.buildScene(renderer, Sim.CONSTS.ARENA_SIZE, { shadowMapSize: q.shadowSize }));
+  renderer.domElement.addEventListener('webglcontextlost', e => {
+    // Телефон убивает GPU-контекст при сворачивании вкладки — раньше игра
+    // просто замирала навсегда. preventDefault разрешает восстановление;
+    // three.js сам переливает существующие геометрии/текстуры на новый контекст.
+    e.preventDefault();
+    renderer.setAnimationLoop(null);
+  }, false);
+  renderer.domElement.addEventListener('webglcontextrestored', () => {
+    clock.getDelta(); // не откатывать огромный dt после паузы
+    renderer.setAnimationLoop(animate);
+  }, false);
   addEventListener('resize', () => {
     camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight);
   });
   renderer.setAnimationLoop(animate);
+}
+
+// ---------- адаптивный renderScale: подстройка под устойчивый fps ----------
+let fpsAvg = 60, renderScale = 1, scaleT = 0;
+function trackPerf(rawDt) {
+  const fps = 1 / Math.max(rawDt, 1e-4);
+  fpsAvg += (fps - fpsAvg) * 0.05;
+  scaleT += rawDt;
+  if (scaleT < 1) return;
+  scaleT = 0;
+  const q = QUALITY[quality];
+  let next = renderScale;
+  if (fpsAvg < 48 && renderScale > 0.6) next = Math.max(0.6, renderScale - 0.1);
+  else if (fpsAvg > 56 && renderScale < 1) next = Math.min(1, renderScale + 0.05);
+  if (next !== renderScale) { renderScale = next; renderer.setPixelRatio(q.dpr * renderScale); }
+}
+
+// ---------- отладочный оверлей: F3 или тройной тап ----------
+let dbgOn = false;
+function toggleDebug() { dbgOn = !dbgOn; $('debug').classList.toggle('hidden', !dbgOn); }
+addEventListener('keydown', e => { if (e.code === 'F3') { e.preventDefault(); toggleDebug(); } });
+(function () {
+  let tapCount = 0, tapT = 0;
+  addEventListener('touchend', () => {
+    const now = performance.now();
+    tapCount = (now - tapT < 600) ? tapCount + 1 : 1;
+    tapT = now;
+    if (tapCount >= 3) { tapCount = 0; toggleDebug(); }
+  });
+})();
+function updateDebug() {
+  if (!dbgOn || !renderer) return;
+  const info = renderer.info;
+  $('debug').textContent = `fps ${fpsAvg.toFixed(0)} · draw ${info.render.calls} · tris ${(info.render.triangles / 1000).toFixed(1)}k · geo ${info.memory.geometries} · tex ${info.memory.textures} · ${quality}/${renderScale.toFixed(2)}`;
 }
 
 // ---------- состояние боя ----------
@@ -207,12 +289,15 @@ let camYaw = 0, camPitch = 0.32, camDist = 14, fovKick = 0;
 const PITCH_MIN = 0.06, PITCH_MAX = 1.25, MOUSE_SENS = 0.0024;
 let keys = {}, joy = { x: 0, y: 0 }, mouseDown = false, touchFire = false, pointerLocked = false;
 let currentAimYaw = 0;
-let sendTimer = 0;
-const raycaster = new THREE.Raycaster();
-const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-const CENTER = new THREE.Vector2(0, 0);
+let sendTimer = 0, hudAcc = 0, mmAcc = 0;
+const HUD_HZ = 10, MM_HZ = 12;
 const clock = new THREE.Clock();
 const tmpV = new THREE.Vector3();
+// Переиспользуемые объекты для сборки кадра без аллокаций на пустом месте:
+// один и тот же массив/объект каждый кадр вместо .map()/spread на 8 юнитах.
+let renderUnits = [];
+const predictedView = {};
+const _evDir = new THREE.Vector3(), _evFrom = new THREE.Vector3(), _evTo = new THREE.Vector3(), _evPos = new THREE.Vector3(), _predVec = new THREE.Vector3();
 
 function feed(html) {
   const d = document.createElement('div');
@@ -231,9 +316,10 @@ function createVisual(s) {
   scene.add(u3d.grp);
   const el = document.createElement('div');
   el.className = 'lbl' + (isPlayer ? ' me' : '');
+  el.style.display = 'none';
   el.innerHTML = `${escapeHtml(s.nick)}<div class="bar"><i></i></div>`;
   $('labels').appendChild(el);
-  const entry = { u3d, el, vid: s.vid };
+  const entry = { u3d, el, vid: s.vid, barEl: el.querySelector('i'), hpPct: -1, deadT: 0 };
   visuals.set(s.id, entry);
   return entry;
 }
@@ -241,36 +327,53 @@ function removeVisual(id) {
   const entry = visuals.get(id);
   if (!entry) return;
   scene.remove(entry.u3d.grp);
+  M.disposeVehicle(entry.u3d); // клон текстуры гусениц/материал блюра — их не разделяет кэш в models.js
   entry.el.remove();
   visuals.delete(id);
 }
 function disposeAllVisuals() { for (const id of [...visuals.keys()]) removeVisual(id); }
 
+// Мёртвый юнит не исчезает мгновенно: остаётся обломком на месте смерти ещё
+// M.WRECK_HOLD секунд (markWreck красит материалы по 'kill'-событию в
+// applyEvents), потом убирается. Раньше визуал сносился в тот же кадр, что и
+// markWreck его помечал — обломков никто не успевал увидеть.
 function syncVisuals(unitsArr, dt) {
-  const alive = new Set();
+  const present = new Set();
   for (const s of unitsArr) {
-    if (s.dead) continue;
-    alive.add(s.id);
+    present.add(s.id);
     let entry = visuals.get(s.id);
     if (!entry || entry.vid !== s.vid) { if (entry) removeVisual(s.id); entry = createVisual(s); }
     const g = entry.u3d.grp;
     g.position.set(s.x, s.y, s.z);
     g.rotation.y = s.yaw;
+    if (s.dead) { entry.deadT += dt; continue; }
+    if (entry.deadT > 0) { M.unwreck(entry.u3d); entry.deadT = 0; }
     if (entry.u3d.tur && entry.u3d.tur !== g) entry.u3d.tur.rotation.y = s.turYaw - s.yaw;
     M.animateVehicle(entry.u3d, dt, s.speed2d || 0);
-    const fill = entry.el.querySelector('i');
-    if (fill) fill.style.width = clamp(100 * s.hp / s.maxhp, 0, 100) + '%';
+    const pct = clamp(100 * s.hp / s.maxhp, 0, 100);
+    if (entry.barEl && Math.abs(pct - entry.hpPct) > 0.5) { entry.barEl.style.width = pct + '%'; entry.hpPct = pct; }
   }
-  for (const id of [...visuals.keys()]) if (!alive.has(id)) removeVisual(id);
+  for (const id of [...visuals.keys()]) {
+    const entry = visuals.get(id);
+    if (!present.has(id) || entry.deadT > M.WRECK_HOLD) removeVisual(id);
+  }
 }
 
+const LABEL_MAX_DIST2 = 200 * 200; // дальше 200м табличку не рисуем — экономим DOM/layout
 function updateLabels() {
   const w = innerWidth, h = innerHeight;
-  for (const [id, entry] of visuals) {
-    tmpV.copy(entry.u3d.grp.position); tmpV.y += 5; tmpV.project(camera);
+  const px = predicted ? predicted.x : 0, pz = predicted ? predicted.z : 0;
+  for (const [, entry] of visuals) {
+    if (entry.deadT > 0) { entry.el.style.display = 'none'; continue; }
+    const p = entry.u3d.grp.position;
+    const dx = p.x - px, dz = p.z - pz;
+    if (dx * dx + dz * dz > LABEL_MAX_DIST2) { entry.el.style.display = 'none'; continue; }
+    tmpV.set(p.x, p.y + 5, p.z); tmpV.project(camera);
+    if (tmpV.z >= 1) { entry.el.style.display = 'none'; continue; }
+    entry.el.style.display = 'block';
     const x = (tmpV.x + 1) / 2 * w, y = (-tmpV.y + 1) / 2 * h;
-    entry.el.style.left = x + 'px'; entry.el.style.top = y + 'px';
-    entry.el.style.display = (tmpV.z < 1) ? 'block' : 'none';
+    // translate3d — композитор, а не layout/paint на каждый кадр на каждую метку
+    entry.el.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0) translate(-50%,-100%)`;
   }
 }
 
@@ -284,19 +387,21 @@ function applyEvents(events, unitsLike) {
   const idx = unitsIndex(unitsLike);
   for (const ev of events) {
     if (ev.t === 'shot') {
-      const dir = new THREE.Vector3(Math.sin(ev.yaw), 0, -Math.cos(ev.yaw));
-      const from = new THREE.Vector3(ev.x, ev.y, ev.z);
-      const to = from.clone().addScaledVector(dir, ev.len);
-      effects.push(M.spawnTracer(scene, from, to));
-      effects.push(M.spawnMuzzleFlash(scene, from, dir));
+      // Скретч-векторы: spawnTracer/spawnMuzzleFlash читают pos/dir синхронно и
+      // не хранят ссылку — переиспользовать безопасно, без new на каждый выстрел.
+      _evDir.set(Math.sin(ev.yaw), 0, -Math.cos(ev.yaw));
+      _evFrom.set(ev.x, ev.y, ev.z);
+      _evTo.copy(_evFrom).addScaledVector(_evDir, ev.len);
+      effects.push(M.spawnTracer(scene, _evFrom, _evTo));
+      effects.push(M.spawnMuzzleFlash(scene, _evFrom, _evDir));
       if (ev.id === myId) fovKick = 3.5;
-      if (ev.id === myId || (predicted && from.distanceTo(new THREE.Vector3(predicted.x, predicted.y, predicted.z)) < 90)) sfxShot();
+      if (ev.id === myId || (predicted && _evFrom.distanceTo(_predVec.set(predicted.x, predicted.y, predicted.z)) < 90)) sfxShot();
     } else if (ev.t === 'hit') {
       const tgt = idx.get(ev.target);
-      if (tgt) effects.push(M.spawnHitSpark(scene, new THREE.Vector3(tgt.x, (tgt.y || 0) + 1, tgt.z)));
+      if (tgt) effects.push(M.spawnHitSpark(scene, _evPos.set(tgt.x, (tgt.y || 0) + 1, tgt.z)));
     } else if (ev.t === 'kill') {
       const v = idx.get(ev.victim);
-      if (v) effects.push(M.spawnExplosion(scene, new THREE.Vector3(v.x, (v.y || 0) + 1, v.z)));
+      if (v) effects.push(M.spawnExplosion(scene, _evPos.set(v.x, (v.y || 0) + 1, v.z)));
       const vEntry = visuals.get(ev.victim);
       if (vEntry) effects.push(M.markWreck(vEntry.u3d));
       feed(`${escapeHtml(ev.killerNick || 'Зона')} 💥 ${escapeHtml(ev.victimNick)}`);
@@ -327,11 +432,18 @@ function updateEffects(dt) {
 // ---------- камера: пружина + грубый обход препятствий + fov-кик ----------
 function safeCamDist(px, pz, yaw, pitch, desired) {
   if (!arena) return desired;
+  // На арене всего 26 препятствий, но без фильтра внутренний цикл гонял их все
+  // на каждом из ~18 шагов схлопывания дистанции (~500 проверок/кадр). В
+  // подавляющем большинстве кадров рядом с камерой вообще ничего нет —
+  // тогда после фильтра можно сразу вернуть desired, не заходя в цикл.
+  const R = desired + 2;
+  const near = arena.obstacles.filter(o => Math.abs(px - o.x) < R + o.hx && Math.abs(pz - o.z) < R + o.hz);
+  if (!near.length) return desired;
   const cp = Math.cos(pitch);
   for (let d = desired; d > 3; d -= 0.6) {
     const tx = px + Math.sin(yaw) * d * cp, tz = pz + Math.cos(yaw) * d * cp;
     let blocked = false;
-    for (const o of arena.obstacles) {
+    for (const o of near) {
       if (Math.abs(tx - o.x) < o.hx + 1.2 && Math.abs(tz - o.z) < o.hz + 1.2) { blocked = true; break; }
     }
     if (!blocked) return d;
@@ -350,19 +462,42 @@ function updateCamera(dt) {
   camera.position.y += (ty - camera.position.y) * k;
   camera.position.z += (tz - camera.position.z) * k;
   camera.lookAt(predicted.x, predicted.y + 2.5, predicted.z);
+  M.followSun(sun, predicted.x, predicted.z); // тень узким кадром вокруг игрока, а не на всю арену
   fovKick *= Math.max(0, 1 - dt * 10);
   const fov = 65 + fovKick;
   if (Math.abs(camera.fov - fov) > 0.02) { camera.fov = fov; camera.updateProjectionMatrix(); }
 }
 
-// ---------- ввод ----------
+// ---------- ввод: прицел всегда там, куда смотрит камера ----------
+function angleDiff(a, b) { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; }
 function updateAim() {
-  raycaster.setFromCamera(CENTER, camera);
-  const hit = new THREE.Vector3();
-  const px = predicted ? predicted.x : 0, pz = predicted ? predicted.z : 0;
-  if (raycaster.ray.intersectPlane(groundPlane, hit)) {
-    currentAimYaw = Math.atan2(hit.x - px, -(hit.z - pz));
+  // Направление ствола в sim.js: dir=(sin turYaw, -cos turYaw). Направление
+  // взгляда камеры при заходе с угла camYaw совпадает с ним при aimYaw=-camYaw
+  // (камера всегда смотрит на игрока с высоты camYaw). Раньше целились рейкастом
+  // в землю — на обычной высоте камеры луч бил под гусеницы и прицел «гулял».
+  currentAimYaw = -camYaw;
+}
+let lastSentAimYaw = 0;
+// Мягкий автодоворот: если враг чуть в стороне от центра экрана — довернуть
+// отправляемый прицел к нему. Камеру НЕ трогаем (не отбирать управление у игрока),
+// уводим только ствол, и только в пределах небольшого конуса. Попадание всё равно
+// решает конус 0.14 рад в sim.js — если враг совсем не там, куда смотришь, не поможет.
+function autoAimYaw(baseYaw) {
+  if (!predicted || !lastUnitsArr.length) return baseYaw;
+  const range = myServerUnit ? getVehicle(myServerUnit.vid).range : 120;
+  let bestD = null, bestAbs = Infinity;
+  for (const u of lastUnitsArr) {
+    if (u.dead || u.id === myId) continue;
+    const dx = u.x - predicted.x, dz = u.z - predicted.z;
+    if (Math.hypot(dx, dz) > range) continue;
+    const d = angleDiff(baseYaw, Math.atan2(dx, -dz));
+    if (Math.abs(d) < bestAbs) { bestAbs = Math.abs(d); bestD = d; }
   }
+  if (bestD === null) return baseYaw;
+  const isTouch = document.body.classList.contains('touch');
+  const cone = isTouch ? 0.25 : 0.10, pull = isTouch ? 0.6 : 0.25;
+  if (bestAbs > cone) return baseYaw;
+  return baseYaw + bestD * pull;
 }
 function computeInput() {
   const sy = Math.sin(camYaw), cy = Math.cos(camYaw);
@@ -372,7 +507,14 @@ function computeInput() {
   ix = clamp(ix, -1, 1); iy = clamp(iy, -1, 1);
   const dx = rx * ix + fx * iy, dz = rz * ix + fz * iy;
   const fire = !!(keys.Space || mouseDown || touchFire);
-  return { dx, dz, aimYaw: currentAimYaw, fire };
+  lastSentAimYaw = autoAimYaw(currentAimYaw);
+  return { dx, dz, aimYaw: lastSentAimYaw, fire };
+}
+// Индикатор: башня ещё доворачивается (серый) или уже смотрит в прицел (золотой).
+function updateCrosshairLock() {
+  if (!myServerUnit) return;
+  const synced = Math.abs(angleDiff(myServerUnit.turYaw, lastSentAimYaw)) < 0.14;
+  $('crosshair').classList.toggle('locked', synced);
 }
 
 // ---------- HUD ----------
@@ -535,6 +677,12 @@ async function enterBattle(vid) {
   $('lobby').classList.add('hidden');
   $('end').classList.add('hidden');
   $('hud').classList.remove('hidden');
+  if (isTouchDevice) {
+    // Best-effort: без ожидания и без шума при отказе — не у всех браузеров это
+    // вообще доступно, а мы уже внутри обработчика клика (нужен user gesture).
+    document.documentElement.requestFullscreen?.().catch(() => {});
+    screen.orientation?.lock?.('landscape').catch(() => {});
+  }
   resetBattleState();
   const ok = await connectOnline(vid);
   mode = ok ? 'online' : null; // startOffline устанавливает mode внутри себя
@@ -567,30 +715,50 @@ function frame(dt) {
     const u = localWorld.units.get(myId);
     myServerUnit = u ? Sim.unitPublicState(u) : myServerUnit;
     predicted = myServerUnit;
-    lastUnitsArr = [...localWorld.units.values()].map(Sim.unitPublicState);
+    renderUnits.length = 0;
+    for (const uu of localWorld.units.values()) renderUnits.push(Sim.unitPublicState(uu));
+    lastUnitsArr = renderUnits;
   } else {
     sendTimer -= dt;
     if (sendTimer <= 0 && netc) { netc.send({ t: 'input', ...activeInput }); sendTimer = 1 / 20; }
     if (predicted) Sim.predictUnit(arena, predicted, dt, activeInput);
-    let snap = snapBuf ? snapBuf.sample(performance.now()) : [];
-    if (predicted && myId) snap = snap.map(s => s.id === myId ? { ...s, x: predicted.x, z: predicted.z, y: predicted.y, yaw: predicted.yaw, turYaw: predicted.turYaw, speed2d: predicted.speed2d } : s);
-    lastUnitsArr = snap;
+    const snap = snapBuf ? snapBuf.sample(performance.now()) : [];
+    // Свою запись подменяем предсказанным положением, но НЕ мутируем объекты
+    // snap — они могут быть прямыми ссылками на буфер снапшотов сервера
+    // (snapBuf.sample() возвращает их как есть на краях буфера); переиспользуем
+    // свой собственный persistent-объект и просто собираем новый массив ссылок.
+    renderUnits.length = 0;
+    for (let i = 0; i < snap.length; i++) {
+      const s = snap[i];
+      if (predicted && s.id === myId) {
+        Object.assign(predictedView, s);
+        predictedView.x = predicted.x; predictedView.z = predicted.z; predictedView.y = predicted.y;
+        predictedView.yaw = predicted.yaw; predictedView.turYaw = predicted.turYaw; predictedView.speed2d = predicted.speed2d;
+        renderUnits.push(predictedView);
+      } else renderUnits.push(s);
+    }
+    lastUnitsArr = renderUnits;
   }
 
   syncVisuals(lastUnitsArr, dt);
   updateEffects(dt);
   updateCamera(dt);
   updateLabels();
-  updateHUD();
-  updateOverlay();
+  updateCrosshairLock();
+
+  hudAcc += dt; mmAcc += dt;
+  if (hudAcc >= 1 / HUD_HZ) { hudAcc = 0; updateHUD(); updateOverlay(); updateDebug(); }
   const zone = mode === 'offline' ? localWorld.zone : onlineZone;
   if (arenaCtl && zone) arenaCtl.updateZone(zone, dt);
-  drawMinimap(lastUnitsArr, zone);
+  if (mmAcc >= 1 / MM_HZ) { mmAcc = 0; drawMinimap(lastUnitsArr, zone); }
 }
 function animate() {
-  const dt = Math.min(clock.getDelta(), 0.05);
+  const rawDt = clock.getDelta();
+  const dt = Math.min(rawDt, 0.05);
+  if (document.hidden) return; // вкладка в фоне — не грузим GPU/CPU впустую
+  trackPerf(rawDt);
   frame(dt);
-  renderer.render(scene, camera);
+  if (mode) renderer.render(scene, camera); // в ангаре/на логине рисовать нечего
 }
 
 // ---------- ввод: клавиатура/мышь/pointer lock ----------
@@ -632,12 +800,21 @@ addEventListener('mousemove', e => {
   }
 });
 addEventListener('mouseup', e => { if (e.button === 2) rmb = null; });
-// touch
-if ('ontouchstart' in window) document.body.classList.add('touch');
+// touch — coarse-pointer детект (не только 'ontouchstart', его не видят некоторые
+// тачскрин-ноутбуки) + динамический джойстик под пальцем + кнопка ОГОНЬ больше
+// не крадёт touch-события камеры (раньше палец на ОГОНЬ ещё и крутил обзор).
+const isTouchDevice = matchMedia('(pointer:coarse)').matches || navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+if (isTouchDevice) document.body.classList.add('touch');
 (function () {
-  const j = $('joy'), s = $('stick');
+  const j = $('joy'), s = $('stick'), fb = $('firebtn');
   let jid = null, cx = 0, cy = 0, lx = 0, ly = 0, aimId = null;
-  function jstart(t) { jid = t.identifier; const r = j.getBoundingClientRect(); cx = r.left + 80; cy = r.top + 80; jmove(t); }
+  function jstart(t) {
+    jid = t.identifier;
+    cx = clamp(t.clientX, 90, innerWidth - 90); cy = clamp(t.clientY, 90, innerHeight - 90);
+    j.style.left = (cx - 80) + 'px'; j.style.top = (cy - 80) + 'px';
+    j.classList.add('active');
+    jmove(t);
+  }
   function jmove(t) {
     let dx = t.clientX - cx, dy = t.clientY - cy;
     const d = Math.hypot(dx, dy);
@@ -646,12 +823,13 @@ if ('ontouchstart' in window) document.body.classList.add('touch');
     joy.x = Math.abs(dx) < 8 ? 0 : dx / 48;
     joy.y = Math.abs(dy) < 8 ? 0 : dy / 48;
   }
-  function jend() { jid = null; joy.x = joy.y = 0; s.style.left = '48px'; s.style.top = '48px'; }
+  function jend() { jid = null; joy.x = joy.y = 0; s.style.left = '48px'; s.style.top = '48px'; j.classList.remove('active'); }
+  function battleUp() { return !$('hud').classList.contains('hidden'); }
   addEventListener('touchstart', e => {
+    if (!battleUp()) return;
     for (const t of e.changedTouches) {
-      const r = j.getBoundingClientRect();
-      if (t.clientX >= r.left - 20 && t.clientX <= r.right + 20 && t.clientY >= r.top - 20 && t.clientY <= r.bottom + 20) { if (jid === null) jstart(t); }
-      else if (t.clientX > innerWidth * 0.4 && aimId === null && !$('hud').classList.contains('hidden')) { aimId = t.identifier; lx = t.clientX; ly = t.clientY; }
+      if (t.clientX < innerWidth * 0.5) { if (jid === null) jstart(t); }
+      else if (aimId === null) { aimId = t.identifier; lx = t.clientX; ly = t.clientY; }
     }
   }, { passive: true });
   addEventListener('touchmove', e => {
@@ -664,14 +842,20 @@ if ('ontouchstart' in window) document.body.classList.add('touch');
       }
     }
   }, { passive: true });
-  addEventListener('touchend', e => {
+  function releaseTouch(e) {
     for (const t of e.changedTouches) {
       if (t.identifier === jid) jend();
       if (t.identifier === aimId) aimId = null;
     }
-  });
-  $('firebtn').addEventListener('touchstart', e => { e.preventDefault(); touchFire = true; }, { passive: false });
-  $('firebtn').addEventListener('touchend', () => { touchFire = false; });
+  }
+  addEventListener('touchend', releaseTouch);
+  addEventListener('touchcancel', releaseTouch); // палец увели с экрана мимо touchend — джойстик/камера не залипают
+  // stopPropagation — без него тот же тач одновременно ловил и firebtn (стрельба),
+  // и общий обработчик выше (аим-зона справа), потому что кнопка физически лежит
+  // в правой половине экрана: палец на ОГОНЬ ещё и крутил камеру.
+  fb.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); touchFire = true; }, { passive: false });
+  fb.addEventListener('touchend', e => { e.stopPropagation(); touchFire = false; });
+  fb.addEventListener('touchcancel', e => { e.stopPropagation(); touchFire = false; }); // палец соскользнул — не оставлять огонь зажатым навсегда
 })();
 
 // ---------- UI flow ----------
@@ -730,6 +914,16 @@ function enterLobby() {
   buildLobby();
   refreshBoard();
 }
+$('quality').value = quality;
+$('quality').onchange = () => {
+  quality = $('quality').value;
+  store.set('quality', quality);
+  // Применится в бою немедленно: dpr/AA нового рендерера не пересоздать на
+  // лету без потери контекста, но dpr и тени можно подправить прямо сейчас.
+  const q = QUALITY[quality];
+  renderScale = 1;
+  if (renderer) { renderer.setPixelRatio(q.dpr); renderer.shadowMap.enabled = q.shadow; }
+};
 
 // boot
 boot3D();

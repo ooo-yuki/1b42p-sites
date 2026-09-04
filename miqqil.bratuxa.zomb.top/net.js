@@ -53,26 +53,36 @@ function lerpAngle(a, b, t) {
   return a + d * t;
 }
 
-function interpolateUnits(unitsA, unitsB, f) {
-  const mapB = new Map(unitsB.map(u => [u.id, u]));
-  const out = [];
-  const seen = new Set();
-  for (const a of unitsA) {
-    const b = mapB.get(a.id);
-    seen.add(a.id);
-    if (!b) { out.push(a); continue; }
-    out.push({
-      ...b,
-      x: a.x + (b.x - a.x) * f, z: a.z + (b.z - a.z) * f, y: a.y + (b.y - a.y) * f,
-      yaw: lerpAngle(a.yaw, b.yaw, f), turYaw: lerpAngle(a.turYaw, b.turYaw, f),
-    });
-  }
-  for (const b of unitsB) if (!seen.has(b.id)) out.push(b);
-  return out;
+// В бою не больше SQUAD(=8) юнитов — линейный поиск по id дешевле, чем строить
+// Map из пар на каждый вызов (а sample() дёргается КАЖДЫЙ кадр рендера).
+function findById(units, id) {
+  for (let i = 0; i < units.length; i++) if (units[i].id === id) return units[i];
+  return null;
 }
 
 export function makeSnapshotBuffer(delayMs = 100) {
   const buf = [];
+  // Переиспользуемые между вызовами буферы: результирующий массив + по одному
+  // "живому" объекту на каждого встреченного юнита. Раньше interpolateUnits
+  // на каждый рендер-кадр строила новый Map + новый массив + новый объект на
+  // каждого юнита — чистый мусор для GC при плавной интерполяции.
+  const outArr = [];
+  const outById = new Map();
+  function interpolate(unitsA, unitsB, f) {
+    outArr.length = 0;
+    for (const a of unitsA) {
+      const b = findById(unitsB, a.id);
+      if (!b) { outArr.push(a); continue; }
+      let o = outById.get(a.id);
+      if (!o) { o = {}; outById.set(a.id, o); }
+      Object.assign(o, b);
+      o.x = a.x + (b.x - a.x) * f; o.z = a.z + (b.z - a.z) * f; o.y = a.y + (b.y - a.y) * f;
+      o.yaw = lerpAngle(a.yaw, b.yaw, f); o.turYaw = lerpAngle(a.turYaw, b.turYaw, f);
+      outArr.push(o);
+    }
+    for (const b of unitsB) if (!findById(unitsA, b.id)) outArr.push(b);
+    return outArr;
+  }
   return {
     push(time, units) {
       buf.push({ time, units });
@@ -88,7 +98,7 @@ export function makeSnapshotBuffer(delayMs = 100) {
         if (buf[i].time <= renderTime && renderTime <= buf[i + 1].time) {
           const span = buf[i + 1].time - buf[i].time || 1;
           const f = (renderTime - buf[i].time) / span;
-          return interpolateUnits(buf[i].units, buf[i + 1].units, f);
+          return interpolate(buf[i].units, buf[i + 1].units, f);
         }
       }
       return buf[buf.length - 1].units;

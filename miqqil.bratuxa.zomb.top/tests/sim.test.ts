@@ -144,6 +144,38 @@ describe('боёвка', () => {
   });
 });
 
+describe('меткость ботов', () => {
+  // Стрелок и цель зафиксированы напротив друг друга, считаем нанесённый урон за минуту.
+  function damageOverMinute(isBot: boolean) {
+    const w = makeWorld(77);
+    const shooter = addUnit(w, { id: 's', nick: 'S', vid: 't42', isBot });
+    const victim = addUnit(w, { id: 'v', nick: 'V', vid: 't42' });
+    w.round.phase = 'live';
+    w.round.roster = new Map([['s', {}], ['v', {}]]);
+    w.zone.active = false;
+    shooter.invuln = 0; victim.invuln = 0;
+    victim.hp = victim.maxhp = 1e6; // мешок для битья, чтобы раунд не кончился
+    for (let i = 0; i < 60 * 30; i++) {
+      shooter.x = 0; shooter.z = 0;
+      victim.x = 0; victim.z = -40; // строго по стволу при turYaw = 0
+      if (!isBot) setInput(w, 's', { dx: 0, dz: 0, aimYaw: 0, fire: true });
+      stepWorld(w, 1 / 30);
+    }
+    return 1e6 - victim.hp;
+  }
+
+  test('бот наносит заметно меньше урона, чем игрок в тех же условиях', () => {
+    const byPlayer = damageOverMinute(false);
+    const byBot = damageOverMinute(true);
+    expect(byPlayer).toBeGreaterThan(0);
+    expect(byBot).toBeLessThan(byPlayer * 0.5);
+  });
+  test('но бот всё же попадает — не безобидный болванчик', () => {
+    const byBot = damageOverMinute(true);
+    expect(byBot).toBeGreaterThan(0);
+  });
+});
+
 describe('клиентское предсказание', () => {
   test('predictUnit двигает и клампит внутри арены так же, как sim', () => {
     const arena = makeArena(99);
