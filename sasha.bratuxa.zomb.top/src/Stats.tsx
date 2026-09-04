@@ -305,6 +305,22 @@ export default function Stats(): JSX.Element {
           <div className="stx-graph-wrap" style={{ marginTop: 12 }}>
             <canvas ref={cvRef} width={900} height={300} />
           </div>
+          <table className="stx-table" style={{ marginTop: 12 }}>
+            <tbody>
+              <tr>
+                <th>Сайт</th>
+                <th>Пик за сутки</th>
+                <th>Время</th>
+              </tr>
+              {peaks.map((x, i) => (
+                <tr key={x.site} className={x.site === 'sasha' ? 'me' : ''}>
+                  <td>{i < 3 ? <Medal className={`medal ${medalClass[i]}`} aria-label={`Место ${i + 1}`} /> : ''}{nm(x.site)}</td>
+                  <td>{x.n}</td>
+                  <td>{peakTime(x.at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
           <div className="stx-foot" style={{ marginTop: 8 }}>
             Маяк шлёт heartbeat каждые 30 сек · онлайн = был в последние 90 сек · срез истории — раз в минуту
           </div>
