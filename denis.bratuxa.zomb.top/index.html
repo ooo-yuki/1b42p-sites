@@ -951,6 +951,30 @@ function rock(x,z,s){const m=new THREE.Mesh(new THREE.ConeGeometry(4*s,7*s,5),ne
   placed++;
  }
 })();
+// густой горный лес — визуальная граница карты (общие геометрии, без теней и коллизий, liftIsland поднимет)
+(function(){
+ const trunkG=new THREE.CylinderGeometry(.35,.5,4,7);
+ const coneGs=[new THREE.ConeGeometry(3.2,4.5,7),new THREE.ConeGeometry(2.4,3.4,7),new THREE.ConeGeometry(1.6,2.4,7)];
+ const trunkM=new THREE.MeshStandardMaterial({color:0x4a3421,roughness:.9});
+ const pineM=new THREE.MeshStandardMaterial({color:0x14542a,roughness:.85});
+ const coneY=[5,6.8,8.8];
+ let placed=0,guard=0;
+ while(placed<320&&guard++<3000){
+  const north=Math.random()<0.68;
+  const x=north?-190+Math.random()*380:130+Math.random()*65;
+  const z=north?-200+Math.random()*62:-145+Math.random()*125;
+  if(rawZoneH(x,z)<2.5)continue; // только горы
+  if(Math.abs(baseH(x+4,z)-baseH(x-4,z))>12)continue; // не на обрыве
+  if(Math.abs(baseH(x,z+4)-baseH(x,z-4))>12)continue;
+  if(!decorFree(x,z,3))continue; // не на тропе и не в солидах
+  if(Math.hypot(x-CAVE.x,z-CAVE.z)<44)continue; // площадь пещеры чистая
+  const s=0.8+Math.random()*0.9, ry=Math.random()*Math.PI*2;
+  const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=ry;g.scale.setScalar(s);scene.add(g);
+  const tr=new THREE.Mesh(trunkG,trunkM);tr.position.y=2;g.add(tr);
+  for(let i=0;i<3;i++){const m=new THREE.Mesh(coneGs[i],pineM);m.position.y=coneY[i];g.add(m);}
+  placed++;
+ }
+})();
 // ===== ГОРОД 2.0: даунтаун + WINLINE-билборды + площадь SLAY (база y=0 — liftIsland поднимет) =====
 const winlineTex=(function(){const c=document.createElement('canvas');c.width=512;c.height=160;const g=c.getContext('2d');
 g.fillStyle='#e65c00';g.fillRect(0,0,512,160);g.fillStyle='#fff';g.font='bold 84px Arial';g.fillText('WINLINE',60,95);
