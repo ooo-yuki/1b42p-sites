@@ -130,6 +130,12 @@ export function heal1val(z: ZapoiState): number {
   return withVladimir(withBalance(v, z), z);
 }
 
+// Святые пикули призрака: формула Рассола, с Библией батальона ×2.
+// Единая точка для holyPickle (heals.ts) и кнопки UI — не дублировать тернарник.
+export function holyVal(z: ZapoiState): number {
+  return owned(z, 'bible') ? heal1val(z) * 2 : heal1val(z);
+}
+
 export function heal1cost(z: ZapoiState): number {
   let c = Math.floor(20 * Math.pow(1.35, z.heals));
   if (z.syn.balance) c = Math.floor(c * 0.8);

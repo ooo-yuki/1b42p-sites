@@ -36,7 +36,7 @@ export default function DrinkPanel({ z, charDef, drinkImg, mutate, onShattered, 
         <p style={{ color: 'red', fontWeight: 'bold', fontSize: 20 }}>😈 ДЕМОНИЧЕСКАЯ ФОРМА ×{owned(z, 'ban2w') ? BAN_FORM_MULT : DEMON_FORM_MULT}: {z.demonForm} сек!</p>
       )}
       {z.char === 'vladimir' && charDiscount(z) > 0 && (
-        <p className="hint">🧔 Солидность: клик +{(z.sips * VLADIMIR_CLICK_STEP).toFixed(1)}, скидки −{(charDiscount(z) * 100).toFixed(0)}%</p>
+        <p className="hint">🧔 Солидность: клик +{(z.sips * VLADIMIR_CLICK_STEP).toFixed(1)}, скидки −{(charDiscount(z) * 100).toFixed(1)}%</p>
       )}
       {z.char === 'ghost' && charDiscount(z) > 0 && (
         <p className="hint">✨ Святость: скидки −{(charDiscount(z) * 100).toFixed(1)}%</p>

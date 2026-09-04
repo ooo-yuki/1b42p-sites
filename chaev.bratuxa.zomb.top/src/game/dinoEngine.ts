@@ -115,7 +115,8 @@ export function stepDino(s: DinoState, rand: () => number = Math.random): DinoEv
       s.alive &&
       s.dino.x < o.x + o.w &&
       s.dino.x + s.dino.w > o.x &&
-      s.dino.y < FLOOR_Y &&
+      // NB: дино всегда выше FLOOR_Y (стоит на GROUND_Y=150 < FLOOR_Y=185),
+      // вертикаль проверяется только перекрытием хитбокса с препятствием.
       s.dino.y + s.dino.h > oh
     ) {
       s.alive = false;

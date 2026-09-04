@@ -1,7 +1,7 @@
 // Кнопки хилок: ручка винлайна, пикули, святые, демонические, шприц, очищение.
 import {
   BET_RETURN_MULT, BET_STAKE_RATE, BET_WIN_P, DEMON_PICKLE_FORM_SECS, bet, betStake, cleanseDemon, demonPickle,
-  heal1cost, heal1val, heal2cost, holyPickle, owned, pickleSmall, syringe,
+  heal1cost, heal1val, heal2cost, holyPickle, holyVal, owned, pickleSmall, syringe,
 } from '../../game/zapoi/index';
 import type { ZapoiState } from '../../game/zapoi/index';
 import type { MutateFn } from '../../hooks/useZapoiState';
@@ -64,7 +64,7 @@ export default function HealButtons({ z, mutate }: HealButtonsProps) {
           }, 500)}
           style={{ fontSize: 15 }}
         >
-          СВЯТЫЕ ПИКУЛИ: +{owned(z, 'bible') ? heal1val(z) * 2 : heal1val(z)} души за {heal1cost(z)} бухла</ImgButton>
+          СВЯТЫЕ ПИКУЛИ: +{holyVal(z)} души за {heal1cost(z)} бухла</ImgButton>
       )}{' '}
       {(z.char === 'vladimir' || z.char === 'winline') && (
         <ImgButton

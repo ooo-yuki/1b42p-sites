@@ -1,4 +1,4 @@
-// Огромное древо прокачки: 4 ветки, цены base×growth^ур.
+// Огромное древо прокачки: 5 веток, цены base×growth^ур.
 import { useMemo, useState } from 'react';
 import { TREE, shopDiscount, upgradeCost, buyUpgrade } from '../../game/zapoi/index';
 import type { ZapoiState } from '../../game/zapoi/index';

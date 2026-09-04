@@ -5,7 +5,7 @@ import {
   BET_WIN_MAX, BET_WIN_P, BET_RETURN_MULT, BIBLE_DEAL_P, DEMON_PICKLE_FORM_SECS, FORM_BANK_MAX, LUCK_BET_STEP,
   HANGOVER_HP_RATE, HOLY_DEAL_P,
   betStake,
-  heal1cost, heal1val, heal2cost, heal2val, owned,
+  heal1cost, heal1val, heal2cost, heal2val, holyVal, owned,
 } from './formulas';
 
 export const HEALS: Record<string, HealDef> = {
@@ -54,7 +54,7 @@ export function demonPickle(z: ZapoiState): (HealResult & { extended: boolean })
 export function holyPickle(z: ZapoiState): HealResult | null {
   if (!canUse(z.char, 'hpickle')) return null;
   const c = heal1cost(z);
-  const v = owned(z, 'bible') ? heal1val(z) * 2 : heal1val(z);
+  const v = holyVal(z);
   if (z.m < c || (z.soul ?? 100) >= 100) return null;
   z.m -= c;
   z.soul = Math.min(100, (z.soul ?? 100) + v);
