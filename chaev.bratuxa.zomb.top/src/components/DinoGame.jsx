@@ -23,13 +23,14 @@ const sndLevel = () => beep(500, 1000, 0.12, 'square', 0.06);
 
 export function blip(f) {
   try {
-    const x = new (window.AudioContext || window.webkitAudioContext)();
-    const o = x.createOscillator(), g = x.createGain();
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    if (AC.state === 'suspended') AC.resume();
+    const o = AC.createOscillator(), g = AC.createGain();
     o.type = 'square'; o.frequency.value = f;
-    g.gain.setValueAtTime(0.12, x.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, x.currentTime + 0.15);
-    o.connect(g); g.connect(x.destination);
-    o.start(); o.stop(x.currentTime + 0.16);
+    g.gain.setValueAtTime(0.12, AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + 0.15);
+    o.connect(g); g.connect(AC.destination);
+    o.start(); o.stop(AC.currentTime + 0.16);
   } catch (e) { /* тихо */ }
 }
 

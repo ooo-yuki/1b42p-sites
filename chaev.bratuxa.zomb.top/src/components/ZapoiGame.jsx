@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   createZapoiState, TREE, ARTS, QUALITY_NAMES, SYNS, upgradeCost,
   dmgPerSip, heal1val, heal1cost, heal2val, heal2cost,
-  buyUpgrade, buyArt, jagerClick, healSmall, healBig, tickZapoi,
-  checkSyns, synReady, hangoverRate, fmtZ,
+  buyUpgrade, buyArt, jagerClick, tickZapoi,
+  checkSyns, hangoverRate, fmtZ,
   CHARACTERS, isUnlocked, isAllBought, BOTTLE_COST, buyBottle, newRun, bet,
   artCost, charDiscount, effMult, cleanseDemon,
   pickleSmall, demonPickle, holyPickle, syringe,
@@ -131,7 +131,8 @@ export default function ZapoiGame() {
   const pct = Math.max(0, Math.min(100, (z.hp / z.maxhp) * 100));
   const charDef = CHARACTERS.find((c) => c.id === z.char);
   // Пойло демона меняется в демонической форме (тёмная рука).
-  const drinkImg = (z.char === 'demon' && z.demonForm > 0 && charDef.drinkForm) ? charDef.drinkForm : charDef.drink;
+  // charDef пуст на экране выбора — тогда и пойла нет (иначе краш).
+  const drinkImg = !charDef ? null : (z.char === 'demon' && z.demonForm > 0 && charDef.drinkForm) ? charDef.drinkForm : charDef.drink;
   const readyForBottle = z.char && isAllBought(z);
 
   // ЭКРАН ВЫБОРА ПЕРСОНАЖА
@@ -216,7 +217,7 @@ export default function ZapoiGame() {
         ЯГЕРМЕЙСТЕР (+{z.char === 'winline' ? '~' : ''}{sipPreview(z)})
       </button><br /><br />
       {z.char === 'winline' && (
-        <button onClick={() => mutate((n) => {
+        <button disabled={z.m < Math.max(50, Math.floor(z.m * 0.1))} onClick={() => mutate((n) => {
           const r = bet(n);
           if (!r) return '';
           return r.win ? `🎰 Ставка зашла! +${r.stake} бухла чистыми!` : `🎰 Ставка сгорела… −${r.stake} бухла. Рискуй ещё!`;
@@ -225,7 +226,7 @@ export default function ZapoiGame() {
           РУЧКА: 10% бухла, 45% — возврат ×2</button>
       )}{' '}
       {(z.char === 'vladimir' || z.char === 'winline') && (
-        <button onClick={() => mutate((n) => {
+        <button disabled={z.m < heal1cost(z)} onClick={() => mutate((n) => {
           const r = pickleSmall(n);
           return r ? `🥒 Пикули: +${r.v} HP за ${r.c} бухла` : '';
         }, 500)} style={{ fontSize: 15 }}>
@@ -233,7 +234,7 @@ export default function ZapoiGame() {
           ПИКУЛИ: +{heal1val(z)} HP за {heal1cost(z)} бухла</button>
       )}{' '}
       {z.char === 'demon' && (
-        <button onClick={() => mutate((n) => {
+        <button disabled={z.m < heal1cost(z)} onClick={() => mutate((n) => {
           const r = demonPickle(n);
           if (!r) return '';
           return `🔥 Демонические пикули: +${r.v} HP за ${r.c} бухла${r.extended ? ', форма +10 сек!' : ''}`;
@@ -242,7 +243,7 @@ export default function ZapoiGame() {
           ДЕМОНИЧЕСКИЕ ПИКУЛИ: +{heal1val(z)} HP за {heal1cost(z)} бухла</button>
       )}{' '}
       {z.char === 'ghost' && (
-        <button onClick={() => mutate((n) => {
+        <button disabled={z.m < heal1cost(z)} onClick={() => mutate((n) => {
           const r = holyPickle(n);
           if (!r) return '';
           return `✨ Святые пикули: +${r.v} души за ${r.c} бухла${r.deal ? ', скидка −0.2% навсегда!' : ''}`;
@@ -251,7 +252,7 @@ export default function ZapoiGame() {
           СВЯТЫЕ ПИКУЛИ: +{heal1val(z)} души за {heal1cost(z)} бухла</button>
       )}{' '}
       {(z.char === 'vladimir' || z.char === 'winline') && (
-        <button onClick={() => mutate((n) => {
+        <button disabled={z.m < heal2cost(z)} onClick={() => mutate((n) => {
           const r = syringe(n);
           return r ? `💉 Шприц: полное HP за ${r.c} бухла` : '';
         }, 700)} style={{ fontSize: 15 }}>
@@ -259,7 +260,7 @@ export default function ZapoiGame() {
           ШПРИЦ: полное HP за {heal2cost(z)} бухла</button>
       )}{' '}
       {z.char === 'demon' && (
-        <button onClick={() => mutate((n) => {
+        <button disabled={z.m < heal2cost(z)} onClick={() => mutate((n) => {
           const r = cleanseDemon(n);
           if (!r) return '';
           return r.cleansed ? `😇 Очищение! Форма снята за ${r.c} бухла, HP 30%. Живи!` : `💉 Капельница: +${r.v} HP за ${r.c} бухла`;
