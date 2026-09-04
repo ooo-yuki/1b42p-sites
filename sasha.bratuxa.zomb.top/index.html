@@ -21,19 +21,24 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--ink);color:var(-
 #veil{position:fixed;inset:0;background:radial-gradient(80% 60% at 50% 45%,transparent 40%,rgba(4,6,14,.75) 100%);pointer-events:none}
 main{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
  text-align:center;padding:24px;pointer-events:none}
-.kicker{letter-spacing:.35em;font-size:13px;color:var(--dim);text-transform:uppercase}
+.gridcol{display:flex;flex-direction:column;align-items:center;gap:16px;width:min(680px,92vw)}
+.kicker{letter-spacing:.35em;font-size:13px;color:var(--dim);text-transform:uppercase;
+ display:flex;align-items:center;gap:14px;width:100%;justify-content:center}
+.kicker::before,.kicker::after{content:'';height:1px;flex:1;max-width:150px;
+ background:linear-gradient(90deg,transparent,rgba(232,237,255,.35))}
+.kicker::after{background:linear-gradient(90deg,rgba(232,237,255,.35),transparent)}
 .kicker b{color:var(--gold);font-weight:700}
-h1.mega{margin:.1em 0 0;font-weight:900;line-height:.85;font-size:min(34vw,240px);display:flex;gap:.02em}
+h1.mega{margin:0;font-weight:900;line-height:.85;font-size:min(34vw,240px);display:flex;gap:.02em}
 h1.mega span{display:inline-block;
  -webkit-text-stroke:2px currentColor;color:transparent;position:relative}
 h1.mega span.fill{color:currentColor;-webkit-text-stroke:0}
 h1.mega .r{color:var(--red);text-shadow:0 0 34px rgba(255,59,59,.55)}
 h1.mega .b{color:var(--blue);text-shadow:0 0 34px rgba(59,130,255,.55)}
-.sub{margin:14px 0 0;max-width:60ch;color:#c6cdf2;font-size:min(4.6vw,19px);line-height:1.55}
+.sub{margin:0;max-width:60ch;color:#c6cdf2;font-size:min(4.6vw,19px);line-height:1.55}
 .sub b{color:#fff}
-#score{margin-top:22px;pointer-events:auto;cursor:pointer;user-select:none;
- border:1px solid rgba(232,237,255,.22);border-radius:999px;padding:10px 26px;
- background:rgba(10,14,30,.55);backdrop-filter:blur(6px);
+#score{margin-top:0;pointer-events:auto;cursor:pointer;user-select:none;
+ border:1px solid var(--gold);border-radius:999px;padding:10px 26px;
+ background:#0d1428;
  font-variant-numeric:tabular-nums;font-size:17px;letter-spacing:.06em}
 #score b{color:var(--gold);font-size:20px}
 #hint{position:fixed;bottom:14px;width:100%;text-align:center;color:var(--dim);font-size:13px;pointer-events:none}
@@ -52,11 +57,13 @@ h1.mega .b{color:var(--blue);text-shadow:0 0 34px rgba(59,130,255,.55)}
 <canvas id="cv"></canvas>
 <div id="veil"></div>
 <main>
+ <div class="gridcol" id="gridcol">
  <div class="kicker" id="kicker">личная страница · <b>Саша ⁴²</b></div>
  <h1 class="mega" id="mega"><span class="r">4</span><span class="b">2</span></h1>
  <p class="sub" id="sub">Красно-синяя территория батальона. <b>Тыкай куда угодно</b> — цифры разлетаются,
  а счётчик копит очки. Доберись до <b>1764</b> — откроется секрет.</p>
  <div id="score" role="button" tabindex="0" title="Тыкай по экрану">счёт · <b id="scoreNum">0</b></div>
+ </div>
 </main>
 <div id="ring"></div>
 <div id="hint">а ещё 42 спрятаны… ищи 👀</div>
@@ -68,11 +75,16 @@ h1.mega .b{color:var(--blue);text-shadow:0 0 34px rgba(59,130,255,.55)}
 var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),P=[],score=0;
 var reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
 function fit(){cv.width=innerWidth;cv.height=innerHeight;}fit();addEventListener('resize',fit);
+/* дождь строго по клеткам сетки 64px: колонки ровные, падения отвесные */
+var CELL=64;
+function colX(x){return Math.round(x/CELL)*CELL+CELL/2;}
 function spawn(x,y,big){
- P.push({x:x==null?Math.random()*cv.width:x,y:y==null?-50:y,
-  vx:(Math.random()-0.5)*1.4,vy:0.8+Math.random()*2,
+ if(x==null)x=Math.floor(Math.random()*Math.ceil(cv.width/CELL))*CELL+CELL/2;
+ else x=colX(x);
+ P.push({x:x,y:y==null?-50:y,
+  vy:(big?2.2:0.9)+Math.random()*(big?1.6:1.4),
   s:big?44+Math.random()*38:13+Math.random()*24,
-  r:Math.random()<0.5,ph:Math.random()*6.28,deep:Math.random()<0.4});
+  r:Math.random()<0.5,deep:Math.random()<0.4});
 }
 var RAIN_N=reduced?0:42;
 for(var i=0;i<RAIN_N;i++)spawn(Math.random()*innerWidth,Math.random()*innerHeight);
@@ -130,7 +142,7 @@ if(window.gsap&&!reduced){
  if(!reduced){
   var t=Date.now()/1000;
   for(var i=P.length-1;i>=0;i--){var p=P[i];
-   p.x+=p.vx+Math.sin(t*2+p.ph)*0.6;p.y+=p.vy*(p.deep?0.6:1);
+   p.y+=p.vy*(p.deep?0.6:1);
    if(p.y>cv.height+60){P.splice(i,1);continue;}
    ctx.font='700 '+p.s+'px "Segoe UI",system-ui,sans-serif';ctx.textAlign='center';
    ctx.globalAlpha=p.deep?0.45:0.9;
