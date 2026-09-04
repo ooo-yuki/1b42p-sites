@@ -28,6 +28,9 @@ button.gold{background:linear-gradient(180deg,#ffd23f,#ff7b00);color:#300}
 button:disabled{opacity:.45;cursor:default}
 .tabs{display:flex;gap:6px;overflow-x:auto;margin:10px 0;padding-bottom:4px}
 .tabs button{flex:0 0 auto;font-size:14px;padding:8px 12px}
+.adbanner{margin:12px 0;padding:14px;text-align:center;font-weight:bold;font-size:16px;border:2px solid #ffd23f;border-radius:14px;background:#140f00;box-shadow:0 0 18px #ffd23f55}
+.adbtn{display:inline-block;margin-top:8px;padding:10px 22px;border-radius:12px;color:#001 !important;font-weight:bold;text-decoration:none;background:linear-gradient(90deg,#ff2d78,#ffd23f,#00e5ff,#7CFC00,#ff2d78);background-size:300% 100%;animation:adflow 4s linear infinite;box-shadow:0 0 16px #ffd23faa}
+@keyframes adflow{to{background-position:300% 0}}
 .panel{background:#0b0b1acc;border:2px solid #00e5ff;border-radius:14px;padding:12px;margin-top:8px;display:none}
 .panel.on{display:block}
 .card{background:#111128;border:1px solid #7b2fff;border-radius:10px;padding:8px 10px;margin:6px 0;font-size:14px}
@@ -48,7 +51,7 @@ small.dim{opacity:.7}
 </style>
 </head>
 <body>
-<div id="lock"><div class="box"><h1>🔒 Откроется в 16:40 МСК</h1><p>Торнадо-Битва: Классы вихря стартует сегодня в 16:40 МСК 🌪️⚔️</p><p id="lockTimer" style="font-size:28px;font-weight:bold;color:#00e5ff">--:--:--</p><p><a href="index.html">← На главную Сетдена</a></p></div></div>
+<div id="lock"><div class="box"><h1>🔒 Откроется в 16:40 МСК</h1><p>Торнадо-Битва: Классы вихря стартует сегодня в 16:40 МСК 🌪️⚔️</p><p id="lockTimer" style="font-size:28px;font-weight:bold;color:#00e5ff">--:--:--</p><p><a href="index.html">← На главную Сетдена</a></p><p>🛞 Хочешь реальный батл? <a href="https://miqqil.bratuxa.zomb.top/" target="_blank" rel="noopener" style="color:#ffd23f;font-weight:bold">Переходи в Miqqil Танки →</a></p></div></div>
 
 <div class="topbar" id="topbar" style="display:none">
 <span id="tName">🧙 Игрок</span><span id="tClass">⚔️ —</span><span class="hp" id="tHP">❤️ 100/100</span><span id="tLvl">📶 Ур.1</span><span id="tDmg">🗡️ 5</span><span class="gold" id="tCoins">🪙 0</span><span id="tCry">💎 0</span><span id="tSeason">⏳ 42:00:00</span>
@@ -71,6 +74,7 @@ small.dim{opacity:.7}
 <div><small class="dim">Тапай по врагу — каждый тап = удар. Враг бьёт в ответ автоматически.</small></div>
 </div>
 
+<div class="adbanner">🛞 Хочешь реальный батл? Переходи в Miqqil Танки!<br><a class="adbtn" href="https://miqqil.bratuxa.zomb.top/" target="_blank" rel="noopener">🎮 ИГРАТЬ В ТАНКИ →</a></div>
 <div class="tabs">
 <button data-t="fight" class="ghost">⚔️ Бой</button>
 <button data-t="inv" class="ghost">🎒 Инвентарь</button>
