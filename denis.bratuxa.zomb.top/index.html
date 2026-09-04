@@ -931,6 +931,43 @@ function billboard(x,y,z){const m=new THREE.Mesh(new THREE.PlaneGeometry(15,4.5)
   if(decorFree(-40,150,6)){kiosk(-40,150);beachSign(-40,150,'🍦 МОРОЖЕНОЕ');}
   if(decorFree(60,155,6)){kiosk(60,155);beachSign(60,155,'🍹 КОКТЕЙЛИ');}
  })();
+// ===== НЕОНОВЫЙ РЯД: лавки и ларьки плотной группой + неон (база y=0 — liftIsland поднимет) =====
+function neonShop(x,z,sign,glow){
+ const W=14,H=6,D=10;
+ const m=new THREE.Mesh(new THREE.BoxGeometry(W,H,D),new THREE.MeshStandardMaterial({color:0x0d0d16,roughness:.6,metalness:.3}));m.position.set(x,H/2,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);buildings.push(m);
+ const win=new THREE.Mesh(new THREE.PlaneGeometry(W-2,2.2),new THREE.MeshBasicMaterial({color:0xbfefff}));win.position.set(x,1.8,z+D/2+0.06);scene.add(win);
+ const awn=new THREE.Mesh(new THREE.BoxGeometry(W+1,0.35,3),new THREE.MeshStandardMaterial({color:0x111122}));awn.position.set(x,H+0.1,z+D/2+1);scene.add(awn);
+ const c=document.createElement('canvas');c.width=512;c.height=160;const g=c.getContext('2d');
+ g.fillStyle='#0a0a12';g.fillRect(0,0,512,160);g.textAlign='center';
+ g.font='bold 72px Arial';g.shadowColor=glow;g.shadowBlur=26;g.fillStyle=glow;g.fillText(sign,256,88);g.fillText(sign,256,88);
+ g.shadowBlur=8;g.fillStyle='#fff';g.font='bold 30px Arial';g.fillText('24/7 • 42',256,132);
+ const signM=new THREE.Mesh(new THREE.PlaneGeometry(12,3.4),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c),transparent:true}));signM.position.set(x,H+2.4,z+D/2+0.3);scene.add(signM);
+ const nm=new THREE.MeshBasicMaterial({color:new THREE.Color(glow)});
+ const edge=new THREE.Mesh(new THREE.BoxGeometry(W+0.4,0.28,0.28),nm);edge.position.set(x,H+0.35,z+D/2+0.1);scene.add(edge);
+ for(const s of [-W/2,W/2]){const p=new THREE.Mesh(new THREE.BoxGeometry(0.28,H,0.28),nm);p.position.set(x+s,H/2,z+D/2+0.1);scene.add(p);}
+ solids.push({x,z,hx:W/2+.6,hz:D/2+.6,mesh:m,extra:[awn]});
+}
+function neonKiosk(x,z,glow){
+ kiosk(x,z);
+ const nm=new THREE.MeshBasicMaterial({color:new THREE.Color(glow)});
+ const fr=new THREE.Mesh(new THREE.BoxGeometry(4.8,0.25,3.8),nm);fr.position.set(x,3.05,z);scene.add(fr);
+}
+const NEON_SIGNS=[['БАР 42','#ff44ff'],['ВИНИЛ','#00ffee'],['ДОНЕР 24/7','#ff8800'],['ИГРОВЫЕ','#aaff00'],['ТАТУ','#ff66aa'],['КОФЕ','#66aaff']];
+let neonI=0;
+function neonRow(x0,z,n,dx){
+ for(let i=0;i<n;i++){
+  const x=x0+i*dx;
+  if(!freePt(x,z,4)||!decorFree(x,z,10))continue;
+  const s=NEON_SIGNS[neonI%NEON_SIGNS.length];neonI++;
+  neonShop(x,z,s[0],s[1]);
+ }
+ if(freePt(x0-11,z+2,3)&&decorFree(x0-11,z+2,5))neonKiosk(x0-11,z+2,NEON_SIGNS[neonI++%NEON_SIGNS.length][1]);
+ const xe=x0+(n-1)*dx+11;
+ if(freePt(xe,z+2,3)&&decorFree(xe,z+2,5))neonKiosk(xe,z+2,NEON_SIGNS[neonI++%NEON_SIGNS.length][1]);
+}
+neonRow(-88,-32,2,18);
+neonRow(-37,-32,2,18);
+neonRow(13,-32,2,18);
 })();
 function gamble(){
  if(MONEY<50){say(['<b>КРУПЬЕ КАЗИНО:</b> Ставка 50 монет, а у тебя '+MONEY+'. Загляни к Кизяку за фрибетом! 🎰']);try{AU.blip(200,.15,'square',.12);}catch(_){}return;}
