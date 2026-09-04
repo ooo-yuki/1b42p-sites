@@ -444,6 +444,38 @@ const ARTS: Record<string, Pix> = {
     ],
     colors: { k: K, D: '#2b2b3a', O: '#ffd23f' },
   },
+  bomb: {
+    grid: [
+      '.........YY.',
+      '........FY..',
+      '.......FF...',
+      '...kkkkkk...',
+      '..kBBBBBBk..',
+      '.kBBWWBBBBk.',
+      '.kBWWBBBBBk.',
+      '.kBBBBBBBBk.',
+      '.kBBBBBBBBk.',
+      '..kBBBBBBk..',
+      '...kkkkkk...',
+    ],
+    colors: { k: K, B: '#2c2c36', W: '#565664', F: '#8a5a2b', Y: '#ffd43b' },
+  },
+  spade: {
+    grid: [
+      '.....SS.....',
+      '....SSSS....',
+      '...SSSSSS...',
+      '..SSSSSSSS..',
+      '..SSSSSSSS..',
+      '..SSSSSSSS..',
+      '...SSSSSS...',
+      '....SSSS....',
+      '.....SS.....',
+      '....SSSS....',
+      '...SSSSSS...',
+    ],
+    colors: { S: '#e8edff' },
+  },
 };
 
 export function ItemIcon({ name, className }: { name: string; className?: string }): JSX.Element {

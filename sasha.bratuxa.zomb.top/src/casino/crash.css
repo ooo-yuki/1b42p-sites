@@ -1,0 +1,41 @@
+/* ЗАЛ «КРАШ» — ночной старт: площадка, звёзды, телеметрия. */
+
+.crash-hall .ch-head{display:flex;align-items:flex-start;gap:14px;margin:6px 0 4px}
+.crash-hall .ch-head h2{margin:0;font-size:26px}
+.crash-hall .ch-head p{margin:4px 0 0;color:var(--dim);font-size:14px;line-height:1.5}
+.lamp{margin-left:auto;flex:none;font-size:12.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+ padding:7px 14px;border-radius:999px;border:1px solid rgba(232,237,255,.25);color:var(--dim)}
+.lamp.live{color:#0b2b1a;background:#37d67a;border-color:#37d67a;box-shadow:0 0 18px rgba(55,214,122,.55)}
+.lamp.dead{color:#fff;background:var(--red);border-color:var(--red);box-shadow:0 0 18px rgba(255,59,59,.55)}
+
+.ch-grid{display:grid;grid-template-columns:1fr 1.2fr;gap:14px;margin-top:12px}
+@media (max-width:700px){.ch-grid{grid-template-columns:1fr}}
+
+.pad{position:relative;min-height:340px;border-radius:14px;overflow:hidden;
+ background:linear-gradient(180deg,#050914 0%,#0a1430 70%,#0d1a3a 100%);
+ border:1px solid rgba(55,214,122,.3)}
+.pad .star{position:absolute;width:3px;height:3px;border-radius:50%;background:#cfe0ff;opacity:.7;animation:tw 2.6s ease-in-out infinite}
+@keyframes tw{0%,100%{opacity:.25}50%{opacity:.9}}
+.pad .moon{position:absolute;top:26px;right:30px;width:44px;height:44px;border-radius:50%;
+ background:radial-gradient(circle at 35% 35%,#fffbe8,#e8ddad 70%);box-shadow:0 0 26px rgba(255,251,232,.5)}
+.pad .ground{position:absolute;left:0;right:0;bottom:0;height:12%;
+ background:linear-gradient(180deg,#233026,#121a14);border-top:2px solid rgba(55,214,122,.4)}
+.pad .rocket{position:absolute;left:50%;margin-left:-34px;width:68px;transition:bottom .18s linear;
+ filter:drop-shadow(0 0 14px rgba(255,120,60,.55))}
+.pad .rocket .cic{width:68px;height:68px}
+.pad .rocket .flame{position:absolute;left:50%;top:100%;margin:-6px 0 0 -9px;width:18px;height:30px;
+ background:linear-gradient(180deg,#ffd43b,#ff922b 60%,transparent);clip-path:polygon(20% 0,80% 0,100% 100%,0 100%);
+ animation:flick .18s ease-in-out infinite alternate;transform-origin:top}
+@keyframes flick{from{transform:scaleY(.8)}to{transform:scaleY(1.25)}}
+
+.console{border-radius:14px;padding:16px;background:rgba(10,15,32,.85);border:1px solid rgba(55,214,122,.3)}
+.console .mult{font-size:52px;font-weight:900;font-variant-numeric:tabular-nums;color:#37d67a;line-height:1.1;
+ text-shadow:0 0 24px rgba(55,214,122,.45)}
+.console .mult.dead{color:var(--red);text-shadow:0 0 24px rgba(255,59,59,.45)}
+.console .curve{width:100%;height:150px;display:block;margin-top:8px;border-radius:10px;background:#070d1d;
+ border:1px solid rgba(55,214,122,.25)}
+.console .crow{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.console .fine{margin:10px 0 0;font-size:12.5px;color:var(--dim)}
+.crash-hall.shake{animation:shk .45s linear}
+@keyframes shk{0%,100%{transform:translate(0)}20%{transform:translate(-7px,3px)}40%{transform:translate(6px,-4px)}60%{transform:translate(-4px,-3px)}80%{transform:translate(3px,2px)}}
+@media (prefers-reduced-motion:reduce){.pad .star,.pad .rocket .flame,.crash-hall.shake,.lamp{animation:none}}

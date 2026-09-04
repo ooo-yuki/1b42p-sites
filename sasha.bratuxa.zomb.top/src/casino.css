@@ -1,92 +1,26 @@
-/* Казино 42 — сукно, золото и красно-синяя территория Саши */
+/* Казино 42 — общее: лог, навигация, поверхности браузера, иконки.
+   Сцены залов живут в src/casino/*.css рядом со своими режимами. */
 html{overflow:auto;height:auto}
 body.casino{overflow:auto;height:auto}
-body.casino main{position:static;display:block;text-align:left;padding:0 0 60px;pointer-events:auto}
-.cwrap{width:min(760px,94vw);margin:0 auto}
-.cbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
- background:rgba(7,11,24,.92);backdrop-filter:blur(6px);padding:10px 4px;border-bottom:1px solid rgba(255,210,63,.35)}
-.cbar .sp{flex:1}
+body.casino main{position:static;display:block;text-align:left;padding:0;pointer-events:auto}
 ::selection{background:rgba(255,210,63,.9);color:#231a00}
 :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-thumb{background:#2a3560;border-radius:8px;border:2px solid #070b18}
 ::-webkit-scrollbar-track{background:transparent}
-.chead{padding:26px 0 6px}
-.chead h1{margin:0;font-size:min(11vw,54px);font-weight:900;letter-spacing:.02em}
-.chead h1 .r{color:var(--red);text-shadow:0 0 26px rgba(255,59,59,.5)}
-.chead h1 .g{color:var(--gold);text-shadow:0 0 26px rgba(255,210,63,.5)}
-.chead p{color:#c6cdf2;margin:8px 0 0;line-height:1.5}
-.crow{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-input.cin{background:#0d1428;border:1px solid rgba(232,237,255,.25);border-radius:10px;
- color:var(--paper);padding:9px 12px;font-size:16px;width:130px;font-variant-numeric:tabular-nums}
-.clog{margin-top:12px;min-height:24px;font-size:15px;color:var(--gold);font-variant-numeric:tabular-nums}
+/* строка состояния зала */
+.clog{margin-top:10px;min-height:24px;font-size:15px;color:var(--gold);font-variant-numeric:tabular-nums}
 .clog.lose{color:var(--red)}
 .clog.win{color:#37d67a}
-/* краш — герой страницы */
-#crashCv{width:100%;height:220px;display:block;border-radius:12px;
- background:radial-gradient(100% 100% at 50% 100%,rgba(55,214,122,.12),transparent 60%),#070d1d;
- border:1px solid rgba(55,214,122,.3)}
-.crashnum{font-size:44px;font-weight:900;font-variant-numeric:tabular-nums;color:#37d67a}
-.crashnum.dead{color:var(--red)}
-/* кейсы — плоский список, без вложенных карточек */
-.cases{display:flex;flex-direction:column}
-.case{display:flex;align-items:center;gap:14px;padding:12px 4px;flex-wrap:wrap}
-.case+.case{border-top:1px solid rgba(232,237,255,.1)}
-.case-tx{flex:1;min-width:140px}
-.case-tx b{display:block;font-size:16px}
-.case-tx small{color:var(--dim);font-size:13px}
-.case-buy{display:flex;align-items:center;gap:10px}
-.cprice{color:var(--gold);font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
-#stripWrap{overflow:hidden;border-radius:12px;border:1px solid rgba(255,210,63,.4);margin-top:12px;display:none}
-#stripWrap.open{display:block}
-#strip{display:flex;gap:8px;padding:12px 0;width:max-content}
-#strip .cell{flex:0 0 86px;text-align:center;background:#0d1428;border-radius:10px;padding:10px 4px;
- font-size:13px;font-variant-numeric:tabular-nums}
-#strip .cell .e{display:flex;justify-content:center}
-/* лошади */
-.horse{margin:8px 0}
-.horse .nm{font-size:14px;margin-bottom:2px}
-.horse .nm b{color:var(--gold)}
-.track{position:relative;height:34px;background:repeating-linear-gradient(90deg,#0d5c3f 0 26px,#0b4f36 26px 52px);
- border-radius:8px;overflow:hidden;border:1px solid rgba(55,214,122,.35)}
-.track .run{position:absolute;top:1px;font-size:26px;transition:left .12s linear}
-.track .fin{position:absolute;right:4px;top:0;font-size:26px}
-/* слоты */
-#slots{display:flex;gap:10px;justify-content:center;margin:14px 0}
-#slots .reel{width:84px;height:96px;font-size:56px;display:flex;align-items:center;justify-content:center;
- background:#e8edff;border-radius:14px;color:#111}
-/* рулетка, мины, блэкджек */
-.rnum{font-size:52px;font-weight:900;text-align:center;color:var(--gold);
- font-variant-numeric:tabular-nums;background:#0d1428;border-radius:12px;padding:6px;margin-bottom:10px}
-#minefield{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:12px}
-#minefield .cell{aspect-ratio:1;font-size:24px;border-radius:10px;border:1px solid rgba(232,237,255,.25);
- background:#0d1428;cursor:pointer;color:var(--paper)}
-#minefield .cell:disabled{cursor:default}
-#minefield .cell.gem{background:rgba(55,214,122,.18);border-color:#37d67a}
-#minefield .cell.boom{background:rgba(255,59,59,.25);border-color:var(--red)}
-.bjcards{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px;min-height:20px}
-.bjcard{background:#e8edff;color:#111;border-radius:8px;padding:8px 12px;font-weight:800;font-size:18px}
-.bjcard.me{background:linear-gradient(160deg,#ffe9a8,#ffd23f)}
-.bjrow{font-size:14px;color:var(--dim)}
-.cfoot{color:var(--dim);font-size:13px;margin-top:26px;line-height:1.6;text-align:center}
+/* ряды контролов и нижняя навигация */
+.crow{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.cnav{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;justify-content:center}
+.cfoot{color:var(--dim);font-size:13px;margin-top:18px;line-height:1.6;text-align:center}
 .cfoot a{color:var(--gold)}
-.cnav{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
-@media (prefers-reduced-motion:reduce){.track .run{transition:none}}
-
-/* иконки вместо эмодзи */
+.tnum{font-variant-numeric:tabular-nums}
+/* иконки и пиксель-арт */
 .cic{width:1.15em;height:1.15em;vertical-align:-0.2em}
+svg.cic{image-rendering:pixelated}
 .case-art{display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:14px;
  background:linear-gradient(150deg,rgba(255,77,77,.25),rgba(79,195,247,.22));border:1px solid rgba(255,210,63,.4)}
 .case-art .cic{width:30px;height:30px;color:var(--gold)}
-#strip .cell .e .cic{width:30px;height:30px;color:var(--gold)}
-.rdot{display:inline-block;width:.85em;height:.85em;border-radius:50%;margin-right:.4em;vertical-align:baseline;border:1px solid rgba(0,0,0,.4)}
-.rdot.red{background:#e03131}.rdot.black{background:#16161a;border-color:#555}.rdot.green{background:#2f9e44}
-#slots .reel .cic{width:44px;height:44px;color:#0d1428}
-.track .run .cic{width:26px;height:26px;color:#ffe9a8;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
-.track .fin svg{width:24px;height:24px;color:#e8edff;vertical-align:middle}
-#minefield .cell svg{width:24px;height:24px;vertical-align:middle}
-.horse .nm .cic{width:1.1em;height:1.1em;vertical-align:-0.15em;color:var(--gold)}
-.cbar .cic,.cnav .cic{vertical-align:-0.2em}
-
-/* ручной пиксель-арт: чёткие блоки без сглаживания */
-svg.cic{image-rendering:pixelated}
