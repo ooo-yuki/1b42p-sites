@@ -7,7 +7,7 @@
 <style>
 *{box-sizing:border-box}body{margin:0;background:#000;color:#fff;font-family:Arial,sans-serif;overflow:hidden}
 #ui{position:fixed;inset:0;pointer-events:none}
-#stats{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.7);border:2px solid gold;border-radius:20px;padding:6px 12px;font-size:15px;font-weight:bold;white-space:nowrap}#guideBtn{background:gold;border:none;border-radius:50%;width:24px;height:24px;font-size:13px;cursor:pointer;margin-left:4px;pointer-events:auto}#guide{position:absolute;top:52px;left:10px;max-width:300px;background:rgba(0,0,0,.7);border:1px solid #888;border-radius:10px;padding:6px 10px;font-size:12px;line-height:1.5}#mission{font-size:13px;max-width:260px}
+#stats{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.7);border:2px solid gold;border-radius:20px;padding:6px 12px;font-size:15px;font-weight:bold;white-space:nowrap}#guideBtn,#legendBtn{background:gold;border:none;border-radius:50%;width:24px;height:24px;font-size:13px;cursor:pointer;margin-left:4px;pointer-events:auto}#guide{position:absolute;top:52px;left:10px;max-width:300px;background:rgba(0,0,0,.7);border:1px solid #888;border-radius:10px;padding:6px 10px;font-size:12px;line-height:1.5}#mission{font-size:13px;max-width:260px}
 #mission{position:absolute;top:10px;right:10px;max-width:320px;background:rgba(0,0,0,.75);border:2px solid #0f6;border-radius:10px;padding:8px 12px;font-size:14px}
 #dialog{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);width:min(640px,92vw);background:#111;border:3px solid gold;border-radius:12px;padding:14px;font-size:16px;pointer-events:auto}
 #dialog button{background:gold;border:none;font-weight:bold;padding:8px 16px;border-radius:8px;cursor:pointer;margin-top:8px}
@@ -27,7 +27,7 @@
 #stick{width:64px;height:64px;background:gold;border-radius:50%;position:absolute;left:48px;top:48px}
 #btns{display:flex;gap:10px;pointer-events:auto}
 .tbtn{width:72px;height:72px;border-radius:50%;border:2px solid #0f6;background:rgba(0,255,102,.2);color:#fff;font-weight:bold;font-size:13px}
-@media(pointer:coarse){#touch{display:flex}#hint{display:none}#minimap{width:96px;height:96px;bottom:200px}#mapBtn{bottom:304px;right:12px}#minimap.big{width:86vw;height:86vw;bottom:110px;right:12px}#minimap.hide{display:none}}
+@media(pointer:coarse){#touch{display:flex}#hint{display:none}#minimap{width:96px;height:96px;bottom:24px;right:8px}#mapBtn{bottom:128px;right:8px}#minimap.big{width:86vw;height:86vw;bottom:24px;right:8px}#minimap.hide{display:none}#maplegend{display:none}}
 @media(max-width:700px){
 #stats{font-size:12px;max-width:92vw;white-space:normal}#guide{font-size:11px;max-width:60vw;top:48px}
 #mission{font-size:11px;max-width:44vw;padding:6px 8px}
@@ -43,7 +43,7 @@ b.gold{color:gold}b.grn{color:#0f6}b.red{color:#f55}
 </head>
 <body>
 <div id="ui">
-<div id="stats">❤️ <span id="hp">100</span> 🏆 <span id="resp">0</span> 🪙 <span id="money">0</span> 🗺️ <span id="terr">15%</span> 📻 <span id="radio">VICE 42 FM</span> <button id="guideBtn" title="подсказки (H)">❓</button></div>
+<div id="stats">❤️ <span id="hp">100</span> 🏆 <span id="resp">0</span> 🪙 <span id="money">0</span> 🗺️ <span id="terr">15%</span> 📻 <span id="radio">VICE 42 FM</span> <button id="guideBtn" title="подсказки (H)">❓</button><button id="legendBtn" title="метки квестов">🏷️</button></div>
 <div id="guide">WASD — идти • Shift — бег • E — действие • F — тачка • ЛКМ — бита • C — камера<br><span class="pconly">ПКМ/колесо(зажать)/стрелки — взгляд • колесо — зум • R — радио • M — звук • V — озвучка • H — скрыть • N — карта •</span> <span class="mobonly">свайп — взгляд • 🔼🔽 — вверх/вниз •</span> 🥫 энергетик за 10 респекта • <span id="gfx">⚡АВТО</span></div>
 <div id="radiopop" style="position:absolute;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);border:2px solid magenta;border-radius:10px;padding:8px 18px;font-size:18px;display:none">📻 <span id="radiopop-t"></span></div>
 <div id="mission">📜 <b id="mtitle">Миссия 1: Возвращение</b><br><span id="mdesc">Иди в штаб (жёлтая метка H)</span></div>
@@ -363,6 +363,8 @@ addEventListener('keydown',e=>{if(e.code==='KeyC')camDist=camDist===12?18:(camDi
 let HIDE_HELP=false;
 
 document.getElementById('guideBtn').addEventListener('click',()=>{HIDE_HELP=!HIDE_HELP;for(const id of ['guide','mission','hint']){const el=document.getElementById(id);if(el)el.style.display=HIDE_HELP?'none':'';}});
+let LEG_HIDE=false;try{if(matchMedia('(pointer:coarse)').matches){LEG_HIDE=true;document.getElementById('maplegend').style.display='none';}}catch(_){}
+try{document.getElementById('legendBtn').addEventListener('click',()=>{LEG_HIDE=!LEG_HIDE;const el=document.getElementById('maplegend');if(el)el.style.display=LEG_HIDE?'none':'';});}catch(_){}
 addEventListener('keydown',e=>{if(e.code==='KeyH'){HIDE_HELP=!HIDE_HELP;for(const id of ['guide','mission','hint']){const el=document.getElementById(id);if(el)el.style.display=HIDE_HELP?'none':'';}}});
 // тачка
 const car=new THREE.Group();
