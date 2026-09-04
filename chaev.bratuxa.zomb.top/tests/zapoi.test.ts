@@ -462,3 +462,19 @@ describe('именные артефакты закрытых персонаже�
     expect(bet(z)).not.toBeNull();
   });
 });
+
+describe('именные: польза всем персонажам', () => {
+  it('библия: любому персонажу +1 HP/сек и −15% урона', () => {
+    const z = createZapoiState(); z.char = 'vladimir'; z.m = 1e9;
+    z.completed = { vladimir: 1, ghost: 1 };
+    expect(buyArt(z, 'bible')).not.toBe(false);
+    expect(z.regen).toBeCloseTo(1);
+    expect(z.toxic).toBeCloseTo(0.85);
+  });
+  it('бан: любому персонажу +25% ко всему бухлу', () => {
+    const z = createZapoiState(); z.char = 'winline'; z.m = 1e9;
+    z.completed = { vladimir: 1, demon: 1 };
+    expect(buyArt(z, 'ban2w')).not.toBe(false);
+    expect(z.mult).toBeCloseTo(1.25);
+  });
+});
