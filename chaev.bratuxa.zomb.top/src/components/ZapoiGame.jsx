@@ -61,7 +61,8 @@ export default function ZapoiGame() {
         const ev = tickZapoi(next);
         if (ev === 'hangover') {
           const rate = hangoverRate(next);
-          setLog(`🤢 Похмелье! −${Math.floor(prev.m * rate)} бухла (${Math.round(rate * 100)}%), здоровье 30%. Рассолу накати!`);
+          const lost = (next._hangoverLost ?? Math.floor(prev.m * rate));
+          setLog(`🤢 Похмелье! −${lost} бухла (${Math.round(rate * 100)}%), здоровье 30%. Рассолу накати!`);
         } else if (ev === 'shattered') {
           setLog('💥 Бутылка разбилась! Забег окончен.');
           blip(200);
@@ -90,7 +91,7 @@ export default function ZapoiGame() {
     setZ((prev) => {
       const next = cloneZ(prev);
       if (!buyBottle(next)) {
-        setLog('Бутылка ещё не готова: скупи всё и накопи 50 000 🍾');
+        setLog(`Бутылка ещё не готова: скупи всё и накопи ${BOTTLE_COST.toLocaleString('ru-RU')} 🍾`);
         return prev;
       }
       const completed = { ...next.completed, [next.char]: 1 };
@@ -175,7 +176,7 @@ export default function ZapoiGame() {
         ))}
       </p>
       <p className="hint">Основа: Чаев гонит <b>Бухло</b> 🍾, но каждый глоток бьёт по <b>Здоровью</b> 🫀. Упал в 0 — похмелье: −20% бухла, здоровье 30%. Лечилки лечат, но жрут бухло. Качай древо, бери артефакты. Формулы цен прямо в описаниях, ня~</p>
-      <p>Бухло: <b style={{ color: 'gold', fontSize: 26 }}>{Math.floor(z.m).toLocaleString('ru-RU')} 🍾</b> <span className="hint">(+{Math.round(z.auto * z.mult)}/с • это {fmtZ(z.m)} запоя)</span></p>
+      <p>Бухло: <b style={{ color: 'gold', fontSize: 26 }}>{Math.floor(z.m).toLocaleString('ru-RU')} 🍾</b> <span className="hint">(+{Math.round(z.auto * effMult(z) + (z.char === 'vladimir' ? 0.2 * z.mult : 0))}/с • это {fmtZ(z.m)} запоя)</span></p>
       <p>Здоровье: <b style={{ color: '#7f7', fontSize: 20 }}>{Math.ceil(z.hp)}/{z.maxhp}</b></p>
       <div className="hpbar-wrap"><div className="hpbar" style={{ width: pct + '%' }}></div></div>
       {z.char === 'ghost' && (
@@ -195,7 +196,8 @@ export default function ZapoiGame() {
         const ev = jagerClick(n);
         if (ev === 'hangover') {
           const rate = hangoverRate(n);
-          return `🤢 Похмелье! −${Math.floor(n.m * rate / (1 - rate))} бухла (${Math.round(rate * 100)}%), здоровье 30%. Рассолу накати!`;
+          const lost = (n._hangoverLost ?? Math.floor(n.m * rate / (1 - rate)));
+          return `🤢 Похмелье! −${lost} бухла (${Math.round(rate * 100)}%), здоровье 30%. Рассолу накати!`;
         }
         if (ev === 'shattered') {
           setTimeout(() => setZ((prev) => newRun(prev.completed, null)), 50);
@@ -249,6 +251,7 @@ export default function ZapoiGame() {
                   <button disabled={owned || z.m < price} onClick={() => mutate((n) => {
                     const syns = buyArt(n, a.id);
                     if (syns === false) return '';
+                    if (n._lastArtBlank) return `🎰 Пустышка! Деньги возвращены (${price} 🍾), крути снова!`;
                     if (syns.length > 0) {
                       const names = syns.map((id) => SYNS.find((s) => s.id === id).name).join(', ');
                       return `${names} — синергия!`;

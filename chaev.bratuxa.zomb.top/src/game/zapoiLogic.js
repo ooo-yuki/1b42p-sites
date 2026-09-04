@@ -136,12 +136,14 @@ export function heal2cost(Z) {
   return Math.floor(c * (1 - charDiscount(Z)));
 }
 
-// Похмелье: −20% бухла (10% с богом), здоровье 30%. Возвращает потерянное бухло.
+// Похмелье: −20% бухла (10% с богом), здоровье 30%. Возвращает потерянное бухло,
+// дубль кладёт в Z._hangoverLost чтобы UI не пересчитывал его второй формулой (±1 в логе).
 export function applyHangover(Z) {
   const rate = hangoverRate(Z);
   const lost = Math.floor(Z.m * rate);
   Z.m -= lost;
   Z.hp = Math.round(Z.maxhp * 0.3);
+  Z._hangoverLost = lost;
   return { lost, rate };
 }
 
@@ -168,9 +170,14 @@ export function buyArt(Z, id) {
   if (Z.m < c) return false;
   Z.m -= c;
   Z.arts[id] = 1;
+  Z._lastArtBlank = false;
   const roll = Math.random();
   if (Z.char === 'winline') {
     if (roll < 0.1) {
+      // Пустышка: деньги назад, слот свободен — можно крутить снова.
+      Z.m += c;
+      delete Z.arts[id];
+      Z._lastArtBlank = true;
       const syns = checkSyns(Z);
       return syns;
     }
@@ -276,15 +283,15 @@ export function tickZapoi(Z) {
   if (Z.char === 'vladimir') Z.m += 0.2 * Z.mult;
   if (Z.regen > 0) Z.hp += Z.regen;
   if (Z.char === 'ghost') {
-    Z.soul = Math.min(100, (Z.soul ?? 100) + 2);
     if (Z.soul <= 0) return 'shattered';
+    Z.soul = Math.min(100, (Z.soul ?? 100) + 2);
   }
   if (Z.char === 'demon' && Z.demonForm > 0) {
     Z.demonForm -= 1;
     if (Z.demonForm <= 0) { Z.demonForm = 0; return 'shattered'; }
   }
   Z.hp = Math.max(0, Math.min(Z.maxhp, Z.hp));
-  if (Z.hp <= 0 && Z.m > 0) {
+  if (Z.hp <= 0) {
     if (Z.char === 'demon' && Z.demonForm <= 0) { Z.demonForm = 10; return 'demonform'; }
     if (Z.char === 'ghost') return 'shattered';
     applyHangover(Z);
