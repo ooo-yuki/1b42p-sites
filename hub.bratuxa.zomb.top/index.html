@@ -67,7 +67,7 @@ footer{padding:18px;color:var(--gold);border-top:2px solid var(--gold);font-weig
 </head>
 <body>
 <div class="mantra">Мы уже победили 🏆 • Батальон 42 • Мы уже победили 🏆</div>
-<nav><a href="#hero">СТУДИЯ</a><a href="#games">НАШИ ИГРЫ</a><a href="#join">В КОМАНДУ</a><a href="#news">НОВОСТИ</a></nav>
+<nav><a href="#hero">СТУДИЯ</a><a href="#games">НАШИ ИГРЫ</a><a href="stats.html">📡 ОНЛАЙН</a><a href="#join">В КОМАНДУ</a><a href="#news">НОВОСТИ</a></nav>
 
 <header id="hero">
 <div class="orb o1" data-parallax="-30"></div>
@@ -253,5 +253,6 @@ window.denisMsLeft=function(){return window.denisRevealTs()-Date.now();};
   });
 })();
 </script>
+<script>/* 42-трекер онлайна */(function(){var SITE='hub';try{var s=null;try{s=localStorage.getItem('t42_sid');}catch(e){}if(!s||!/^[0-9a-f]{32}$/.test(s)){s='';var h='0123456789abcdef';for(var i=0;i<32;i++)s+=h[Math.floor(Math.random()*16)];try{localStorage.setItem('t42_sid',s);}catch(e){}}function b(){try{fetch('https://hub.bratuxa.zomb.top/api/track',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({site:SITE,sid:s}),keepalive:true});}catch(e){}}b();setInterval(b,30000);}catch(e){}})();</script>
 </body>
 </html>
