@@ -128,6 +128,14 @@
 .agames .gcard b{font-size:15px}
 .agames .gcard small{color:#808080; font-size:12px}
 .gcard .qmark{font-size:34px; font-weight:900; color:#0060AA; line-height:42px}
+/* мини-карты дурака на дуэльной карте */
+.minicard{display:flex; height:42px; align-items:flex-end; justify-content:center}
+.minicard i{font-style:normal; font-weight:900; font-size:15px; line-height:1;
+  width:34px; height:44px; border-radius:7px; background:linear-gradient(160deg,#ffffff,#dfe4f5);
+  color:#101828; border:1px solid rgba(0,0,0,.4);
+  display:flex; align-items:center; justify-content:center; transform:rotate(-8deg)}
+.minicard i + i{margin-left:-12px; transform:rotate(8deg)}
+.minicard i.red{color:#E31E25}
 .avote-note{margin:0; font-size:12.5px; color:#808080; text-align:center}
 
 /* единственный авторский момент входа: фликер неона + каскад карт + подъём кнопки */
@@ -168,6 +176,48 @@
 .aprivate .aroom-row{padding:0 16px 14px}
 .ar-game{font-size:12.5px; color:#808080; border:1px solid rgba(128,128,128,.4);
   border-radius:999px; padding:5px 12px}
+/* дурак: сукно, карты, рубашки */
+.du-wrap{display:flex; flex-direction:column; gap:12px}
+.du-top{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+.du-trump{font-size:13px; font-weight:800; letter-spacing:.04em; color:#fff;
+  border:1px solid rgba(255,255,255,.25); border-radius:999px; padding:5px 14px; background:#0d1428}
+.du-trump.red{border-color:rgba(227,30,37,.7); box-shadow:0 0 14px rgba(227,30,37,.35)}
+.du-deck{font-size:13px; color:#808080}
+.du-foes{display:flex; flex-wrap:wrap; gap:8px}
+.du-foe{display:inline-flex; align-items:center; gap:8px; font-size:13px;
+  background:#0d1428; border:1px solid rgba(255,255,255,.12); border-radius:999px; padding:5px 14px 5px 6px}
+.du-foe b{font-weight:700}
+.du-foe small{color:#808080}
+.du-foe em{font-style:normal; font-size:11px; font-weight:800; letter-spacing:.05em; color:#808080}
+.du-foe.atk{border-color:rgba(0,96,170,.7)}
+.du-foe.atk em{color:#fff}
+.du-foe.def{border-color:rgba(227,30,37,.7)}
+.du-foe.def em{color:#E31E25}
+.du-back{width:26px; height:34px; border-radius:6px; background:#0d1428;
+  border:2px solid #0060AA}
+.du-table{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px;
+  background:radial-gradient(120% 140% at 50% 0%, #14532d 0%, #0d1428 78%);
+  border:1px solid rgba(0,96,170,.35); border-radius:14px; padding:16px; min-height:120px}
+.du-table .idle{grid-column:1/-1; text-align:center; color:#808080; margin:8px 0}
+.du-pair{display:flex; gap:8px; align-items:flex-start; justify-content:center}
+.dcard{position:relative; width:64px; height:92px; border-radius:10px; cursor:default;
+  background:linear-gradient(160deg,#ffffff,#dfe4f5); color:#101828; border:1px solid rgba(0,0,0,.4);
+  font-family:inherit; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px}
+.dcard b{font-size:20px; line-height:1}
+.dcard i{font-style:normal; font-size:22px; line-height:1}
+.dcard.red,.dcard i.red{color:#E31E25}
+button.dcard{cursor:pointer}
+button.dcard:hover:not(:disabled){transform:translateY(-3px); border-color:#fff}
+button.dcard:disabled{cursor:default}
+.dcard.sel{border-color:#fff; box-shadow:0 0 18px rgba(0,96,170,.8)}
+.dcard.dim{opacity:.45; filter:grayscale(.5)}
+.dcard.atk{transform:rotate(-4deg)}
+.du-actions{display:flex; gap:10px; justify-content:center; flex-wrap:wrap}
+.du-hint{margin:0; text-align:center; font-size:12.5px; color:#808080}
+.du-role{margin:0; text-align:center; font-size:13px; color:#fff}
+.du-hand{display:flex; flex-wrap:wrap; gap:8px; justify-content:center;
+  background:#0d1428; border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:14px}
+.du-hand .idle{color:#808080; margin:0}
 /* пикер игры хоста в приватной комнате */
 .apick{display:flex; align-items:center; gap:10px; flex-wrap:wrap;
   background:#0d1428; border:1px solid rgba(0,96,170,.35); border-radius:12px;

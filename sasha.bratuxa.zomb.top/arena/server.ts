@@ -12,9 +12,10 @@ const WAIT_VOTE_SECS = 60;
 
 type Phase = 'lobby' | 'play' | 'over';
 
-type GameDef = { label: string; min: number; max: number };
+type GameDef = { label: string; min: number; max: number; turnSecs: number; icon: 'dice' | 'cards' };
 const GAMES: Record<string, GameDef> = {
-  dice: { label: 'Кости на выбывание', min: 2, max: 5 },
+  dice: { label: 'Кости на выбывание', min: 2, max: 5, turnSecs: 12, icon: 'dice' },
+  durak: { label: 'Дурак подкидной', min: 2, max: 5, turnSecs: 30, icon: 'cards' },
 };
 const GAME_IDS = Object.keys(GAMES);
 
@@ -43,6 +44,7 @@ type Room = {
   createdAt: number;
   winner: string | null;
   gdata: Record<string, unknown>; // витрина игры для клиента; кости держат всё в rolls/alive
+  dstate: DState | null; // дурак живёт здесь целиком, в gdata — только публичный срез
 };
 
 type Pool = {
@@ -57,6 +59,11 @@ type Pool = {
 
 const rnd = (n: number): number => 1 + Math.floor(Math.random() * n);
 const now = (): number => Date.now();
+
+import {
+  applyMove as durakApply, createDurak, removePlayer as durakRemove,
+  timeoutMove as durakTimeout, type Card as EngineCard, type DState,
+} from './durak';
 
 const clients = new Map<string, Client>();
 const rooms = new Map<string, Room>();
@@ -92,6 +99,20 @@ function memberViews(r: Room): { id: string; name: string; alive: boolean }[] {
   }));
 }
 
+/** Публичный срез дурака: стол, козырь, размеры рук. Сами руки — личным 'hand'. */
+function durakPublic(r: Room): Record<string, unknown> {
+  const st = r.dstate;
+  if (!st) return {};
+  const handN: Record<string, number> = {};
+  for (const id of r.players) handN[id] = st.hands[id]?.length ?? 0;
+  return {
+    table: st.table.map(t => ({ a: t.a, d: t.d })),
+    deckN: st.deck.length, trump: st.trump,
+    attacker: st.attacker, defender: st.defender,
+    out: [...st.out], handN,
+  };
+}
+
 function roomState(r: Room): Record<string, unknown> {
   return {
     t: 'room', code: r.code, phase: r.phase, game: r.game,
@@ -99,7 +120,8 @@ function roomState(r: Room): Record<string, unknown> {
     players: memberViews(r), host: r.host,
     private: r.private,
     round: r.round, alive: [...r.alive], contenders: [...r.contenders],
-    rolls: { ...r.rolls }, winner: r.winner, gdata: { ...r.gdata },
+    rolls: { ...r.rolls }, winner: r.winner,
+    gdata: r.game === 'durak' ? durakPublic(r) : { ...r.gdata },
   };
 }
 
@@ -112,7 +134,7 @@ function broadcast(r: Room, msg: Record<string, unknown>, except?: string): void
 }
 
 function gameCatalog(): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(GAMES).map(([k, g]) => [k, { label: g.label, min: g.min, max: g.max }]));
+  return Object.fromEntries(Object.entries(GAMES).map(([k, g]) => [k, { label: g.label, min: g.min, max: g.max, turnSecs: g.turnSecs, icon: g.icon }]));
 }
 
 function poolView(): Record<string, unknown> {
@@ -174,6 +196,10 @@ function detach(c: Client): void {
   delete r.rolls[c.id];
   if (r.players.length === 0) { destroyRoom(code); return; }
   if (r.host === c.id) r.host = r.players[0];
+  if (r.phase === 'play' && r.game === 'durak' && r.dstate) {
+    broadcast(r, { t: 'left', id: c.id, name: c.name });
+    return durakLeave(r, c.id);
+  }
   if (r.phase === 'play') {
     broadcast(r, { t: 'left', id: c.id, name: c.name });
     if (r.alive.length === 1) return finishGame(r);
@@ -231,7 +257,7 @@ function formRoom(ids: string[]): void {
   const r: Room = {
     code, players: [], host: fitted[0], private: false, game,
     phase: 'lobby', alive: [], contenders: [], rolls: {}, round: 0,
-    timer: null, createdAt: now(), winner: null, gdata: {},
+    timer: null, createdAt: now(), winner: null, gdata: {}, dstate: null,
   };
   rooms.set(code, r);
   for (const id of fitted) {
@@ -356,7 +382,7 @@ function onCreate(c: Client, game: unknown): void {
   const r: Room = {
     code, players: [c.id], host: c.id, private: true, game: sanitizeGame(game),
     phase: 'lobby', alive: [], contenders: [], rolls: {}, round: 0,
-    timer: null, createdAt: now(), winner: null, gdata: {},
+    timer: null, createdAt: now(), winner: null, gdata: {}, dstate: null,
   };
   rooms.set(code, r);
   c.roomId = code;
@@ -414,10 +440,115 @@ function onChat(c: Client, text: unknown): void {
   broadcast(r, { t: 'chat', id: c.id, name: c.name, text: t });
 }
 
+/* ---------- дурак подкидной: проводка движка ---------- */
+
+type DCard = EngineCard;
+
+function parseDCard(v: unknown): DCard | null {
+  const c = (v ?? {}) as Record<string, unknown>;
+  if (typeof c.r !== 'number' || !Number.isInteger(c.r) || c.r < 6 || c.r > 14) return null;
+  if (c.s !== 'S' && c.s !== 'H' && c.s !== 'D' && c.s !== 'C') return null;
+  return { r: c.r, s: c.s as DCard['s'] };
+}
+
+function pushHands(r: Room): void {
+  if (!r.dstate) return;
+  for (const id of r.players) {
+    const c = clients.get(id);
+    const h = r.dstate.hands[id];
+    if (c && h) send(c.ws, { t: 'hand', cards: h.map(x => ({ ...x })) });
+  }
+}
+
+function finishDurak(r: Room, winner: string | null): void {
+  killTimer(r);
+  r.phase = 'over';
+  r.winner = winner;
+  r.alive = winner ? [winner] : [];
+  r.rolls = {};
+  const wname = (winner && clients.get(winner)?.name) ?? '???';
+  broadcast(r, { t: 'over', winner: r.winner, name: wname });
+  broadcast(r, roomState(r));
+}
+
+function startDurak(r: Room): void {
+  r.dstate = createDurak([...r.players], Math.random);
+  r.phase = 'play';
+  r.alive = [...r.players];
+  r.round = 0;
+  broadcast(r, { t: 'log', text: `Бой начался! Игра — Дурак подкидной. Первый заходит ${clients.get(r.dstate.attacker)?.name ?? '???'}.` });
+  broadcast(r, roomState(r));
+  pushHands(r);
+  dTick(r);
+}
+
+function dTick(r: Room): void {
+  if (r.phase !== 'play' || !r.dstate) return;
+  const secs = GAMES.durak.turnSecs;
+  broadcast(r, roomState(r));
+  broadcast(r, { t: 'dturn', attacker: r.dstate.attacker, defender: r.dstate.defender, secs });
+  killTimer(r);
+  r.timer = setTimeout(() => dTimeout(r), secs * 1000);
+}
+
+function dAfter(r: Room): void {
+  if (!r.dstate) return;
+  if (r.dstate.phase === 'over') return finishDurak(r, r.dstate.winner);
+  pushHands(r);
+  dTick(r);
+}
+
+function onDurakMove(c: Client, mv: Record<string, unknown>): void {
+  const r = c.roomId ? rooms.get(c.roomId) : undefined;
+  const st = r?.dstate;
+  if (!r || !st || r.phase !== 'play') return;
+  const kind = String(mv.kind ?? '');
+  let echo: { card: DCard | null; target: DCard | null } = { card: null, target: null };
+  let res: { ok: boolean; err?: string };
+  if (kind === 'attack' || kind === 'throw') {
+    const card = parseDCard(mv.card);
+    if (!card) return send(c.ws, { t: 'err', msg: 'кривая карта' });
+    echo = { card, target: null };
+    res = durakApply(st, c.id, { kind: 'attack', card });
+  } else if (kind === 'defend') {
+    const card = parseDCard(mv.card);
+    const target = parseDCard(mv.target);
+    if (!card || !target) return send(c.ws, { t: 'err', msg: 'кривые карты' });
+    echo = { card, target };
+    res = durakApply(st, c.id, { kind: 'defend', card, target });
+  } else if (kind === 'take') res = durakApply(st, c.id, { kind: 'take' });
+  else if (kind === 'done') res = durakApply(st, c.id, { kind: 'done' });
+  else return;
+  if (!res.ok) return send(c.ws, { t: 'err', msg: res.err ?? 'так нельзя' });
+  broadcast(r, { t: 'dmove', id: c.id, name: c.name, kind, card: echo.card, target: echo.target });
+  dAfter(r);
+}
+
+function dTimeout(r: Room): void {
+  if (r.phase !== 'play' || !r.dstate) return;
+  const tm = durakTimeout(r.dstate);
+  const who = clients.get(tm.by)?.name ?? '???';
+  durakApply(r.dstate, tm.by, tm.kind === 'take' ? { kind: 'take' } : { kind: 'done' });
+  broadcast(r, { t: 'log', text: `${who} молчал — клуб решил за него.` });
+  broadcast(r, { t: 'dmove', id: tm.by, name: who, kind: tm.kind, card: null, target: null, auto: true });
+  dAfter(r);
+}
+
+/** Уход посреди дурака: рука сгорает, живые доигрывают; остался один — чемпион. */
+function durakLeave(r: Room, id: string): void {
+  if (!r.dstate || r.phase !== 'play') return;
+  const rest = durakRemove(r.dstate, id);
+  if (rest.length <= 1) return finishDurak(r, rest[0] ?? null);
+  pushHands(r);
+  broadcast(r, roomState(r));
+  dTick(r);
+}
+
 /* ---------- кости на выбывание ---------- */
 
 function startGame(r: Room): void {
   if (r.players.length < 2) return;
+  if (r.game === 'durak') return startDurak(r);
   r.phase = 'play';
   r.alive = [...r.players];
   r.contenders = [];
@@ -503,6 +634,7 @@ type Plugin = { onMove(c: Client, mv: Record<string, unknown>): void };
 
 const PLUGINS: Record<string, Plugin> = {
   dice: { onMove(c, mv) { if (mv.kind === 'roll') onRoll(c); } },
+  durak: { onMove(c, mv) { onDurakMove(c, mv); } },
 };
 
 function onMove(c: Client, mv: unknown): void {
@@ -522,6 +654,14 @@ function onMessage(c: Client, raw: string): void {
     case 'hello':
       c.name = cleanName(m.name);
       send(c.ws, { t: 'welcome', id: c.id, online: clients.size, games: gameCatalog() });
+      if (c.roomId) {
+        const hr = rooms.get(c.roomId);
+        const hh = hr?.game === 'durak' ? hr.dstate?.hands[c.id] : undefined;
+        if (hr && hh) {
+          send(c.ws, roomState(hr));
+          send(c.ws, { t: 'hand', cards: hh.map(x => ({ ...x })) });
+        }
+      }
       pushOnline();
       return;
     case 'search': return onSearch(c);

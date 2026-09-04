@@ -132,6 +132,84 @@ while (!overP && Date.now() - t1 < 120000) {
 }
 if (!overP) throw new Error('приватный бой не кончился!');
 console.log('private winner:', overP.name);
+
+// дурак-трек: приватная комната с игрой, ИИ-пилоты играют до чемпиона.
+const F = client('Тест-Ж');
+const G = client('Тест-З');
+await Promise.all([F.ready, G.ready]);
+const wF = await F.waitFor((m) => m.t === 'welcome');
+const wG = await G.waitFor((m) => m.t === 'welcome');
+idOf.set(F, wF.id);
+idOf.set(G, wG.id);
+F.send({ t: 'create', game: 'durak' });
+const rd = await F.waitFor((m) => m.t === 'room' && m.private);
+if (rd.game !== 'durak') throw new Error('приватка не с дураком!');
+G.send({ t: 'join', code: rd.code });
+await G.waitFor((m) => m.t === 'room' && m.code === rd.code);
+F.send({ t: 'start' });
+const beatsE = (a: any, d: any, trump: string): boolean =>
+  d.s === a.s ? d.r > a.r : (d.s === trump && a.s !== trump);
+const lastHand = new Map<any, any[]>([[F, []], [G, []]]);
+const syncHands = (P: any): void => {
+  for (let i = P.seen.length - 1; i >= 0; i--) {
+    if (P.seen[i].t === 'hand') { lastHand.set(P, P.seen[i].cards); break; }
+  }
+};
+const lowFirst = (cards: any[], trump: string): any[] =>
+  [...cards].sort((x, y) => (x.s === trump ? 100 + x.r : x.r) - (y.s === trump ? 100 + y.r : y.r));
+function durakStep(P: any, g: any): void {
+  syncHands(P);
+  const me = idOf.get(P);
+  const hand = lastHand.get(P) ?? [];
+  if (hand.length === 0) return;
+  const table = g.table as any[];
+  const uncovered = table.filter((t) => !t.d);
+  if (g.defender === me) {
+    const avail = [...hand];
+    for (const u of uncovered) {
+      const b = lowFirst(avail.filter((c) => beatsE(u.a, c, g.trump)), g.trump)[0];
+      if (!b) { P.send({ t: 'move', move: { kind: 'take' } }); return; }
+      P.send({ t: 'move', move: { kind: 'defend', card: b, target: u.a } });
+      avail.splice(avail.indexOf(b), 1);
+    }
+    return;
+  }
+  if (table.length === 0) {
+    if (g.attacker !== me) return;
+    P.send({ t: 'move', move: { kind: 'attack', card: lowFirst(hand, g.trump)[0] } });
+    return;
+  }
+  if (table.length < 6) {
+    const ranks = new Set(table.flatMap((t) => [t.a.r, ...(t.d ? [t.d.r] : [])]));
+    const c = lowFirst(hand.filter((x) => ranks.has(x.r)), g.trump)[0];
+    if (c) { P.send({ t: 'move', move: { kind: 'attack', card: c } }); return; }
+  }
+  if (g.attacker === me && uncovered.length === 0) P.send({ t: 'move', move: { kind: 'done' } });
+}
+let overD: any = null;
+{
+  const t2 = Date.now();
+  let cur: any = await F.waitFor((m) => m.t === 'room' && m.phase === 'play');
+  await F.waitFor((m) => m.t === 'hand', 40000);
+  await G.waitFor((m) => m.t === 'hand', 40000);
+  while (!overD && Date.now() - t2 < 150000) {
+    durakStep(F, cur.gdata);
+    durakStep(G, cur.gdata);
+    const nxt = await Promise.race([
+      F.waitFor((m) => m.t === 'room' && m.phase === 'play').catch(() => null),
+      F.waitFor((m) => m.t === 'hand').catch(() => null),
+      G.waitFor((m) => m.t === 'hand').catch(() => null),
+      F.waitFor((m) => m.t === 'over', 150000).catch(() => null),
+    ]);
+    if (!nxt) continue;
+    if (nxt.t === 'over') { overD = nxt; break; }
+    if (nxt.t === 'room') cur = nxt;
+  }
+}
+if (!overD) throw new Error('дурак не кончился!');
+if (!overD.winner) throw new Error('дурак без чемпиона!');
+console.log('durak winner:', overD.name);
+for (const p of [F, G]) p.ws.close();
 const check = await fetch('http://127.0.0.1:8094/api/online').then((r) => r.json());
 console.log('online:', JSON.stringify(check));
 if (check.online < 3) throw new Error('онлайн врёт!');

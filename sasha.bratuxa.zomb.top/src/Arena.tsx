@@ -4,9 +4,10 @@ import Room, { type ChatLine, type FeedLine } from './arena/Room';
 import Settings from './arena/Settings';
 import {
   addWin, arenaWsUrl, clearWins, loadMuted, loadName, loadWins, saveMuted, saveName,
-  type CMsg, type GameDef, type PoolView, type RoomView, type SMsg,
+  type CMsg, type DCard, type GameDef, type PoolView, type RoomView, type SMsg,
 } from './arena/proto';
-import { arenaClick, arenaWin, chatPop, diceLand, diceRattle, elimGong, setArenaMuted } from './arena/sound';
+import { arenaClick, arenaWin, cardSnap, chatPop, diceLand, diceRattle, elimGong, setArenaMuted, takeScoop } from './arena/sound';
+import { cardText } from './arena/games/durak';
 
 /* АРЕНА — оркестрация клуба: сокет, центр (игры+поиск), комната, настройки. */
 
@@ -29,6 +30,7 @@ export default function Arena(): JSX.Element {
   const [feed, setFeed] = useState<FeedLine[]>([]);
   const [chat, setChat] = useState<ChatLine[]>([]);
   const [myRolled, setMyRolled] = useState(false);
+  const [hand, setHand] = useState<DCard[]>([]);
   const [secsLeft, setSecsLeft] = useState<number | null>(null);
   const [err, setErr] = useState('');
   const wsRef = useRef<WebSocket | null>(null);
@@ -108,6 +110,7 @@ export default function Arena(): JSX.Element {
         setPool(null);
         setChat([]);
         setFeed([]);
+        setHand([]);
         setMyRolled(false);
         break;
       case 'round':
@@ -120,6 +123,28 @@ export default function Arena(): JSX.Element {
         diceLand(m.v);
         if (m.id === myIdRef.current) setMyRolled(true);
         if (m.auto) pushFeed(`${m.name} молчал — клуб кинул за него: ${m.v}.`);
+        break;
+      }
+      case 'hand':
+        setHand(m.cards ?? []);
+        break;
+      case 'dturn':
+        startClock(m.secs);
+        if (m.attacker === myIdRef.current || m.defender === myIdRef.current) cardSnap();
+        break;
+      case 'dmove': {
+        if (m.kind === 'attack' || m.kind === 'throw' || m.kind === 'defend') cardSnap();
+        else if (m.kind === 'take') takeScoop();
+        else if (m.kind === 'done') arenaClick();
+        const ct = m.card ? ` ${cardText(m.card)}` : '';
+        const lines: Record<string, string> = {
+          attack: `${m.name} пошёл${ct}.`,
+          throw: `${m.name} подкинул${ct}.`,
+          defend: `${m.name} отбил${m.target ? ` ${cardText(m.target)}` : ''}${ct}.`,
+          take: `${m.name} взял.`,
+          done: `${m.name}: бита!`,
+        };
+        pushFeed(m.auto ? `${m.name} молчал — клуб решил за него.` : (lines[m.kind] ?? `${m.name} сходил.`), m.kind === 'take');
         break;
       }
       case 'elim':
@@ -225,9 +250,10 @@ export default function Arena(): JSX.Element {
                 onJoin={code => send({ t: 'join', code })} />
             )}
             {room && (
-              <Room me={myId} room={room} games={games} feed={feed} chat={chat}
+              <Room me={myId} room={room} games={games} hand={hand} feed={feed} chat={chat}
                 myRolled={myRolled} secsLeft={secsLeft}
                 onRoll={() => send({ t: 'move', move: { kind: 'roll' } })}
+                onMove={mv => send({ t: 'move', move: mv })}
                 onLeave={() => send({ t: 'leave' })}
                 onStart={() => send({ t: 'start' })}
                 onRematch={() => send({ t: 'rematch' })}

@@ -5,10 +5,11 @@ import { arenaClick, chatPop } from './sound';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { gameView } from './games';
-import type { GameDef, RoomView } from './proto';
+import { gameView, type GameMove } from './games';
+import type { DCard, GameDef, RoomView } from './proto';
 
-/* Комната — платформа: шапка, вьюха игры из реестра, лента, чат, пикер хоста. */
+/* Комната — платформа: шапка, пикер хоста, сбор, вьюха игры из реестра,
+   финал, лента, чат. Игры рисуют только свой стол. */
 
 export type ChatLine = { id: string; name: string; text: string };
 export type FeedLine = { k: number; text: string; hot?: boolean };
@@ -17,11 +18,13 @@ type Props = {
   me: string;
   room: RoomView;
   games: Record<string, GameDef>;
+  hand: DCard[];
   feed: FeedLine[];
   chat: ChatLine[];
   myRolled: boolean;
   secsLeft: number | null;
   onRoll: () => void;
+  onMove: (m: GameMove) => void;
   onLeave: () => void;
   onStart: () => void;
   onRematch: () => void;
@@ -29,8 +32,8 @@ type Props = {
   onChat: (t: string) => void;
 };
 
-export default function Room({ me, room, games, feed, chat, myRolled, secsLeft,
-  onRoll, onLeave, onStart, onRematch, onPickGame, onChat }: Props): JSX.Element {
+export default function Room({ me, room, games, hand, feed, chat, myRolled, secsLeft,
+  onRoll, onMove, onLeave, onStart, onRematch, onPickGame, onChat }: Props): JSX.Element {
   const [draft, setDraft] = useState('');
   const feedRef = useRef<HTMLDivElement | null>(null);
   const chatRef = useRef<HTMLDivElement | null>(null);
@@ -38,6 +41,7 @@ export default function Room({ me, room, games, feed, chat, myRolled, secsLeft,
   const View = gameView(room.game);
   const ids = Object.keys(games);
   const maxPlayers = games[room.game]?.max ?? 5;
+  const winner = room.players.find(p => p.id === room.winner);
 
   useEffect(() => {
     feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: 'smooth' });
@@ -59,7 +63,10 @@ export default function Room({ me, room, games, feed, chat, myRolled, secsLeft,
       <div className="ar-head">
         <span className="ar-code tnum" title="Код комнаты — диктуй братухам">{room.code}</span>
         <span className={cn('ar-phase', room.phase)}>
-          {room.phase === 'lobby' ? 'сбор' : room.phase === 'play' ? `раунд ${room.round}` : 'бой окончен'}
+          {room.phase === 'lobby' ? 'сбор'
+            : room.phase === 'play'
+              ? (room.game === 'durak' ? 'бой идёт' : `раунд ${room.round}`)
+              : 'бой окончен'}
         </span>
         <span className="ar-game">{room.gameLabel}</span>
         <span className="sp" />
@@ -81,11 +88,40 @@ export default function Room({ me, room, games, feed, chat, myRolled, secsLeft,
         </div>
       )}
 
-      {View ? (
-        <View me={me} room={room} amHost={amHost} myRolled={myRolled} secsLeft={secsLeft}
-          maxPlayers={maxPlayers} onRoll={onRoll} onStart={onStart} onRematch={onRematch} />
+      {room.phase === 'lobby' && (
+        <div className="ar-table">
+          <div className="ar-lounge">
+            <p>Ждём братух: <b className="tnum">{room.players.length}/{maxPlayers}</b>. {room.private
+              ? (amHost ? 'Ты хост — давай старт, когда все в сборе.' : 'Старт даст хост.')
+              : 'Бой начнётся сам.'}</p>
+            {room.private && amHost && (
+              <Button disabled={room.players.length < 2} onClick={() => { arenaClick(); onStart(); }}>
+                К бою!
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {room.phase !== 'lobby' && (View ? (
+        <View me={me} room={room} hand={hand} amHost={amHost} myRolled={myRolled}
+          secsLeft={secsLeft} maxPlayers={maxPlayers}
+          onRoll={onRoll} onMove={onMove} onStart={onStart} onRematch={onRematch} />
       ) : (
         <div className="ar-table"><p className="idle">Такой игры клуб ещё не знает — жди завоза.</p></div>
+      ))}
+
+      {room.phase === 'over' && winner && (
+        <div className="ar-table">
+          <div className="ar-over">
+            <b>{winner.id === me ? 'Ты забрал бой!' : `${winner.name} забрал бой!`}</b>
+            <div className="crow">
+              <Button disabled={room.private && !amHost} onClick={() => { arenaClick(); onRematch(); }}>
+                {room.private && !amHost ? 'Ждём хоста' : 'Реванш'}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="ar-feed" ref={feedRef} aria-live="polite">

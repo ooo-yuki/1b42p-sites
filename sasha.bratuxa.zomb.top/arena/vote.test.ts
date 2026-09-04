@@ -27,11 +27,11 @@ describe('decideGame', () => {
 
   test('все на «любом» — валидная игра из каталога', () => {
     const ids = seed({ a: 'any', b: 'any', c: 'any' });
-    expect(['dice']).toContain(decideGame(ids));
+    expect(['dice', 'durak']).toContain(decideGame(ids));
   });
 
   test('пустой пул — валидная игра, не падает', () => {
-    expect(['dice']).toContain(decideGame([]));
+    expect(['dice', 'durak']).toContain(decideGame([]));
   });
 
   test('один голос решает при остальных «любых»', () => {

@@ -19,7 +19,16 @@ export type RoomView = {
 };
 
 export type PoolMember = { id: string; name: string; vote: string; enter: boolean };
-export type GameDef = { label: string; min: number; max: number };
+export type GameDef = { label: string; min: number; max: number; turnSecs: number; icon: 'dice' | 'cards' };
+
+/** Карта дурака: r 6..14 (11=В 12=Д 13=К 14=Т), s масть S/H/D/C. */
+export type DCard = { r: number; s: string };
+export type DPair = { a: DCard; d: DCard | null };
+export type DurakPublic = {
+  table: DPair[]; deckN: number; trump: string;
+  attacker: string; defender: string; out: string[];
+  handN: Record<string, number>;
+};
 
 export type PoolView = {
   members: PoolMember[];
@@ -39,6 +48,9 @@ export type SMsg =
   | { t: 'leftRoom' }
   | { t: 'round'; round: number; need: string[]; secs: number }
   | { t: 'roll'; id: string; name: string; v: number; auto: boolean }
+  | { t: 'hand'; cards: DCard[] }
+  | { t: 'dturn'; attacker: string; defender: string; secs: number }
+  | { t: 'dmove'; id: string; name: string; kind: string; card: DCard | null; target: DCard | null; auto?: boolean }
   | { t: 'elim'; id: string; name: string; v: number; round: number; alive: string[] }
   | { t: 'over'; winner: string | null; name: string }
   | { t: 'log'; text: string }
@@ -61,7 +73,7 @@ export type CMsg =
   | { t: 'start' }
   | { t: 'rematch' }
   | { t: 'roll' }
-  | { t: 'move'; move: { kind: string } }
+  | { t: 'move'; move: { kind: string; card?: DCard; target?: DCard } }
   | { t: 'chat'; text: string };
 
 export const NAME_KEY = 'sasha_arena_name';

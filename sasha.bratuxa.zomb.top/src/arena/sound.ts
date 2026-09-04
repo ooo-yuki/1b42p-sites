@@ -72,3 +72,14 @@ export function arenaWin(): void {
 export function chatPop(): void {
   tone(990, 0.05, 'sine', 0.06);
 }
+
+/** Карта легла на стол — сухой щелчок. */
+export function cardSnap(): void {
+  tone(2100, 0.03, 'square', 0.05);
+  tone(1500, 0.04, 'triangle', 0.06, 0.02);
+}
+
+/** Защитник взял — сгребание. */
+export function takeScoop(): void {
+  [300, 240, 180].forEach((f, i) => tone(f, 0.08, 'sawtooth', 0.07, i * 0.06, -40));
+}

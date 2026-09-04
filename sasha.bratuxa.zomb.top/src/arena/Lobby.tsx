@@ -76,7 +76,9 @@ export default function Lobby({ me, online, pool, games, searching, busy, myVote
           return (
             <ToggleGroupItem key={id} value={id} disabled={busy}
               className="gcard" aria-label={`Голос за ${g.label}`}>
-              <DiceFace v={5} hot={myVote === id} />
+              {g.icon === 'cards'
+                ? <span className="minicard" aria-hidden="true"><i>Т♠</i><i className="red">К♥</i></span>
+                : <DiceFace v={5} hot={myVote === id} />}
               <b>{g.label}</b>
               <small>{g.min}–{g.max} игроков · голосов: <span className="tnum">{v}</span></small>
             </ToggleGroupItem>

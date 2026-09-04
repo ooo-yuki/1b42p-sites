@@ -20,6 +20,7 @@ FORM: лобби+комната+игра в одном экране по сос�
 PLATFORM: новая игра = запись в GAMES (server.ts: sanitizeGame/gameCap/fitMembers,
 PLUGINS.onMove, gdata в roomState) + вьюха в src/arena/games/* + строка в GAME_VIEWS;
 пул, голоса, комнаты, таймеры, реванши, чат — общие. Неизвестная игра — заглушка.
+Вторая игра доказывает: дурак (движок arena/durak.ts + DurakTable + приватные руки 'hand').
 FINISH: unreviewed and undocumented is unfinished; this build ends with the
 finish review, the verdict, DESIGN.md, and every shipping raster carrying
 its provenance.

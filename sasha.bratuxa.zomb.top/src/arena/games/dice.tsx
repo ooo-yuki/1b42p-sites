@@ -1,30 +1,15 @@
 import { cn } from '@/lib/utils';
 import { DiceFace } from '../dice';
-import { arenaClick } from '../sound';
 import { Button } from '@/components/ui/button';
-import type { RoomView } from '../proto';
+import type { GameViewProps } from './index';
 
-/* Кости на выбывание — вьюха игры: бойцы, стол, кнопки. Платформа (шапка, чат,
-   лента, пикер игры) живёт в Room; сюда игра получает только свой стол. */
+/* Кости на выбывание — чистый стол: бойцы и кнопка броска.
+   Лобби, финал, лента и чат — платформа в Room. */
 
-type Props = {
-  me: string;
-  room: RoomView;
-  amHost: boolean;
-  myRolled: boolean;
-  secsLeft: number | null;
-  maxPlayers: number;
-  onRoll: () => void;
-  onStart: () => void;
-  onRematch: () => void;
-};
-
-export default function DiceTable({ me, room, amHost, myRolled, secsLeft, maxPlayers, onRoll, onStart, onRematch }: Props): JSX.Element {
+export default function DiceTable({ me, room, myRolled, secsLeft, onRoll }: GameViewProps): JSX.Element {
   const playing = room.phase === 'play';
-  const over = room.phase === 'over';
   const iAlive = room.alive.includes(me);
   const canRoll = playing && iAlive && !myRolled;
-  const winner = room.players.find(p => p.id === room.winner);
 
   return (
     <>
@@ -46,38 +31,16 @@ export default function DiceTable({ me, room, amHost, myRolled, secsLeft, maxPla
         })}
       </ul>
 
-      <div className="ar-table">
-        {room.phase === 'lobby' && (
-          <div className="ar-lounge">
-            <p>Ждём братух: <b className="tnum">{room.players.length}/{maxPlayers}</b>. {room.private
-              ? (amHost ? 'Ты хост — давай старт, когда все в сборе.' : 'Старт даст хост.')
-              : 'Бой начнётся сам.'}</p>
-            {room.private && amHost && (
-              <Button disabled={room.players.length < 2} onClick={() => { arenaClick(); onStart(); }}>
-                К бою!
-              </Button>
-            )}
-          </div>
-        )}
-        {playing && (
+      {playing && (
+        <div className="ar-table">
           <div className="ar-round">
             <Button size="lg" disabled={!canRoll} onClick={() => { onRoll(); }}>
               {myRolled ? 'Кость брошена' : secsLeft !== null ? `Кинуть! (${secsLeft}с)` : 'Кинуть!'}
             </Button>
             {!iAlive && <p className="ar-dead">Ты выбит — смотришь с трибуны.</p>}
           </div>
-        )}
-        {over && winner && (
-          <div className="ar-over">
-            <b>{winner.id === me ? 'Ты забрал бой!' : `${winner.name} забрал бой!`}</b>
-            <div className="crow">
-              <Button disabled={room.private && !amHost} onClick={() => { arenaClick(); onRematch(); }}>
-                {room.private && !amHost ? 'Ждём хоста' : 'Реванш'}
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </>
   );
 }
