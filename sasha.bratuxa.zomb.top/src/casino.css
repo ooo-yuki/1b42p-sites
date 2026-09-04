@@ -62,6 +62,19 @@ input.cin{background:#0d1428;border:1px solid rgba(232,237,255,.25);border-radiu
 #slots{display:flex;gap:10px;justify-content:center;margin:14px 0}
 #slots .reel{width:84px;height:96px;font-size:56px;display:flex;align-items:center;justify-content:center;
  background:#e8edff;border-radius:14px;color:#111}
+/* рулетка, мины, блэкджек */
+.rnum{font-size:52px;font-weight:900;text-align:center;color:var(--gold);
+ font-variant-numeric:tabular-nums;background:#0d1428;border-radius:12px;padding:6px;margin-bottom:10px}
+#minefield{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:12px}
+#minefield .cell{aspect-ratio:1;font-size:24px;border-radius:10px;border:1px solid rgba(232,237,255,.25);
+ background:#0d1428;cursor:pointer;color:var(--paper)}
+#minefield .cell:disabled{cursor:default}
+#minefield .cell.gem{background:rgba(55,214,122,.18);border-color:#37d67a}
+#minefield .cell.boom{background:rgba(255,59,59,.25);border-color:var(--red)}
+.bjcards{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px;min-height:20px}
+.bjcard{background:#e8edff;color:#111;border-radius:8px;padding:8px 12px;font-weight:800;font-size:18px}
+.bjcard.me{background:linear-gradient(160deg,#ffe9a8,#ffd23f)}
+.bjrow{font-size:14px;color:var(--dim)}
 .cfoot{color:var(--dim);font-size:13px;margin-top:26px;line-height:1.6;text-align:center}
 .cfoot a{color:var(--gold)}
 .cnav{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
