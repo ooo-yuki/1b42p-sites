@@ -64,6 +64,16 @@ border-radius:50%;width:72px;height:72px;cursor:pointer;box-shadow:0 4px 0 #7a00
 #npcBubble{position:absolute;left:50%;transform:translateX(-50%);bottom:118px;pointer-events:none;display:none;
 background:var(--cream);border:3px solid var(--ink);border-radius:16px;padding:10px 14px;max-width:88vw;
 font-size:14px;font-weight:bold;color:var(--ink);box-shadow:0 4px 0 rgba(47,93,58,.35);text-align:center}
+#runBtn{position:absolute;left:12px;bottom:120px;pointer-events:auto;display:none;
+border:3px solid var(--ink);background:#7fd4ff;color:#1c5d7a;font-weight:bold;font-size:15px;
+border-radius:999px;padding:12px 16px;cursor:pointer;box-shadow:0 4px 0 #4a8aaa}
+#surf{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:rgba(20,30,25,.85)}
+#surfBox{width:min(96vw,430px);background:var(--cream);border:4px solid var(--gold);border-radius:22px;padding:12px;text-align:center;box-shadow:0 0 30px var(--gold)}
+#surfCv{width:100%;height:380px;border-radius:14px;background:#1c2b24;display:block;touch-action:none}
+#surfHud{font-weight:bold;font-size:14px;margin:6px 0}
+#surfBtns{display:flex;gap:8px;justify-content:center;margin-top:8px;flex-wrap:wrap}
+#surfBtns button{border:3px solid var(--ink);border-radius:12px;padding:10px 14px;font-weight:bold;font-size:16px;cursor:pointer;background:#eef5e6;color:var(--ink)}
+#surfQuit{background:#ffd9d9 !important}
 #joy{position:absolute;left:18px;bottom:60px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.15);
 border:2px solid rgba(255,255,255,.5);display:none}
 #stick{position:absolute;left:50%;top:50%;width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.55);
@@ -149,9 +159,13 @@ transition:transform 1.1s ease-out,opacity 1.1s}
  <button id="talkBtn">💬 Поговорить (E)</button>
  <button id="glockBtn">🔫 Глок (G)</button>
  <button id="fireBtn">🔥</button>
+ <button id="runBtn">🏃 Бежать!</button>
  <div id="fpHint">WASD — ходить · мышь — осмотр · ESC — выйти</div>
  <div id="joy"><div id="stick"></div></div>
 </div>
+<div id="surf"><div id="surfBox">🏃 <b>ПОБЕГ ОТ КОПА!</b> 🏃<br><small>Держись 42 сек! ← → дорожки · ↑ прыжок · ↓ кувырок</small>
+<canvas id="surfCv" width="390" height="380"></canvas><div id="surfHud"></div>
+<div id="surfBtns"><button id="surfL">⬅️</button><button id="surfU">⬆️</button><button id="surfD">⬇️</button><button id="surfR">➡️</button><button id="surfQuit">🏳️ Сдаться</button></div></div></div>
 <button id="ticketBtn">🎟️ Билет 50🪙</button>
 <button id="giftBtn">🎁 Дар леса</button>
 <div id="win"><div id="winBox">🏆 <b>МЫ УЖЕ ПОБЕДИЛИ!</b> 🏆<br>Эввград достиг 42 жителей! Город сияет, лес поёт! 🧝🌲✨<br><button onclick="document.getElementById('win').style.display='none'">Ура! 🎉</button></div></div>
@@ -1145,6 +1159,95 @@ function inPrison(){curIn.add(fpRoom(8,6,0x9aa0aa,0x6b7a89));
  fpAt(fpBed(),-2.4,1.6,1.2);fpAt(fpStool(),2.2,1.4,0.4);
  fpObstacles.push({x:0,z:-1.2,r:1.6});}
 var IN={house:inHouse,tavern:inTavern,market:inMarket,treasury:inTreasury,grove:inGrove,garden:inGarden,sawmill:inSawmill,glade:inGlade,tower:inTower,runes:inRunes,portal:inPortal,spire:inSpire,mall:inMall,cinema:inCinema,theatre:inTheatre,ferris:inFerris,beach:inBeach,shop:inShop,barber:inBarber,hospital:inHospital,admin:inAdmin,park:inPark,airport:inAirport,railway:inRailway,bus:inBus,stadium:inStadium,refinery:inRefinery,prison:inPrison};
+/* --- SUBWAY-SURF ПОБЕГ ОТ КОПА --- */
+var surfOn=false,surf=null,surfRaf=0;
+function surfLaneX(lane,W){return W*(0.22+lane*0.28);}
+function startSurfEscape(){if(!fpMode||fpType==='prison'||surfOn)return;
+ if(!(wanted>0))return;
+ surfOn=true;keys={};
+ surf={lane:1,py:0,vy:0,duck:0,speed:250,dist:0,goal:420,lives:2,obs:[],coins:[],copD:10,inv:0,spawnT:0,coinT:0.5,over:false};
+ document.getElementById('surf').style.display='flex';
+ document.getElementById('runBtn').style.display='none';
+ toast('🏃 БЕГИ! Удержись 420м от копа!');blip(880);
+ var cv=document.getElementById('surfCv');
+ var last=performance.now();
+ function tick(now){if(!surfOn||!surf||surf.over)return;
+  var dt=Math.min((now-last)/1000,0.05);last=now;surfTick(dt,cv);
+  if(surfOn)surfRaf=requestAnimationFrame(tick);}
+ surfRaf=requestAnimationFrame(tick);}
+function surfEnd(win){if(!surf||surf.over)return;surf.over=true;surfOn=false;
+ try{cancelAnimationFrame(surfRaf);}catch(e){}
+ document.getElementById('surf').style.display='none';
+ if(win){wanted=0;
+  for(var i=0;i<fpNPCs.length;i++){var n=fpNPCs[i];if(n.cop){n.g.position.x=fpBounds.x[0];n.g.position.z=fpBounds.z[0];n.tx=n.g.position.x;n.tz=n.g.position.z;n.wt=3;}}
+  S.gold+=15;save();renderHUD();
+  toast('🏆 УБЕЖАЛ! Розыск снят, +15🪙 за ловкость! Мы уже победили 🏆');blip(880);}
+ else{toast('🚨 Коп догнал...');arrestPlayer();}}
+function surfMove(d){if(!surfOn||!surf||surf.over)return;
+ surf.lane=Math.min(2,Math.max(0,surf.lane+d));blip(520);}
+function surfJump(){if(!surfOn||!surf||surf.over)return;
+ if(surf.py<=0.01){surf.vy=420;blip(600);}}
+function surfDuck(){if(!surfOn||!surf||surf.over)return;surf.duck=0.55;blip(400);}
+function surfTick(dt,cv){var s=surf,W=cv.width,H=cv.height,g=cv.getContext('2d');
+ s.speed=Math.min(430,s.speed+dt*9);s.dist+=s.speed*dt/10;s.copD=Math.max(0,s.copD-dt*0.55);
+ if(s.inv>0)s.inv-=dt;if(s.duck>0)s.duck-=dt;
+ if(s.py>0||s.vy!==0){s.vy-=1100*dt;s.py+=s.vy*dt;if(s.py<=0){s.py=0;s.vy=0;}}
+ s.spawnT-=dt;
+ if(s.spawnT<=0){s.spawnT=Math.max(0.42,0.95-s.dist/900);
+  var spawnLane=Math.floor(Math.random()*3),r=Math.random();
+  if(r<0.62)s.obs.push({lane:spawnLane,y:-30,kind:Math.random()<0.45?'high':'low'});
+  else if(r<0.8)s.obs.push({lane:spawnLane,y:-30,kind:'full'});
+  else{var l2=(spawnLane+1+Math.floor(Math.random()*2))%3;
+   s.obs.push({lane:spawnLane,y:-30,kind:'low'});s.obs.push({lane:l2,y:-30,kind:'low'});}}
+ s.coinT-=dt;
+ if(s.coinT<=0){s.coinT=0.7+Math.random()*0.8;s.coins.push({lane:Math.floor(Math.random()*3),y:-20});}
+ var px=surfLaneX(s.lane,W),pw=44,ph=s.duck>0?30:52,pyBase=H-70;
+ var pTop=pyBase-ph-s.py*0.35;
+ for(var i=s.obs.length-1;i>=0;i--){var o=s.obs[i];o.y+=s.speed*dt;
+  if(o.y>H+40){s.obs.splice(i,1);continue;}
+  var ox=surfLaneX(o.lane,W),ow=46,oh=o.kind==='full'?120:(o.kind==='high'?44:52);
+  var oTop=o.y-oh;
+  var overlapX=Math.abs(px-ox)<(pw+ow)/2-8;
+  var overlapY=(pTop<o.y-4)&&(pyBase-s.py*0.1>oTop+8);
+  var mustDuck=o.kind==='high',mustJump=o.kind==='low';
+  var dodged=(mustDuck&&s.duck>0)||(mustJump&&s.py>60);
+  if(overlapX&&overlapY&&!dodged&&s.inv<=0){s.lives--;s.inv=1.2;s.copD=Math.max(0,s.copD-4);
+   blip(180);if(s.lives<0){surfDraw(g,s,W,H,px,pyBase);surfEnd(false);return;}}}
+ for(var ci=s.coins.length-1;ci>=0;ci--){var c=s.coins[ci];c.y+=s.speed*dt;
+  if(c.y>H+30){s.coins.splice(ci,1);continue;}
+  var cx=surfLaneX(c.lane,W);
+  if(Math.abs(px-cx)<34&&Math.abs((pyBase-26-s.py*0.35)-c.y)<36){s.coins.splice(ci,1);
+   S.gold+=2;save();s.copD=Math.min(10,s.copD+0.4);blip(760);}}
+ if(s.copD<=0){surfDraw(g,s,W,H,px,pyBase);surfEnd(false);return;}
+ if(s.dist>=s.goal){surfDraw(g,s,W,H,px,pyBase);surfEnd(true);renderHUD();return;}
+ renderHUD();surfDraw(g,s,W,H,px,pyBase);}
+function surfDraw(g,s,W,H,px,pyBase){g.clearRect(0,0,W,H);
+ var bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#2f5d3a');bg.addColorStop(1,'#1c2b24');
+ g.fillStyle=bg;g.fillRect(0,0,W,H);
+ g.strokeStyle='rgba(255,255,255,.25)';g.lineWidth=3;
+ for(var l=0;l<3;l++){var x=surfLaneX(l,W);
+  g.beginPath();g.moveTo(W/2+(x-W/2)*0.25,0);g.lineTo(x,H);g.stroke();}
+ g.fillStyle='#ffd23f';g.font='bold 13px Arial';g.textAlign='left';
+ g.fillText('🏃 '+Math.floor(s.dist)+'м / '+s.goal+'м',10,20);
+ g.fillText('❤️'.repeat(Math.max(0,s.lives+1)),10,38);
+ g.fillText('🚨 коп: '+('▮'.repeat(Math.ceil(s.copD))||'рядом!'),10,56);
+ var ci2;for(ci2=0;ci2<s.coins.length;ci2++){var c=s.coins[ci2],cx=surfLaneX(c.lane,W);
+  g.fillStyle='#ffd23f';g.beginPath();g.arc(cx,c.y,10,0,7);g.fill();
+  g.fillStyle='#5d4a00';g.font='bold 11px Arial';g.textAlign='center';g.fillText('42',cx,c.y+4);}
+ var i2;for(i2=0;i2<s.obs.length;i2++){var o=s.obs[i2],ox=surfLaneX(o.lane,W);
+  if(o.kind==='full'){g.fillStyle='#3a3f4a';g.fillRect(ox-23,o.y-120,46,120);
+   g.fillStyle='#c00040';g.fillRect(ox-23,o.y-120,46,12);g.fillStyle='#fff';g.font='bold 11px Arial';g.textAlign='center';g.fillText('ПОЕЗД',ox,o.y-60);}
+  else if(o.kind==='high'){g.fillStyle='#8b5e3c';g.fillRect(ox-23,o.y-50,46,10);
+   g.fillStyle='#c98f5a';g.fillRect(ox-20,o.y-95,6,50);g.fillRect(ox+14,o.y-95,6,50);
+   g.fillStyle='#ff7bac';g.font='bold 11px Arial';g.textAlign='center';g.fillText('НИЗ!',ox,o.y-58);}
+  else{g.fillStyle='#8f9aa3';g.fillRect(ox-23,o.y-52,46,52);
+   g.fillStyle='#fff';g.font='bold 11px Arial';g.textAlign='center';g.fillText('ПРЫГ!',ox,o.y-20);}}
+ var copY=pyBase+34+s.copD*7;
+ g.font='30px serif';g.textAlign='center';g.fillText('👮',px,copY);
+ var blink=(s.inv>0&&Math.floor(s.inv*10)%2===0);
+ if(!blink){var ph2=s.duck>0?30:52;
+  g.font=(ph2+8)+'px serif';g.fillText(s.duck>0?'🧝':'🏃',px,pyBase-s.py*0.35);
+  g.fillStyle='#58b368';g.font='bold 11px Arial';g.fillText('ТЫ • 42',px,pyBase-s.py*0.35+16);}}
 function arrestPlayer(){if(!fpMode||fpType==='prison')return;
  var fine=Math.min(S.gold,20+wanted*15);S.gold-=fine;save();renderHUD();
  glockOut=false;if(glockMesh)glockMesh.visible=false;
@@ -1304,6 +1407,8 @@ function enterBuilding(i){var c=S.cells[i];if(!c||!scene)return;
  camera.rotation.order='XYZ';selIdx=-1;closeShop();
  toast('Ты внутри: '+B[fpType].n+'! Тут живут братухи 🤝');blip(700);}
 function exitBuilding(){if(!fpMode)return;fpMode=false;fpClear();fpNPCs=[];fpAvatar=null;glockOut=false;fpShots=[];glockMesh=null;fpBlood=[];wanted=0;jailT=0;scamCd=0;
+ if(surfOn){surfOn=false;if(surf)surf.over=true;try{cancelAnimationFrame(surfRaf);}catch(e){}document.getElementById('surf').style.display='none';}
+ document.getElementById('runBtn').style.display='none';
  if(document.exitPointerLock&&document.pointerLockElement){try{document.exitPointerLock();}catch(e){}}
  document.getElementById('dock').style.display='';
  document.getElementById('giftBtn').style.display='';
@@ -1321,7 +1426,15 @@ function fpDrag(e){
  else if(fpLast){fpYaw-=(e.clientX-fpLast.x)*0.005;fpPitch-=(e.clientY-fpLast.y)*0.005;
   fpLast={x:e.clientX,y:e.clientY};}
  fpPitch=Math.max(-1.2,Math.min(1.2,fpPitch));}
-window.addEventListener('keydown',function(e){if(!fpMode)return;keys[e.code]=true;
+window.addEventListener('keydown',function(e){
+ if(surfOn){
+  if(e.code==='ArrowLeft'||e.code==='KeyA'){surfMove(-1);}
+  else if(e.code==='ArrowRight'||e.code==='KeyD'){surfMove(1);}
+  else if(e.code==='ArrowUp'||e.code==='KeyW'||e.code==='Space'){surfJump();}
+  else if(e.code==='ArrowDown'||e.code==='KeyS'){surfDuck();}
+  else if(e.code==='Escape'){surfEnd(false);}
+  e.preventDefault();return;}
+ if(!fpMode)return;keys[e.code]=true;
  if(e.code==='KeyE'){talkToBratuha();}
  if(e.code==='KeyG'){toggleGlock();}
  if(e.code==='KeyF'){shootGlock();}
@@ -1398,7 +1511,7 @@ function loop(){requestAnimationFrame(loop);
     if(wanted>0&&!npc.down){var cdx=fpPos.x-np.x,cdz=fpPos.z-np.z,cdl=Math.hypot(cdx,cdz);
      if(cdl>0.05){np.x+=cdx/cdl*2.1*dt;np.z+=cdz/cdl*2.1*dt;
       npc.g.rotation.y=Math.atan2(cdx,cdz);}
-     if(cdl<0.85){arrestPlayer();}}
+     if(cdl<0.85&&!surfOn){startSurfEscape();}}
     else if(pd<1.9){npc.g.rotation.y=Math.atan2(fpPos.x-np.x,fpPos.z-np.z);}
     continue;}
    if(pd<1.9){npc.g.rotation.y=Math.atan2(fpPos.x-np.x,fpPos.z-np.z);
@@ -1439,7 +1552,9 @@ function loop(){requestAnimationFrame(loop);
    document.getElementById('talkBtn').style.display='none';
    document.getElementById('fireBtn').style.display='none';
    if(jailT<=0){toast('Свобода! Больше не балуй! 🏆');exitBuilding();}}
-  else if(wanted>0){document.getElementById('fpHint').textContent='🚨 РОЗЫСК '+wanted+': коп идёт! G — глок · F — огонь';}
+  else if(wanted>0){document.getElementById('fpHint').textContent='🚨 РОЗЫСК '+wanted+': коп идёт! Жми 🏃 или убегай!';
+   var rb=document.getElementById('runBtn');if(rb&&!surfOn)rb.style.display='block';}
+  else{var rb2=document.getElementById('runBtn');if(rb2)rb2.style.display='none';}
   var near=nearestBratuha(),tb=document.getElementById('talkBtn');
   if(fpType!=='prison'){if(tb)tb.style.display=near?'block':'none';
    if(tb&&near)tb.textContent='💬 '+near.name+' (E)';}}
@@ -1460,6 +1575,17 @@ document.getElementById('exitFp').onclick=exitBuilding;
 document.getElementById('talkBtn').onclick=function(){talkToBratuha();};
 document.getElementById('glockBtn').onclick=function(){toggleGlock();};
 document.getElementById('fireBtn').onclick=function(){shootGlock();};
+document.getElementById('runBtn').onclick=function(){startSurfEscape();};
+document.getElementById('surfL').onclick=function(){surfMove(-1);};
+document.getElementById('surfR').onclick=function(){surfMove(1);};
+document.getElementById('surfU').onclick=function(){surfJump();};
+document.getElementById('surfD').onclick=function(){surfDuck();};
+document.getElementById('surfQuit').onclick=function(){surfEnd(false);};
+(function(){var cv=document.getElementById('surfCv'),sx=0,sy2=0;
+ cv.addEventListener('pointerdown',function(e){sx=e.clientX;sy2=e.clientY;});
+ cv.addEventListener('pointerup',function(e){var dx=e.clientX-sx,dy=e.clientY-sy2;
+  if(Math.abs(dx)<24&&Math.abs(dy)<24){surfJump();return;}
+  if(Math.abs(dx)>Math.abs(dy)){surfMove(dx>0?1:-1);}else{if(dy<0)surfJump();else surfDuck();}});})();
 if(initThree()){refreshAll();renderHUD();loop();
  setInterval(function(){var p=prod();S.gold+=p.gold;S.mana+=p.mana;S.wood+=p.wood;
   var c=cap(),g=gardens();
@@ -1478,6 +1604,9 @@ window.__elf={get:function(){return S;},tool:function(){return tool;},build:func
  glock:function(){toggleGlock();return glockOut;},
  fire:function(){shootGlock();return fpShots.length;},
  crime:function(){return {wanted:wanted,jail:Math.ceil(jailT),type:fpType};},
+ surf:function(){startSurfEscape();return surfOn;},
+ surfState:function(){return surf?{on:surfOn,dist:Math.floor(surf.dist),lives:surf.lives,copD:Math.round(surf.copD*10)/10}:{on:surfOn};},
+ surfWin:function(){surfEnd(true);return wanted;},
  fp:function(){return {mode:fpMode,type:fpType,x:Math.round(fpPos.x*100)/100,z:Math.round(fpPos.z*100)/100};}};
 </script>
 </body>
