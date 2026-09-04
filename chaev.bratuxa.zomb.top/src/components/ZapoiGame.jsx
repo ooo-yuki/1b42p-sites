@@ -278,7 +278,7 @@ export default function ZapoiGame() {
           return (
             <div key={q}>
               <div onClick={() => toggle(setOpenQ, q)} style={{ color: 'gold', fontWeight: 'bold', margin: '8px 0 4px', fontSize: 14, cursor: 'pointer', userSelect: 'none' }}>
-                {open ? '▼' : '▶'} {QUALITY_NAMES[q]} <span className="hint">({owned}/{list.length})</span>
+                {open ? '▼' : '▶'} <img src={`quals/q${q}.png`} alt={'Качество ' + q} style={{ width: 30, height: 30, verticalAlign: 'middle', borderRadius: 8, marginRight: 6 }} />{QUALITY_NAMES[q]} <span className="hint">({owned}/{list.length})</span>
               </div>
               {open && list.map((a) => {
               const owned = !!z.arts[a.id];
