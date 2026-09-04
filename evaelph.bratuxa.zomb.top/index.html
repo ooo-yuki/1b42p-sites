@@ -356,11 +356,15 @@ function spark(parent,r,h,n,col){for(var i=0;i<n;i++){var m=new THREE.Mesh(new T
 function kawaii(p,y,sp,z,s,pupil){s=s||1;
  var ew=new THREE.MeshBasicMaterial({color:0xffffff});
  var ep=new THREE.MeshBasicMaterial({color:pupil||0x3a3f5e});
+ var hi=new THREE.MeshBasicMaterial({color:0xffffff});
+ var br=new THREE.MeshBasicMaterial({color:0x5d4a3a});
  var bl=new THREE.MeshBasicMaterial({color:0xff9eb5});
  [-1,1].forEach(function(k){
   var e=new THREE.Mesh(new THREE.SphereGeometry(0.09*s,10,8),ew);e.position.set(k*sp,y,z);e.castShadow=false;p.add(e);
   var pu=new THREE.Mesh(new THREE.SphereGeometry(0.045*s,8,6),ep);pu.position.set(k*sp,y,z+0.07*s);pu.castShadow=false;p.add(pu);
-  var b=new THREE.Mesh(new THREE.SphereGeometry(0.06*s,8,6),bl);b.scale.set(1,0.6,0.5);b.position.set(k*sp*1.8,y-0.1*s,z-0.02*s);b.castShadow=false;p.add(b);});
+  var hl=new THREE.Mesh(new THREE.SphereGeometry(0.016*s,6,5),hi);hl.position.set(k*sp-0.018*s,y+0.025*s,z+0.105*s);hl.castShadow=false;p.add(hl);
+  var bw=new THREE.Mesh(new THREE.BoxGeometry(0.09*s,0.018*s,0.01),br);bw.position.set(k*sp,y+0.115*s,z+0.075*s);bw.rotation.z=-k*0.12;bw.castShadow=false;p.add(bw);
+  var ch=new THREE.Mesh(new THREE.SphereGeometry(0.065*s,8,6),bl);ch.scale.set(1,0.6,0.5);ch.position.set(k*sp*1.8,y-0.1*s,z-0.02*s);ch.castShadow=false;p.add(ch);});
  var sm=new THREE.Mesh(new THREE.TorusGeometry(0.05*s,0.015*s,5,10,Math.PI),ep);sm.position.set(0,y-0.07*s,z+0.01);sm.rotation.z=Math.PI;sm.castShadow=false;p.add(sm);}
 /* --- домики --- */
 function buildHouse(l){var g=new THREE.Group();
@@ -1533,26 +1537,36 @@ function makeNameSprite(text){var c=document.createElement('canvas');c.width=256
  sp.scale.set(1.7,0.42,1);sp.position.y=2.15;return sp;}
 function makeBratuha(shirt,name,capC){var g=new THREE.Group();
  capC=capC||0x2f5d3a;
- // ножки-сапожки
+ // ножки-сапожки + подошвы
  g.add(put(box(0.17,0.35,0.17,mat(0x5d4a7a)),-0.15,0.17,0));
  g.add(put(box(0.17,0.35,0.17,mat(0x5d4a7a)),0.15,0.17,0));
+ g.add(put(box(0.19,0.06,0.24,mat(0x2b2b3a)),-0.15,0.03,0.02));
+ g.add(put(box(0.19,0.06,0.24,mat(0x2b2b3a)),0.15,0.03,0.02));
  // тело + ремень с золотой пряжкой
  g.add(put(box(0.5,0.65,0.32,mat(shirt)),0,0.62,0));
  g.add(put(box(0.52,0.09,0.34,mat(0x5d4a2e)),0,0.42,0));
  g.add(put(box(0.1,0.09,0.02,new THREE.MeshStandardMaterial({color:0xffd23f,roughness:0.4,metalness:0.5,flatShading:true})),0,0.42,0.17));
+ // воротничок + две фирменные пуговки 42
+ g.add(put(box(0.34,0.1,0.34,mat(0xfffdf4)),0,0.95,0));
+ g.add(put(box(0.07,0.07,0.02,new THREE.MeshStandardMaterial({color:0xffd23f,roughness:0.4,metalness:0.5,flatShading:true})),0,0.82,0.17));
+ g.add(put(box(0.07,0.07,0.02,new THREE.MeshStandardMaterial({color:0xffd23f,roughness:0.4,metalness:0.5,flatShading:true})),0,0.68,0.17));
  // ручки + ладошки
  g.add(put(box(0.16,0.5,0.16,mat(shirt)),-0.35,0.6,0));
  g.add(put(box(0.16,0.5,0.16,mat(shirt)),0.35,0.6,0));
  var h1=new THREE.Mesh(new THREE.SphereGeometry(0.09,8,6),mat(0xffd9b3));h1.position.set(-0.35,0.32,0);h1.castShadow=true;g.add(h1);
  var h2=h1.clone();h2.position.x=0.35;g.add(h2);
+ // манжеты на рукавах — опрятный вид
+ g.add(put(box(0.18,0.08,0.18,mat(0xfffdf4)),-0.35,0.42,0));
+ g.add(put(box(0.18,0.08,0.18,mat(0xfffdf4)),0.35,0.42,0));
  // голова
  var head=new THREE.Mesh(new THREE.SphereGeometry(0.26,12,10),mat(0xffd9b3));head.position.y=1.28;head.castShadow=true;g.add(head);
  // эльфийские ушки
  var ea=cone(0.07,0.24,6,mat(0xffd9b3));ea.position.set(-0.27,1.36,0);ea.rotation.z=1.1;g.add(ea);
  var ea2=cone(0.07,0.24,6,mat(0xffd9b3));ea2.position.set(0.27,1.36,0);ea2.rotation.z=-1.1;g.add(ea2);
- // кепка-шарик + козырёк + помпон
+ // кепка-шарик + козырёк + помпон + фирменная эмблема 42
  var cp=new THREE.Mesh(new THREE.SphereGeometry(0.2,10,8),mat(capC));cp.scale.set(1,0.55,1);cp.position.y=1.5;cp.castShadow=true;g.add(cp);
  g.add(put(box(0.3,0.04,0.22,mat(capC)),0,1.44,0.28));
+ var emb=octa(0.045,mat(0xffd23f,0x6b4e00,0.5));emb.position.set(0,1.5,0.19);g.add(emb);
  var pom=new THREE.Mesh(new THREE.SphereGeometry(0.05,8,6),mat(0xff8fbf));pom.position.set(0,1.62,0);pom.castShadow=false;g.add(pom);
  // причёска и цвет глаз — стабильно свои у каждого братухи 💇
  var hh=0;for(var hi=0;hi<name.length;hi++)hh=(hh*31+name.charCodeAt(hi))>>>0;
