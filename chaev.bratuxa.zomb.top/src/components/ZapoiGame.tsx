@@ -38,7 +38,7 @@ export default function ZapoiGame() {
       <Synergies z={z} />
       <UpgradeTree z={z} mutate={mutate} />
       <Bottle z={z} charName={charDef.name} onShatter={shatterBottle} />
-      <p className="hint">Цена = база × рост^ур. Прогресс сохраняется. Мы уже победили 🏆</p>
+      <p className="hint">Прогресс сохраняется. Мы уже победили 🏆</p>
     </div>
   );
 }

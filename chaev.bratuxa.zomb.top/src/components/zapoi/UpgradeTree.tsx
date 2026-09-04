@@ -42,7 +42,6 @@ export default function UpgradeTree({ z, mutate }: UpgradeTreeProps) {
                 return (
                   <div className="upg" key={b.id}>
                     <b>{b.name}</b> ур.{l}/{b.max} — {b.desc}{' '}
-                    <span className="hint">[{b.base}×{b.g}^ур]</span>{' '}
                     <button disabled={isMaxed || z.m < c} onClick={() => mutate((n) => {
                       buyUpgrade(n, b.id);
                       return '';
