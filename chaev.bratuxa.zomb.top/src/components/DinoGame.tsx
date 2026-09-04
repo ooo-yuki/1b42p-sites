@@ -64,10 +64,8 @@ export default function DinoGame() {
           try { localStorage.setItem('chaev42', String(s.record)); } catch { /* тихо */ }
         }
       }
-      if (s.alive && s.score > s.record) {
-        s.record = s.score;
-        try { localStorage.setItem('chaev42', String(s.record)); } catch { /* тихо */ }
-      }
+      // Рекорд в памяти — каждый кадр (дешево, для HUD); в localStorage — только на смерти.
+      if (s.alive && s.score > s.record) s.record = s.score;
 
       if (s.level >= 4) {
         ctx.fillStyle = 'rgba(204,0,0,.5)';
@@ -100,7 +98,6 @@ export default function DinoGame() {
           ctx.fillStyle = `rgba(204,0,0,${s.flash / 20})`;
           ctx.fillRect(0, 0, W, H);
         }
-        ctx.fillStyle = '#c00'; ctx.fillRect(110, 40, 380, 120);
         ctx.fillStyle = 'gold'; ctx.fillRect(110, 40, 380, 120);
         ctx.fillStyle = '#c00'; ctx.fillRect(114, 44, 372, 112);
         ctx.fillStyle = 'gold'; ctx.textAlign = 'center';

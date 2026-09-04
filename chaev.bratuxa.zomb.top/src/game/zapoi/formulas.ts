@@ -136,7 +136,8 @@ export function heal2val(z: ZapoiState): number {
 export function heal2cost(z: ZapoiState): number {
   let c = Math.floor(150 * Math.pow(1.4, z.heals) * Math.pow(0.9, z.up.kapel || 0));
   if (z.syn.balance) c = Math.floor(c * 0.8);
-  return Math.floor(c * (1 - charDiscount(z)));
+  // Кружка Владимира (−50%) действует на всё в магазине, кроме бутылки — включая шприц/капельницу.
+  return Math.floor(c * (1 - shopDiscount(z)));
 }
 
 // Сколько даст глоток (для кнопки; у винлайна — среднее).

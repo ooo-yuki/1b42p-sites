@@ -1,6 +1,6 @@
 // Кнопки хилок: ручка винлайна, пикули, святые, демонические, шприц, очищение.
 import {
-  bet, betStake, cleanseDemon, demonPickle,
+  BET_RETURN_MULT, bet, betStake, cleanseDemon, demonPickle,
   heal1cost, heal1val, heal2cost, holyPickle, owned, pickleSmall, syringe,
 } from '../../game/zapoi/index';
 import type { ZapoiState } from '../../game/zapoi/index';
@@ -22,7 +22,7 @@ export default function HealButtons({ z, mutate }: HealButtonsProps) {
           onClick={() => mutate((n) => {
             const r = bet(n);
             if (!r) return '';
-            return r.win ? `🎰 Ставка зашла! +${r.stake} бухла чистыми!` : `🎰 Ставка сгорела… −${r.stake} бухла. Рискуй ещё!`;
+            return r.win ? `🎰 Ставка зашла! +${Math.round(r.stake * (BET_RETURN_MULT - 1))} бухла чистыми!` : `🎰 Ставка сгорела… −${r.stake} бухла. Рискуй ещё!`;
           }, 650)}
           style={{ fontSize: 15 }}
         >
@@ -64,7 +64,7 @@ export default function HealButtons({ z, mutate }: HealButtonsProps) {
           }, 500)}
           style={{ fontSize: 15 }}
         >
-          СВЯТЫЕ ПИКУЛИ: +{heal1val(z)} души за {heal1cost(z)} бухла</ImgButton>
+          СВЯТЫЕ ПИКУЛИ: +{owned(z, 'bible') ? heal1val(z) * 2 : heal1val(z)} души за {heal1cost(z)} бухла</ImgButton>
       )}{' '}
       {(z.char === 'vladimir' || z.char === 'winline') && (
         <ImgButton

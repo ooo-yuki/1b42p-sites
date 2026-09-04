@@ -79,6 +79,9 @@ export function syringe(z: ZapoiState): HealResult | null {
 }
 
 // Лечилки. Возвращают {v, c} или null если нельзя.
+// legacy: UI идёт через pickleSmall/demonPickle/holyPickle (малые) и
+// syringe/cleanseDemon/healBig (шприц/капельница) — healSmall напрямую
+// никто не вызывает, оставлен для тестов и совместимости.
 export function healSmall(z: ZapoiState): HealResult | null {
   return spendHealSmall(z);
 }
