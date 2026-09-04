@@ -1,0 +1,56 @@
+/* ПЬЕДЕСТАЛ — лучи, конфетти, печать, count-up. */
+
+.pedestal{position:relative; overflow:hidden}
+.pedestal .rays{
+  position:absolute; inset:-60px; pointer-events:none; opacity:.8;
+  background:conic-gradient(from 0deg,
+    rgba(0,96,170,.20) 0deg 10deg, transparent 10deg 22deg,
+    rgba(0,96,170,.20) 22deg 32deg, transparent 32deg 44deg,
+    rgba(0,96,170,.20) 44deg 54deg, transparent 54deg 66deg,
+    rgba(0,96,170,.20) 66deg 76deg, transparent 76deg 88deg,
+    rgba(0,96,170,.20) 88deg 98deg, transparent 98deg 110deg,
+    rgba(0,96,170,.20) 110deg 120deg, transparent 120deg 132deg,
+    rgba(0,96,170,.20) 132deg 142deg, transparent 142deg 154deg,
+    rgba(0,96,170,.20) 154deg 164deg, transparent 164deg 176deg,
+    rgba(0,96,170,.20) 176deg 186deg, transparent 186deg 198deg,
+    rgba(0,96,170,.20) 198deg 208deg, transparent 208deg 220deg,
+    rgba(0,96,170,.20) 220deg 230deg, transparent 230deg 242deg,
+    rgba(0,96,170,.20) 242deg 252deg, transparent 252deg 264deg,
+    rgba(0,96,170,.20) 264deg 274deg, transparent 274deg 286deg,
+    rgba(0,96,170,.20) 286deg 296deg, transparent 296deg 308deg,
+    rgba(0,96,170,.20) 308deg 318deg, transparent 318deg 330deg,
+    rgba(0,96,170,.20) 330deg 340deg, transparent 340deg 352deg);
+  animation:spinrays 12s linear infinite;
+}
+.pedestal.miss .rays{background:none; border:1px dashed rgba(128,128,128,.3); border-radius:50%}
+@keyframes spinrays{to{transform:rotate(360deg)}}
+.pedestal .boom-canvas{position:absolute; left:50%; top:6px; width:520px; max-width:100%;
+  height:160px; margin-left:-260px; pointer-events:none}
+.pedestal .p-art{position:relative; z-index:1; animation:pop .4s cubic-bezier(.2,1.4,.4,1)}
+@keyframes pop{from{transform:scale(.4)}to{transform:scale(1)}}
+.pedestal .p-body{position:relative; z-index:1; display:flex; flex-direction:column; gap:2px}
+.pedestal .p-mult{font-size:12.5px; color:#808080}
+.pedestal.ok{border-color:#0060AA; box-shadow:0 0 34px rgba(0,96,170,.3)}
+.pedestal.miss{border-color:rgba(128,128,128,.5); box-shadow:none}
+.pedestal .stamp{
+  position:relative; z-index:1; margin-left:auto; padding:8px 16px; border-radius:8px;
+  font-weight:900; font-size:14px; letter-spacing:.08em; white-space:nowrap;
+  color:#fff; background:linear-gradient(120deg, #0060AA, #013a66);
+  border:1px solid #fff; transform:rotate(-8deg);
+  box-shadow:0 4px 20px rgba(0,96,170,.5);
+}
+.pedestal.miss .stamp{background:linear-gradient(120deg, #3a3f4a, #22262e); box-shadow:none}
+.pedestal .stamp.still{transform:rotate(-8deg)}
+.pedestal .again{position:relative; z-index:1; transition:transform .12s, box-shadow .15s}
+.pedestal .again:hover{box-shadow:0 0 16px rgba(0,96,170,.5)}
+.pedestal .again:active{transform:scale(.94)}
+
+@media (max-width:640px){
+  .pedestal{flex-wrap:wrap}
+  .pedestal .stamp{margin-left:0}
+  .pedestal .boom-canvas{margin-left:-50%; left:50%}
+}
+@media (prefers-reduced-motion:reduce){
+  .pedestal .rays{animation:none}
+  .pedestal .p-art{animation:none}
+}

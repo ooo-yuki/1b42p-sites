@@ -1,0 +1,28 @@
+/* ЛЕНТА — витрина, игла с пульсом, слоу-мо, блик. */
+
+#stripWrap.live{border-color:#0060AA; box-shadow:0 0 30px rgba(0,96,170,.22)}
+#stripWrap.live .needle{background:#fff; box-shadow:0 0 18px rgba(0,96,170,1)}
+.needle{transition:box-shadow .15s, background .15s}
+.needle.ping{background:#fff; box-shadow:0 0 22px rgba(227,30,37,.95), 0 0 10px rgba(0,96,170,.9)}
+#strip.slowmo .cell{filter:saturate(1.15)}
+#strip .cell{transition:border-color .15s, box-shadow .15s, transform .15s}
+#strip .cell.near{transform:translateY(-3px)}
+#stripWrap.live #strip .cell.near{border-color:rgba(0,96,170,.6)}
+.strip-glare{
+  position:absolute; inset:10px 0; pointer-events:none;
+  background:linear-gradient(90deg, transparent 0%, rgba(255,255,255,.06) 18%,
+    transparent 32%, transparent 68%, rgba(255,255,255,.06) 82%, transparent 100%);
+  animation:glare 1.2s linear infinite;
+}
+@keyframes glare{from{opacity:.4}50%{opacity:1}to{opacity:.4}}
+.ticket-edge{position:relative}
+.ticket-edge::after{
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(90deg, rgba(0,96,170,.25), transparent 12%, transparent 88%, rgba(0,96,170,.25));
+}
+#stripWrap.live .ticket-edge{background-image:radial-gradient(circle at 8px 50%, #0d1428 6px, rgba(0,96,170,.9) 6.5px, transparent 7px)}
+
+@media (prefers-reduced-motion:reduce){
+  .strip-glare{animation:none; display:none}
+  #strip .cell.near{transform:none}
+}

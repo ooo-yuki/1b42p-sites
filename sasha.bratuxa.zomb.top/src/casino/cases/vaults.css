@@ -1,0 +1,58 @@
+/* СЕЙФЫ — наклон, лимб, шансы барами, кнопка с нажимом. */
+
+.vaults{perspective:1200px}
+.vault{
+  --tilt-x:0deg; --tilt-y:0deg;
+  transform:rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
+  transform-style:preserve-3d;
+  position:relative; overflow:hidden;
+}
+.vault::before{
+  content:''; position:absolute; inset:0; pointer-events:none; opacity:0;
+  background:
+    radial-gradient(90% 55% at 50% 0%, rgba(0,96,170,.22), transparent 70%),
+    radial-gradient(60% 40% at 50% 108%, rgba(227,30,37,.14), transparent 70%);
+  transition:opacity .25s;
+}
+.vault:hover::before,.vault.sel::before{opacity:1}
+.vault:focus-visible{outline:2px solid #0060AA; outline-offset:2px}
+.vault.locked{cursor:wait; filter:saturate(.85)}
+.vault .v-lock{position:absolute; top:10px; right:10px; width:34px; height:34px; opacity:.9}
+
+/* кодовый лимб */
+.dial{width:34px; height:34px; transform:rotate(var(--dial-from, 40deg)); transition:transform .5s cubic-bezier(.2,.8,.25,1)}
+.vault:hover .dial{transform:rotate(calc(var(--dial-from, 40deg) + 120deg))}
+.dial.spin{animation:dialspin 1.1s linear infinite}
+@keyframes dialspin{to{transform:rotate(calc(var(--dial-from, 40deg) + 360deg))}}
+.dial-ring{fill:rgba(7,11,24,.8); stroke:rgba(128,128,128,.6); stroke-width:2}
+.tick{stroke:#808080; stroke-width:1.4}
+.tick.big{stroke:#fff; stroke-width:2}
+.dial-hub{fill:#0060AA; stroke:#fff; stroke-width:1}
+.dial-hand{stroke:#E31E25; stroke-width:2.4; stroke-linecap:round}
+
+.vault .v-art{filter:drop-shadow(0 6px 18px rgba(0,96,170,.35)); transition:transform .2s}
+.vault:hover .v-art{transform:translateZ(24px) scale(1.06)}
+.vault.sel .v-art{transform:translateZ(24px) scale(1.1)}
+
+/* шансы — бары */
+.v-drops{flex-wrap:wrap; justify-content:center}
+.v-drops li{min-width:76px; gap:4px; padding:6px 6px 7px}
+.v-drops li .bar{display:block; width:100%; height:4px; border-radius:2px; background:rgba(255,255,255,.1); overflow:hidden}
+.v-drops li .bar i{display:block; height:100%; border-radius:2px;
+  background:linear-gradient(90deg, #0060AA, #4d9fe0)}
+.v-drops li:last-child .bar i{background:linear-gradient(90deg, #E31E25, #ff7a5c)}
+.v-drops li span{white-space:nowrap}
+.v-meta{display:flex; justify-content:center; margin-top:2px}
+.v-meta .ev{font-size:11.5px; color:#808080; letter-spacing:.04em}
+
+/* кнопка с нажимом */
+.v-buy .press{transform:scale(.93)}
+.v-buy button{transition:transform .12s, box-shadow .15s}
+.v-buy button:not(:disabled):hover{box-shadow:0 0 16px rgba(0,96,170,.5)}
+.v-buy button:not(:disabled):active{transform:scale(.94)}
+
+@media (prefers-reduced-motion:reduce){
+  .vault{transform:none}
+  .dial,.dial.spin{animation:none}
+  .vault:hover .v-art,.vault.sel .v-art{transform:none}
+}
