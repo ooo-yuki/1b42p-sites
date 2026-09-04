@@ -79,6 +79,22 @@ footer{padding:18px;color:var(--gold);border-top:2px solid var(--gold);font-weig
 </div>
 
 </div>
+
+<div class="review">
+<h2>Ревью #4 — 04.09.2026, 05:31 МСК</h2>
+<div class="meta">Тесты: <code>npx vitest run</code> — 70/70 passed (zapoi 63 + dino 7) ✅ • Прод <code>chaev.bratuxa.zomb.top</code> — HTTP 200 ✅ • Ветка <code>e5504db</code> «у призрака вместо HP — душа 👻» • Пути TS: <code>src/game/zapoi/*</code>, <code>src/game/synergies.ts</code>, <code>src/game/dinoEngine.ts</code></div>
+<ul>
+<li><span class="warn">[рассинхрон скидки]</span> <code>src/game/zapoi/formulas.ts:125-140</code> — <code>heal1cost</code> считает через <code>shopDiscount</code> (персонаж + кружка −50%), а <code>heal2cost</code> только через <code>charDiscount</code> (без кружки). Кружка Владимира обещает «−50% на всё в магазине (кроме бутылки)» (<code>artifacts.ts:22</code>): пикули скидку получают, а шприц/капельница/очищение — нет. Чинить: либо добавить кружку в <code>heal2cost</code>, либо уточнить описание кружки.</li>
+<li><span class="warn">[текст врёт]</span> <code>src/components/zapoi/HealButtons.tsx:25</code> — «Ставка зашла! +<code>stake</code> чистыми», фактически чистый выигрыш <code>stake*2.1 − stake = 1.1×stake</code> (<code>heals.ts:122-124</code>). Игрок выиграл больше, чем ему пишут. Чинить: писать реальный выигрыш <code>Math.round(stake*(BET_RETURN_MULT-1))</code>.</li>
+<li><span class="warn">[хардкод формы]</span> <code>src/components/zapoi/DrinkPanel.tsx:36,62</code> — «ДЕМОНИЧЕСКАЯ ФОРМА ×5 … на 10 сек» захардкожено; с Баном (<code>ban2w</code>) форма ×6 на 15 сек (<code>formulas.ts:23-24</code>, <code>BAN_FORM_SECS/BAN_FORM_MULT</code>). Владельцу Бана UI врёт оба числа. Чинить: подставить <code>owned(z,'ban2w') ? ×6/15 : ×5/10</code>.</li>
+<li><span class="warn">[баланс]</span> <code>src/game/zapoi/heals.ts:116-127</code> — ставка теперь EV +5% (<code>p=0.5</code>, возврат ×2.1), в ревью #3 было −10%; коммиты «честное казино 🍀» — by design, фиксирую. С удачей шанс до 65% → EV до +36%: Винлайн с прокачанной удачей — печатный станок. Наблюдать, не чинить без отмашки.</li>
+<li><span class="warn">[мелочь perf]</span> <code>src/components/DinoGame.tsx:67-70</code> — <code>localStorage.setItem('chaev42')</code> пишется каждый кадр, пока бьётся рекорд. На смерти запись уже есть (:64). Чинить: писать только на смерти или троттлить по <code>lastHud</code>.</li>
+<li><span class="warn">[мёртвый код]</span> <code>src/game/zapoi/heals.ts:82-84</code> — <code>healSmall</code> экспортирован, но никто не вызывает (UI — через <code>pickleSmall/demonPickle/holyPickle</code>); <code>healBig</code> — только фолбэк <code>cleanseDemon</code>. Чинить: убрать <code>healSmall</code> или пометить legacy.</li>
+<li><span class="warn">[вводящее описание]</span> <code>src/game/zapoi/tree.ts:15</code> — <code>kapel</code> «Шприц и очищение +40%»: бонус <code>heal2val</code> реально работает только в <code>healBig</code>, а <code>syringe()</code> (<code>heals.ts:70-79</code>) лечит полное HP игнорируя <code>heal2val</code>, <code>cleanseDemon</code> ставит HP 30%. +40% для шприца/очищения — мёртвый бонус, скидка −10% работает. Чинить: уточнить описание или применить бонус.</li>
+<li><span class="warn">[не закрыто из #3]</span> <code>src/components/DinoGame.tsx:103-104</code> — мёртвая красная заливка экрана смерти всё ещё на месте (перекрыта золотой).</li>
+</ul>
+<p>Проверено и чисто: TODO/FIXME/XXX/HACK — нет; закрыто из #3: <code>betStake(m)</code> вынесен в <code>formulas.ts:48</code> и используется в <code>HealButtons.tsx:21</code> и <code>heals.ts:118</code> ✅; цены апгрейдов/артефактов/бутылки в UI через <code>upgradeCost/artCost/BOTTLE_COST</code> — рассинхрона нет; пустышка Винлайна возвращает деньги (<code>artifacts.ts:53-58</code>), лог похмелья через <code>_hangoverLost</code>, кнопки с <code>disabled</code>; дубли эмодзи в именах сущностей — нет (🍾 — валюта, ок); дино: спавн/скорость/коллизии 1-в-1 legacy. Мы уже победили 🏆</p>
+</div>
 </main>
 <footer>1Б42П • БАТАЛЬОН ПРОПАГАНДЫ 42 • Мы уже победили 🏆</footer>
 </body>
