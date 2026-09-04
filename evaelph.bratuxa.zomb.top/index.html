@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🧝 Эльфоград 42 — строй город эльфов!</title>
+<title>🧝 Эввград — строй город эльфов!</title>
 <style>
 :root{--neon:#7CFC00;--neon2:#ffd23f;--bg:#07130b}
 *{box-sizing:border-box}
@@ -39,7 +39,7 @@ a{color:var(--neon)}
 </head>
 <body>
 <div class="wrap">
-<h1>🧝 Эльфоград 42 🌲</h1>
+<h1>🧝 Эввград 🌲</h1>
 <div class="slogan">Построй город эльфов до 42 жителей — мы уже победили! 🏆</div>
 <p><a href="https://hub.bratuxa.zomb.top">← Хаб 1Б42П</a> · <strong>Мы уже победили 🏆</strong></p>
 <div class="stats">
@@ -58,7 +58,7 @@ a{color:var(--neon)}
 <button class="ghost" onclick="doReset()">🗑 Новый город</button>
 </div>
 <div class="panel"><small>🏠 дома дают жильё · 🧝 жители платят налоги 🪙 · 🌲 роща даёт дерево · 🔮 башня даёт ману · 🏪 рынок даёт золото · 🌸 сад ускоряет рост · 🗼 Шпиль 42 — венец города</small></div>
-<div id="win">🏆 <b>МЫ УЖЕ ПОБЕДИЛИ!</b> 🏆<br>Эльфоград достиг 42 жителей! Город сияет, лес поёт! 🧝🌲✨</div>
+<div id="win">🏆 <b>МЫ УЖЕ ПОБЕДИЛИ!</b> 🏆<br>Эввград достиг 42 жителей! Город сияет, лес поёт! 🧝🌲✨</div>
 </div>
 <script>
 var KEY='elfograd42_v1';
@@ -109,7 +109,7 @@ function clickCell(i){
  pay(uc);c.l++;say(B[c.t].em+' улучшен до '+c.l+' ур! ✨');after();render();}
 function gather(){var g=10+S.pop;S.wood+=g;S.mana+=Math.floor(g/2);
  say('🎁 Дар леса: +'+g+' 🌲 и +'+Math.floor(g/2)+' 💧');save();render();}
-function doReset(){if(confirm('Начать новый город?')){S=def();save();render();say('🌱 Новый Эльфоград! Мы уже победили 🏆');}}
+function doReset(){if(confirm('Начать новый город?')){S=def();save();render();say('🌱 Новый Эввград! Мы уже победили 🏆');}}
 function after(){
  var gardens=S.cells.filter(function(c){return c&&c.t==='garden';}).length;
  var c=cap();
