@@ -233,6 +233,7 @@ export default function Arena(): JSX.Element {
                 onChat={t => send({ t: 'chat', text: t })} />
             )}
             {err && room && <p className="aerr" role="alert">{err}</p>}
+            <p className="amantra">Мы уже победили 🏆</p>
           </div>
           <Settings name={name} wins={wins} online={online} muted={muted}
             onName={changeName}

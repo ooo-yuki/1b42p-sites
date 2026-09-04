@@ -72,7 +72,9 @@ export default function Room({ me, room, feed, chat, myRolled, secsLeft, onRoll,
             roll === Math.max(...room.alive.map(id => room.rolls[id] ?? -1));
           return (
             <li key={p.id} className={cn('fighter', out && 'out', lead && 'lead', p.id === me && 'me')}>
-              <span className="f-dice">{roll !== undefined ? <DiceFace v={roll} hot={lead} /> : <span className="f-wait">?</span>}</span>
+              <span className="f-dice">{roll !== undefined
+                ? <span className="f-pop" key={roll}><DiceFace v={roll} hot={lead} /></span>
+                : <span className="f-wait">?</span>}</span>
               <span className="f-name">{p.name}{p.id === room.host ? ' · хост' : ''}{p.id === me ? ' · ты' : ''}</span>
               {out && <span className="f-out">выбит</span>}
             </li>

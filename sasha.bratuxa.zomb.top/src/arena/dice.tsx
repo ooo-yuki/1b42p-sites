@@ -21,18 +21,3 @@ export function DiceFace({ v, hot }: { v: number; hot?: boolean }): JSX.Element 
     </svg>
   );
 }
-
-/** Стакан: три силуэта-кубика для пати-карт. Пустой — контур. */
-export function DiceCup({ n }: { n: number }): JSX.Element {
-  return (
-    <span className="acup" aria-hidden="true">
-      {Array.from({ length: n }, (_, i) => (
-        <svg key={i} className="amini" viewBox="0 0 12 12" shapeRendering="crispEdges"
-          style={{ ['--shift' as string]: `${(i - (n - 1) / 2) * 7}px` }}>
-          <rect x="1" y="1" width="10" height="10" rx="2" className="die-body" />
-          <rect x="4" y="4" width="4" height="4" className="die-pip" />
-        </svg>
-      ))}
-    </span>
-  );
-}

@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { DiceFace } from './dice';
 import { arenaClick } from './sound';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import type { GameDef, PoolView } from './proto';
 
 /* Центр клуба: выбор игры голосами, поиск, пул, ожидание, доп-лобби. */
@@ -25,8 +26,8 @@ type Props = {
   onJoin: (code: string) => void;
 };
 
-function fmtElapsed(since: number): string {
-  const s = Math.max(0, Math.floor((Date.now() - since) / 1000));
+function fmtElapsed(since: number, now: number): string {
+  const s = Math.max(0, Math.floor((now - since) / 1000));
   const m = Math.floor(s / 60);
   return m > 0 ? `${m} мин ${s % 60} с` : `${s} с`;
 }
@@ -34,6 +35,12 @@ function fmtElapsed(since: number): string {
 export default function Lobby({ me, online, pool, games, searching, busy, myVote,
   onVoteGame, onSearch, onStop, onVoteEnter, onVoteWait, onCreate, onJoin }: Props): JSX.Element {
   const [code, setCode] = useState('');
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!searching) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [searching]);
   const go = (): void => {
     const c = code.trim().toUpperCase();
     if (c.length >= 3) { arenaClick(); onJoin(c); }
@@ -44,6 +51,10 @@ export default function Lobby({ me, online, pool, games, searching, busy, myVote
   const yesEnter = members.filter(m => m.enter).length;
   const canEnter = members.length >= 2;
   const wait = pool?.wait;
+  const waitVotes = wait ? Object.values(wait.votes) : [];
+  const yesWait = waitVotes.filter(Boolean).length;
+  const enterPct = members.length > 0 ? Math.round((yesEnter / members.length) * 100) : 0;
+  const waitPct = waitVotes.length > 0 ? Math.round((yesWait / waitVotes.length) * 100) : 0;
 
   return (
     <div className="arena-lobby">
@@ -56,40 +67,37 @@ export default function Lobby({ me, online, pool, games, searching, busy, myVote
         <b className="tk-num tnum">{online === null ? '…' : online}</b>
       </div>
 
-      <div className="agames" role="group" aria-label="Выбор игры голосованием">
+      <ToggleGroup type="single" value={myVote}
+        onValueChange={v => { arenaClick(); onVoteGame(v === '' ? 'any' : v); }}
+        className="agames" aria-label="Выбор игры голосованием">
         {ids.map(id => {
           const g = games[id];
           const v = members.filter(m => m.vote === id).length;
-          const sel = myVote === id;
           return (
-            <button key={id} type="button" disabled={busy}
-              className={cn('gcard', sel && 'sel')}
-              onClick={() => { arenaClick(); onVoteGame(sel ? 'any' : id); }}
-              aria-pressed={sel}>
-              <DiceFace v={5} hot={sel} />
+            <ToggleGroupItem key={id} value={id} disabled={busy}
+              className="gcard" aria-label={`Голос за ${g.label}`}>
+              <DiceFace v={5} hot={myVote === id} />
               <b>{g.label}</b>
               <small>{g.min}–{g.max} игроков · голосов: <span className="tnum">{v}</span></small>
-            </button>
+            </ToggleGroupItem>
           );
         })}
-        <button type="button" disabled={busy}
-          className={cn('gcard any', myVote === 'any' && 'sel')}
-          onClick={() => { arenaClick(); onVoteGame('any'); }}
-          aria-pressed={myVote === 'any'}>
+        <ToggleGroupItem value="any" disabled={busy} className="gcard any" aria-label="Голос за любую игру">
           <span className="qmark">?</span>
           <b>Любая</b>
           <small>доверяюсь клубу · голосов: <span className="tnum">{members.filter(m => m.vote === 'any').length}</span></small>
-        </button>
-      </div>
+        </ToggleGroupItem>
+      </ToggleGroup>
       <p className="avote-note">Игра с большинством голосов — в бой. Все на «любой» — решит рандом.</p>
 
       {!searching ? (
-        <Button size="lg" disabled={busy} onClick={() => { arenaClick(); onSearch(); }}>
+        <Button size="lg" disabled={busy} className="afight"
+          onClick={() => { arenaClick(); onSearch(); }}>
           Искать бой
         </Button>
       ) : (
         <div className="asearch-live">
-          <p className="asearch-t">Ищем братух… <b className="tnum">{fmtElapsed(pool?.since ?? Date.now())}</b></p>
+          <p className="asearch-t">Ищем братух… <b className="tnum">{fmtElapsed(pool?.since ?? now, now)}</b></p>
           <Button variant="outline" onClick={onStop}>Выйти из поиска</Button>
         </div>
       )}
@@ -110,6 +118,7 @@ export default function Lobby({ me, online, pool, games, searching, busy, myVote
       {searching && canEnter && (
         <div className="aenter">
           <p>Нас <b className="tnum">{members.length}</b>, за заход — <b className="tnum">{yesEnter}</b>. Больше половины «за» — и в бой!</p>
+          <span className="quorum" aria-hidden="true"><i style={{ width: `${enterPct}%` }} /></span>
           <div className="crow">
             <Button disabled={myEnter} onClick={() => onVoteEnter(true)}>За!</Button>
             <Button variant="outline" disabled={!myEnter} onClick={() => onVoteEnter(false)}>Погожу</Button>
@@ -119,7 +128,8 @@ export default function Lobby({ me, online, pool, games, searching, busy, myVote
 
       {searching && wait?.open && (
         <div className="await" role="alert">
-          <p>Ищем уже долго. Ждём ещё или в бой тем, что есть?</p>
+          <p>Ищем уже долго. Ждём ещё или в бой тем, что есть? За ожидание — <b className="tnum">{yesWait}</b>.</p>
+          <span className="quorum wait" aria-hidden="true"><i style={{ width: `${waitPct}%` }} /></span>
           <div className="crow">
             <Button onClick={() => onVoteWait(true)}>Ждать ещё</Button>
             <Button variant="secondary" onClick={() => onVoteWait(false)}>В бой!</Button>
