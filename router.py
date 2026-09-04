@@ -80,6 +80,10 @@ class VHostHandler(SimpleHTTPRequestHandler):
                 data = r.read()
                 self.send_response(r.status)
                 self.send_header("Content-Type", r.headers.get_content_type() if hasattr(r.headers, "get_content_type") else "application/json")
+                for hk in ("Access-Control-Allow-Origin", "Access-Control-Allow-Methods", "Access-Control-Allow-Headers"):
+                    hv = r.headers.get(hk)
+                    if hv:
+                        self.send_header(hk, hv)
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
