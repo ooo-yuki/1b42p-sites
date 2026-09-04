@@ -263,7 +263,9 @@ export default function ZapoiGame() {
           const r = cleanseDemon(n);
           if (!r) return '';
           return r.cleansed ? `😇 Очищение! Форма снята за ${r.c} бухла, HP 30%. Живи!` : `💉 Капельница: +${r.v} HP за ${r.c} бухла`;
-        }, 700)} style={{ fontSize: 15 }}>😇 ОЧИЩЕНИЕ: снять форму за {heal2cost(z)} бухла</button>
+        }, 700)} style={{ fontSize: 15 }}>
+          <img src="heals/cleanse.jpg" alt="" style={{ height: 30, verticalAlign: 'middle', borderRadius: 8, marginRight: 8 }} />
+          ОЧИЩЕНИЕ: снять форму за {heal2cost(z)} бухла</button>
       )}
       <div className="zlog">{log}</div>
       <h3 style={{ color: 'gold' }}>🏺 Артефакты по качествам ({ownedArts}/{ARTS.length})</h3>
