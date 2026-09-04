@@ -1,0 +1,38 @@
+/* БУНКЕР — лампа люка, лесенка, шкала риска. */
+
+.bunker{position:relative}
+.bunker.armed{border-color:rgba(227,30,37,.5)}
+.door-lamp{
+  position:absolute; top:10px; right:12px; width:12px; height:12px;
+  border-radius:50%; background:#2f9e44; box-shadow:0 0 10px rgba(47,158,68,.8);
+}
+.door-lamp.red{background:#E31E25; box-shadow:0 0 12px rgba(227,30,37,.9); animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:.4}}
+.bunker .crow button.press{transform:scale(.93)}
+.bunker .crow button{transition:transform .12s, box-shadow .15s}
+.bunker .crow button:not(:disabled):hover{box-shadow:0 0 16px rgba(0,96,170,.5)}
+.bunker .crow button:not(:disabled):active{transform:scale(.94)}
+.bunker .presets{display:flex; gap:8px; margin-top:10px}
+.bunker .preset{
+  flex:1; padding:7px 0; border-radius:999px; cursor:pointer;
+  background:#0d1428; color:#fff; font-size:13.5px; font-weight:700;
+  font-variant-numeric:tabular-nums; border:1px solid rgba(255,255,255,.25);
+  transition:border-color .15s, box-shadow .15s, transform .12s;
+}
+.bunker .preset:hover:not(:disabled){border-color:#0060AA}
+.bunker .preset:active:not(:disabled){transform:scale(.95)}
+.bunker .preset.sel{border-color:#fff; box-shadow:0 0 10px rgba(0,96,170,.35)}
+.bunker .preset:disabled{opacity:.5; cursor:default}
+.ladder .rung.cash b{color:#fff}
+.risk{margin-top:12px; display:flex; flex-direction:column; gap:6px}
+.risk-top{display:flex; justify-content:space-between; align-items:baseline; font-size:12.5px; color:#808080}
+.risk-top b{color:#E31E25; font-size:14px}
+.risk-bar{display:block; height:6px; border-radius:3px; background:rgba(255,255,255,.08); overflow:hidden}
+.risk-bar i{display:block; height:100%; border-radius:3px;
+  background:linear-gradient(90deg, #2f9e44, #c9a227 55%, #E31E25);
+  transition:width .25s ease-out}
+.risk small{font-size:11.5px; color:#808080}
+
+@media (prefers-reduced-motion:reduce){
+  .door-lamp.red,.risk-bar i,.bunker .crow button,.bunker .preset{animation:none; transition:none}
+}

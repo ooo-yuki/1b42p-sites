@@ -1,117 +1,110 @@
-import { useState } from 'react';
-import { Api, Log, Num, parseStake } from './shared';
+import { useMemo, useState } from 'react';
+import { Log, parseStake, type Api } from './shared';
+import Bunker from './mines/Bunker';
+import Field from './mines/Field';
+import MHistory, { loadMHist, saveMHist, type MEntry } from './mines/History';
+import {
+  CELLS, DEFAULT_BET, DEFAULT_MINES, MIN_STAKE,
+  cashout, placeMines, stepMult, validateMines,
+} from './mines/data';
+import { boomBlast, bunkerDoor, cashPing, gemPing, tileTap } from './mines/jingle';
 import { ItemIcon } from '../casino-icons';
-import { Bomb, Gem } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import './mines.css';
+import './mines/bunker.css';
+import './mines/field.css';
+import './mines/mhist.css';
 
-/* ЗАЛ «МИНЫ» — сапёрный полигон. Поле 5×5, лесенка множителей.
-   Правила святы: формула множителя и вывод в любой момент не менялись. */
+/* ЗАЛ «МИНЫ» — сапёрный полигон. Оркестрация: бункер → поле → вахта.
+   Правила святы: поле 5×5, шаг mmult×closed/safe×0.97, вывод floor в любой момент. */
 
 export default function Mines({ api }: { api: Api }): JSX.Element {
-  const [mbet, setMbet] = useState('50');
-  const [mmines, setMmines] = useState(3);
+  const [mbet, setMbet] = useState(DEFAULT_BET);
+  const [mmines, setMmines] = useState(DEFAULT_MINES);
   const [mfield, setMfield] = useState<boolean[] | null>(null);
-  const [mopen, setMopen] = useState<boolean[]>(Array(25).fill(false));
+  const [mopen, setMopen] = useState<boolean[]>(Array(CELLS).fill(false));
   const [mmult, setMmult] = useState(1);
   const [mdead, setMdead] = useState(false);
+  const [blast, setBlast] = useState(-1);
   const [stake, setStake] = useState(0);
+  const [hist, setHist] = useState<MEntry[]>(() => loadMHist());
+  const [seq, setSeq] = useState(() => Date.now());
+
+  useMemo(() => {
+    const bad = validateMines();
+    if (bad.length > 0) console.error('[mines] святыня нарушена:', bad.join('; '));
+  }, []);
+
+  const opened = mopen.filter(Boolean).length;
+  const live = !!mfield && !mdead;
+
+  const pushHist = (e: Omit<MEntry, 'id' | 't'>): void => {
+    setHist(prev => {
+      const next = [{ ...e, id: seq, t: Date.now() }, ...prev].slice(0, 30);
+      saveMHist(next);
+      return next;
+    });
+    setSeq(s => s + 1);
+  };
 
   const start = (): void => {
     if (mfield && !mdead) return;
-    const s = parseStake(mbet, 10, api);
+    const s = parseStake(mbet, MIN_STAKE, api);
     if (s === null) return;
+    bunkerDoor();
     setStake(s);
-    const idx = Array.from({ length: 25 }, (_, i) => i);
-    for (let i = idx.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [idx[i], idx[j]] = [idx[j], idx[i]];
-    }
-    const field = Array(25).fill(false);
-    idx.slice(0, mmines).forEach(i => { field[i] = true; });
-    setMfield(field);
-    setMopen(Array(25).fill(false));
+    setMfield(placeMines(mmines));
+    setMopen(Array(CELLS).fill(false));
     setMmult(1);
     setMdead(false);
+    setBlast(-1);
     api.say(`Поле 5×5, мин: ${mmines}. Открывай клетки, «Забрать» — в любой момент`);
   };
 
   const openCell = (i: number): void => {
     if (!mfield || mdead || mopen[i]) return;
+    tileTap();
     if (mfield[i]) {
       setMopen(mfield.map(() => true));
       setMdead(true);
-      api.say(`Мина! Ставка сгорела.`, 'lose');
+      setBlast(i);
+      if (!api.reduced) boomBlast();
+      api.say('Мина! Ставка сгорела.', 'lose');
+      pushHist({ mines: mmines, stake, opened, ret: 0, profit: -stake, mult: mmult });
       return;
     }
-    const opened = mopen.filter(Boolean).length;
-    const closed = 25 - opened;
-    const safeClosed = 25 - mmines - opened;
-    const nm = mmult * (closed / safeClosed) * 0.97;
+    const nm = stepMult(mmult, opened, mmines);
     const no = [...mopen];
     no[i] = true;
     setMopen(no);
     setMmult(nm);
+    if (!api.reduced) gemPing(nm);
     api.say(`Чисто! Множитель ×${nm.toFixed(2)} — забирай или рискуй.`);
   };
 
   const cash = (): void => {
     if (!mfield || mdead) return;
-    const opened = mopen.filter(Boolean).length;
     if (opened === 0) { api.say('Открой хоть одну клетку'); return; }
-    const win = Math.floor(stake * mmult);
+    const win = cashout(stake, mmult);
     api.credit(win);
     setMfield(null);
+    cashPing();
     api.say(`Мины: ×${mmult.toFixed(2)}, +${win}!`, 'win');
+    pushHist({ mines: mmines, stake, opened, ret: win, profit: win - stake, mult: mmult });
   };
-
-  const opened = mopen.filter(Boolean).length;
-  const closed = 25 - opened;
-  const safeClosed = 25 - mmines - opened;
-  const next = mfield && !mdead && safeClosed > 0
-    ? mmult * (closed / safeClosed) * 0.97
-    : null;
 
   return (
     <section className="mines-hall">
       <Log msg={api.msg} tone={api.tone} />
       <div className="mn-grid">
-        <div className="bunker">
-          <div className="crow">
-            <Input value={mbet} onChange={e => setMbet(e.target.value)} inputMode="numeric" aria-label="Ставка на мины" />
-            <ToggleGroup type="single" value={String(mmines)}
-              onValueChange={v => { if (v && (!mfield || mdead)) setMmines(Number(v)); }}
-              disabled={!!mfield && !mdead}>
-              {[1, 3, 5].map(n => (
-                <ToggleGroupItem key={n} value={String(n)}>{n} {n === 1 ? 'мина' : 'мины'}</ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-            {!mfield || mdead
-              ? <Button onClick={start}>Начать</Button>
-              : <Button variant="secondary" onClick={cash}>Забрать ×{mmult.toFixed(2)}</Button>}
-          </div>
-          <div className="ladder">
-            <div className="rung now"><span>Сейчас</span><b>×<Num>{mmult.toFixed(2)}</Num></b></div>
-            <div className="rung next"><span>Следующая клетка</span><b>{next ? <>×<Num>{next.toFixed(2)}</Num></> : '—'}</b></div>
-            <div className="rung"><span>Открыто</span><b><Num>{opened} / {25 - mmines}</Num></b></div>
-          </div>
-        </div>
-        <div className={`field${mdead ? ' dead' : ''}`}>
-          {mopen.map((op, i) => (
-            <button key={i}
-              className={op ? (mfield && mfield[i] ? 'tile boom' : 'tile gem') : 'tile'}
-              onClick={() => openCell(i)} disabled={!mfield || op}
-              aria-label={op ? (mfield && mfield[i] ? 'Мина' : 'Кристалл') : `Закрытая клетка ${i + 1}`}>
-              {op ? (mfield && mfield[i] ? <Bomb aria-hidden /> : <Gem aria-hidden />) : <span className="rivet" />}
-            </button>
-          ))}
-        </div>
+        <Bunker mbet={mbet} mmines={mmines} live={live} dead={mdead}
+          mult={mmult} opened={opened} stake={stake}
+          onBet={setMbet} onMines={setMmines} onStart={start} onCash={cash} />
+        <Field field={mfield} open={mopen} dead={mdead} blast={blast} glow={mmult} onOpen={openCell} />
       </div>
-      {mfield && !mdead && (
+      {live && (
         <div className="kitline"><ItemIcon name="jackpot" /> Сапёр идёт: {opened} чисто, мины ждут.</div>
       )}
+      <MHistory entries={hist} onClear={() => { setHist([]); saveMHist([]); }} />
     </section>
   );
 }
