@@ -53,7 +53,8 @@ small.dim{opacity:.7}
 </style>
 </head>
 <body>
-<div id="lock"><div class="box"><h1>🔒 Откроется в 16:40 МСК</h1><p>Торнадо-Битва: Классы вихря стартует сегодня в 16:40 МСК 🌪️⚔️</p><p id="lockTimer" style="font-size:28px;font-weight:bold;color:#00e5ff">--:--:--</p><p><a href="index.html">← На главную Сетдена</a></p><p>🛞 Хочешь реальный батл? <a href="https://miqqil.bratuxa.zomb.top/" target="_blank" rel="noopener" style="color:#ffd23f;font-weight:bold">Переходи в Miqqil Танки →</a></p></div></div>
+<div id="lock"><div class="box"><h1>🔒 Откроется в 16:40 МСК</h1><p>Торнадо-Битва: Классы вихря стартует сегодня в 16:40 МСК 🌪️⚔️</p><p id="lockTimer" style="font-size:28px;font-weight:bold;color:#00e5ff">--:--:--</p><p><a href="index.html">← На главную Сетдена</a></p></div></div>
+<div id="lockAd" class="adbanner" style="display:none"><div class="adtitle">🛞 Хочешь реальный батл?</div><div class="adsub">Тапы — это разминка. Настоящая броня, тактика и грохот — в танках Миккила!</div><a class="adbtn" href="https://miqqil.bratuxa.zomb.top/" target="_blank" rel="noopener">🎮 ПЕРЕХОДИ В MIQQIL ТАНКИ →</a></div>
 
 <div class="topbar" id="topbar" style="display:none">
 <span id="tName">🧙 Игрок</span><span id="tClass">⚔️ —</span><span class="hp" id="tHP">❤️ 100/100</span><span id="tLvl">📶 Ур.1</span><span id="tDmg">🗡️ 5</span><span class="gold" id="tCoins">🪙 0</span><span id="tCry">💎 0</span><span id="tSeason">⏳ 42:00:00</span>
@@ -106,7 +107,7 @@ small.dim{opacity:.7}
 <script>
 // ===== ЗАМОК ДО 16:40 МСК (Date.UTC день,13,40) =====
 const NOWD=new Date();const UNLOCK=Date.UTC(NOWD.getUTCFullYear(),NOWD.getUTCMonth(),NOWD.getUTCDate(),13,40);
-function tickLock(){const ms=UNLOCK-Date.now();const el=document.getElementById('lockTimer');if(ms<=0){document.getElementById('lock').style.display='none';document.getElementById('topbar').style.display='flex';document.getElementById('game').style.display='block';boot();return true;}const s=Math.floor(ms/1000);const h=String(Math.floor(s/3600)).padStart(2,'0'),m=String(Math.floor(s%3600/60)).padStart(2,'0'),ss=String(s%60).padStart(2,'0');el.textContent=h+':'+m+':'+ss;return false;}
+function tickLock(){const ms=UNLOCK-Date.now();const el=document.getElementById('lockTimer');if(ms<=0){document.getElementById('lock').style.display='none';document.getElementById('lockAd').style.display='none';document.getElementById('topbar').style.display='flex';document.getElementById('game').style.display='block';boot();return true;}const s=Math.floor(ms/1000);const h=String(Math.floor(s/3600)).padStart(2,'0'),m=String(Math.floor(s%3600/60)).padStart(2,'0'),ss=String(s%60).padStart(2,'0');el.textContent=h+':'+m+':'+ss;document.getElementById('lockAd').style.display='block';return false;}
 let booted=false;
 function boot(){if(booted)return;booted=true;initGame();}
 
