@@ -70,9 +70,15 @@ font-weight:bold;font-size:15px;border-radius:999px;padding:12px 18px;cursor:poi
 /* магазин (шторка над доком) */
 #shop{position:fixed;left:50%;transform:translateX(-50%);bottom:112px;z-index:11;display:none;
 background:var(--cream);border:3px solid var(--ink);border-radius:22px;padding:12px;max-width:96vw;width:470px;
+max-height:min(62vh,520px);overflow:hidden;
 box-shadow:0 8px 0 rgba(47,93,58,.35)}
-#shop h4{margin:0 0 8px;font-size:17px}
-#shopGrid{display:flex;gap:10px;flex-wrap:wrap}
+#shop h4{margin:0 0 8px;font-size:17px;flex:0 0 auto}
+#shopGrid{display:flex;gap:10px;flex-wrap:wrap;overflow-y:auto;overflow-x:hidden;
+max-height:calc(min(62vh,520px) - 52px);padding:2px 2px 6px;-webkit-overflow-scrolling:touch;touch-action:pan-y;
+scrollbar-width:thin;scrollbar-color:var(--leaf) #eef5e6}
+#shopGrid::-webkit-scrollbar{width:8px}
+#shopGrid::-webkit-scrollbar-thumb{background:var(--leaf);border-radius:8px}
+#shopGrid::-webkit-scrollbar-track{background:#eef5e6;border-radius:8px}
 .shopCard{flex:1 1 40%;border:3px solid var(--ink);border-radius:18px;background:#f3f9ec;padding:12px 8px;cursor:pointer;
 text-align:center;color:var(--ink);box-shadow:0 3px 0 rgba(47,93,58,.25)}
 .shopCard:active{transform:scale(.95)}
@@ -80,7 +86,7 @@ text-align:center;color:var(--ink);box-shadow:0 3px 0 rgba(47,93,58,.25)}
 .shopCard b{font-size:15px}
 .shopCard small{display:block;font-size:12px;margin-top:4px;min-height:30px}
 .shopCard .cost{color:#d63d6e;font-weight:bold;font-size:13px;margin-top:6px}
-@media(max-width:640px){#shop{bottom:172px}}
+@media(max-width:640px){#shop{bottom:172px;max-height:44vh}#shopGrid{max-height:calc(44vh - 52px)}}
 /* победа */
 #win{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(47,93,58,.45);z-index:20}
 #winBox{background:var(--cream);border:4px solid var(--gold);border-radius:26px;padding:28px;max-width:340px;text-align:center;
@@ -162,13 +168,14 @@ var B={
  airport:{em:'✈️',n:'Аэропорт',cost:{gold:500,wood:300,mana:200},prod:{gold:3,mana:1},house:6,desc:'Ворота в небо'},
  railway:{em:'🚂',n:'ЖД вокзал',cost:{gold:280,wood:200},prod:{gold:1.5},desc:'Поезда везут жителей'},
  bus:{em:'🚌',n:'Автовокзал',cost:{gold:150,wood:100},prod:{gold:0.9},desc:'Автобусы со всех сторон'},
- stadium:{em:'🏟️',n:'Стадион',cost:{gold:450,wood:250,mana:150},prod:{gold:2.8},house:4,desc:'Болельщики переезжают'}
+ stadium:{em:'🏟️',n:'Стадион',cost:{gold:450,wood:250,mana:150},prod:{gold:2.8},house:4,desc:'Болельщики переезжают'},
+ refinery:{em:'🛢️',n:'НПЗ',cost:{gold:350,wood:200,mana:100},prod:{gold:3},desc:'Нефтедоллары текут'}
 };
 var ORDER=['house','grove','tower','market','garden','spire'];
 var S,tool='house',bulldoze=false,selIdx=-1,openGroup=null;
 /* разделы магазина (как в Clash of Clans): внизу только группы */
 var GROUPS=[
- {id:'city',em:'🏠',n:'Город',items:['house','market','tavern','treasury','shop','admin','airport','railway','bus']},
+ {id:'city',em:'🏠',n:'Город',items:['house','market','tavern','treasury','shop','admin','airport','railway','bus','refinery']},
  {id:'nature',em:'🌲',n:'Природа',items:['grove','garden','sawmill','glade']},
  {id:'magic',em:'🔮',n:'Магия',items:['tower','runes','portal','spire']},
  {id:'fun',em:'🎭',n:'Развлечения',items:['mall','cinema','theatre','ferris','beach','barber','hospital','park','stadium']}
@@ -515,7 +522,28 @@ function fpGoal(){var g=new THREE.Group();
  g.add(put(box(0.12,1.2,0.12,mat(0xffffff)),-0.9,0.6,0));
  g.add(put(box(0.12,1.2,0.12,mat(0xffffff)),0.9,0.6,0));
  g.add(put(box(1.9,0.12,0.12,mat(0xffffff)),0,1.2,0));return g;}
-var BUILDERS={house:buildHouse,grove:buildGrove,tower:buildTower,market:buildMarket,garden:buildGarden,spire:buildSpire,tavern:buildTavern,treasury:buildTreasury,sawmill:buildSawmill,glade:buildGlade,runes:buildRunes,portal:buildPortal,mall:buildMall,cinema:buildCinema,theatre:buildTheatre,ferris:buildFerris,beach:buildBeach,shop:buildShop,barber:buildBarber,hospital:buildHospital,admin:buildAdmin,park:buildPark,airport:buildAirport,railway:buildRailway,bus:buildBus,stadium:buildStadium};
+function buildRefinery(l){var g=new THREE.Group();
+ g.add(put(cyl(0.3,0.35,1.5+l*0.2,8,mat(0xb9c4c9)),-0.45,0.75,0));
+ g.add(put(cyl(0.22,0.26,1.1+l*0.15,8,mat(0x8f9aa3)),0.35,0.55,0.1));
+ var t1=new THREE.Mesh(new THREE.SphereGeometry(0.35,9,7),mat(0xe8e2d0));
+ t1.position.set(0.45,0.35,-0.55);t1.castShadow=true;g.add(t1);
+ var t2=new THREE.Mesh(new THREE.SphereGeometry(0.28,9,7),mat(0xd9d2c2));
+ t2.position.set(-0.15,0.28,-0.6);t2.castShadow=true;g.add(t2);
+ var pipe=put(cyl(0.07,0.07,1.4,6,mat(0xc9a227)),0,0.35,0.45);pipe.rotation.z=Math.PI/2;g.add(pipe);
+ g.add(put(box(0.5,0.4,0.4,mat(0x5d6b5d)),0.6,0.2,0.55));
+ smoke(g,-0.45,1.7+l*0.2,0);
+ var beacon=new THREE.Mesh(new THREE.SphereGeometry(0.07,7,6),
+  new THREE.MeshBasicMaterial({color:0xff2222}));beacon.position.set(0.35,1.25+l*0.15,0.1);
+ beacon.userData={fadePulse:true};g.add(beacon);
+ if(l>=3){var s=octa(0.13,mat(0xffd23f,0x6b4e00,0.5));s.position.set(0,2.1,0);g.add(s);}
+ return g;}
+function fpPanel(){var g=new THREE.Group();
+ g.add(put(box(1.4,1.1,0.4,mat(0x3a3f4a)),0,0.9,0));
+ var cols=[0xff4444,0xffd23f,0x00ff66,0x7fd4ff];
+ for(var i=0;i<4;i++)g.add(put(box(0.14,0.14,0.05,
+  new THREE.MeshBasicMaterial({color:cols[i]})),-0.45+i*0.3,1.1,0.21));
+ return g;}
+var BUILDERS={house:buildHouse,grove:buildGrove,tower:buildTower,market:buildMarket,garden:buildGarden,spire:buildSpire,tavern:buildTavern,treasury:buildTreasury,sawmill:buildSawmill,glade:buildGlade,runes:buildRunes,portal:buildPortal,mall:buildMall,cinema:buildCinema,theatre:buildTheatre,ferris:buildFerris,beach:buildBeach,shop:buildShop,barber:buildBarber,hospital:buildHospital,admin:buildAdmin,park:buildPark,airport:buildAirport,railway:buildRailway,bus:buildBus,stadium:buildStadium,refinery:buildRefinery};
 function refreshCell(i){
  var c0=S.cells[i];
  if(c0&&!BUILDERS[c0.t]){S.cells[i]=null;c0=null;}
@@ -1090,7 +1118,15 @@ function inStadium(){curIn.add(fpGrass(10,0x58b368));fpBounds={x:[-5,5],z:[-5,5]
  for(var i=0;i<4;i++){var a=i/4*Math.PI*2+Math.PI/4,fx=Math.cos(a)*6.5,fz=Math.sin(a)*6.5;
   curIn.add(put(cyl(0.08,0.08,3.5,5,mat(0x8f9aa3)),fx,1.75,fz));
   curIn.add(put(box(0.7,0.4,0.15,mat(0xffffff,0xffffff,0.8)),fx,3.6,fz));}}
-var IN={house:inHouse,tavern:inTavern,market:inMarket,treasury:inTreasury,grove:inGrove,garden:inGarden,sawmill:inSawmill,glade:inGlade,tower:inTower,runes:inRunes,portal:inPortal,spire:inSpire,mall:inMall,cinema:inCinema,theatre:inTheatre,ferris:inFerris,beach:inBeach,shop:inShop,barber:inBarber,hospital:inHospital,admin:inAdmin,park:inPark,airport:inAirport,railway:inRailway,bus:inBus,stadium:inStadium};
+var IN={house:inHouse,tavern:inTavern,market:inMarket,treasury:inTreasury,grove:inGrove,garden:inGarden,sawmill:inSawmill,glade:inGlade,tower:inTower,runes:inRunes,portal:inPortal,spire:inSpire,mall:inMall,cinema:inCinema,theatre:inTheatre,ferris:inFerris,beach:inBeach,shop:inShop,barber:inBarber,hospital:inHospital,admin:inAdmin,park:inPark,airport:inAirport,railway:inRailway,bus:inBus,stadium:inStadium,refinery:inRefinery};
+function inRefinery(){curIn.add(fpRoom(12,9,0x8f9aa3,0x6b7a89));
+ fpAt(fpTankO(),-3,-2.5,1.2);fpAt(fpTankO(),3,-2.5,1.2);
+ curIn.add(put(cyl(0.12,0.12,7,6,mat(0xc9a227)),0,0.5,-2.5));
+ fpAt(fpPanel(),2.8,2.5,1.0);fpAt(fpCrate(true),-3.5,2.8,0.8);fpAt(fpStool(),-2,2.8,0.4);}
+function fpTankO(){var g=new THREE.Group();
+ g.add(put(cyl(0.7,0.7,1.6,10,mat(0xe8e2d0)),0,0.8,0));
+ g.add(put(new THREE.Mesh(new THREE.SphereGeometry(0.7,10,6,0,Math.PI*2,0,Math.PI/2),mat(0xe8e2d0)),0,1.6,0));
+ return g;}
 function buildInterior(type){fpClear();fpObstacles.length=0;
  if(!interiorRoot){interiorRoot=new THREE.Group();interiorRoot.position.set(FPX,0,0);scene.add(interiorRoot);}
  curIn=new THREE.Group();interiorRoot.add(curIn);
