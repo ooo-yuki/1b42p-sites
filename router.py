@@ -7,7 +7,7 @@ KEY = "/etc/letsencrypt/live/chaev.bratuxa.zomb.top/privkey.pem"
 # Хосты, отдаваемые из подпапки сборки (Vite dist/ как корень сайта).
 STATIC_ROOTS = {"chaev.bratuxa.zomb.top": "dist"}
 # локальные API-бэкенды: host -> порт (прокси /api/*, включая WS-апгрейд /api/ws)
-API_BACKENDS = {"miqqil.bratuxa.zomb.top": 8091}
+API_BACKENDS = {"miqqil.bratuxa.zomb.top": 8091, "evaelph.bratuxa.zomb.top": 8092}
 
 class VHostHandler(SimpleHTTPRequestHandler):
     def _ws_proxy(self):
