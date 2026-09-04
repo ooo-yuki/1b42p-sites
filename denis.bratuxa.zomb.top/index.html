@@ -1098,7 +1098,53 @@ function billboard(x,y,z){const m=new THREE.Mesh(new THREE.PlaneGeometry(15,4.5)
  const lineM=new THREE.MeshBasicMaterial({color:0xf5f5f0});
  for(const av of [-100,-50,0]){for(const s of [-5,5]){const c=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.22,200),curbM);c.position.set(av+s,0.11,0);scene.add(c);}const ln=new THREE.Mesh(new THREE.PlaneGeometry(0.5,200),lineM);ln.rotation.x=-Math.PI/2;ln.position.set(av,0.05,0);scene.add(ln);}
  for(const av of [-100,-50,0,50,100]){for(const s of [-5,5]){const c=new THREE.Mesh(new THREE.BoxGeometry(150,0.22,0.6),curbM);c.position.set(-50,0.11,av);scene.add(c);}const ln=new THREE.Mesh(new THREE.PlaneGeometry(150,0.5),lineM);ln.rotation.x=-Math.PI/2;ln.position.set(-50,0.05,av);scene.add(ln);}
- // ===== ПРИРОДА И ПЛЯЖ: густой лес, лавочки, костёр, шезлонги, зонтики, ларьки (база y=0 — liftIsland поднимет) =====
+ // ===== OCEAN DRIVE: ар-деко отели перед пляжем (фасадом к морю, +z) =====
+const _decoCols=[0x9fd8c8,0xf5c8a0,0xf0a8c0,0xf2e8d0,0xa0d8e8,0xc8b8e8];
+const _decoGlow=['#27e6ff','#ff66aa','#ffd76a','#00ffee'];
+function decoSign(txt,glow){
+ const c=document.createElement('canvas');c.width=128;c.height=256;const g=c.getContext('2d');
+ g.clearRect(0,0,128,256);g.textAlign='center';g.font='bold 60px Arial';
+ const letters=txt.split('');const step=Math.min(56,190/Math.max(1,letters.length));
+ g.shadowColor=glow;g.shadowBlur=16;g.fillStyle=glow;
+ letters.forEach((ch,i)=>{g.fillText(ch,64,44+i*step);g.fillText(ch,64,44+i*step);});
+ return new THREE.Mesh(new THREE.PlaneGeometry(3.2,6.4),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c),transparent:true,side:THREE.DoubleSide}));
+}
+(function(){
+ const spots=[-162,-138,-112,-88,-62,-38,-12,12,13,37,88];
+ const names=['HOTEL','OCEAN','PALM','SUN 42','RIO','VICE','STAR','LIDO','MOON'];
+ let ni=0;const placed=[];
+ for(const sx of spots){
+  const w=12+Math.random()*4,h=8+Math.random()*8,D=8,fz=D/2;
+  let done=false;
+  for(const dx of [0,-6,6]){if(done)break;
+   for(const zc of [118,116,120]){
+    const x=sx+dx;
+    if(rawZoneH(x,zc)>1.2)continue;
+    if(!freePt(x,zc,3)||!decorFree(x,zc,6))continue;
+    if(placed.some(p=>Math.abs(x-p.x)<(w+p.w)/2+2&&Math.abs(zc-p.z)<(D+p.D)/2+2))continue;
+    const g=new THREE.Group();g.position.set(x,0,zc);scene.add(g);
+  const wm=new THREE.MeshStandardMaterial({color:_decoCols[ni%_decoCols.length],roughness:.8});
+  function bx(w2,h2,d2,px,py,pz,mat){const m=new THREE.Mesh(new THREE.BoxGeometry(w2,h2,d2),mat||wm);m.position.set(px,py,pz);m.castShadow=true;m.receiveShadow=true;g.add(m);return m;}
+  const m=bx(w,h,D,0,h/2,0);buildings.push(m);
+  bx(w-4,3,D-2,0,h+1.5,0);
+  bx(w+0.6,0.3,0.6,0,h-0.1,fz+0.1,_shopDarkM);
+  const winM=new THREE.MeshBasicMaterial({color:0xffd9a0});
+  const floors=Math.max(2,Math.round(h/3.2));
+  for(let f=0;f<floors;f++){const band=new THREE.Mesh(new THREE.PlaneGeometry(w-3,1.1),winM);band.position.set(0,3+f*((h-1.5)/floors),fz+0.06);g.add(band);}
+  const portM=new THREE.MeshBasicMaterial({color:0x9fe8ff});
+  for(let i=0;i<3;i++){const p=new THREE.Mesh(new THREE.CylinderGeometry(0.55,0.55,0.15,14),portM);p.rotation.x=Math.PI/2;p.position.set(-w/2+2.5+i*((w-5)/2),h-2.2,fz+0.1);g.add(p);}
+  const sign=decoSign(names[ni%names.length],_decoGlow[ni%_decoGlow.length]);
+  sign.rotation.y=Math.PI/2;sign.position.set(w/2+0.15,h-3.8,fz-1);g.add(sign);
+  const gl=new THREE.Mesh(new THREE.PlaneGeometry(w-4,2.4),_shopGlassM);gl.position.set(0,1.5,fz+0.06);g.add(gl);
+  bx(2,2.8,0.3,0,1.4,fz+0.1,_shopDarkM);
+  const dg=new THREE.Mesh(new THREE.PlaneGeometry(1.4,2.2),_shopGlassM);dg.position.set(0,1.4,fz+0.28);g.add(dg);
+  solids.push({x,z:zc,hx:w/2+.6,hz:D/2+.6,mesh:m,extra:[]});
+  placed.push({x,z:zc,w,D});ni++;done=true;break;
+   }
+  }
+ }
+})();
+// ===== ПРИРОДА И ПЛЯЖ: густой лес, лавочки, костёр, шезлонги, зонтики, ларьки (база y=0 — liftIsland поднимет) =====
  function bush(x,z,s){const m=new THREE.Mesh(new THREE.IcosahedronGeometry(s,0),new THREE.MeshStandardMaterial({color:0x1d6e35,roughness:1,flatShading:true}));m.position.set(x,s*0.6,z);m.scale.y=0.7;scene.add(m);}
  function umbrella(x,z,c){const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
   const pole=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,3,6),new THREE.MeshStandardMaterial({color:0xeeeeee}));pole.position.y=1.5;g.add(pole);
