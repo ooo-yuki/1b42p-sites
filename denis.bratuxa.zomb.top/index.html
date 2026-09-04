@@ -18,6 +18,7 @@
 #minimap{position:absolute;bottom:12px;right:12px;border:2px solid gold;border-radius:8px;background:#000;width:120px;height:120px;opacity:.92}
 #mapBtn{position:absolute;bottom:140px;right:12px;background:rgba(0,0,0,.75);border:2px solid gold;color:gold;border-radius:8px;font-size:13px;font-weight:bold;padding:6px 10px;cursor:pointer;pointer-events:auto;opacity:.92;z-index:21}
 #mapBtn:hover{background:gold;color:#000}
+#maplegend{position:absolute;top:190px;left:10px;max-width:230px;background:rgba(0,0,0,.7);border:1px solid gold;border-radius:8px;padding:6px 10px;font-size:12px;line-height:1.7;text-align:left}
 #minimap.big{width:min(72vmin,440px);height:min(72vmin,440px);z-index:20;box-shadow:0 0 24px rgba(255,215,0,.5)}
 #minimap.hide{display:none}
 #hint{position:absolute;bottom:20px;left:10px;background:rgba(0,0,0,.7);padding:6px 10px;border-radius:8px;font-size:13px}
@@ -49,6 +50,7 @@ b.gold{color:gold}b.grn{color:#0f6}b.red{color:#f55}
 <canvas id="minimap" width="120" height="120"></canvas>
 <button id="mapBtn" title="карта: увеличить / скрыть (N)">🗺️ РАСШИРИТЬ</button>
 <div id="hint">Метки: H — штаб • ! — цель • 🚗 — тачка • 💀 — враги • N — карта</div>
+<div id="maplegend">🏷️ <b>МЕТКИ:</b> <b style="color:gold">H</b> штаб • <b style="color:#f0f">!</b> краска • 🥫 магазин • 🎰 казино • 🚗 тачка • ⛰ пещера • <b style="color:yellow">?</b> слухи • <b style="color:magenta">SLAY</b> финал</div>
 <div id="touch"><div id="joy"><div id="stick"></div></div><div id="btns"><button class="tbtn" id="bE">E</button><button class="tbtn" id="bF">🚗</button><button class="tbtn" id="bHit">БИТА</button><button class="tbtn" id="bRun">БЕГ</button><button class="tbtn" id="bUp">🔼</button><button class="tbtn" id="bDn">🔽</button></div></div>
 <audio id="anthem" src="anthem.mp3" loop preload="auto"></audio><div id="dialog" style="display:none"><div id="dtext"></div><button id="dnext">ДАЛЕЕ ➤</button></div>
 <div id="menu">
@@ -320,7 +322,7 @@ const sslay=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTextu
 // метки
 function marker(x,z,color,txt){const m=new THREE.Mesh(new THREE.CylinderGeometry(2,2,6,16,1,true),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.5,side:THREE.DoubleSide}));m.position.set(x,3,z);scene.add(m);
 const c=document.createElement('canvas');c.width=128;c.height=64;const g=c.getContext('2d');g.fillStyle='#fff';g.font='bold 44px Arial';g.fillText(txt,30,48);
-const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));s.scale.set(8,4,1);s.position.set(x,9,z);scene.add(s);return m;}
+const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));s.scale.set(8,4,1);s.position.set(x,9,z);scene.add(s);try{(window.markers=window.markers||[]).push(m);}catch(_){}return m;}
 let markH=marker(0,40,0xffd700,'H');
 // ===== ИГРОК: ДЕНИС-КОТ 🐱 =====
 const player=new THREE.Group();player.position.set(0,0,70);scene.add(player);
@@ -859,6 +861,27 @@ function peak(x,z,r,h){const m=new THREE.Mesh(new THREE.ConeGeometry(r,h,7),new 
 const cap=new THREE.Mesh(new THREE.ConeGeometry(r*0.42,h*0.3,7),new THREE.MeshStandardMaterial({color:0xe8eef4,roughness:.8,flatShading:true}));cap.position.set(x,h-1-h*0.15,z);scene.add(cap);
 solids.push({x,z,hx:r*0.7,hz:r*0.7,mesh:m,extra:[cap]});}
 for(const p of [[-120,-172,16,24],[-45,-174,18,28],[30,-172,15,22],[120,-168,17,26],[170,-108,14,20],[-160,-165,13,18]]){if(decorFree(p[0],p[1],p[2]+6))peak(p[0],p[1],p[2],p[3]);}
+// ===== ГОРОД 2.0: даунтаун + WINLINE-билборды + площадь SLAY (база y=0 — liftIsland поднимет) =====
+const winlineTex=(function(){const c=document.createElement('canvas');c.width=512;c.height=160;const g=c.getContext('2d');
+g.fillStyle='#cc0022';g.fillRect(0,0,512,160);g.fillStyle='#fff';g.font='bold 84px Arial';g.fillText('WINLINE',60,95);
+g.fillStyle='#ffd700';g.font='bold 34px Arial';g.fillText('СТАВКИ ★ ЗАВОЗ ★ x5',70,138);
+return new THREE.CanvasTexture(c);})();
+function billboard(x,y,z){const m=new THREE.Mesh(new THREE.PlaneGeometry(15,4.5),new THREE.MeshBasicMaterial({map:winlineTex}));m.position.set(x,y,z);scene.add(m);}
+(function(){
+ let ci=100;
+ for(let gx=-120;gx<=20;gx+=28)for(let gz=-100;gz<=100;gz+=28){
+  const x=gx+(rnd()*8-4),z=gz+(rnd()*8-4);
+  if(!freePt(x,z,6)||!decorFree(x,z,12))continue;
+  if(Math.hypot(x,z+140)<40)continue; // площадь SLAY не застраивать
+  ci++;const w=12+rnd()*6,h=20+rnd()*26;
+  tower(x,z,w,h,ci);
+  if(rnd()<0.45)billboard(x,h+2.6,z+w/2+0.4);
+ }
+ for(let z=-100;z<=100;z+=25){if(decorFree(6,z,2))lampCold(6,z);if(decorFree(-56,z,2))lampCold(-56,z);}
+ for(let x=-115;x<=15;x+=25){if(decorFree(x,6,2))lampCold(x,6);}
+ const plaza=new THREE.Mesh(new THREE.CircleGeometry(16,24),new THREE.MeshStandardMaterial({color:0x23232e,roughness:.6}));plaza.rotation.x=-Math.PI/2;plaza.position.set(0,0.04,-105);scene.add(plaza);
+ const ring=new THREE.Mesh(new THREE.RingGeometry(16,17.5,32),new THREE.MeshBasicMaterial({color:0xffd700,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.set(0,0.05,-105);scene.add(ring);
+})();
 function gamble(){
  if(MONEY<50){say(['<b>КРУПЬЕ КАЗИНО:</b> Ставка 50 монет, а у тебя '+MONEY+'. Загляни к Кизяку за фрибетом! 🎰']);try{AU.blip(200,.15,'square',.12);}catch(_){}return;}
  MONEY-=50;try{document.getElementById('money').textContent=MONEY;}catch(_){}
@@ -1046,6 +1069,7 @@ cam.userData.lookY=lookY;}
 try{head.rotation.x=-(camPitch-0.45)*0.9;}catch(_){}
 try{fadeHouses();}catch(_){}
 try{for(const c of CLOUDS){c.m.position.x+=c.sp*dt;if(c.m.position.x>380)c.m.position.x=-380;}}catch(_){}
+try{if(window.markers)for(const mk of window.markers){const _s=1+0.18*Math.sin(Date.now()*0.004+mk.position.x);mk.scale.set(_s,1,_s);}}catch(_){}
 cam.lookAt(focus.x,cam.userData.lookY||2,focus.z);
 // миникарта (S=ширина канваса: 120 малая / 360 большая, k=масштаб маркеров)
 {const S=mm.canvas.width,W2M=S/400,WX=x=>(x+200)*W2M,k=S/120;
