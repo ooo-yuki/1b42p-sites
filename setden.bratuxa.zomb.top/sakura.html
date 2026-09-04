@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Торнадо-Сакура: Сад вихрей 🌸🌪️ — Игры Сетдена</title>
+<style>
+:root{--neon:#ff4fd8;--neon2:#00ffcc;--bg:#0b0614}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:radial-gradient(1000px 500px at 20% 0%,#2b0f3a 0%,var(--bg) 60%),radial-gradient(800px 400px at 90% 100%,#0a2b33 0%,var(--bg) 60%);color:#fff;min-height:100vh;padding:12px;text-align:center}
+h1{color:var(--neon);text-shadow:0 0 12px var(--neon),0 0 30px #a0f;margin:8px 0}
+.slogan{color:var(--neon2);font-weight:bold;text-shadow:0 0 10px var(--neon2)}
+.wrap{max-width:720px;margin:0 auto}
+.stats{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:10px 0}
+.stat{background:#140a24;border:2px solid var(--neon);border-radius:12px;padding:8px 12px;min-width:110px;font-size:15px}
+.stat b{color:var(--neon2)}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px auto;max-width:520px}
+.cell{aspect-ratio:1;background:#160b2b;border:2px solid #5b2a86;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:13px;cursor:pointer;padding:4px;min-height:86px;transition:transform .1s}
+.cell.locked{opacity:.35;cursor:default;font-size:22px}
+.cell.empty{border-style:dashed}
+.cell .em{font-size:30px;line-height:1}
+.cell .nm{font-size:11px;margin-top:2px}
+.cell .lv{color:var(--neon2);font-weight:bold;font-size:12px}
+.cell.rare{border-color:#3af;box-shadow:0 0 8px #3af}
+.cell.epic{border-color:#c0f;box-shadow:0 0 10px #c0f}
+.cell.myth{border-color:gold;box-shadow:0 0 14px gold}
+button{background:linear-gradient(90deg,var(--neon),#7a5cff);border:none;color:#fff;font-weight:bold;font-size:15px;padding:10px 18px;border-radius:10px;cursor:pointer;margin:4px}
+button:disabled{opacity:.4;cursor:default}
+button.ghost{background:#1c1033;border:2px solid var(--neon2)}
+.panel{background:#140a24;border:2px solid var(--neon2);border-radius:12px;padding:10px;margin:10px auto;max-width:520px;font-size:14px}
+#pest{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;z-index:50}
+#pestBox{background:#1c0b2b;border:3px solid red;border-radius:16px;padding:20px;max-width:340px}
+#tapPest{font-size:22px;background:red}
+.petal{position:fixed;top:-30px;font-size:24px;cursor:pointer;z-index:40;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(110vh) rotate(360deg)}}
+.log{font-size:13px;color:#ffb9ec;min-height:20px}
+a{color:var(--neon2)}
+@media(max-width:480px){.cell{min-height:72px}.cell .em{font-size:24px}h1{font-size:22px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>🌸 Торнадо-Сакура: Сад вихрей 🌪️</h1>
+<div class="slogan">Вырасти сад до 242 уровня вихрей!</div>
+<p><a href="index.html">← Игры Сетдена</a> · <strong>Мы уже победили 🏆</strong></p>
+<div class="stats">
+<div class="stat">🪙 <b id="coins">0</b><br><small>монеты</small></div>
+<div class="stat">🌸 <b id="petals">0</b><br><small>лепестки</small></div>
+<div class="stat">🌱 <b id="sprouts">0</b><br><small>ростки</small></div>
+<div class="stat">🌪️ <b id="glvl">0</b><br><small>уровень сада</small></div>
+<div class="stat">⏱️ <b id="cps">0</b>/с<br><small>доход</small></div>
+</div>
+<div class="panel">Посадка: <b id="plantCost">25</b> 🪙 · Тап = +1 уровень (цена ×1.42) · Сбор: тап даёт +лепестки · Ячеек: <b id="unlocked">6</b>/16 (+1 каждые 10 ур.)</div>
+<div class="grid" id="grid"></div>
+<div>
+<button id="plantBtn" onclick="plant()">🌱 Посадить цветок</button>
+<button class="ghost" onclick="buyRare()">✨ Редкое семя (10 🌱)</button>
+<button class="ghost" onclick="buyLoot()">🎁 Семена 242 (242 🌸)</button>
+</div>
+<div class="panel" id="boosts">Бустеры: нет</div>
+<div class="log" id="log">Тапай по цветку, чтобы растить! 🌸</div>
+<div class="panel"><small>🌸 лепестки: пассив + сбор тапом (+1/уровень) · 🌱 ростки: 10% дроп с тапа · 🐛 вредители каждые 5 ур. сада · 🎁 события на 42/100/180 · оффлайн-доход копится, пока тебя нет</small></div>
+<button class="ghost" onclick="reset()">🗑 Сбросить сад</button>
+</div>
+<div id="pest"><div id="pestBox"><h2 id="pestName">🐛 Вредитель!</h2><p id="pestTxt"></p><p>Тапов: <b id="pestTaps">0</b>/10 · Осталось: <b id="pestTime">10</b>с</p><button id="tapPest" onclick="hitPest()">БИТЬ! 👊</button></div></div>
+<script>
+const KEY='sakura242_v1';
+const FLAVORS=['Шторм','Сакура','Вихрь','Манго','Личи','Юдзу','Матча','Кибер','Неон','Гроза','Тайфун','Дракон','Кола','42 микс'];
+const RARS=[{n:'обычный',m:1,c:''},{n:'необычный',m:2,c:'rare'},{n:'редкий',m:4,c:'epic'},{n:'мифический',m:10,c:'myth'}];
+const PESTS=['Энергетик Говорила','Флешка','Литр Эндж','Боярин','Доброта','Взлетай','УкусМеня','Бурмолда','Адреногон','Рашф','РэдДэб'];
+const EMOJI={0:'🌷',1:'🌸',2:'🌺',3:'🌻'};
+let S;
+function def(){return{coins:50,petals:0,sprouts:0,cells:Array(16).fill(null),forceRare:false,boostUntil:0,incBoostUntil:0,incBoostM:1,lastSeen:Date.now(),ev42:false,ev100:false,ev180:false,nextPestAt:5};}
+function load(){try{S=JSON.parse(localStorage.getItem(KEY))||def();}catch(e){S=def();}
+  // оффлайн-доход
+  const now=Date.now(),dt=Math.min((now-(S.lastSeen||now))/1000,8*3600);
+  if(dt>30){const g=offlineGain(dt);if(g>0){S.coins+=Math.floor(g);setTimeout(()=>say('🌙 Оффлайн-доход: +'+Math.floor(g)+' 🪙 за '+fmtT(dt)),500);}}
+  S.lastSeen=now;save();}
+function save(){S.lastSeen=Date.now();try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+function gardenLvl(){return S.cells.reduce((a,c)=>a+(c?c.lvl:0),0);}
+function unlocked(){return Math.min(16,6+Math.floor(gardenLvl()/10));}
+function rarOf(c){return RARS[c.rar];}
+function flowerInc(c){return 2*c.lvl*rarOf(c).m*(Date.now()<S.incBoostUntil?S.incBoostM:1)*(Date.now()<S.boostUntil?2:1);}
+function cps(){return S.cells.reduce((a,c)=>a+(c?flowerInc(c):0),0);}
+function offlineGain(dt){return S.cells.reduce((a,c)=>a+(c?2*c.lvl*rarOf(c).m:0),0)*dt;}
+function plantCost(){const n=S.cells.filter(Boolean).length;return Math.floor(25*Math.pow(1.42,n));}
+function tapCost(c){return Math.floor(10*Math.pow(1.42,c.lvl));}
+function say(t){document.getElementById('log').textContent=t;}
+function fmtT(s){s=Math.floor(s);if(s<60)return s+'с';if(s<3600)return Math.floor(s/60)+' мин';return (s/3600).toFixed(1)+' ч';}
+function rollRar(){if(S.forceRare){S.forceRare=false;const r=Math.random();return r<0.75?2:3;}const r=Math.random();return r<0.5?0:r<0.8?1:r<0.95?2:3;}
+function plant(){const cost=plantCost();const un=unlocked();
+  const idx=S.cells.findIndex((c,i)=>i<un&&!c);
+  if(idx<0){say('🔒 Нет свободных ячеек! Расти сад — +1 ячейка каждые 10 ур.');return;}
+  if(S.coins<cost){say('💸 Не хватает монет для посадки ('+cost+' 🪙)');return;}
+  S.coins-=cost;const rar=rollRar();
+  S.cells[idx]={name:FLAVORS[Math.floor(Math.random()*FLAVORS.length)],rar:rar,lvl:1,base:2};
+  say('🌱 Посажен «'+S.cells[idx].name+'» · '+RARS[rar].n+'! Тапай, чтобы растить 👆');afterChange();render();}
+function tap(i){const c=S.cells[i];if(!c)return;const cost=tapCost(c);
+  if(c.lvl>=10){S.petals+=c.lvl;say('🌸 Сбор с «'+c.name+'»: +'+c.lvl+' лепестков! (MAX ур.)');afterChange();render();return;}
+  if(S.coins<cost){say('💸 Тап стоит '+cost+' 🪙 — копи доход!');return;}
+  S.coins-=cost;c.lvl++;S.petals+=c.lvl;
+  if(Math.random()<0.10){S.sprouts++;say('🌱 «'+c.name+'» → '+c.lvl+' ур! +'+c.lvl+' 🌸 и +1 🌱 росток!');}
+  else say('👆 «'+c.name+'» → '+c.lvl+' ур! +'+c.lvl+' 🌸');
+  afterChange();render();}
+function buyRare(){if(S.sprouts<10){say('🌱 Нужно 10 ростков для редкого семени!');return;}S.sprouts-=10;S.forceRare=true;say('✨ Редкое семя готово! Следующая посадка — редкий+ 🌺');save();render();}
+function buyLoot(){if(S.petals<242){say('🌸 Нужно 242 лепестка для «Семян 242»!');return;}S.petals-=242;const r=Math.random()*100;
+  if(r<30){S.boostUntil=Date.now()+30000;say('🎁 Лутбокс: БУСТЕР роста ×2 на 30 сек! ⚡');}
+  else if(r<55){const m=50+Math.floor(Math.random()*101);S.coins+=m;say('🎁 Лутбокс: +'+m+' 🪙 монет!');}
+  else if(r<75){const g=5+Math.floor(Math.random()*11);S.sprouts+=g;say('🎁 Лутбокс: +'+g+' 🌱 ростков!');}
+  else if(r<90){const f=S.cells.filter(Boolean);if(f.length){const c=f[Math.floor(Math.random()*f.length)];if(c.lvl<10)c.lvl++;say('🎁 Лутбокс: «'+c.name+'» +1 уровень! 🌸');}else say('🎁 Лутбокс пуст — сначала посади цветок! 🌱');}
+  else{S.forceRare=true;say('🎁 ДЖЕКПОТ: редкое семя! Следующая посадка — редкий+ ✨');}
+  save();render();}
+// --- события сада ---
+function afterChange(){const g=gardenLvl();
+  [[42,'ev42'],[100,'ev100'],[180,'ev180']].forEach(([lv,k])=>{if(g>=lv&&!S[k]){S[k]=true;S.boostUntil=Date.now()+30000;petalRain();say('🎉 СОБЫТИЕ '+lv+' ур! Дождь лепестков + рост ×2 на 30с! 🌸');}});
+  if(g>=S.nextPestAt)spawnPest();
+  save();}
+function petalRain(){for(let i=0;i<24;i++){const d=document.createElement('div');d.className='petal';d.textContent='🌸';d.style.left=Math.random()*95+'vw';d.style.animationDuration=(2+Math.random()*3)+'s';d.onclick=()=>{S.petals+=5;say('🌸 +5 лепестков! Всего: '+Math.floor(S.petals));save();render();d.remove();};document.body.appendChild(d);setTimeout(()=>d.remove(),6000);}}
+// --- вредители ---
+let pest={on:false,taps:0,timer:null,left:10};
+function spawnPest(){const g=gardenLvl();S.nextPestAt=g+5-(g%5)+5;if(S.nextPestAt<=g)S.nextPestAt=g+5;
+  pest={on:true,taps:0,left:10,timer:null};
+  const name=PESTS[Math.floor(Math.random()*PESTS.length)];
+  document.getElementById('pestName').textContent='🐛 '+name+' атакует!';
+  document.getElementById('pestTxt').textContent='Тапай 10 раз за 10 секунд, иначе цветок потеряет уровень!';
+  document.getElementById('pestTaps').textContent='0';document.getElementById('pestTime').textContent='10';
+  document.getElementById('pest').style.display='flex';
+  pest.timer=setInterval(()=>{pest.left--;document.getElementById('pestTime').textContent=pest.left;
+    if(pest.left<=0){clearInterval(pest.timer);failPest();}},1000);}
+function hitPest(){if(!pest.on)return;pest.taps++;document.getElementById('pestTaps').textContent=pest.taps;
+  if(pest.taps>=10){clearInterval(pest.timer);winPest();}}
+function failPest(){pest.on=false;document.getElementById('pest').style.display='none';
+  const alive=S.cells.map((c,i)=>c?i:-1).filter(i=>i>=0);
+  if(alive.length){const i=alive[Math.floor(Math.random()*alive.length)];const c=S.cells[i];
+    if(c.lvl>1){c.lvl--;say('🐛 Вредитель победил! «'+c.name+'» −1 уровень 😭');}else{S.cells[i]=null;say('🐛 Вредитель сожрал «'+c.name+'» целиком! Посади новый 🌱');}}
+  save();render();}
+function winPest(){pest.on=false;document.getElementById('pest').style.display='none';
+  if(Math.random()<0.5){S.incBoostUntil=Date.now()+60000;S.incBoostM=1.5;say('🏆 Вредитель повержен! Доход ×1.5 на 1 мин! ⚡');}
+  else{S.sprouts+=5;say('🏆 Вредитель повержен! +5 🌱 ростков!');}
+  save();render();}
+function reset(){if(confirm('Сбросить сад?')){S=def();save();render();say('🌱 Новый сад! Мы уже победили 🏆');}}
+function render(){document.getElementById('coins').textContent=Math.floor(S.coins);
+  document.getElementById('petals').textContent=Math.floor(S.petals);
+  document.getElementById('sprouts').textContent=S.sprouts;
+  const g=gardenLvl(),un=unlocked();
+  document.getElementById('glvl').textContent=g;
+  document.getElementById('cps').textContent=cps().toFixed(1);
+  document.getElementById('plantCost').textContent=plantCost();
+  document.getElementById('unlocked').textContent=un;
+  let b=[];if(Date.now()<S.boostUntil)b.push('рост ×2 ⏳');if(Date.now()<S.incBoostUntil)b.push('доход ×'+S.incBoostM+' ⏳');if(S.forceRare)b.push('редкое семя ✨');
+  document.getElementById('boosts').textContent='Бустеры: '+(b.length?b.join(' · '):'нет');
+  const gr=document.getElementById('grid');gr.innerHTML='';
+  for(let i=0;i<16;i++){const d=document.createElement('div');
+    if(i>=un){d.className='cell locked';d.textContent='🔒';}
+    else{const c=S.cells[i];
+      if(!c){d.className='cell empty';d.innerHTML='➕<div class="nm">посадить<br>'+plantCost()+' 🪙</div>';d.onclick=plant;}
+      else{d.className='cell '+rarOf(c).c;d.innerHTML='<div class="em">'+EMOJI[c.rar]+'</div><div class="nm">'+c.name+'<br><small>'+rarOf(c).n+'</small></div><div class="lv">ур.'+c.lvl+' · тап '+tapCost(c)+' 🪙</div>';d.onclick=(()=>tap(i));}
+    }gr.appendChild(d);}}
+load();render();
+setInterval(()=>{const inc=cps();S.coins+=inc;S.petals+=gardenLvl()*0.02;S.lastSeen=Date.now();
+  if(inc>0||gardenLvl()>0){document.getElementById('coins').textContent=Math.floor(S.coins);document.getElementById('petals').textContent=Math.floor(S.petals);document.getElementById('cps').textContent=cps().toFixed(1);document.getElementById('glvl').textContent=gardenLvl();}
+  save();},1000);
+</script>
+</body>
+</html>
