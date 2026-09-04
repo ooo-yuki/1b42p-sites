@@ -6,6 +6,7 @@ import {
   tickZapoi, applyHangover, checkSyns,
   CHARACTERS, isUnlocked, isAllBought, BOTTLE_COST, buyBottle, newRun, bet,
   artCost, charDiscount, effMult, cleanseDemon,
+  pickleSmall, demonPickle, holyPickle, syringe, HEALS,
 } from '../src/game/zapoiLogic.js';
 import { SYNS, hangoverRate } from '../src/game/synergies.js';
 
@@ -336,5 +337,63 @@ describe('очищение демона', () => {
     z.demonForm = 5;
     expect(cleanseDemon(z)).toBeNull();
     expect(z.demonForm).toBe(5);
+  });
+});
+
+describe('хилки-пикули 42', () => {
+  it('HEALS: 5 предметов с картинками и хозяевами', () => {
+    expect(Object.keys(HEALS)).toHaveLength(5);
+    expect(HEALS.pickle.chars).toEqual(['vladimir', 'winline']);
+    expect(HEALS.syringe.chars).toEqual(['vladimir', 'winline']);
+    expect(HEALS.lever.chars).toEqual(['winline']);
+    expect(HEALS.hpickle.chars).toEqual(['ghost']);
+    expect(HEALS.dpickle.chars).toEqual(['demon']);
+  });
+  it('обычные пикули: только Владимир и Винлайн', () => {
+    const v = createZapoiState(); v.char = 'vladimir'; v.m = 1000; v.hp = 50;
+    const r = pickleSmall(v);
+    expect(r).not.toBeNull(); expect(v.hp).toBeGreaterThan(50);
+    const g = createZapoiState(); g.char = 'ghost'; g.m = 1000;
+    expect(pickleSmall(g)).toBeNull();
+    const d = createZapoiState(); d.char = 'demon'; d.m = 1000; d.hp = 50;
+    expect(pickleSmall(d)).toBeNull();
+  });
+  it('демонические пикули: хил + продление формы на 10 сек', () => {
+    const z = createZapoiState(); z.char = 'demon'; z.m = 5000; z.hp = 50; z.demonForm = 8;
+    const r = demonPickle(z);
+    expect(r).not.toBeNull(); expect(r.extended).toBe(true);
+    expect(z.demonForm).toBe(18); expect(z.hp).toBeGreaterThan(50);
+  });
+  it('демонические пикули вне формы: хил без продления', () => {
+    const z = createZapoiState(); z.char = 'demon'; z.m = 5000; z.hp = 50; z.demonForm = 0;
+    const r = demonPickle(z);
+    expect(r).not.toBeNull(); expect(r.extended).toBe(false);
+  });
+  it('святые пикули: лечат душу с капом 100, чужим недоступны', () => {
+    const z = createZapoiState(); z.char = 'ghost'; z.m = 5000; z.soul = 60;
+    const before = z.soul;
+    const r = holyPickle(z);
+    expect(r).not.toBeNull(); expect(z.soul).toBeGreaterThan(before);
+    expect(z.soul).toBeLessThanOrEqual(100);
+    const v = createZapoiState(); v.char = 'vladimir'; v.m = 5000;
+    expect(holyPickle(v)).toBeNull();
+  });
+  it('святые пикули при полной душе не тратят бухло', () => {
+    const z = createZapoiState(); z.char = 'ghost'; z.m = 5000; z.soul = 100;
+    expect(holyPickle(z)).toBeNull(); expect(z.m).toBe(5000);
+  });
+  it('скидка призрака: deals × 0.2%, кап 20%', () => {
+    const z = createZapoiState(); z.char = 'ghost'; z.deals = 10;
+    expect(charDiscount(z)).toBeCloseTo(0.02);
+    z.deals = 5000; expect(charDiscount(z)).toBe(0.2);
+  });
+  it('шприц: полное HP, только Владимир и Винлайн', () => {
+    const z = createZapoiState(); z.char = 'vladimir'; z.m = 50000; z.hp = 10; z.maxhp = 100;
+    const r = syringe(z);
+    expect(r).not.toBeNull(); expect(z.hp).toBe(100); expect(r.v).toBe(90);
+    const g = createZapoiState(); g.char = 'ghost'; g.m = 50000;
+    expect(syringe(g)).toBeNull();
+    const d = createZapoiState(); d.char = 'demon'; d.m = 50000; d.hp = 10;
+    expect(syringe(d)).toBeNull();
   });
 });

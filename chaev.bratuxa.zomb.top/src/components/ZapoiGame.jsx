@@ -6,6 +6,7 @@ import {
   checkSyns, synReady, hangoverRate, fmtZ,
   CHARACTERS, isUnlocked, isAllBought, BOTTLE_COST, buyBottle, newRun, bet,
   artCost, charDiscount, effMult, cleanseDemon,
+  pickleSmall, demonPickle, holyPickle, syringe,
 } from '../game/zapoiLogic.js';
 import { blip } from './DinoGame.jsx';
 
@@ -188,6 +189,9 @@ export default function ZapoiGame() {
       {z.char === 'vladimir' && charDiscount(z) > 0 && (
         <p className="hint">🧔 Солидность: клик +{(z.sips * 0.02).toFixed(1)}, скидки −{(charDiscount(z) * 100).toFixed(0)}%</p>
       )}
+      {z.char === 'ghost' && charDiscount(z) > 0 && (
+        <p className="hint">✨ Святость: скидки −{(charDiscount(z) * 100).toFixed(1)}%</p>
+      )}
       <p className="hint">урон/глоток {dmgPerSip(z).toFixed(1)} HP • реген {z.regen.toFixed(1)}/с • toxic×{z.toxic.toFixed(2)} • mult×{z.mult.toFixed(2)}</p>
       <div style={{ margin: '10px 0' }}>
         <img src={charDef.drink} alt="Пойло персонажа" style={{ width: 120, borderRadius: 12, border: '2px solid gold', verticalAlign: 'middle' }} />
@@ -214,21 +218,51 @@ export default function ZapoiGame() {
           const r = bet(n);
           if (!r) return '';
           return r.win ? `🎰 Ставка зашла! +${r.stake} бухла чистыми!` : `🎰 Ставка сгорела… −${r.stake} бухла. Рискуй ещё!`;
-        }, 650)} style={{ fontSize: 15 }}>🎲 СТАВКА: 10% бухла, 45% — возврат ×2</button>
-      )}
-      <button onClick={() => mutate((n) => {
-        const r = healSmall(n);
-        return r ? `🥒 Рассол: +${r.v} HP за ${r.c} бухла` : '';
-      }, 500)} style={{ fontSize: 15 }}>🥒 РАССОЛ: +{heal1val(z)} HP за {heal1cost(z)} бухла</button>{' '}
-      <button onClick={() => mutate((n) => {
-        if (n.char === 'demon') {
+        }, 650)} style={{ fontSize: 15 }}>
+          <img src="heals/lever.jpg" alt="" style={{ height: 30, verticalAlign: 'middle', borderRadius: 8, marginRight: 8 }} />
+          РУЧКА: 10% бухла, 45% — возврат ×2</button>
+      )}{' '}
+      {(z.char === 'vladimir' || z.char === 'winline') && (
+        <button onClick={() => mutate((n) => {
+          const r = pickleSmall(n);
+          return r ? `🥒 Пикули: +${r.v} HP за ${r.c} бухла` : '';
+        }, 500)} style={{ fontSize: 15 }}>
+          <img src="heals/pickle.jpg" alt="" style={{ height: 30, verticalAlign: 'middle', borderRadius: 8, marginRight: 8 }} />
+          ПИКУЛИ: +{heal1val(z)} HP за {heal1cost(z)} бухла</button>
+      )}{' '}
+      {z.char === 'demon' && (
+        <button onClick={() => mutate((n) => {
+          const r = demonPickle(n);
+          if (!r) return '';
+          return `🔥 Демонические пикули: +${r.v} HP за ${r.c} бухла${r.extended ? ', форма +10 сек!' : ''}`;
+        }, 500)} style={{ fontSize: 15 }}>
+          <img src="heals/dpickle.jpg" alt="" style={{ height: 30, verticalAlign: 'middle', borderRadius: 8, marginRight: 8 }} />
+          ДЕМОНИЧЕСКИЕ ПИКУЛИ: +{heal1val(z)} HP за {heal1cost(z)} бухла</button>
+      )}{' '}
+      {z.char === 'ghost' && (
+        <button onClick={() => mutate((n) => {
+          const r = holyPickle(n);
+          if (!r) return '';
+          return `✨ Святые пикули: +${r.v} души за ${r.c} бухла${r.deal ? ', скидка −0.2% навсегда!' : ''}`;
+        }, 500)} style={{ fontSize: 15 }}>
+          <img src="heals/hpickle.jpg" alt="" style={{ height: 30, verticalAlign: 'middle', borderRadius: 8, marginRight: 8 }} />
+          СВЯТЫЕ ПИКУЛИ: +{heal1val(z)} души за {heal1cost(z)} бухла</button>
+      )}{' '}
+      {(z.char === 'vladimir' || z.char === 'winline') && (
+        <button onClick={() => mutate((n) => {
+          const r = syringe(n);
+          return r ? `💉 Шприц: полное HP за ${r.c} бухла` : '';
+        }, 700)} style={{ fontSize: 15 }}>
+          <img src="heals/syringe.jpg" alt="" style={{ height: 30, verticalAlign: 'middle', borderRadius: 8, marginRight: 8 }} />
+          ШПРИЦ: полное HP за {heal2cost(z)} бухла</button>
+      )}{' '}
+      {z.char === 'demon' && (
+        <button onClick={() => mutate((n) => {
           const r = cleanseDemon(n);
           if (!r) return '';
           return r.cleansed ? `😇 Очищение! Форма снята за ${r.c} бухла, HP 30%. Живи!` : `💉 Капельница: +${r.v} HP за ${r.c} бухла`;
-        }
-        const r = healBig(n);
-        return r ? `💉 Капельница: +${r.v} HP за ${r.c} бухла` : '';
-      }, 700)} style={{ fontSize: 15 }}>{z.char === 'demon' ? `😇 ОЧИЩЕНИЕ: снять форму за ${heal2cost(z)} бухла` : `💉 КАПЕЛЬНИЦА: +${heal2val(z)} HP за ${heal2cost(z)} бухла`}</button>
+        }, 700)} style={{ fontSize: 15 }}>😇 ОЧИЩЕНИЕ: снять форму за {heal2cost(z)} бухла</button>
+      )}
       <div className="zlog">{log}</div>
       <h3 style={{ color: 'gold' }}>🏺 Артефакты по качествам ({ownedArts}/{ARTS.length})</h3>
       <div>
