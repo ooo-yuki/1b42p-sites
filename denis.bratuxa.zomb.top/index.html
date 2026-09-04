@@ -781,10 +781,7 @@ function dispatchKey(code){addEventListener('keydown',{},{once:true});const ev=n
 // ===== АТМОСФЕРНЫЙ САУНД — VICE CITY 42 =====
 // Всё процедурное на WebAudio, без внешних файлов. Старт после клика (autoplay-policy).
 const AU={ctx:null,muted:false,station:0,stations:[
- {name:'VICE 42 FM 📼 синтвейв',bpm:102,bass:[45,41,48,43],pad:[57,60,64,67],leadScale:[57,60,62,64,67,69,72],wave:'sawtooth'},
- {name:'SLAY FUNK 🕺 фанк',bpm:94,bass:[38,38,41,43,45,43],pad:[50,53,57,60],leadScale:[50,53,55,57,60,62,65],wave:'square'},
- {name:'TORNADO LO-FI 🌴 ночь',bpm:76,bass:[43,40,36,38],pad:[55,59,62,66],leadScale:[55,59,60,62,66,67,71],wave:'triangle'},
- {name:'ГИМН БАТАЛЬОНА 🌃 найт-сити',anthem:true,bpm:90,bass:[45,43,41,40],pad:[57,60,64],leadScale:[57,60,62,64,67],wave:'sawtooth'}],
+ {name:'ТРЕК 42 🎵',anthem:true}],
  step:0,nextT:0,timer:null,eng:null,engGain:null,engFilter:null};
 AU.init=function(){
  if(AU.ctx)return;
@@ -900,7 +897,7 @@ AU.playAnthem=function(){
  const el=document.getElementById('anthem');if(!el)return;
  try{el.muted=false;if(AU.muted)el.muted=true;}catch(_){}
  try{el.volume=1;}catch(_){}
- try{el.playbackRate=.94;}catch(_){} // найт-сити: темнее и медленнее
+ try{el.playbackRate=1;}catch(_){} // твой трек — родная скорость
  const pr=el.play();
  const popT=document.getElementById('radiopop-t');
  if(pr&&pr.then){
