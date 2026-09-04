@@ -1273,7 +1273,7 @@ const focus=inCar?car.position:player.position;
 if(keys['ArrowLeft'])camAng-=2.2*dt;if(keys['ArrowRight'])camAng+=2.2*dt;
 if(keys['ArrowUp'])camPitch=clampPitch(camPitch-1.4*dt);if(keys['ArrowDown'])camPitch=clampPitch(camPitch+1.4*dt);
 {const cp=Math.cos(camPitch),sp=Math.sin(camPitch);
-const _gy=focus.position.y; // камера едет за плавной высотой игрока/тачки
+const _gy=focus.y; // камера едет за плавной высотой игрока/тачки (focus уже position)
 const camY=Math.max(_gy+1.2,_gy+2+sp*camDist),lookY=_gy+2-sp*camDist*0.55;
 cam.position.set(focus.x+Math.sin(camAng)*camDist*cp,camY,focus.z+Math.cos(camAng)*camDist*cp);
 cam.userData.lookY=lookY;}
