@@ -3,62 +3,143 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Саша ⁴² — 42</title>
+<title>Саша ⁴²</title>
 <!-- 42 -->
 <style>
-html,body{margin:0;height:100%;overflow:hidden;background:#0a0a18;font-family:system-ui,sans-serif}
-#sky{position:fixed;inset:0;background:linear-gradient(135deg,#7a0e0e 0%,#0a0a18 45%,#0a0a18 55%,#0e2a7a 100%)}
-canvas{position:fixed;inset:0}
-#hero{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;text-align:center}
-#hero h1{font-size:min(18vw,140px);margin:0;color:#fff;text-shadow:0 0 30px #ff2a2a,0 0 60px #2a5bff}
-#hero h1 .r{color:#ff4d4d}#hero h1 .b{color:#4d7bff}
-#hero p{color:#cfd6ff;font-size:min(5vw,22px);text-shadow:0 2px 8px #000}
-#hint{position:fixed;bottom:12px;width:100%;text-align:center;color:#8a93c9;font-size:14px;pointer-events:none}
-#secret{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:rgba(5,5,20,.92);z-index:10;color:#ffd23f;text-align:center}
-#secret .big{font-size:min(30vw,220px)}
+:root{
+ --ink:#070b18; --paper:#e8edff; --dim:#8a93c9;
+ --red:#ff3b3b; --blue:#3b82ff; --gold:#ffd23f;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--ink);color:var(--paper);
+ font-family:"Segoe UI",system-ui,-apple-system,sans-serif}
+#sky{position:fixed;inset:0;
+ background:radial-gradient(120% 90% at 15% 10%,rgba(255,59,59,.16),transparent 55%),
+ radial-gradient(120% 90% at 85% 90%,rgba(59,130,255,.18),transparent 55%),
+ linear-gradient(135deg,#120607 0%,var(--ink) 45%,var(--ink) 55%,#060d1e 100%)}
+#cv{position:fixed;inset:0}
+#veil{position:fixed;inset:0;background:radial-gradient(80% 60% at 50% 45%,transparent 40%,rgba(4,6,14,.75) 100%);pointer-events:none}
+main{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+ text-align:center;padding:24px;pointer-events:none}
+.kicker{letter-spacing:.35em;font-size:13px;color:var(--dim);text-transform:uppercase}
+.kicker b{color:var(--gold);font-weight:700}
+h1.mega{margin:.1em 0 0;font-weight:900;line-height:.85;font-size:min(34vw,240px);display:flex;gap:.02em}
+h1.mega span{display:inline-block;
+ -webkit-text-stroke:2px currentColor;color:transparent;position:relative}
+h1.mega span.fill{color:currentColor;-webkit-text-stroke:0}
+h1.mega .r{color:var(--red);text-shadow:0 0 34px rgba(255,59,59,.55)}
+h1.mega .b{color:var(--blue);text-shadow:0 0 34px rgba(59,130,255,.55)}
+.sub{margin:14px 0 0;max-width:60ch;color:#c6cdf2;font-size:min(4.6vw,19px);line-height:1.55}
+.sub b{color:#fff}
+#score{margin-top:22px;pointer-events:auto;cursor:pointer;user-select:none;
+ border:1px solid rgba(232,237,255,.22);border-radius:999px;padding:10px 26px;
+ background:rgba(10,14,30,.55);backdrop-filter:blur(6px);
+ font-variant-numeric:tabular-nums;font-size:17px;letter-spacing:.06em}
+#score b{color:var(--gold);font-size:20px}
+#hint{position:fixed;bottom:14px;width:100%;text-align:center;color:var(--dim);font-size:13px;pointer-events:none}
+#secret{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;
+ background:rgba(4,6,14,.94);z-index:10;color:var(--gold);text-align:center;padding:24px}
+#secret .big{font-size:min(30vw,200px);line-height:1}
+#secret h2{color:#fff;margin:.4em 0 .2em}
+#ring{position:fixed;border:2px solid var(--gold);border-radius:50%;pointer-events:none;z-index:6;
+ width:14px;height:14px;margin:-7px 0 0 -7px;opacity:0}
+:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+@media (prefers-reduced-motion:reduce){#cv{display:none}}
 </style>
 </head>
 <body>
 <div id="sky"></div>
 <canvas id="cv"></canvas>
-<div id="hero"><h1><span class="r">4</span><span class="b">2</span></h1><p>страница Саши ⁴² · стройка началась 🏗️<br>тыкай — вылетают цифры · набери 42 — будет секрет</p></div>
+<div id="veil"></div>
+<main>
+ <div class="kicker" id="kicker">личная страница · <b>Саша ⁴²</b></div>
+ <h1 class="mega" id="mega"><span class="r">4</span><span class="b">2</span></h1>
+ <p class="sub" id="sub">Красно-синяя территория батальона. <b>Тыкай куда угодно</b> — цифры разлетаются,
+ а счётчик копит очки. Доберись до <b>1764</b> — откроется секрет.</p>
+ <div id="score" role="button" tabindex="0" title="Тыкай по экрану">счёт · <b id="scoreNum">0</b></div>
+</main>
+<div id="ring"></div>
 <div id="hint">а ещё 42 спрятаны… ищи 👀</div>
-<div id="secret"><div class="big">4️⃣2️⃣</div><h2>ТЫ НАШЁЛ ВСЕ 42, САША!</h2><p>Мы уже победили 🏆</p></div>
+<div id="secret"><div class="big">4️⃣2️⃣</div><h2>Ты нашёл все 42, Саша!</h2><p>Мы уже победили 🏆</p></div>
 <!-- тут тоже 42 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script>
-/* Саша ⁴² · летящие цифры · v1 */
+/* Саша ⁴² · v2: GSAP-хореография + канвас-дождь */
 var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),P=[],score=0;
+var reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
 function fit(){cv.width=innerWidth;cv.height=innerHeight;}fit();addEventListener('resize',fit);
 function spawn(x,y,big){
- P.push({x:x==null?Math.random()*cv.width:x,y:y==null?-40:y,
-  vx:(Math.random()-0.5)*1.6,vy:1+Math.random()*2.2,
-  s:big?46+Math.random()*40:14+Math.random()*26,
-  r:Math.random()<0.5,ph:Math.random()*6.28});
+ P.push({x:x==null?Math.random()*cv.width:x,y:y==null?-50:y,
+  vx:(Math.random()-0.5)*1.4,vy:0.8+Math.random()*2,
+  s:big?44+Math.random()*38:13+Math.random()*24,
+  r:Math.random()<0.5,ph:Math.random()*6.28,deep:Math.random()<0.4});
 }
-for(var i=0;i<42;i++)spawn(Math.random()*innerWidth,Math.random()*innerHeight);
-setInterval(function(){if(P.length<142)spawn();},400);
-function burst(x,y){for(var i=0;i<42;i++)spawn(x,y);score+=42;
- if(score>=42*42){document.getElementById('secret').style.display='flex';}}
-document.getElementById('secret').onclick=function(){this.style.display='none';score=0;};
-addEventListener('pointerdown',function(e){burst(e.clientX,e.clientY);});
+var RAIN_N=reduced?0:42;
+for(var i=0;i<RAIN_N;i++)spawn(Math.random()*innerWidth,Math.random()*innerHeight);
+if(!reduced)setInterval(function(){if(P.length<140)spawn();},450);
+var scoreNum=document.getElementById('scoreNum');
+function ring(x,y){
+ if(reduced||!window.gsap)return;
+ var r=document.getElementById('ring');
+ gsap.killTweensOf(r);
+ gsap.set(r,{x:x,y:y,scale:1,autoAlpha:1});
+ gsap.to(r,{scale:9,autoAlpha:0,duration:.7,ease:'power2.out'});
+}
+function burst(x,y){
+ if(reduced)return;
+ for(var i=0;i<24;i++)spawn(x,y);
+ score+=42;scoreNum.textContent=score;
+ if(window.gsap)gsap.fromTo('#score',{scale:1},{scale:1.12,duration:.12,yoyo:true,repeat:1,ease:'power2.out'});
+ ring(x,y);
+ if(score>=42*42)showSecret();
+}
+function showSecret(){
+ var s=document.getElementById('secret');s.style.display='flex';
+ if(window.gsap){
+  gsap.fromTo('#secret .big',{scale:.4,rotation:-12,autoAlpha:0},{scale:1,rotation:0,autoAlpha:1,duration:.8,ease:'back.out(1.6)'});
+  gsap.fromTo('#secret h2',{y:26,autoAlpha:0},{y:0,autoAlpha:1,duration:.5,delay:.25,ease:'power2.out'});
+ }
+}
+document.getElementById('secret').onclick=function(){this.style.display='none';score=0;scoreNum.textContent='0';};
+document.getElementById('score').onclick=function(e){e.stopPropagation();};
+addEventListener('pointerdown',function(e){
+ if(e.target.closest&&e.target.closest('#secret'))return;
+ burst(e.clientX,e.clientY);
+});
 /* скрытая 42: жми 4 потом 2 */
 var seq='';
 addEventListener('keydown',function(e){
  seq=(seq+e.key).slice(-2);
- if(seq==='42')document.getElementById('secret').style.display='flex';
+ if(seq==='42')showSecret();
+ if((e.key==='Enter'||e.key===' ')&&e.target.id==='score')burst(innerWidth/2,innerHeight/2);
 });
+/* входная хореография */
+if(window.gsap&&!reduced){
+ gsap.from('#kicker',{y:-18,autoAlpha:0,duration:.7,ease:'power2.out'});
+ gsap.from('#mega span',{y:90,autoAlpha:0,rotation:function(){return Math.random()*30-15;},duration:1,stagger:.14,ease:'back.out(1.5)',delay:.15});
+ gsap.from('#sub',{y:24,autoAlpha:0,duration:.7,delay:.7,ease:'power2.out'});
+ gsap.from('#score',{y:24,autoAlpha:0,duration:.6,delay:.9,ease:'back.out(1.7)'});
+ gsap.from('#hint',{autoAlpha:0,duration:1,delay:1.2});
+}else{
+ var m=document.getElementById('mega');
+ m.children[0].classList.add('fill');m.children[1].classList.add('fill');
+}
+/* дождь */
 (function loop(){
  ctx.clearRect(0,0,cv.width,cv.height);
- var t=Date.now()/1000;
- for(var i=P.length-1;i>=0;i--){var p=P[i];
-  p.x+=p.vx+Math.sin(t*2+p.ph)*0.6;p.y+=p.vy;
-  if(p.y>cv.height+60){P.splice(i,1);continue;}
-  ctx.font='bold '+p.s+'px system-ui';ctx.textAlign='center';
-  ctx.fillStyle=p.r?'rgba(255,70,70,.85)':'rgba(90,140,255,.85)';
-  ctx.shadowColor=p.r?'#ff2a2a':'#2a5bff';ctx.shadowBlur=14;
-  ctx.fillText('42',p.x,p.y);
+ if(!reduced){
+  var t=Date.now()/1000;
+  for(var i=P.length-1;i>=0;i--){var p=P[i];
+   p.x+=p.vx+Math.sin(t*2+p.ph)*0.6;p.y+=p.vy*(p.deep?0.6:1);
+   if(p.y>cv.height+60){P.splice(i,1);continue;}
+   ctx.font='700 '+p.s+'px "Segoe UI",system-ui,sans-serif';ctx.textAlign='center';
+   ctx.globalAlpha=p.deep?0.45:0.9;
+   ctx.fillStyle=p.r?'#ff5a5a':'#5b93ff';
+   ctx.shadowColor=p.r?'#ff2a2a':'#2a5bff';ctx.shadowBlur=12;
+   ctx.fillText('42',p.x,p.y);
+  }
+  ctx.globalAlpha=1;ctx.shadowBlur=0;
  }
- ctx.shadowBlur=0;
  requestAnimationFrame(loop);
 })();
 console.log('%c42','font-size:60px;color:#ff4d4d');
