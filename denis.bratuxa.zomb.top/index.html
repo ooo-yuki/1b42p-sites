@@ -126,9 +126,9 @@ function groundHeight(x,z){
  return h;
 }
 function GY(x,z){return groundHeight(x,z);}
-const FLAT=[{x:0,z:-140,r:36,h:0.8},{x:158,z:-108,r:36,h:baseH(158,-108)}]; // площадки: SLAY ровно на городе, пещера ровно на седловине
+const FLAT=[{x:0,z:-140,r:36,h:0.8},{x:158,z:-165,r:40,h:baseH(158,-165)}]; // площадки: SLAY ровно на городе, пещера ровно на площади в горах
 // тропа к пещере между двумя горами (цепочка точек, высота сэмплится из рельефа)
-const PATH=[{x:95,z:-55},{x:110,z:-70},{x:125,z:-85},{x:140,z:-95},{x:150,z:-92},{x:156,z:-86}];
+const PATH=[{x:95,z:-55},{x:120,z:-72},{x:140,z:-90},{x:150,z:-108},{x:155,z:-125},{x:158,z:-138}];
 (function(){const L=[0];for(let i=1;i<PATH.length;i++)L.push(L[i-1]+Math.hypot(PATH[i].x-PATH[i-1].x,PATH[i].z-PATH[i-1].z));const h0=baseH(PATH[0].x,PATH[0].z),h1=FLAT[1].h;PATH.forEach((p,i)=>p.h=h0+(h1-h0)*(L[i]/L[L.length-1]));})(); // монотонный профиль до высоты пещеры — без стен на стыках
 function pathH(x,z){
  let best=null;
@@ -155,6 +155,7 @@ function slopeBlock(px,pz,nx,nz){
  return [nx,nz];
 }
 const ZONE_COL={beach:new THREE.Color(0xd9b84a),shore:new THREE.Color(0xc9a94e),city:new THREE.Color(0x1c1c24),forest:new THREE.Color(0x1e6a34),mtn:new THREE.Color(0x3e7a33),road:new THREE.Color(0x33333d)};
+const _trailCol=new THREE.Color(0xc9b083); // тропа к пещере
 function zoneColor(x,z,out){
  let isCF=false;
  if(z<=-150||(x>=140&&z<=-30)) out.copy(ZONE_COL.mtn);
@@ -162,6 +163,7 @@ function zoneColor(x,z,out){
  else if(x>=40&&z>-30){out.copy(ZONE_COL.forest);isCF=true;}
  else {out.copy(ZONE_COL.city);isCF=true;}
  if(isCF){const dx=Math.abs(x-Math.round(x/50)*50),dz=Math.abs(z-Math.round(z/50)*50);if(dx<4||dz<4)out.copy(ZONE_COL.road);} // сетка улиц в краске
+ try{if(pathH(x,z))out.copy(_trailCol);}catch(_){}
  if(z>118&&z<133) out.copy(ZONE_COL.shore); // полоса прибоя
  return out;
 }
@@ -273,7 +275,7 @@ const PAL=[0x2b3a55,0x55332b,0x3a3a3a,0x274046,0x4a2740,0x2f5233,0x5a5a6e];
 const CARC=[0xff3333,0x33aaff,0xffcc00,0x66ff66,0xcc66ff,0xffffff];
 const SIGNS=['24/7','БАР 42','ШИНЫ','ДОНЕР','АПТЕКА','ТАКСИ','ХОСТЕЛ','ПЛОВ','КАЗИНО','РЫНОК'];
 const RES=[[25,75,26],[-25,25,26],[-80,-60,22],[80,-70,22],[90,80,22],[25,95,22],[33,95,16],[19,89,12],[31,89,12],[0,-140,48],[28,87,12],[-60,20,14],[60,40,14],[-120,-20,14],[120,20,14],[0,-80,14],[15,93,10],[35,93,10],[25,97,10]];
-function freePt(x,z,pad){for(const r of RES){if(Math.hypot(x-r[0],z-r[1])<r[2]+(pad||0))return false;}const rx=Math.abs(x-Math.round(x/50)*50),rz=Math.abs(z-Math.round(z/50)*50);if(Math.min(rx,rz)<5+(pad||0))return false;return true;} // + не ставить на дороги (сетка 50, полоса ±5)
+function freePt(x,z,pad){for(const r of RES){if(Math.hypot(x-r[0],z-r[1])<r[2]+(pad||0))return false;}const rx=Math.abs(x-Math.round(x/50)*50),rz=Math.abs(z-Math.round(z/50)*50);if(Math.min(rx,rz)<5+(pad||0))return false;try{if(pathH(x,z))return false;}catch(_){}return true;} // + не ставить на дороги и тропу
 function facadeTex(base,cols,rows){const c=document.createElement('canvas');c.width=cols*16;c.height=rows*20;const g=c.getContext('2d');g.fillStyle=base;g.fillRect(0,0,c.width,c.height);for(let i=0;i<cols;i++)for(let j=0;j<rows;j++){g.fillStyle=rnd()<.5?'#ffdd88':'#0e1622';g.fillRect(i*16+3,j*20+4,10,12);}return new THREE.CanvasTexture(c);}
 function tower(x,z,w,hgt,ci){const cols=Math.max(3,Math.round(w/3)),rows=Math.max(3,Math.round(hgt/4));const base='#'+new THREE.Color(PAL[ci%PAL.length]).getHexString();const t=facadeTex(base,cols,rows);
  const m=new THREE.Mesh(new THREE.BoxGeometry(w,hgt,w),new THREE.MeshStandardMaterial({map:t,emissive:0xffffff,emissiveMap:t,emissiveIntensity:.3,roughness:.85,transparent:true}));
@@ -851,7 +853,7 @@ addEventListener('keydown',e=>{
 dnext.addEventListener('click',()=>{try{AU.blip(500+Math.random()*200,.07,'square',.08);}catch(_){}});
 
 // ===== ПАСХАЛКА: ПЕЩЕРА-ЛАБИРИНТ (скрытая, без маркеров) =====
-const CAVE={x:158,z:-108,r:34,done:false,shardN:0,boss:null,bossState:0,bossDead:false,proj:[],shards:[],normiesSpawned:false,wings:null,flyT:0};
+const CAVE={x:158,z:-165,r:34,done:false,shardN:0,boss:null,bossState:0,bossDead:false,proj:[],shards:[],normiesSpawned:false,wings:null,flyT:0};
 QUEST.CAVE={x:CAVE.x,z:CAVE.z};
 try{marker(CAVE.x,CAVE.z+34,0x00ffcc,'⛰');}catch(_){} // пещера видна на карте (вход с юга)
 (function(){
@@ -903,7 +905,7 @@ const CASINO={x:25,z:-12};
  try{QUEST.CASINO={x:CASINO.x,z:CASINO.z};}catch(_){}
 })();
 // ===== ОСТРОВ: декор зон (сосны в лесу, скалы в горах, пальмы на пляже) =====
-function decorFree(x,z,r){for(const s of solids){if(Math.hypot(x-s.x,z-s.z)<r+Math.max(s.hx,s.hz))return false;}return true;}
+function decorFree(x,z,r){try{if(pathH(x,z))return false;}catch(_){}for(const s of solids){if(Math.hypot(x-s.x,z-s.z)<r+Math.max(s.hx,s.hz))return false;}return true;}
 function pine(x,z){const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
  const tr=new THREE.Mesh(new THREE.CylinderGeometry(.35,.5,4,7),new THREE.MeshStandardMaterial({color:0x4a3421,roughness:.9}));tr.position.y=2;tr.castShadow=true;g.add(tr);
  const gm=new THREE.MeshStandardMaterial({color:0x14542a,roughness:.85});
@@ -968,6 +970,9 @@ function billboard(x,y,z){const m=new THREE.Mesh(new THREE.PlaneGeometry(15,4.5)
  for(let x=-115;x<=15;x+=25){if(decorFree(x,6,2))lampCold(x,6);}
  const plaza=new THREE.Mesh(new THREE.CircleGeometry(16,24),new THREE.MeshStandardMaterial({color:0x23232e,roughness:.6}));plaza.rotation.x=-Math.PI/2;plaza.position.set(0,0.04,-105);scene.add(plaza);
  const ring=new THREE.Mesh(new THREE.RingGeometry(16,17.5,32),new THREE.MeshBasicMaterial({color:0xffd700,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.set(0,0.05,-105);scene.add(ring);
+ // каменная площадь под пещерой в горах (база y=0 — liftIsland поднимет на площадку)
+ const cplaza=new THREE.Mesh(new THREE.CircleGeometry(28,28),new THREE.MeshStandardMaterial({color:0x4a4a52,roughness:.9}));cplaza.rotation.x=-Math.PI/2;cplaza.position.set(CAVE.x,0.04,CAVE.z);cplaza.receiveShadow=true;scene.add(cplaza);
+ const cring=new THREE.Mesh(new THREE.RingGeometry(28,29.5,36),new THREE.MeshBasicMaterial({color:0x00ffcc,side:THREE.DoubleSide}));cring.rotation.x=-Math.PI/2;cring.position.set(CAVE.x,0.05,CAVE.z);scene.add(cring);
  // ровные проспекты: бордюры + осевая разметка (база y=0 — liftIsland поднимет на 0.8)
  const curbM=new THREE.MeshStandardMaterial({color:0x9a9aa5,roughness:.8});
  const lineM=new THREE.MeshBasicMaterial({color:0xf5f5f0});
@@ -1302,6 +1307,7 @@ mm.fillStyle='gold';mm.font='bold '+Math.round(9*k)+'px Arial';mm.fillText('H',W
 // SLAY
 mm.fillStyle='#ff7700';mm.fillRect(WX(-30),WX(-160),60*W2M,40*W2M);mm.fillStyle='#fff';mm.fillText('SLAY',WX(-12),WX(-138));
 mm.fillStyle='#00ffcc';mm.fillRect(WX(CAVE.x)-2*k,WX(CAVE.z)-2*k,4*k,4*k);mm.fillStyle='#fff';mm.font='bold '+Math.round(8*k)+'px Arial';mm.fillText('ПЕЩЕРА',WX(CAVE.x)-20*k,WX(CAVE.z)-6*k);
+try{mm.strokeStyle='#c9b083';mm.lineWidth=Math.max(1.5,2*k);mm.beginPath();for(let _pi=0;_pi<PATH.length;_pi++){const _px=WX(PATH[_pi].x),_pz=WX(PATH[_pi].z);if(_pi===0)mm.moveTo(_px,_pz);else mm.lineTo(_px,_pz);}mm.stroke();}catch(_){}
 mm.fillStyle='#ff0022';mm.fillRect(WX(SHOP.x)-2*k,WX(SHOP.z)-2*k,4*k,4*k);
 // спреи
 mm.fillStyle='#f0f';try{sprays.forEach(s=>{if(!s.done)mm.fillRect(WX(s.x)-1*k,WX(s.z)-1*k,2*k,2*k);});}catch(_){}
