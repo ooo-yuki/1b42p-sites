@@ -1211,59 +1211,6 @@ window.addEventListener('keydown',function(e){if(!fpMode)return;keys[e.code]=tru
 window.addEventListener('keyup',function(e){keys[e.code]=false;});
 /* --- цикл --- */
 var clockT=0;
-/* --- ДРОНЫ-КАМИКАДЗЕ царя: барражируют и врезаются в дома (дома не страдают) --- */
-var drones=[],boomParts=[],droneT=0,droneHello=false;
-function buildDrone(){var g=new THREE.Group(),dark=mat(0x3a3f4a);
- g.add(put(box(0.5,0.18,0.5,dark),0,0,0));
- g.add(put(box(0.2,0.12,0.2,mat(0xc00040)),0,0.12,0.12));
- for(var ax=-1;ax<=1;ax+=2)for(var az=-1;az<=1;az+=2){
-  g.add(put(box(0.34,0.05,0.05,dark),ax*0.3,0,az*0.3));
-  var rot=new THREE.Group();rot.position.set(ax*0.44,0.06,az*0.44);rot.userData={spinY:true,spinSp:22};g.add(rot);
-  rot.add(put(box(0.4,0.02,0.06,mat(0xcfd8dc)),0,0,0));}
- var eye=new THREE.Mesh(new THREE.SphereGeometry(0.07,8,6),new THREE.MeshBasicMaterial({color:0x7fd4ff}));
- eye.position.set(0,-0.02,0.28);eye.castShadow=false;g.add(eye);
- var blink=new THREE.Mesh(new THREE.SphereGeometry(0.06,8,6),
-  new THREE.MeshBasicMaterial({color:0xff2222,transparent:true,opacity:1}));
- blink.position.set(0,0.16,-0.2);blink.userData={fadePulse:true};g.add(blink);
- return g;}
-function droneTarget(){var busy=[];
- for(var i=0;i<N*N;i++)if(S.cells[i]&&bGroups[i])busy.push(i);
- if(!busy.length)return {x:0,y:2.5,z:0};
- var p=bGroups[busy[Math.floor(Math.random()*busy.length)]].position;
- return {x:p.x,y:1.7,z:p.z};}
-function spawnDrone(){var a=Math.random()*Math.PI*2;
- var g=buildDrone();
- g.position.set(Math.cos(a)*24,9+Math.random()*4,Math.sin(a)*24);
- scene.add(g);
- var tg=droneTarget();
- drones.push({g:g,tx:tg.x,ty:tg.y,tz:tg.z,sp:4.5+Math.random()*2,ph:Math.random()*6});
- if(!droneHello){droneHello=true;setTimeout(function(){toast('🚁 Дроны царя в небе! Берегись, дома!');},1500);}}
-function boom(x,y,z){var fl=new THREE.Mesh(new THREE.SphereGeometry(0.5,10,8),
-  new THREE.MeshBasicMaterial({color:0xffb347,transparent:true,opacity:0.95}));
- fl.position.set(x,y,z);fl.castShadow=false;scene.add(fl);
- boomParts.push({m:fl,grow:6,life:0.35});
- for(var i=0;i<9;i++){var d=new THREE.Mesh(new THREE.BoxGeometry(0.12,0.12,0.12),mat(0x3a3f4a));
-  d.position.set(x,y,z);d.castShadow=false;scene.add(d);
-  boomParts.push({m:d,vx:(Math.random()-0.5)*6,vy:1+Math.random()*4,vz:(Math.random()-0.5)*6,life:0.9+Math.random()*0.4});}
- smoke(scene,x,y,z);blip(140);}
-function updateDrones(dt){droneT-=dt;
- if(drones.length<5&&droneT<=0){spawnDrone();droneT=1.2;}
- for(var i=drones.length-1;i>=0;i--){var d=drones[i],p=d.g.position;
-  var dx=d.tx-p.x,dy=d.ty-p.y,dz=d.tz-p.z,dl=Math.hypot(dx,dy,dz);
-  if(dl<0.9){boom(p.x,p.y,p.z);scene.remove(d.g);
-   d.g.traverse(function(o){if(o.geometry)o.geometry.dispose();});
-   drones.splice(i,1);continue;}
-  dx/=dl;dy/=dl;dz/=dl;var t=Date.now()/1000;
-  p.x+=(dx+Math.cos(t*3+d.ph)*0.15)*d.sp*dt;
-  p.y+=(dy+Math.sin(t*4+d.ph)*0.12)*d.sp*dt;
-  p.z+=(dz+Math.sin(t*2.4+d.ph)*0.15)*d.sp*dt;
-  d.g.rotation.y=Math.atan2(dx,dz);}
- for(var b=boomParts.length-1;b>=0;b--){var q=boomParts[b];q.life-=dt;
-  if(q.grow){var s=q.m.scale.x+q.grow*dt;q.m.scale.set(s,s,s);q.m.material.opacity=Math.max(0,q.life/0.35);}
-  else{q.m.position.x+=q.vx*dt;q.m.position.y+=q.vy*dt;q.m.position.z+=q.vz*dt;
-   q.vy-=9*dt;q.m.material.opacity=Math.min(1,q.life*1.8);
-   q.m.rotation.x+=dt*5;q.m.rotation.y+=dt*4;}
-  if(q.life<=0){scene.remove(q.m);if(q.m.geometry)q.m.geometry.dispose();boomParts.splice(b,1);}}}
 function loop(){requestAnimationFrame(loop);
  var dt=Math.min(clockT? (Date.now()-clockT)/1000:0.016,0.1);clockT=Date.now();
  var t=Date.now()/1000;
@@ -1287,7 +1234,6 @@ function loop(){requestAnimationFrame(loop);
   var bs=a.g.userData.base||1;
   if(a.t>=1){a.g.scale.set(bs,bs,bs);pops.splice(p,1);}
   else{var e=1-Math.pow(1-a.t,3);a.g.scale.set(e*bs,e*bs,e*bs);}}
- updateDrones(dt);
  if(fpMode){var f=0,s=0;
   if(keys['KeyW']||keys['ArrowUp'])f+=1;if(keys['KeyS']||keys['ArrowDown'])f-=1;
   if(keys['KeyD']||keys['ArrowRight'])s+=1;if(keys['KeyA']||keys['ArrowLeft'])s-=1;
