@@ -27,6 +27,9 @@ export default function Landing(): JSX.Element {
           <a id="playBtn" className="pill solid" href="game.html">
             🎮 Играть
           </a>
+          <a id="statsBtn" className="pill ghost" href="stats.html" style={{ textDecoration: 'none' }}>
+            📡 Статистика
+          </a>
         </div>
       </main>
       <div id="hint">а ещё 42 спрятаны… ищи 👀</div>
