@@ -142,12 +142,14 @@ export default function ZapoiGame() {
           const done = z.completed && z.completed[c.id];
           return (
             <div key={c.id} style={{ border: '2px solid ' + (done ? '#7f7' : 'gold'), borderRadius: 12, padding: 10, margin: '8px 0', textAlign: 'left', opacity: open ? 1 : 0.55 }}>
+              <img src={c.img} alt={c.name} style={{ width: 110, borderRadius: 12, border: '2px solid gold', verticalAlign: 'top', marginRight: 10, float: 'left' }} />
               <b style={{ fontSize: 18 }}>{c.emoji} {c.name}</b>{' '}
               {done ? <span style={{ color: '#7f7' }}>✅ ЗАКРЫТ</span> : open ? '' : <span>🔒 откроется за бутылку Владимира</span>}
               <div className="hint">{c.desc}</div>
               <div className="hint">{c.hint}</div>
               {open && !done && <button onClick={() => pickChar(c.id)} style={{ marginTop: 6 }}>ИГРАТЬ ЗА НЕГО ▶</button>}
               {open && done && <button onClick={() => pickChar(c.id)} style={{ marginTop: 6 }}>ЕЩЁ РАЗ ▶</button>}
+              <div style={{ clear: 'both' }} />
             </div>
           );
         })}
@@ -159,7 +161,7 @@ export default function ZapoiGame() {
   return (
     <div className="card">
       <h2>🦌 ЗАПОЙ 2.0: ПЕЧЕНЬ ПРОТИВ БУХЛА 🦌</h2>
-      <p><b style={{ fontSize: 18 }}>{charDef.emoji} {charDef.name}</b>{' '}
+      <p><img src={charDef.img} alt={charDef.name} style={{ width: 64, borderRadius: 12, border: '2px solid gold', verticalAlign: 'middle', marginRight: 10 }} /><b style={{ fontSize: 18 }}>{charDef.emoji} {charDef.name}</b>{' '}
         <button onClick={() => setZ((prev) => newRun(prev.completed, null))} style={{ fontSize: 12 }}>сменить</button>
       </p>
       <p className="hint">
