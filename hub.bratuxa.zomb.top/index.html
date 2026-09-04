@@ -7,7 +7,11 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--red:#e63946;--blue:#457b9d;--gold:#ffd700;--bg:#0a0a0a;--neon:#0ff;--pink:#ff2fb3}
-body{background:radial-gradient(ellipse at 50% 0%,#3a0a0a 0%,#0a0a0a 55%,#000 100%);color:#fff;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;text-align:center;overflow-x:hidden}
+body{background:#0a0a0a url('logo-bg.jpg') center center/cover no-repeat fixed;color:#fff;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;text-align:center;overflow-x:hidden}
+/* Тёмная вуаль поверх фонового логотипа — текст и карточки читаются. Контент выше вуали. */
+body::before{content:"";position:fixed;inset:0;background:rgba(4,4,10,.82);z-index:0;pointer-events:none}
+body>*{position:relative;z-index:1}
+@media (max-width:768px){body{background-attachment:scroll}}
 .mantra{background:linear-gradient(90deg,#c00,#a00);border-bottom:3px solid var(--gold);color:var(--gold);font-weight:bold;letter-spacing:2px;padding:10px;font-size:clamp(14px,2.5vw,20px);text-transform:uppercase}
 nav{position:sticky;top:0;z-index:50;display:flex;gap:18px;justify-content:center;padding:12px;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);border-bottom:1px solid #333}
 nav a{color:var(--gold);text-decoration:none;font-weight:bold;font-size:15px;letter-spacing:1px}
@@ -75,7 +79,7 @@ footer{padding:18px;color:var(--gold);border-top:2px solid var(--gold);font-weig
 <div id="denisHeroTimer"><div class="t-label">ДЕНИС 42 ОТКРОЕТСЯ ЧЕРЕЗ:</div><div class="t-digits" id="denisHeroDigits">--:--:--</div></div>
 <p><a class="cta" href="#games">🎮 Наши игры</a></p>
 <div class="stats">
-<div class="stat"><b>5</b>игр в строю</div>
+<div class="stat"><b>6</b>игр в строю</div>
 <div class="stat"><b>42</b>уровень братюх</div>
 <div class="stat"><b>∞</b>мемов в минуту</div>
 </div>
@@ -95,7 +99,7 @@ footer{padding:18px;color:var(--gold);border-top:2px solid var(--gold);font-weig
 <p><a href="https://setden.bratuxa.zomb.top/battle.html" style="display:inline-block;margin-top:14px;background:linear-gradient(90deg,#ff2fb3,#ffd700,#00ffff);background-size:200% auto;color:#000;font-weight:bold;text-decoration:none;padding:12px 38px;border-radius:12px;font-size:19px;box-shadow:0 0 25px #ff2fb388">ИГРАТЬ →</a></p>
 <div style="margin-top:8px;color:#ffd700;font-weight:bold;font-size:14px">🔒 откроется в 16:40 МСК</div>
 </div>
-<div class="card green"><img src="setden-ambassador.jpg" alt="Амбассадор Торнадо SetDen42" style="width:100%;border-radius:12px;border:2px solid #0f6"><h2>Амбасадор Торнадо SetDen42</h2><p>3D-банка Tornado Energy + игра алхимика: вари энергетики, качай вкус и цену!</p><a href="https://setden.bratuxa.zomb.top">Играть →</a><br><a href="https://setden.bratuxa.zomb.top/tornado.html" style="margin-top:8px;font-size:15px">⚡ Варить Tornado →</a><div style="margin-top:8px;font-size:13px;line-height:1.7;text-align:left">🥫 <a href="https://setden.bratuxa.zomb.top" style="font-size:13px">3D-банка</a><br>⚡ <a href="https://setden.bratuxa.zomb.top/tornado.html" style="font-size:13px">Торнадо-варка</a><br>🌸 <a href="https://setden.bratuxa.zomb.top/sakura.html" style="font-size:13px">Сад вихрей</a><br>🌀 <a href="https://setden.bratuxa.zomb.top/mix.html" style="font-size:13px">Слияние стихий</a><br>🛗 <a href="https://setden.bratuxa.zomb.top/lift.html" style="font-size:13px">Лифт</a></div></div>
+<div class="card green"><img src="setden-ambassador.jpg" alt="Амбассадор Торнадо SetDen42" style="width:100%;border-radius:12px;border:2px solid #0f6"><h2>Амбасадор Торнадо SetDen42 — 6 игр</h2><p>3D-банка Tornado Energy 2.0: встряска банки, 5 вкусов! Плюс Торнадо-варка 2.0, Сад вихрей, Слияние стихий, Лифт и Торнадо-Битва (откроется в 16:40 МСК).</p><a href="https://setden.bratuxa.zomb.top">Играть →</a><br><a href="https://setden.bratuxa.zomb.top/tornado.html" style="margin-top:8px;font-size:15px">⚡ Варить Tornado 2.0 →</a><div style="margin-top:8px;font-size:13px;line-height:1.7;text-align:left">🥫 <a href="https://setden.bratuxa.zomb.top" style="font-size:13px">3D-банка 2.0 — встряска, 5 вкусов</a><br>⚡ <a href="https://setden.bratuxa.zomb.top/tornado.html" style="font-size:13px">Торнадо-варка 2.0</a><br>🌸 <a href="https://setden.bratuxa.zomb.top/sakura.html" style="font-size:13px">Сад вихрей</a><br>🌀 <a href="https://setden.bratuxa.zomb.top/mix.html" style="font-size:13px">Слияние стихий</a><br>🛗 <a href="https://setden.bratuxa.zomb.top/lift.html" style="font-size:13px">Лифт</a><br>⚔️ <a href="https://setden.bratuxa.zomb.top/battle.html" style="font-size:13px">Торнадо-Битва 🔒 до 16:40 МСК</a></div></div>
 <div class="card gold"><div class="emoji">🛞</div><h2>МИККИЛ 42 — Танки</h2><p>Танковые бои батальона: броня, тактика и грохот гусениц!</p><a href="https://miqqil.bratuxa.zomb.top/">Играть →</a></div>
 <div class="card gold"><div class="emoji">🎰</div><h2>СВЯТОСЛАВ 42 — Казино</h2><p>Казино батальона и Гартик: крути слоты, рисуй и угадывай!</p><a href="https://svyatoslav.bratuxa.zomb.top">Играть →</a><br><a href="https://svyatoslav.bratuxa.zomb.top/gartic.html" style="margin-top:8px;font-size:15px">🎨 Гартик →</a></div>
 </div>
