@@ -89,12 +89,13 @@
   #warpRates{ font-size:13px; color:#9aa3b5; margin-top:10px; line-height:1.7; }
   #warpRates b.g{ color:#ffd700; } #warpRates b.p{ color:#c084fc; } #warpRates b.b{ color:#7cc4ff; }
   #warpTunnel{ position:absolute; inset:0; z-index:5; display:flex; align-items:center; justify-content:center; flex-direction:column; overflow:hidden;
-    background:radial-gradient(circle at 50% 50%,#fff 0%,#9db4ff 12%,#1b2340 45%,#05060c 100%); }
-  #warpTunnel .ticket{ font-size:90px; animation:ticketFly 1.6s ease-in forwards; }
-  @keyframes ticketFly{ 0%{ transform:scale(.4) rotate(-20deg); opacity:0; } 25%{ opacity:1; } 100%{ transform:scale(2.6) rotate(10deg); opacity:0; } }
-  #warpTunnel .streaks{ position:absolute; inset:-60%; pointer-events:none;
-    background:repeating-conic-gradient(from 0deg at 50% 50%,#ffffff22 0deg 2deg,transparent 2deg 8deg);
-    animation:streakSpin 1.2s linear infinite; }
+    background:radial-gradient(circle at 50% 60%,#232c4e 0%,#10142a 45%,#05060c 100%); }
+  #warpDropStage{ position:absolute; inset:0; }
+  #warpDropStage canvas{ width:100%; height:100%; display:block; }
+  #warpDropLabel{ position:absolute; top:14px; left:0; right:0; z-index:1; text-align:center; color:#ffe9a8; font-size:15px; font-weight:700; text-shadow:0 1px 8px #000; pointer-events:none; }
+  #warpTunnel .streaks{ position:absolute; inset:-60%; pointer-events:none; opacity:.35;
+    background:repeating-conic-gradient(from 0deg at 50% 50%,#ffffff11 0deg 2deg,transparent 2deg 8deg);
+    animation:streakSpin 6s linear infinite; }
   @keyframes streakSpin{ to{ transform:rotate(360deg) scale(1.4); } }
   #warpFlash{ position:absolute; inset:0; z-index:6; opacity:0; pointer-events:none; }
   #warpFlash.go{ animation:flashBang .7s ease-out; }
@@ -208,7 +209,7 @@
     </div>
   </div>
   <div id="warpGrid"></div>
-  <div id="warpTunnel" class="hidden"><div class="streaks"></div><div class="ticket">🎟️</div><div style="z-index:1">Прыжок сквозь звёзды…</div><button id="btnWarpSkip" class="ghost" style="z-index:1;margin-top:12px">Пропустить ⏩</button></div>
+  <div id="warpTunnel" class="hidden"><div class="streaks"></div><div id="warpDropStage"></div><div id="warpDropLabel">Кейс-ангар уже летит…</div><button id="btnWarpSkip" class="ghost" style="z-index:1;margin-top:12px;position:absolute;bottom:18px">Пропустить ⏩</button></div>
   <div id="warpFlash"></div>
   <div id="warpReveal" class="hidden"><div class="wcard" id="warpCard"></div></div>
 </div>
@@ -230,6 +231,7 @@
 import * as THREE from 'three';
 import { vehicleList, getVehicle, updateRating } from './game-logic.js';
 import { GACHA_POOL, STARTER, defaultGacha, rollOnce, grantSpin, isUnlocked } from './gacha.js';
+import { playHangarDrop, skipHangarDrop } from './warp-drop.js';
 import * as Sim from './sim.js';
 import * as M from './models.js';
 import { createNetClient, makeSnapshotBuffer } from './net.js';
@@ -992,7 +994,8 @@ function gachaPoolStars(id) {
   const p = GACHA_POOL.find(x => x.id === id);
   return p ? p.stars : 3;
 }
-let warpBusy = false, warpQueue = [], warpTunnelTimer = null;
+let warpBusy = false, warpQueue = [], warpDropOn = false;
+const warpReduced = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 function openWarp() {
   AU.init();
   $('lobby').classList.add('hidden');
@@ -1026,20 +1029,34 @@ function doWarp(n) {
   warpBusy = true;
   $('warpGrid').innerHTML = '';
   $('warpReveal').classList.add('hidden');
+  AU.warp();
+  void playDropFor(warpQueue[0]).then(() => showReveal());
+}
+// 3D-сценка выпадения: кейс-ангар падает с неба, ворота открываются,
+// выпавший танк выезжает. Возвращает промис — резолвится, когда сценка доиграна.
+async function playDropFor(r) {
   const tun = $('warpTunnel');
   tun.classList.remove('hidden');
-  tun.querySelector('.ticket').style.animation = 'none';
-  void tun.offsetWidth;
-  tun.querySelector('.ticket').style.animation = '';
-  AU.warp();
-  warpTunnelTimer = setTimeout(() => showNextReveal(), 1700);
+  const v = getVehicle(r.id);
+  $('warpDropLabel').textContent = `Кейс-ангар уже летит… ${v.name} ${'★'.repeat(r.stars)}`;
+  if (warpReduced) { tun.classList.add('hidden'); return; }
+  warpDropOn = true;
+  try {
+    await playHangarDrop($('warpDropStage'), v, { stars: r.stars });
+  } catch (err) {
+    console.warn('[tanks] warp-drop упал, показываем карточку сразу:', err);
+  } finally {
+    warpDropOn = false;
+    tun.classList.add('hidden');
+  }
 }
 function skipTunnel() {
-  if (warpTunnelTimer) { clearTimeout(warpTunnelTimer); warpTunnelTimer = null; }
-  if (warpBusy && warpQueue.length) showNextReveal();
+  // Если 3D-сценка идёт — мгновенно доигрываем её; если её нет
+  // (упрощённый режим) — сразу показываем карточку.
+  if (warpDropOn) { skipHangarDrop(); return; }
+  if (warpBusy && warpQueue.length && $('warpTunnel').classList.contains('hidden') && $('warpReveal').classList.contains('hidden')) showReveal();
 }
-function showNextReveal() {
-  warpTunnelTimer = null;
+function showReveal() {
   $('warpTunnel').classList.add('hidden');
   const r = warpQueue[0];
   if (!r) { finishWarp(); return; }
@@ -1066,7 +1083,7 @@ function showNextReveal() {
   $('warpNext').onclick = () => {
     warpQueue.shift();
     $('warpReveal').classList.add('hidden');
-    if (warpQueue.length) showNextReveal();
+    if (warpQueue.length) void playDropFor(warpQueue[0]).then(() => showReveal());
     else finishWarp();
   };
 }
