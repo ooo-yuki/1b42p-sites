@@ -122,13 +122,14 @@ function groundHeight(x,z){
  let h=baseH(x,z);
  for(const f of AUTOPAD)h=padBlend(h,f.h,Math.hypot(x-f.x,z-f.z),f.r);
  for(const f of FLAT)h=padBlend(h,f.h,Math.hypot(x-f.x,z-f.z),f.r);
- const ph=pathH(x,z);if(ph){const t=ph.d/9,s=t*t*(3-2*t);h=ph.h+(h-ph.h)*s;} // тропа к пещере
+ const ph=pathH(x,z);if(ph){const t=ph.d/9,s=t*t*(3-2*t);const carved=ph.h+(h-ph.h)*s;h=(rawZoneH(x,z)>2)?carved:Math.min(h,carved);} // в горах полный профиль, в городе только срез
  return h;
 }
 function GY(x,z){return groundHeight(x,z);}
 const FLAT=[{x:0,z:-140,r:36,h:0.8},{x:158,z:-165,r:40,h:baseH(158,-165)}]; // площадки: SLAY ровно на городе, пещера ровно на площади в горах
 // тропа к пещере между двумя горами (цепочка точек, высота сэмплится из рельефа)
-const PATH=[{x:95,z:-55},{x:120,z:-72},{x:140,z:-90},{x:150,z:-108},{x:155,z:-125},{x:158,z:-138}];
+// тропа к пещере: только по горам от подножия (по городу ведут улицы, насыпи нет)
+const PATH=[{x:140,z:-90},{x:150,z:-108},{x:155,z:-125},{x:158,z:-138}];
 (function(){const L=[0];for(let i=1;i<PATH.length;i++)L.push(L[i-1]+Math.hypot(PATH[i].x-PATH[i-1].x,PATH[i].z-PATH[i-1].z));const h0=baseH(PATH[0].x,PATH[0].z),h1=FLAT[1].h;PATH.forEach((p,i)=>p.h=h0+(h1-h0)*(L[i]/L[L.length-1]));})(); // монотонный профиль до высоты пещеры — без стен на стыках
 function pathH(x,z){
  let best=null;
