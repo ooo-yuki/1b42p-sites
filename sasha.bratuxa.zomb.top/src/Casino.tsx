@@ -77,10 +77,10 @@ function pickDrop(drops: Drop[]): Drop {
 /* ---------- лошади ---------- */
 type Horse = { id: string; icon: string; name: string; odds: number };
 const HORSES: Horse[] = [
-  { id: 'tornado', icon: 'tornado', name: 'Торнадо', odds: 1.8 },
-  { id: 'bratuxa', icon: 'wheel', name: 'Братуха', odds: 2.5 },
-  { id: 'vihr', icon: 'rabbit', name: 'Вихрь', odds: 4 },
-  { id: 'pyat', icon: 'star', name: 'Пятёрка', odds: 7 },
+  { id: 'tornado', icon: 'steed-gray', name: 'Торнадо', odds: 1.8 },
+  { id: 'bratuxa', icon: 'steed-blue', name: 'Братуха', odds: 2.5 },
+  { id: 'vihr', icon: 'steed-brown', name: 'Вихрь', odds: 4 },
+  { id: 'pyat', icon: 'steed-gold', name: 'Пятёрка', odds: 7 },
 ];
 
 const SLOT_ICONS = ['cherry', 'clover', 'star', 'coins', 'dices', 'seven'];
@@ -532,7 +532,7 @@ export default function Casino(): JSX.Element {
 
         <Card>
           <CardHeader>
-            <CardTitle><ItemIcon name="rabbit" /> Лошади</CardTitle>
+            <CardTitle><ItemIcon name="steed-brown" /> Лошади</CardTitle>
             <CardDescription>Выбери лошадь, поставь фишки. Кто первый до финиша — тот и прав.</CardDescription>
           </CardHeader>
           <CardContent>

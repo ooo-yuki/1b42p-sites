@@ -95,3 +95,6 @@ input.cin{background:#0d1428;border:1px solid rgba(232,237,255,.25);border-radiu
 #minefield .cell svg{width:24px;height:24px;vertical-align:middle}
 .horse .nm .cic{width:1.1em;height:1.1em;vertical-align:-0.15em;color:var(--gold)}
 .cbar .cic,.cnav .cic{vertical-align:-0.2em}
+
+/* ручной пиксель-арт: чёткие блоки без сглаживания */
+svg.cic{image-rendering:pixelated}
