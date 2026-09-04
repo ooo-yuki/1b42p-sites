@@ -95,6 +95,7 @@ scene.add(new THREE.HemisphereLight(0x8a7bff,0x1a0f0a,0.22)); // ночь: пр�
 function ss01(e0,e1,x){const t=Math.min(1,Math.max(0,(x-e0)/(e1-e0)));return t*t*(3-2*t);}
 function rawZoneH(x,z){
  if(z>=125) return 0;                 // пляж (юг)
+ if(z<=-230) return 3.6;              // горы (север, расширены)
  if(z<=-150) return 3.6;              // горы (север, отодвинуты от города)
  if(x>=140&&z<=-30) return 3.6;       // хребет (восток)
  if(x>=40&&z>-30&&z<125) return 2.0;  // лес (восток)
@@ -107,9 +108,11 @@ function massif(x,z){
  const g2=22*Math.exp(-((x-125)*(x-125)+(z-176)*(z-176))/(2*36*36)); // вторая вершина
  const g3=14*Math.exp(-((x-178)*(x-178)+(z-120)*(z-120))/(2*28*28)); // хребет
  const g4=26*Math.exp(-((x-178)*(x-178)+(z-60)*(z-60))/(2*42*42)); // вторая гора (восток)
+ const g5=26*Math.exp(-((x+80)*(x+80)+(z+270)*(z+270))/(2*45*45)); // северная вершина (новые земли)
+ const g6=20*Math.exp(-((x-90)*(x-90)+(z-278)*(z-278))/(2*38*38)); // северная вторая
  const rg=1-Math.abs(Math.sin(x*0.11+1.3)*Math.sin(z*0.13+0.7)); // острые гребни
  const mo=Math.sin(x*0.23+0.5)*Math.cos(z*0.21+1.1)*2+Math.sin(x*0.05+2.2)*Math.cos(z*0.06)*3; // средние складки
- return (g1+g2+g3+g4+rg*rg*4+mo)*mtnM;
+ return (g1+g2+g3+g4+g5+g6+rg*rg*4+mo)*mtnM;
 }
 function baseH(x,z){
  const r=10;
@@ -169,14 +172,14 @@ function zoneColor(x,z,out){
  if(z>118&&z<133) out.copy(ZONE_COL.shore); // полоса прибоя
  return out;
 }
-const ground=new THREE.Mesh(new THREE.PlaneGeometry(400,400,160,160),new THREE.MeshStandardMaterial({vertexColors:true,metalness:.5,roughness:.55,envMapIntensity:.6}));
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(600,600,240,240),new THREE.MeshStandardMaterial({vertexColors:true,metalness:.5,roughness:.55,envMapIntensity:.6}));
 function buildTerrain(){const pos=ground.geometry.attributes.position,cols=[];const tc=new THREE.Color();const rockHi=new THREE.Color(0x7a756c),dryGrass=new THREE.Color(0x6e7a3a),cliff=new THREE.Color(0x5a5550);
 for(let i=0;i<pos.count;i++){const wx=pos.getX(i),wz=-pos.getY(i);const hh=groundHeight(wx,wz);pos.setZ(i,hh);zoneColor(wx,wz,tc);
 const sl=(Math.abs(baseH(wx+2,wz)-baseH(wx-2,wz))+Math.abs(baseH(wx,wz+2)-baseH(wx,wz-2)))/4;
 if(sl>0.5){tc.lerp(cliff,Math.min(1,(sl-0.5)/0.5)*0.8);}else if(hh>9){tc.lerp(rockHi,Math.min(1,(hh-9)/6)*0.85);}else if(hh>4.5){tc.lerp(dryGrass,Math.min(1,(hh-4.5)/4.5)*0.55);}cols.push(tc.r,tc.g,tc.b);}
 ground.geometry.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));ground.geometry.computeVertexNormals();}
 ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
-// вода вокруг острова (стена — кламп ±190 ниже в коде движения)
+// вода вокруг острова (стена — кламп ±280 ниже в коде движения)
 const waterMesh=new THREE.Mesh(new THREE.PlaneGeometry(1400,1400),new THREE.MeshStandardMaterial({color:0x0d6fa8,transparent:true,opacity:.95,metalness:.15,roughness:.45,envMapIntensity:.35}));
 waterMesh.rotation.x=-Math.PI/2;waterMesh.position.y=-1.2;scene.add(waterMesh);
 // дома-ПАВИЛЬОНЫ: низкие, заходить НЕ нужно — все действия снаружи, камера не перекрывается
@@ -1046,8 +1049,8 @@ function rock(x,z,s){const m=new THREE.Mesh(new THREE.ConeGeometry(4*s,7*s,5),ne
  let placed=0,guard=0;
  while(placed<320&&guard++<3000){
   const north=Math.random()<0.68;
-  const x=north?-190+Math.random()*380:130+Math.random()*65;
-  const z=north?-200+Math.random()*62:-145+Math.random()*125;
+  const x=north?-280+Math.random()*560:130+Math.random()*65;
+  const z=north?-292+Math.random()*62:-145+Math.random()*125;
   if(rawZoneH(x,z)<2.5)continue; // только горы
   if(Math.abs(baseH(x+4,z)-baseH(x-4,z))>12)continue; // не на обрыве
   if(Math.abs(baseH(x,z+4)-baseH(x,z-4))>12)continue;
@@ -1062,7 +1065,7 @@ function rock(x,z,s){const m=new THREE.Mesh(new THREE.ConeGeometry(4*s,7*s,5),ne
 })();
 // уличные пальмы ровными рядами вдоль проспектов (со сдвигом от проезжей части, клумба ставится сама)
 (function(){
- for(const rx of [-100,-50,0,50])for(let z=-110;z<=110;z+=28){
+ for(const rx of [-200,-150,-100,-50,0,50])for(let z=-210;z<=110;z+=28){
   const x=rx+8.5;
   if(rawZoneH(x,z)>1.2)continue; // только пол города
   let inRes=false;for(const r of RES){if(Math.hypot(x-r[0],z-r[1])<r[2]){inRes=true;break;}}
@@ -1079,7 +1082,7 @@ return new THREE.CanvasTexture(c);})();
 function billboard(x,y,z){const m=new THREE.Mesh(new THREE.PlaneGeometry(15,4.5),new THREE.MeshBasicMaterial({map:winlineTex}));m.position.set(x,y,z);scene.add(m);}
 (function(){
  let ci=100;
- for(let gx=-120;gx<=20;gx+=28)for(let gz=-100;gz<=100;gz+=28){
+ for(let gx=-260;gx<=20;gx+=28)for(let gz=-200;gz<=110;gz+=28){
   const x=gx+(rnd()*8-4),z=gz+(rnd()*8-4);
   if(!freePt(x,z,6)||!decorFree(x,z,12))continue;
   if(Math.hypot(x,z+140)<40)continue; // площадь SLAY не застраивать
@@ -1090,8 +1093,8 @@ function billboard(x,y,z){const m=new THREE.Mesh(new THREE.PlaneGeometry(15,4.5)
  // фонари строго по тротуарам (±7.5 от осей, стороны чередуются) — не на шоссе и не в декоре
  (function(){
   function tryLamp(x,z){try{if(rawZoneH(x,z)>1.2)return;}catch(_){}if(!freePt(x,z,2)||!decorFree(x,z,3))return;lampCold(x,z);}
-  for(const av of [-100,-50,0]){let side=1;for(let z=-120;z<=110;z+=30){tryLamp(av+side*7.5,z);side=-side;}}
-  for(const av of [-100,-50,0,50,100]){let side=1;for(let x=-170;x<=20;x+=30){tryLamp(x,av+side*7.5);side=-side;}}
+  for(const av of [-200,-150,-100,-50,0]){let side=1;for(let z=-215;z<=110;z+=30){tryLamp(av+side*7.5,z);side=-side;}}
+  for(const av of [-200,-150,-100,-50,0,50,100]){let side=1;for(let x=-275;x<=50;x+=30){tryLamp(x,av+side*7.5);side=-side;}}
  })();
  const plaza=new THREE.Mesh(new THREE.CircleGeometry(16,24),new THREE.MeshStandardMaterial({color:0x23232e,roughness:.6}));plaza.rotation.x=-Math.PI/2;plaza.position.set(0,0.04,-105);scene.add(plaza);
  const ring=new THREE.Mesh(new THREE.RingGeometry(16,17.5,32),new THREE.MeshBasicMaterial({color:0xffd700,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.set(0,0.05,-105);scene.add(ring);
@@ -1141,24 +1144,46 @@ function billboard(x,y,z){const m=new THREE.Mesh(new THREE.PlaneGeometry(15,4.5)
    scene.add(curb);
   }
  }
- const _VA=[-100,-50,0],_HA=[-100,-50,0,50,100];
- // вертикальные проспекты с разрывами на перекрёстках (иначе ленты лежат друг на друге)
+ const _VA=[-200,-150,-100,-50,0],_HA=[-200,-150,-100,-50,0,50,100];
+ // вертикальные проспекты с разрывами на перекрёстках (иначе ленты лежат друг на друге);
+ // у x=0 разрыв шире — обход площади SLAY (0,-140,r36)
+ const _vsegs=[];
  for(const av of _VA){
-  const pts=[-100];for(const ah of _HA)pts.push(ah-5,ah+5);pts.push(100);pts.sort((a,b)=>a-b);
-  for(let i=0;i+1<pts.length;i+=2)roadSeg(av,Math.max(-100,pts[i]),av,Math.min(100,pts[i+1]));
+  const pts=[-220];for(const ah of _HA)pts.push(ah-5,ah+5);pts.push(115);pts.sort((a,b)=>a-b);
+  for(let i=0;i+1<pts.length;i+=2){
+   let z1=Math.max(-220,pts[i]),z2=Math.min(115,pts[i+1]);
+   if(av===0){ // площадь SLAY: режем отрезки по её границам
+    if(z1<-176&&z2>-176)z2=Math.min(z2,-176);
+    if(z1<-104&&z2>-104)z1=Math.max(z1,-104);
+    if(z1>=-176&&z2<=-104)continue; // целиком внутри площади — выкидываем
+   }
+   if(z2-z1>=1){roadSeg(av,z1,av,z2);_vsegs.push({av,z1,z2});}
+  }
  }
- // горизонтальные проспекты с разрывами
+ // горизонтальные проспекты с разрывами (восток упирается в лес x=40, юг — в пляж)
+ const _hsegs=[];
  for(const ah of _HA){
-  const pts=[-125];for(const av of _VA)pts.push(av-5,av+5);pts.push(25);pts.sort((a,b)=>a-b);
-  for(let i=0;i+1<pts.length;i+=2)roadSeg(Math.max(-125,pts[i]),ah,Math.min(25,pts[i+1]),ah);
+  const pts=[-275];for(const av of _VA)pts.push(av-5,av+5);pts.push(35);pts.sort((a,b)=>a-b);
+  for(let i=0;i+1<pts.length;i+=2){
+   let x1=Math.max(-275,pts[i]),x2=Math.min(35,pts[i+1]);
+   if(ah===-150){ // площадь SLAY: объезд по бокам
+    if(x1<-40&&x2>-40)x2=Math.min(x2,-40);
+    if(x1<40&&x2>40)x1=Math.max(x1,40);
+    if(x1>=-40&&x2<=40)continue; // целиком внутри площади — выкидываем
+   }
+   if(x2-x1>=1){roadSeg(x1,ah,x2,ah);_hsegs.push({ah,x1,x2});}
+  }
  }
- // перекрёстки — чистый асфальт без разметки + зебры на рукавах (поперёк своей дороги)
+ // перекрёстки — чистый асфальт без разметки + зебры только там, где реально есть дорога
  const _xmat=new THREE.MeshStandardMaterial({color:0x2b2b31,roughness:.92,metalness:.05});
  for(const av of _VA)for(const ah of _HA){
+  const vx=_vsegs.some(s=>s.av===av&&(Math.abs(s.z1-ah)<=6||Math.abs(s.z2-ah)<=6));
+  const hx=_hsegs.some(s=>s.ah===ah&&(Math.abs(s.x1-av)<=6||Math.abs(s.x2-av)<=6));
+  if(!vx||!hx)continue;
   const xm=new THREE.Mesh(new THREE.PlaneGeometry(10,10),_xmat);
   xm.rotation.x=-Math.PI/2;xm.position.set(av,0.022,ah);xm.receiveShadow=true;scene.add(xm);
-  for(const dz of [-8,8]){const z=new THREE.Mesh(new THREE.PlaneGeometry(9,3),_zebraMA);z.rotation.x=-Math.PI/2;z.position.set(av,0.05,ah+dz);scene.add(z);}
-  for(const dx of [-8,8]){const z=new THREE.Mesh(new THREE.PlaneGeometry(3,9),_zebraMB);z.rotation.x=-Math.PI/2;z.position.set(av+dx,0.055,ah);scene.add(z);}
+  for(const s of _vsegs){if(s.av!==av)continue;for(const dz of [-8,8]){const z=ah+dz;if(z>=s.z1+2&&z<=s.z2-2){const zw=new THREE.Mesh(new THREE.PlaneGeometry(9,3),_zebraMA);zw.rotation.x=-Math.PI/2;zw.position.set(av,0.05,z);scene.add(zw);}}}
+  for(const s of _hsegs){if(s.ah!==ah)continue;for(const dx of [-8,8]){const x=av+dx;if(x>=s.x1+2&&x<=s.x2-2){const zw=new THREE.Mesh(new THREE.PlaneGeometry(3,9),_zebraMB);zw.rotation.x=-Math.PI/2;zw.position.set(x,0.055,ah);scene.add(zw);}}}
  }
  // ===== OCEAN DRIVE: ар-деко отели перед пляжем (фасадом к морю, +z) =====
 const _decoCols=[0x9fd8c8,0xf5c8a0,0xf0a8c0,0xf2e8d0,0xa0d8e8,0xc8b8e8];
@@ -1317,7 +1342,7 @@ let beamN=0;
 function skyBeam(x,h,z){const b=new THREE.Mesh(new THREE.CylinderGeometry(2.5,5,44,8,1,true),new THREE.MeshBasicMaterial({color:0x66eeff,transparent:true,opacity:.12,side:THREE.DoubleSide,depthWrite:false}));b.position.set(x,h+22,z);scene.add(b);}
 // добивка пустых кварталов синтвейв-высотками (выше даунтауна — новый силуэт)
 (function(){
- for(let cx=-175;cx<=25;cx+=50)for(let cz=-125;cz<=75;cz+=50){
+ for(let cx=-275;cx<=25;cx+=50)for(let cz=-225;cz<=75;cz+=50){
   if(!freePt(cx,cz,10)||!decorFree(cx,cz,14))continue;
   const w=14+rnd()*6,h=30+rnd()*25;
   const t=synthTower(cx+(rnd()*6-3),cz+(rnd()*6-3),w,h);
@@ -1328,7 +1353,7 @@ function skyBeam(x,h,z){const b=new THREE.Mesh(new THREE.CylinderGeometry(2.5,5,
 (function(){
  const SHOP_SIGNS=['24/7','БАР 42','ШИНЫ','ДОНЕР','АПТЕКА','ТАКСИ','ХОСТЕЛ','ПЛОВ','РЫНОК'];
  let si=0;
- for(let cx=-175;cx<=25;cx+=50)for(let cz=-125;cz<=75;cz+=50){
+ for(let cx=-275;cx<=25;cx+=50)for(let cz=-225;cz<=75;cz+=50){
   if(Math.hypot(cx,cz+140)<45)continue; // площадь SLAY не застраивать
   const offs=[[-12,12],[13,-11],[-13,-12],[12,12]];
   for(let i=offs.length-1;i>0;i--){const j=(rnd()*(i+1))|0;const t=offs[i];offs[i]=offs[j];offs[j]=t;}
@@ -1338,7 +1363,7 @@ function skyBeam(x,h,z){const b=new THREE.Mesh(new THREE.CylinderGeometry(2.5,5,
    const x=cx+o[0]+(rnd()*4-2),z=cz+o[1]+(rnd()*4-2);
    if(!freePt(x,z,4)||!decorFree(x,z,8))continue;
    const ax=Math.round(x/50)*50;
-   if((ax===-100||ax===-50||ax===0||ax===50)&&Math.abs(x-(ax+8.5))<4)continue; // ряд уличных пальм
+   if((ax===-200||ax===-150||ax===-100||ax===-50||ax===0||ax===50)&&Math.abs(x-(ax+8.5))<4)continue; // ряд уличных пальм
    if(Math.abs(Math.abs(x-ax)-6)<2.5)continue; // фонари вдоль проспектов
    if(Math.abs(Math.abs(z-Math.round(z/50)*50)-6)<2.5)continue;
    if(Math.hypot(x,z+140)<40)continue;
@@ -1352,7 +1377,7 @@ function skyBeam(x,h,z){const b=new THREE.Mesh(new THREE.CylinderGeometry(2.5,5,
 // клумбы с кастомными пальмами на пустых углах кварталов
 (function(){
  let placed=0;
- for(const ax of [-100,-50,0])for(const az of [-100,-50,0,50,100]){
+ for(const ax of [-200,-150,-100,-50,0])for(const az of [-200,-150,-100,-50,0,50,100]){
   if(placed>=14)break;
   for(const sx of [8.5,-8.5]){
    if(placed>=14)break;
@@ -1365,7 +1390,7 @@ function skyBeam(x,h,z){const b=new THREE.Mesh(new THREE.CylinderGeometry(2.5,5,
 })();
 // проезд к пляжу: продлить шоссе на песок теми же отрезками + раздвинуть дома, зажимающие коридор
 (function(){
- for(const av of [-100,-50,0])roadSeg(av,100,av,138);
+ for(const av of [-200,-150,-100,-50,0])roadSeg(av,115,av,170);
  const skip=new Set();
  try{skip.add(player);skip.add(car);}catch(_){}
  try{skip.add(kizyak.mesh);}catch(_){}
@@ -1577,7 +1602,7 @@ const _cs=Math.cos(camAng),_sn=Math.sin(camAng);
 let mx=ix*_cs-iy*_sn,mz=-ix*_sn-iy*_cs;
 const sp=10*run*dt;
 player.position.x+=mx*sp;player.position.z+=mz*sp;
-player.position.x=Math.max(-190,Math.min(190,player.position.x));player.position.z=Math.max(-190,Math.min(190,player.position.z));{const _ox=player.position.x-mx*sp,_oz=player.position.z-mz*sp;const r=collide(player.position.x,player.position.z,1);player.position.x=r[0];player.position.z=r[1];const sb=slopeBlock(_ox,_oz,player.position.x,player.position.z);player.position.x=sb[0];player.position.z=sb[1];}
+player.position.x=Math.max(-280,Math.min(280,player.position.x));player.position.z=Math.max(-280,Math.min(280,player.position.z));{const _ox=player.position.x-mx*sp,_oz=player.position.z-mz*sp;const r=collide(player.position.x,player.position.z,1);player.position.x=r[0];player.position.z=r[1];const sb=slopeBlock(_ox,_oz,player.position.x,player.position.z);player.position.x=sb[0];player.position.z=sb[1];}
 if(mx||mz)player.rotation.y=Math.atan2(mx,mz);
 // кот-анимация: лапы + хвост
 const wob=Math.sin(Date.now()*0.012)*((Math.abs(mx)+Math.abs(mz))>0.05?1:0);
@@ -1592,7 +1617,7 @@ if(keys['KeyA']||touchX<-0.3)car.rotation.y+=1.8*dt*(carSpeed>0?1:-1);
 if(keys['KeyD']||touchX>0.3)car.rotation.y-=1.8*dt*(carSpeed>0?1:-1);
 car.position.x+=Math.sin(car.rotation.y)*carSpeed*dt;car.position.z+=Math.cos(car.rotation.y)*carSpeed*dt;{const _cx=car.position.x-Math.sin(car.rotation.y)*carSpeed*dt,_cz=car.position.z-Math.cos(car.rotation.y)*carSpeed*dt;const r=collide(car.position.x,car.position.z,2.5);if(Math.abs(r[0]-car.position.x)+Math.abs(r[1]-car.position.z)>0.001)carSpeed*=0.4;car.position.x=r[0];car.position.z=r[1];const sb2=slopeBlock(_cx,_cz,car.position.x,car.position.z);car.position.x=sb2[0];car.position.z=sb2[1];}
 car.userData.wheels.forEach(w=>w.rotation.x+=carSpeed*dt*2);
-car.position.x=Math.max(-190,Math.min(190,car.position.x));car.position.z=Math.max(-190,Math.min(190,car.position.z)); // вода-стена
+car.position.x=Math.max(-280,Math.min(280,car.position.x));car.position.z=Math.max(-280,Math.min(280,car.position.z)); // вода-стена
 car.position.y+=(GY(car.position.x,car.position.z)-car.position.y)*Math.min(1,dt*6);
 player.position.set(car.position.x,car.position.y,car.position.z);
 if(MI===5){MI5t-=dt;setM('Миссия 5: Гонка','До SLAY: '+Math.ceil(MI5t)+' сек — жми!');if(near(0,-120,16)){try{enterVinlineWorld();}catch(_){}}else if(MI5t<=0){MI5t=90;car.position.set(33,GY(33,95),95);carSpeed=0;}}
@@ -1632,21 +1657,21 @@ try{if(window.markers)for(const mk of window.markers){const _s=1+0.18*Math.sin(D
 try{if(window.campfire){const _f=1+0.25*Math.sin(Date.now()*0.01);window.campfire.scale.set(_f,1+0.3*Math.sin(Date.now()*0.013),_f);}}catch(_){}
 cam.lookAt(focus.x,cam.userData.lookY||2,focus.z);
 // миникарта (S=ширина канваса: 120 малая / 360 большая, k=масштаб маркеров)
-{const S=mm.canvas.width,W2M=S/400,WX=x=>(x+200)*W2M,k=S/120;
+{const S=mm.canvas.width,W2M=S/600,WX=x=>(x+300)*W2M,k=S/120;
 // фон зон острова
 mm.fillStyle='#1c1c24';mm.fillRect(0,0,S,S); // город-база
 mm.fillStyle='#1e6a34';mm.fillRect(WX(40),WX(-30),160*W2M,155*W2M); // лес
-mm.fillStyle='#3e7a33';mm.fillRect(0,0,S,50*W2M); // горы север
+mm.fillStyle='#3e7a33';mm.fillRect(0,0,S,70*W2M); // горы север
 mm.fillRect(WX(140),WX(-130),60*W2M,100*W2M); // хребет
-mm.fillStyle='#d9b84a';mm.fillRect(0,WX(125),S,75*W2M); // пляж
+mm.fillStyle='#d9b84a';mm.fillRect(0,WX(125),S,175*W2M); // пляж
 // шоссе-сетка: тёмная окантовка + асфальт + пунктирная осевая
 mm.lineCap='butt';
 mm.strokeStyle='#1f1f26';mm.lineWidth=Math.max(2,10*W2M);
-for(let i=-150;i<=150;i+=50){mm.beginPath();mm.moveTo(WX(i),0);mm.lineTo(WX(i),S);mm.stroke();mm.beginPath();mm.moveTo(0,WX(i));mm.lineTo(S,WX(i));mm.stroke();}
+for(let i=-300;i<=300;i+=50){mm.beginPath();mm.moveTo(WX(i),0);mm.lineTo(WX(i),S);mm.stroke();mm.beginPath();mm.moveTo(0,WX(i));mm.lineTo(S,WX(i));mm.stroke();}
 mm.strokeStyle='#33333d';mm.lineWidth=Math.max(1,7*W2M);
-for(let i=-150;i<=150;i+=50){mm.beginPath();mm.moveTo(WX(i),0);mm.lineTo(WX(i),S);mm.stroke();mm.beginPath();mm.moveTo(0,WX(i));mm.lineTo(S,WX(i));mm.stroke();}
+for(let i=-300;i<=300;i+=50){mm.beginPath();mm.moveTo(WX(i),0);mm.lineTo(WX(i),S);mm.stroke();mm.beginPath();mm.moveTo(0,WX(i));mm.lineTo(S,WX(i));mm.stroke();}
 mm.strokeStyle='#d8a923';mm.lineWidth=Math.max(1,W2M);mm.setLineDash([4,3]);
-for(let i=-150;i<=150;i+=50){mm.beginPath();mm.moveTo(WX(i),0);mm.lineTo(WX(i),S);mm.stroke();mm.beginPath();mm.moveTo(0,WX(i));mm.lineTo(S,WX(i));mm.stroke();}
+for(let i=-300;i<=300;i+=50){mm.beginPath();mm.moveTo(WX(i),0);mm.lineTo(WX(i),S);mm.stroke();mm.beginPath();mm.moveTo(0,WX(i));mm.lineTo(S,WX(i));mm.stroke();}
 mm.setLineDash([]);
 // все здания из коллизий
 try{for(const s of solids){const c=s.mesh&&s.mesh.material&&s.mesh.material.color;mm.fillStyle=c?('#'+c.getHexString()):'#666';mm.fillRect(WX(s.x-s.hx),WX(s.z-s.hz),(s.hx*2)*W2M,(s.hz*2)*W2M);}}catch(_){}
