@@ -31,8 +31,10 @@ button.buy:disabled{opacity:.45}
 #rbar{position:relative;height:64px;background:#0a0512;border:2px solid var(--gold);border-radius:12px;overflow:hidden;margin:10px 0;touch-action:none}
 #rzone{position:absolute;top:0;bottom:0;background:rgba(245,197,24,.35);border-left:2px solid var(--gold);border-right:2px solid var(--gold)}
 #rcur{position:absolute;top:-2px;bottom:-2px;width:6px;background:#fff;border-radius:3px;box-shadow:0 0 10px #fff}
-.hater{position:absolute;top:6px;font-size:34px;cursor:pointer;user-select:none;animation:shake .3s infinite}
+.hater{position:absolute;top:2px;font-size:34px;line-height:1;padding:10px;margin:-10px;cursor:pointer;user-select:none;-webkit-user-select:none;z-index:5;animation:shake .3s infinite}
 @keyframes shake{0%{transform:translateX(-2px) rotate(-6deg)}50%{transform:translateX(2px) rotate(6deg)}100%{transform:translateX(-2px) rotate(-6deg)}}
+#rzone{pointer-events:none}
+#rcur{pointer-events:none;z-index:4}
 #raid{position:absolute;inset:0;background:rgba(120,0,20,.55);display:none;align-items:center;justify-content:center;flex-direction:column;font-size:22px;font-weight:800}
 #msg{min-height:24px;text-align:center;color:var(--gold);font-weight:700;margin-top:6px}
 #win{position:fixed;inset:0;background:rgba(5,2,10,.92);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
@@ -87,15 +89,15 @@ a{color:var(--gold)}
 var KEY='brohacho42_v1';
 var WIN_GOAL=420000;
 var VENUES=[
- {id:'garage',n:'Гараж в Кемерово',em:'🏚️',speed:55,zone:30,base:10,cost:0,need:''},
- {id:'club',n:'Клуб «Фрик»',em:'🎪',speed:80,zone:24,base:25,cost:500,need:''},
- {id:'arena',n:'Арена фриков',em:'🏟️',speed:115,zone:18,base:60,cost:5000,need:'jacket'},
- {id:'slay',n:'Главная сцена SLAY',em:'🏆',speed:150,zone:12,base:150,cost:50000,need:'mantle+sneakers'}
+ {id:'garage',n:'Гараж в Кемерово',em:'🏚️',speed:70,zone:26,base:10,cost:0,need:''},
+ {id:'club',n:'Клуб «Фрик»',em:'🎪',speed:110,zone:20,base:25,cost:500,need:''},
+ {id:'arena',n:'Арена фриков',em:'🏟️',speed:150,zone:15,base:60,cost:5000,need:'jacket'},
+ {id:'slay',n:'Главная сцена SLAY',em:'🏆',speed:190,zone:10,base:150,cost:50000,need:'mantle+sneakers'}
 ];
 var TEAM={
  denis:{n:'Денис Биткоин',em:'🎤',d:'Замедляет бегунок: −12% скорости за уровень',base:50},
  freak:{n:'Фрик из ФрикЛенда',em:'🤪',d:'Множитель Хайпа за точные попадания: +25% за уровень',base:200},
- oper:{n:'Оператор СП',em:'🎧',d:'Хейтеры приходят реже: +50% к интервалу за уровень',base:800},
+ oper:{n:'Оператор СП',em:'🎧',d:'Хейтеры приходят реже: +60% к интервалу за уровень',base:800},
  guard:{n:'Охрана Батальона',em:'💪',d:'Сама снимает мелких хейтеров через пару секунд',base:2000}
 };
 var LOOKS={
@@ -126,7 +128,9 @@ function stCritM(){return (1+0.25*S.team.freak)*(1+[0,0.25,0.5,1][S.look.hair]);
 function stComboStep(){return 0.1+0.02*S.bld.garden;}
 function stComboCap(){return [10,15,22,30][S.look.sneakers];}
 function stDouble(){return [0,0.1,0.2,0.35][S.look.mantle];}
-function stHaterEvery(){return 6*(1+0.5*S.team.oper);}
+function stHaterEvery(){return 12*(1+0.6*S.team.oper);}
+function stRunSpeed(){if(!SH)return 0;var acc=1+Math.min(SH.sweep*0.03,0.5);return stSpeed(SH.v)*acc;}
+function newZone(){var zw=stZone(SH.v);var lo=zw/2+3,hi=100-4;if(hi<40)hi=40;SH.zc=lo+Math.random()*Math.max(hi-lo,4);if(SH.zc>hi)SH.zc=hi;}
 function fans(){return Math.floor(Math.sqrt(S.total)/5);}
 function fmt(n){n=Math.floor(n);if(n>=1e6)return (n/1e6).toFixed(2)+'M';if(n>=1e3)return (n/1e3).toFixed(1)+'K';return String(n);}
 /* ---- шоу ---- */
@@ -143,19 +147,22 @@ function startShow(id){
  var v=venueById(id),u=unlocked(v);
  if(!u.ok){msg(v.need&&S.h>=v.cost?u.why:u.why);blip(200);return;}
  if(u.buy){S.h-=v.cost;S.un.push(v.id);save();}
- SH={v:v,pos:0,dir:1,t:30,hype:0,combo:0,best:0,golds:0,haters:[],nextH:2,raid:null,raidCd:0,cd:0};
+ SH={v:v,pos:100,zc:50,sweep:0,t:30,hype:0,combo:0,best:0,golds:0,haters:[],nextH:5,raid:null,raidCd:0,cd:0};
+ newZone();
+ clearHaters();
  document.getElementById('showCard').style.display='block';
  document.getElementById('showName').textContent=v.em+' '+v.n;
  document.getElementById('raid').style.display='none';
  renderVenues();blip(700);
 }
 function judge(){
- // чистое судейство: |d|<=zone/2 — золото; <=zone — край; иначе мимо
- var zw=stZone(SH.v),d=Math.abs(SH.pos-50);
+ // заезд справа налево: |pos-zc|<=zone/2 — золото; <=zone — край; иначе мимо
+ var zw=stZone(SH.v),d=Math.abs(SH.pos-SH.zc);
  if(d<=zw/2)return 'gold';
  if(d<=zw)return 'edge';
  return 'miss';
 }
+function resetRun(){SH.pos=100;SH.sweep++;newZone();}
 function zavoz(){
  if(!SH||SH.cd>0)return;
  SH.cd=0.35;
@@ -165,7 +172,7 @@ function zavoz(){
    if(SH.raid.n>=SH.raid.need){gain(base*10*stCritM(),'👹 РЕЙД ОТБИТ! ×10!');SH.raid=null;document.getElementById('raid').style.display='none';}
    else document.getElementById('raidN').textContent=SH.raid.n+'/'+SH.raid.need+' попади ещё!';
   }else{SH.raid.n=0;SH.combo=0;document.getElementById('raidN').textContent='0/'+SH.raid.need+' — мимо, сначала!';blip(200);}
-  return;
+  resetRun();return;
  }
  if(j==='gold'){
   SH.combo=Math.min(SH.combo+1,stComboCap());SH.best=Math.max(SH.best,SH.combo);SH.golds++;
@@ -175,6 +182,7 @@ function zavoz(){
   blip(880);
  }else if(j==='edge'){gain(base*0.3,'');blip(500);
  }else{SH.combo=0;msg('Мимо! Комбо сгорело 💨');blip(200);}
+ resetRun();
 }
 function gain(n,txt){
  SH.hype+=n;
@@ -188,7 +196,7 @@ function blip(f){try{var C=blip.ac=blip.ac||new (window.AudioContext||window.web
 function endShow(){
  S.h+=Math.floor(SH.hype);S.total+=Math.floor(SH.hype);
  msg('Шоу окончено: +'+fmt(SH.hype)+' 🔥 · точных: '+SH.golds+' · лучшее комбо: '+SH.best);
- SH=null;document.getElementById('showCard').style.display='none';
+ clearHaters();SH=null;document.getElementById('showCard').style.display='none';
  if(S.total>=WIN_GOAL&&!S.win){S.win=true;document.getElementById('win').style.display='flex';blip(990);}
  save();renderAll();
 }
@@ -246,15 +254,14 @@ function frame(){
  if(SH.raidCd>0)SH.raidCd-=dt;
  SH.t-=dt;
  if(SH.t<=0){endShow();return;}
- // бегунок туда-сюда
- SH.pos+=SH.dir*stSpeed(SH.v)*dt;
- if(SH.pos>=100){SH.pos=100;SH.dir=-1;}
- if(SH.pos<=0){SH.pos=0;SH.dir=1;}
- // хейтеры
+ // заезд только справа налево; долетел до края без нажатия — упустил, заезд заново
+ SH.pos-=stRunSpeed()*dt;
+ if(SH.pos<=0){SH.pos=100;SH.sweep++;newZone();SH.combo=0;msg('Упустил заезд! Комбо сгорело 💨');}
+ // хейтеры (реже + не больше двух на полосе)
  SH.nextH-=dt;
  if(SH.nextH<=0){
   SH.nextH=stHaterEvery()*(0.7+Math.random()*0.6);
-  spawnHater();
+  if(SH.haters.length<2)spawnHater();else SH.nextH=2;
  }
  // охрана сама снимает мелких
  if(S.team.guard>0){
@@ -263,11 +270,12 @@ function frame(){
    if(SH.haters[i].age>2.5-0.5*S.team.guard){rmHater(i,true);}
   }
  }else for(var j=0;j<SH.haters.length;j++)SH.haters[j].age+=dt;
- // протухшие хейтеры штрафуют
+ // протухшие хейтеры штрафуют (и убирают свой div — иначе остаются призраки)
  for(var k=SH.haters.length-1;k>=0;k--){
-  if(SH.haters[k].age>4){
+  if(SH.haters[k].age>5){
+   try{SH.haters[k].el.remove();}catch(e){}
    SH.haters.splice(k,1);SH.combo=0;
-   msg('Хейтер сорвал кусок шоу! −10% 😡');SH.hype*=0.9;blip(200);drawHaters();
+   msg('Хейтер сорвал кусок шоу! −10% 😡');SH.hype*=0.9;blip(200);
   }
  }
  drawBar();
@@ -275,20 +283,20 @@ function frame(){
  renderRes();
 }
 function drawBar(){
- var bar=document.getElementById('rbar');
  var zw=stZone(SH.v);
  var z=document.getElementById('rzone');
- z.style.left=(50-zw/2)+'%';z.style.width=zw+'%';
+ z.style.left=(SH.zc-zw/2)+'%';z.style.width=zw+'%';
  document.getElementById('rcur').style.left='calc('+SH.pos+'% - 3px)';
- drawHaters();
 }
+function clearHaters(){if(SH)SH.haters=[];try{var bar=document.getElementById('rbar');var hs=bar.querySelectorAll('.hater');for(var i=0;i<hs.length;i++)hs[i].remove();}catch(e){}}
 function spawnHater(){
  var zw=stZone(SH.v);
- var off=(Math.random()-0.5)*zw*0.7;
+ var off=(Math.random()-0.5)*zw*1.2;
  var el=document.createElement('div');el.className='hater';el.textContent='😡';
- el.style.left='calc('+(50+off)+'% - 17px)';
- var h={el:el,age:0};
- el.onclick=function(e){e.stopPropagation();var i=SH.haters.indexOf(h);if(i>=0)rmHater(i,false);};
+ el.style.left='calc('+(SH.zc+off)+'% - 17px)';
+ var h={el:el,age:0,dead:false};
+ var kick=function(e){if(e)e.stopPropagation();if(h.dead)return;h.dead=true;var i=SH?SH.haters.indexOf(h):-1;if(i>=0)rmHater(i,false);};
+ el.onclick=kick;try{el.addEventListener('pointerdown',kick);}catch(e){}
  SH.haters.push(h);
  document.getElementById('rbar').appendChild(el);
  blip(240);
@@ -299,7 +307,6 @@ function rmHater(i,silent){
  SH.haters.splice(i,1);
  if(!silent){gain(stBase(SH.v)*0.5,'Хейтер сброшен с полосы!');blip(660);}
 }
-function drawHaters(){/* хейтеры живут своими div-ами */}
 /* ---- табы ---- */
 document.querySelectorAll('#tabs button').forEach(function(b){
  b.onclick=function(){
@@ -318,7 +325,7 @@ setInterval(function(){
  if(inc>0){S.f+=inc;save();renderRes();}
 },1000);
 /* крючок для тестов */
-window.__brohacho={state:function(){return S;},judge:function(pos,zone){var d=Math.abs(pos-50);if(d<=zone/2)return 'gold';if(d<=zone)return 'edge';return 'miss';},lvlCost:lvlCost};
+window.__brohacho={state:function(){return S;},judge:function(pos,zc,zone){var d=Math.abs(pos-zc);if(d<=zone/2)return 'gold';if(d<=zone)return 'edge';return 'miss';},lvlCost:lvlCost,haterEvery:function(){return stHaterEvery();}};
 </script>
 <script>/* 42-трекер онлайна */(function(){var SITE='brohacho';try{var s=null;try{s=localStorage.getItem('t42_sid');}catch(e){}if(!s||!/^[0-9a-f]{32}$/.test(s)){s='';var h='0123456789abcdef';for(var i=0;i<32;i++)s+=h[Math.floor(Math.random()*16)];try{localStorage.setItem('t42_sid',s);}catch(e){}}function b(){try{fetch('https://hub.bratuxa.zomb.top/api/track',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({site:SITE,sid:s}),keepalive:true}).catch(function(){});}catch(e){}}b();setInterval(b,30000);}catch(e){}})();</script>
 </body>
