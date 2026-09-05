@@ -5,7 +5,7 @@ import './casino/hall.css';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ItemIcon } from './casino-icons';
-import { Coins, CreditCard, House, Ticket, Trophy } from 'lucide-react';
+import { Coins, CreditCard, House, RotateCcw, Trophy } from 'lucide-react';
 import type { Api, Tone } from './casino/shared';
 import Crash from './casino/Crash';
 import Cases from './casino/Cases';
@@ -22,20 +22,18 @@ import Plinko from './casino/Plinko';
 const LS = 'sasha_casino';
 const LS_WON = 'sasha_casino_won';
 const START_BALANCE = 1000;
-const BONUS = 500;
-const BONUS_CD = 60;
 
-type Save = { balance: number; bonusTs: number };
+type Save = { balance: number };
 
 function load(): Save {
   try {
     const raw = localStorage.getItem(LS);
     if (raw) {
-      const o = JSON.parse(raw) as Partial<Save>;
-      if (typeof o.balance === 'number') return { balance: Math.max(0, Math.floor(o.balance)), bonusTs: o.bonusTs || 0 };
+      const o = JSON.parse(raw) as Partial<Save & { bonusTs: number }>;
+      if (typeof o.balance === 'number') return { balance: Math.max(0, Math.floor(o.balance)) };
     }
   } catch { /* свежий кошелёк */ }
-  return { balance: START_BALANCE, bonusTs: 0 };
+  return { balance: START_BALANCE };
 }
 
 function loadWon(): number {
@@ -75,17 +73,17 @@ function viewFromHash(): View {
 export default function Casino(): JSX.Element {
   useBeacon();
   const [balance, setBalance] = useState<number>(() => load().balance);
-  const [bonusTs, setBonusTs] = useState<number>(() => load().bonusTs);
   const [won, setWon] = useState<number>(() => loadWon());
   const [msg, setMsg] = useState('Фишки фантики, азарт настоящий');
   const [tone, setTone] = useState<Tone>('');
   const [view, setView] = useState<View>(() => viewFromHash());
+  const [confirmReset, setConfirmReset] = useState(false);
   const balRef = useRef(balance);
   balRef.current = balance;
 
   useEffect(() => {
-    try { localStorage.setItem(LS, JSON.stringify({ balance, bonusTs })); } catch { /* не влезло */ }
-  }, [balance, bonusTs]);
+    try { localStorage.setItem(LS, JSON.stringify({ balance })); } catch { /* не влезло */ }
+  }, [balance]);
 
   useEffect(() => {
     const onH = (): void => { setView(viewFromHash()); window.scrollTo(0, 0); };
@@ -110,12 +108,16 @@ export default function Casino(): JSX.Element {
     });
   };
 
-  const takeBonus = (): void => {
-    const wait = BONUS_CD - Math.floor((Date.now() - bonusTs) / 1000);
-    if (wait > 0) { say(`Касса пуста, заходи через ${wait} с`); return; }
-    setBalance(b => b + BONUS);
-    setBonusTs(Date.now());
-    say(`+${BONUS} фишек от батальона`);
+  const resetBalance = (): void => {
+    if (!confirmReset) {
+      setConfirmReset(true);
+      say('Точно сбросить? Баланс станет 1000. Жми ещё раз');
+      window.setTimeout(() => setConfirmReset(false), 5000);
+      return;
+    }
+    setConfirmReset(false);
+    setBalance(START_BALANCE);
+    say('Баланс сброшен: снова 1000 фишек. Мы уже победили');
   };
 
   const api = { balance, msg, tone, reduced, spend, credit, say };
@@ -143,7 +145,9 @@ export default function Casino(): JSX.Element {
           <Button variant="outline" size="sm" asChild><a href="index.html" title="На главную" className="no-underline"><House data-icon="inline-start" /> Главная</a></Button>
           <Badge variant="secondary" className="tabular-nums"><Coins data-icon="inline-start" /> {balance}</Badge>
           <span className="sp" />
-          <Button variant="outline" size="sm" onClick={takeBonus}><Ticket data-icon="inline-start" /> +500 фишек</Button>
+          <Button variant="outline" size="sm" onClick={resetBalance}
+            title="Сбросить баланс к стартовой тысяче">
+            <RotateCcw data-icon="inline-start" /> {confirmReset ? 'Точно сбросить?' : 'Сброс'}</Button>
           <Button size="sm" asChild>
             <a
               href="https://finance.ozon.ru/apps/sbp/ozonbankpay/019fa8eb-037e-75f9-a3d9-fe258db9e911"
