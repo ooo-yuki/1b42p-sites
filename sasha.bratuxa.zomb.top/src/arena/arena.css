@@ -240,6 +240,11 @@ button.dcard:disabled{cursor:default}
 .ch-sq.lt.last{background:#a9cdec}
 .ch-sq.chk{background:#e05559}
 .ch-sq.sel{outline:3px solid #fff; outline-offset:-3px; z-index:1}
+/* точки тихих ходов и кольца взятий */
+.ch-sq.tgt::after{content:''; width:26%; aspect-ratio:1; border-radius:50%;
+  background:rgba(0,96,170,.75); box-shadow:0 0 10px rgba(0,96,170,.9)}
+.ch-sq.tcap::after{content:''; position:absolute; inset:6%; border-radius:50%;
+  border:3px solid rgba(227,30,37,.85); box-shadow:0 0 12px rgba(227,30,37,.6); pointer-events:none}
 button.ch-sq{cursor:pointer}
 button.ch-sq:hover{filter:brightness(1.15)}
 .ch-pc{font-size:clamp(22px,7vw,38px); line-height:1; color:#101828;

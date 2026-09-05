@@ -39,6 +39,8 @@ export type ChessPublic = {
   drawOffer: string | null; full: number;
   history: string[];
   phase: string; winner: string | null; reason: string | null;
+  castling: { wk: boolean; wq: boolean; bk: boolean; bq: boolean };
+  ep: number | null;
 };
 
 export type PoolView = {

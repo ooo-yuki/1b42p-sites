@@ -117,6 +117,7 @@ function chessPublic(r: Room): Record<string, unknown> {
     drawOffer: st.drawOffer, full: st.full,
     history: [...st.history],
     phase: st.phase, winner: st.winner, reason: st.reason,
+    castling: { ...st.castling }, ep: st.ep,
   };
 }
 
