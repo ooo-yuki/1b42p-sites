@@ -285,6 +285,7 @@ function draw(){
  for(i=0;i<G.foes.length;i++){f=G.foes[i];ctx.font=(f.r*1.8)+'px sans-serif';ctx.fillText(f.em,f.x-f.r*0.9,f.y+f.r*0.6);
   ctx.fillStyle='#000a';ctx.fillRect(f.x-18,f.y-f.r-12,36,5);
   ctx.fillStyle='#ff3b3b';ctx.fillRect(f.x-18,f.y-f.r-12,36*Math.max(f.hp,0)/f.maxhp,5);}
+ ctx.font='36px sans-serif';ctx.fillText('🧥',P.x-18,P.y+12);
  ctx.font='30px sans-serif';ctx.fillText('🧍',P.x-15,P.y+10);
  if(P.dashT>0){ctx.strokeStyle='#4fc3f7';ctx.lineWidth=2;ctx.beginPath();ctx.arc(P.x,P.y,22,0,6.29);ctx.stroke();}
  ctx.strokeStyle='rgba(79,195,247,.25)';ctx.lineWidth=1;ctx.beginPath();ctx.arc(P.x,P.y,P.range,0,6.29);ctx.stroke();
