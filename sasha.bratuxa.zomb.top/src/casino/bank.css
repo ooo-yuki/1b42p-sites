@@ -1,12 +1,12 @@
 /* КАССА — ворота и таблица лидеров. Панели #0d1428 на ночи #070b18. */
 
-.bank-gate{width:100%; max-width:560px; margin:0 auto}
+.bank-gate{width:100%; max-width:560px; margin:22px auto 0}
 .bank-form{display:flex; flex-direction:column; gap:10px}
 .bank-row{display:flex; gap:8px; flex-wrap:wrap}
 .bank-err{margin:0; color:#E31E25; font-size:13px}
 
-/* Кассовая зона живёт ниже порталов: щедрый воздух + разделитель. */
-.lobby-sep{width:min(100%,640px); margin:14px auto 0; background:rgba(0,96,170,.35)}
+/* Кассовая зона живёт ниже порталов: единый шаг лобби — 22px, как у тикера. */
+.lobby-sep{width:min(100%,640px); margin:22px auto; background:rgba(0,96,170,.35)}
 .bank-leaders{width:100%; max-width:640px; margin:22px auto 0}
 .lead-title{display:flex; align-items:center; gap:8px}
 .lead-list{list-style:none; margin:0; padding:0; display:flex;

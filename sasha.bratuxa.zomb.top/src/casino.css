@@ -15,7 +15,7 @@ body.casino main{position:static;display:block;text-align:left;padding:0;pointer
 /* ряды контролов и нижняя навигация */
 .crow{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .cnav{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;justify-content:center}
-.cfoot{color:#f0f0f0;font-size:13px;margin-top:18px;line-height:1.6;text-align:center}
+.cfoot{color:#f0f0f0;font-size:13px;margin-top:22px;line-height:1.6;text-align:center}
 .cfoot a{color:#ffffff}
 .tnum{font-variant-numeric:tabular-nums}
 /* иконки и пиксель-арт */
