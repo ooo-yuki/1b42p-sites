@@ -18,6 +18,14 @@ html,body{margin:0;padding:0;background:var(--bg);color:#f2eafc;font-family:syst
 .pill b{color:var(--gold)}
 #hpwrap{max-width:640px;margin:6px auto 0;height:10px;background:#000a;border:1px solid var(--line);border-radius:6px;overflow:hidden}
 #hpbar{height:100%;width:100%;background:linear-gradient(90deg,#37e05a,#b6ff5e);transition:width .15s}
+#xpwrap{max-width:640px;margin:4px auto 0;height:8px;background:#000a;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+#xpbar{height:100%;width:0%;background:linear-gradient(90deg,#4fc3f7,#ff4fd8);transition:width .15s}
+#lvlup{position:fixed;inset:0;background:rgba(5,2,10,.88);display:none;align-items:center;justify-content:center;z-index:60;padding:20px}
+#lvlBox{background:var(--panel);border:3px solid var(--gold);border-radius:16px;padding:20px;max-width:480px;width:100%;text-align:center}
+#lvlBox h2{color:var(--gold);margin:0 0 10px}
+#lvlCards{display:flex;flex-direction:column;gap:8px}
+#lvlCards button{background:#2c1a4d;color:#fff;border:2px solid var(--gold);border-radius:10px;padding:12px;font-size:15px;cursor:pointer}
+#lvlCards button small{color:#b9a3d6}
 #bossbar{display:none;max-width:640px;margin:6px auto 0;padding:2px 8px;font-size:12px;color:#ffb3b3}
 #bossbar .track{height:8px;background:#000a;border:1px solid var(--red);border-radius:5px;overflow:hidden}
 #bosshp{height:100%;width:100%;background:var(--red)}
@@ -41,6 +49,8 @@ html,body{margin:0;padding:0;background:var(--bg);color:#f2eafc;font-family:syst
 <h1>1Б42П: ШТУРМ 3D ⚔️</h1>
 <div class="sub">арена Батальона в 3D · дойди до 42-й волны · <a href="https://hub.bratuxa.zomb.top">← Хаб 1Б42П</a></div>
 <div id="res">
+<span class="pill">⏱️ Время: <b id="rT">0:00</b></span>
+<span class="pill">💠 Ур: <b id="rL">1</b></span>
 <span class="pill">🌊 Волна: <b id="rW">0</b></span>
 <span class="pill">🔥 Хайп: <b id="rH">0</b></span>
 <span class="pill">🎟️ Фантики: <b id="rF">0</b></span>
@@ -321,12 +331,9 @@ function updateShop(){
 document.getElementById('btnShop').onclick=function(){var s=document.getElementById('shop');s.style.display=s.style.display==='block'?'none':'block';updateShop();blip(600);};
 document.getElementById('btnV').onclick=vortex;
 document.getElementById('btnZ').onclick=zov;
-/* ---------- цикл ---------- */
-var lastT=0;
-function frame(){
- requestAnimationFrame(frame);
- var now=Date.now(),dt=Math.min((now-(lastT||now))/1000,0.05);lastT=now;
- if(!renderer||G.over){return;}
+/* ---------- цикл: updatePhysics / checkCollisions / render + gameLoop ---------- */
+// Физика: движение, таймеры, спавн волн, движение врагов, частицы. Без урона и подбора.
+function updatePhysics(dt){
  var mx=0,mz=0;
  if(keys['a']||keys['arrowleft']||keys['ф'])mx-=1;
  if(keys['d']||keys['arrowright']||keys['в'])mx+=1;
@@ -341,16 +348,10 @@ function frame(){
  if(P.dashCd>0)P.dashCd-=dt;if(P.dashT>0)P.dashT-=dt;
  if(P.vCd>0)P.vCd-=dt;if(P.zCd>0)P.zCd-=dt;
  if(P.swing>0)P.swing-=dt;
+ if(P.atkCd>0)P.atkCd-=dt;
  if(G.spawnQ.length){G.spawnT-=dt;if(G.spawnT<=0){G.spawnT=0.5;spawnFoe(G.spawnQ.shift());}}
  else if(!G.foes.length){G.breather-=dt;
   if(G.breather<=0){G.breather=4;G.fant+=5+G.wave;startWave(G.wave+1);}}
- if(P.atkCd>0)P.atkCd-=dt;
- if(P.atkCd<=0&&G.foes.length){
-  var bi=-1,bd=1e9;
-  for(var i=0;i<G.foes.length;i++){var f=G.foes[i];var d=Math.hypot(f.x-P.x,f.z-P.z)-f.r;
-   if(d<bd){bd=d;bi=i;}}
-  if(bi>=0&&bd<P.range){P.atkCd=P.atkRate;P.swing=0.2;damageFoe(G.foes[bi],P.dmg,P.x,P.z);}
- }
  for(var j=G.foes.length-1;j>=0;j--){var e=G.foes[j];
   var ex=P.x-e.x,ez=P.z-e.z,el=Math.hypot(ex,ez)||1;
   var esp=e.spd;
@@ -364,13 +365,7 @@ function frame(){
   if(e.g){e.g.position.x=e.x;e.g.position.z=e.z;
    if(e.bars)e.bars.fg.scale.x=e.bars.w*Math.max(e.hp,0)/e.maxhp;}
   if(e.cd>0)e.cd-=dt;
-  if(el<e.r+1&&e.cd<=0){e.cd=0.8;hurtPlayer(e.dmg);}
  }
- for(var k=G.drops.length-1;k>=0;k--){var dr=G.drops[k];dr.t+=dt;
-  if(dr.sp)dr.sp.position.y=0.8+Math.sin(dr.t*4)*0.2;
-  if(Math.hypot(dr.x-P.x,dr.z-P.z)<2){G.drops.splice(k,1);if(dr.sp)scene.remove(dr.sp);
-   if(dr.k==='f'){G.fant+=dr.v;blip(990,0.05);}
-   else{P.hp=Math.min(P.maxhp,P.hp+dr.v);msg('+'+dr.v+' HP ❤️');blip(700);}}}
  for(var p=G.parts.length-1;p>=0;p--){var pt=G.parts[p];pt.t-=dt;
   if(pt.sp){pt.sp.position.x+=pt.vx*dt;pt.sp.position.y+=pt.vy*dt;pt.sp.position.z+=pt.vz*dt;
    pt.sp.material.opacity=Math.max(pt.t*2,0);}
@@ -380,7 +375,27 @@ function frame(){
   if(rg.t<=0){scene.remove(rg.m);G.rings.splice(ri,1);}}
  if(G.shake>0)G.shake-=dt*2;
  if(G.flash>0){G.flash-=dt*4;flashLight.intensity=Math.max(G.flash*40,0);flashLight.position.set(P.x,6,P.z);}
- /* камера + братуха */
+}
+// Коллизии: авто-атака, урон от врагов, подбор дропов.
+function checkCollisions(dt){
+ if(P.atkCd<=0&&G.foes.length){
+  var bi=-1,bd=1e9;
+  for(var i=0;i<G.foes.length;i++){var f=G.foes[i];var d=Math.hypot(f.x-P.x,f.z-P.z)-f.r;
+   if(d<bd){bd=d;bi=i;}}
+  if(bi>=0&&bd<P.range){P.atkCd=P.atkRate;P.swing=0.2;damageFoe(G.foes[bi],P.dmg,P.x,P.z);}
+ }
+ for(var j=G.foes.length-1;j>=0;j--){var e=G.foes[j];
+  var el=Math.hypot(P.x-e.x,P.z-e.z)||1;
+  if(el<e.r+1&&e.cd<=0){e.cd=0.8;hurtPlayer(e.dmg);}
+ }
+ for(var k=G.drops.length-1;k>=0;k--){var dr=G.drops[k];dr.t+=dt;
+  if(dr.sp)dr.sp.position.y=0.8+Math.sin(dr.t*4)*0.2;
+  if(Math.hypot(dr.x-P.x,dr.z-P.z)<2){G.drops.splice(k,1);if(dr.sp)scene.remove(dr.sp);
+   if(dr.k==='f'){G.fant+=dr.v;blip(990,0.05);}
+   else{P.hp=Math.min(P.maxhp,P.hp+dr.v);msg('+'+dr.v+' HP ❤️');blip(700);}}}
+}
+// Рендер: камера + братуха + кадр + худ.
+function render(){
  playerG.position.set(P.x,0,P.z);
  playerG.rotation.y=P.face;
  batMesh.rotation.z=P.swing>0?-1.2:0.5;
@@ -390,6 +405,29 @@ function frame(){
  camera.lookAt(P.x*0.9,0,P.z*0.9);
  renderer.render(scene,camera);
  hud();
+}
+// Заказанный gameLoop от эвв эльфа: физика → коллизии → рендер → следующий кадр.
+function gameLoop(timestamp){
+ var dt=gameLoop._dt();
+ updatePhysics(dt);
+ checkCollisions(dt);
+ render();
+ requestAnimationFrame(gameLoop);
+}
+gameLoop._last=0;
+gameLoop._dt=function(){
+ var now=Date.now(),dt=Math.min((now-(gameLoop._last||now))/1000,0.05);
+ gameLoop._last=now;return dt;
+};
+var lastT=0;
+function frame(){
+ requestAnimationFrame(frame);
+ var now=Date.now(),dt=Math.min((now-(lastT||now))/1000,0.05);lastT=now;
+ if(!renderer||G.over){return;}
+ gameLoop._last=now;
+ updatePhysics(dt);
+ checkCollisions(dt);
+ render();
 }
 function hud(){
  try{
