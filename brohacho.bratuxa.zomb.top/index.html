@@ -33,6 +33,10 @@ button.buy:disabled{opacity:.45}
 #rzone:after{content:'ЖМИ ТУТ';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--gold);opacity:.8}
 #rcur{position:absolute;top:-4px;bottom:-4px;width:12px;background:linear-gradient(180deg,#fff,#ff4fd8 60%,#f5c518);border:2px solid #fff;border-radius:6px;box-shadow:0 0 14px #ff4fd8,0 0 5px #fff;pointer-events:none;z-index:4}
 #rbar:before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 9%,rgba(255,255,255,.09) 9% 10%);pointer-events:none}
+.note{position:absolute;top:8px;font-size:30px;line-height:1;z-index:3;transform:translateX(-50%);filter:drop-shadow(0 0 6px #f5c518);pointer-events:none}
+.note.hit{animation:pop .18s ease-out}
+@keyframes pop{0%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.6);opacity:.9}100%{transform:translateX(-50%) scale(0.2);opacity:0}}
+.note.raidnote{filter:drop-shadow(0 0 8px #ff4fd8)}
 #tempo{text-align:center;font-size:13px;color:#ffb3ec;min-height:18px}
 .hater{position:absolute;top:2px;font-size:34px;line-height:1;padding:10px;margin:-10px;cursor:pointer;user-select:none;-webkit-user-select:none;z-index:5;animation:shake .3s infinite}
 @keyframes shake{0%{transform:translateX(-2px) rotate(-6deg)}50%{transform:translateX(2px) rotate(6deg)}100%{transform:translateX(-2px) rotate(-6deg)}}
@@ -91,10 +95,10 @@ a{color:var(--gold)}
 var KEY='brohacho42_v1';
 var WIN_GOAL=420000;
 var VENUES=[
- {id:'garage',n:'Гараж в Кемерово',em:'🏚️',speed:62,zone:26,base:10,cost:0,need:''},
- {id:'club',n:'Клуб «Фрик»',em:'🎪',speed:88,zone:20,base:25,cost:500,need:''},
- {id:'arena',n:'Арена фриков',em:'🏟️',speed:115,zone:15,base:60,cost:5000,need:'jacket'},
- {id:'slay',n:'Главная сцена SLAY',em:'🏆',speed:145,zone:10,base:150,cost:50000,need:'mantle+sneakers'}
+ {id:'garage',n:'Гараж в Кемерово',em:'🏚️',speed:45,zone:26,base:10,gap:1.15,cost:0,need:''},
+ {id:'club',n:'Клуб «Фрик»',em:'🎪',speed:60,zone:20,base:25,gap:0.9,cost:500,need:''},
+ {id:'arena',n:'Арена фриков',em:'🏟️',speed:78,zone:15,base:60,gap:0.7,cost:5000,need:'jacket'},
+ {id:'slay',n:'Главная сцена SLAY',em:'🏆',speed:95,zone:10,base:150,gap:0.55,cost:50000,need:'mantle+sneakers'}
 ];
 var TEAM={
  denis:{n:'Денис Биткоин',em:'🎤',d:'Замедляет бегунок: −12% скорости за уровень',base:50},
@@ -131,13 +135,24 @@ function stComboStep(){return 0.1+0.02*S.bld.garden;}
 function stComboCap(){return [10,15,22,30][S.look.sneakers];}
 function stDouble(){return [0,0.1,0.2,0.35][S.look.mantle];}
 function stHaterEvery(){return 12*(1+0.6*S.team.oper);}
-function stRunSpeed(){if(!SH)return 0;
- var acc=1+Math.min(SH.sweep*0.015,0.3);
- var rush=0.85+0.3*(1-SH.pos/100);
- var wave=1+0.22*Math.sin(SH.tRun*2.1+SH.phase);
- return stSpeed(SH.v)*acc*rush*wave*SH.runRand;}
+function scrollSpeed(){if(!SH)return 0;
+ var ramp=1+Math.min(SH.elapsed*0.012,0.25);
+ var wave=1+0.15*Math.sin(SH.tRun*2.1+SH.phase);
+ return stSpeed(SH.v)*ramp*wave*SH.runRand*(SH.raid?1.25:1);}
 function newZone(){var zw=stZone(SH.v);SH.zc=6+zw/2;}
-function newRunFeel(){SH.runRand=0.9+Math.random()*0.22;SH.phase=Math.random()*6.28;SH.tRun=0;}
+function newRunFeel(){SH.runRand=0.95+Math.random()*0.15;SH.phase=Math.random()*6.28;SH.tRun=0;}
+function goodWin(){return stZone(SH.v);}
+function judgeDist(d,zw){if(d<=zw/4)return 'perfect';if(d<=zw/2)return 'great';if(d<=zw)return 'good';return 'miss';}
+function clearNotes(){if(SH)SH.notes=[];try{var bar=document.getElementById('rbar');var ns=bar.querySelectorAll('.note');for(var i=0;i<ns.length;i++)ns[i].remove();}catch(e){}}
+function spawnNote(){
+ var el=document.createElement('div');
+ var raid=!!SH.raid;
+ el.className='note'+(raid?' raidnote':'');el.textContent=raid?'👹':'🍾';
+ el.style.left='105%';
+ var n={x:105,hit:false,el:el,raid:raid};
+ SH.notes.push(n);
+ try{document.getElementById('rbar').appendChild(el);}catch(e){}
+}
 function fans(){return Math.floor(Math.sqrt(S.total)/5);}
 function fmt(n){n=Math.floor(n);if(n>=1e6)return (n/1e6).toFixed(2)+'M';if(n>=1e3)return (n/1e3).toFixed(1)+'K';return String(n);}
 /* ---- шоу ---- */
@@ -154,50 +169,44 @@ function startShow(id){
  var v=venueById(id),u=unlocked(v);
  if(!u.ok){msg(v.need&&S.h>=v.cost?u.why:u.why);blip(200);return;}
  if(u.buy){S.h-=v.cost;S.un.push(v.id);save();}
- SH={v:v,pos:100,zc:50,sweep:0,tRun:0,runRand:1,phase:0,t:30,hype:0,combo:0,best:0,golds:0,perfects:0,haters:[],nextH:5,raid:null,raidCd:0,cd:0};
+ SH={v:v,elapsed:0,tRun:0,runRand:1,phase:0,t:30,hype:0,combo:0,best:0,golds:0,perfects:0,greats:0,goods:0,misses:0,notes:[],haters:[],nextN:0.8,nextH:5,raid:null,raidCd:0,cd:0};
  newZone();newRunFeel();
- clearHaters();
+ clearNotes();clearHaters();
+ try{document.getElementById('rcur').style.display='none';}catch(e){}
+ try{document.getElementById('tempo').textContent='ноты летят справа — бей в зоне слева!';}catch(e){}
  document.getElementById('showCard').style.display='block';
  document.getElementById('showName').textContent=v.em+' '+v.n;
  document.getElementById('raid').style.display='none';
  renderVenues();blip(700);
 }
-function judge(){
- // зона строго слева: dead-center — PERFECT; |d|<=zone/2 — золото; <=zone — край; иначе мимо
- var zw=stZone(SH.v),d=Math.abs(SH.pos-SH.zc);
- if(d<=zw/4)return 'perfect';
- if(d<=zw/2)return 'gold';
- if(d<=zw)return 'edge';
- return 'miss';
+function judge(){return 'miss';}
+function hitNote(n,j,base){
+ var mult=j==='perfect'?3:(j==='great'?2:0.5);
+ var val=base*mult*stCritM()*(1+SH.combo*stComboStep());
+ if(Math.random()<stDouble()){val*=2;msg((j==='perfect'?'✨ ДВОЙНОЙ PERFECT! +':'✨ ДВОЙНОЙ! +')+fmt(val));}
+ else if(j==='perfect')msg(SH.combo+1>=8?'🔥 ФИЕВЕР! PERFECT +'+fmt(val):'💯 PERFECT! +'+fmt(val));
+ else if(j==='great'&&SH.combo+1>=8)msg('🔥 ФИЕВЕР! +'+fmt(val));
+ SH.combo=Math.min(SH.combo+1,stComboCap());SH.best=Math.max(SH.best,SH.combo);
+ SH.golds+= (j==='perfect'||j==='great')?1:0;
+ if(j==='perfect')SH.perfects++;else if(j==='great')SH.greats++;else SH.goods++;
+ gain(val,'');
+ try{n.el.classList.add('hit');var el=n.el;setTimeout(function(){try{el.remove();}catch(e){}},180);}catch(e){try{n.el.remove();}catch(e2){}}
+ blip(j==='perfect'?990:(j==='great'?880:500));
+ if(SH.raid){SH.raid.got++;document.getElementById('raidN').textContent=SH.raid.got+'/'+SH.raid.need+' держи темп!';
+  if(SH.raid.got>=SH.raid.need){gain(base*10*stCritM(),'👹 РЕЙД ОТБИТ! ×10!');SH.raid=null;document.getElementById('raid').style.display='none';}}
 }
-function resetRun(){SH.pos=100;SH.sweep++;newZone();newRunFeel();}
 function zavoz(){
  if(!SH||SH.cd>0)return;
- SH.cd=0.35;
- var j=judge(),base=stBase(SH.v);
- if(SH.raid){
-  if(j==='perfect'||j==='gold'){SH.raid.n++;blip(990);
-   if(SH.raid.n>=SH.raid.need){gain(base*10*stCritM(),'👹 РЕЙД ОТБИТ! ×10!');SH.raid=null;document.getElementById('raid').style.display='none';}
-   else document.getElementById('raidN').textContent=SH.raid.n+'/'+SH.raid.need+' попади ещё!';
-  }else{SH.raid.n=0;SH.combo=0;document.getElementById('raidN').textContent='0/'+SH.raid.need+' — мимо, сначала!';blip(200);}
-  resetRun();return;
- }
- if(j==='perfect'){
-  SH.combo=Math.min(SH.combo+1,stComboCap());SH.best=Math.max(SH.best,SH.combo);SH.golds++;SH.perfects++;
-  var pf=base*(3*stCritM())*(1+SH.combo*stComboStep());
-  if(Math.random()<stDouble()){pf*=2;msg('✨ ДВОЙНОЙ PERFECT! +'+fmt(pf));}
-  else msg(SH.combo>=8?'🔥 ФИЕВЕР! PERFECT +'+fmt(pf):'💯 PERFECT! +'+fmt(pf));
-  gain(pf,'');
-  blip(990);
- }else if(j==='gold'){
-  SH.combo=Math.min(SH.combo+1,stComboCap());SH.best=Math.max(SH.best,SH.combo);SH.golds++;
-  var crit=base*(2*stCritM())*(1+SH.combo*stComboStep());
-  if(Math.random()<stDouble()){crit*=2;msg('✨ ДВОЙНОЙ ХАЙП! +'+fmt(crit));}
-  gain(crit,'');
-  blip(880);
- }else if(j==='edge'){gain(base*0.3,'');blip(500);
- }else{SH.combo=0;msg('Мимо! Комбо сгорело 💨');blip(200);}
- resetRun();
+ SH.cd=0.22;
+ var zw=goodWin(),base=stBase(SH.v);
+ var best=null,bestD=1e9;
+ for(var i=0;i<SH.notes.length;i++){var n=SH.notes[i];if(n.hit)continue;var d=Math.abs(n.x-SH.zc);if(d<bestD){bestD=d;best=n;}}
+ if(!best||bestD>zw){SH.combo=0;SH.misses++;msg('Мимо! Рано/поздно 💨');blip(200);return;}
+ var j=judgeDist(bestD,zw);
+ if(SH.haters.length>0&&j!=='good'){j=(j==='perfect'||j==='great')?'good':j;msg('😡 Хейтер глушит звук! Сбей его!');}
+ best.hit=true;
+ best.el.style.left=SH.zc+'%';
+ hitNote(best,j,base);
 }
 function gain(n,txt){
  SH.hype+=n;
@@ -210,16 +219,16 @@ function blip(f){try{var C=blip.ac=blip.ac||new (window.AudioContext||window.web
  o.connect(g);g.connect(C.destination);o.start();o.stop(C.currentTime+0.16);}catch(e){}}
 function endShow(){
  S.h+=Math.floor(SH.hype);S.total+=Math.floor(SH.hype);
- msg('Шоу окончено: +'+fmt(SH.hype)+' 🔥 · точных: '+SH.golds+' (перфектов '+SH.perfects+') · лучшее комбо: '+SH.best);
- clearHaters();SH=null;document.getElementById('showCard').style.display='none';
+ msg('Шоу окончено: +'+fmt(SH.hype)+' 🔥 · 💯'+SH.perfects+' 👏'+SH.greats+' 🆗'+SH.goods+' · мимо '+SH.misses+' · комбо '+SH.best);
+ clearNotes();clearHaters();SH=null;document.getElementById('showCard').style.display='none';
  if(S.total>=WIN_GOAL&&!S.win){S.win=true;document.getElementById('win').style.display='flex';blip(990);}
  save();renderAll();
 }
 function callRaid(){
  if(!SH||SH.raid||SH.raidCd>0)return;
- SH.raid={n:0,need:5};document.getElementById('raid').style.display='flex';
- document.getElementById('raidN').textContent='0/5 — 5 золотых подряд!';
- SH.raidCd=20;msg('👹 РЕЙД-БОСС на полосе! 5 золотых подряд!');blip(300);
+ SH.raid={got:0,need:6,t:10};document.getElementById('raid').style.display='flex';
+ document.getElementById('raidN').textContent='0/6 —бей поток 10 секунд!';
+ SH.raidCd=20;SH.nextN=0;msg('👹 РЕЙД-БОСС! Поток нот — держи темп!');blip(300);
 }
 /* ---- рендер ---- */
 function renderRes(){
@@ -233,7 +242,7 @@ function renderVenues(){
  VENUES.forEach(function(v){
   var u=unlocked(v);
   var d=document.createElement('div');d.className='card';d.style.margin='6px 0';
-  d.innerHTML='<b>'+v.em+' '+v.n+'</b><br><span class="hint">Скорость '+v.speed+' · зона '+v.zone+'% · база '+v.base+' 🔥'+(v.cost?' · вход '+fmt(v.cost)+' 🔥':'')+'</span><br>'+
+  d.innerHTML='<b>'+v.em+' '+v.n+'</b><br><span class="hint">Темп '+v.speed+' · зона '+v.zone+'% · нота каждые ~'+v.gap+'с · база '+v.base+' 🔥'+(v.cost?' · вход '+fmt(v.cost)+' 🔥':'')+'</span><br>'+
   (u.ok?'<button class="buy">'+(u.buy?'Открыть и выступить':'Выступить')+'</button>':'<span class="lock">🔒 '+u.why+'</span>');
   var b=d.querySelector('button');if(b)b.onclick=function(){startShow(v.id);};
   el.appendChild(d);
@@ -269,12 +278,33 @@ function frame(){
  if(SH.raidCd>0)SH.raidCd-=dt;
  SH.t-=dt;
  if(SH.t<=0){endShow();return;}
- // заезд только справа налево; долетел до края без нажатия — упустил, заезд заново
- SH.tRun+=dt;
- var spd=stRunSpeed();
- SH.pos-=spd*dt;
- try{document.getElementById('tempo').textContent='темп ×'+(spd/stSpeed(SH.v)).toFixed(2)+' · зона слева';}catch(e){}
- if(SH.pos<=0){SH.pos=100;SH.sweep++;newZone();newRunFeel();SH.combo=0;msg('Упустил заезд! Комбо сгорело 💨');}
+ // ноты летят справа налево
+ SH.tRun+=dt;SH.elapsed+=dt;
+ var spd=scrollSpeed();
+ try{document.getElementById('tempo').textContent='темп ×'+(spd/stSpeed(SH.v)).toFixed(2)+' · нот '+SH.notes.length+' · зона слева';}catch(e){}
+ // спавн нот (в рейде поток гуще и быстрее)
+ SH.nextN-=dt;
+ if(SH.nextN<=0){
+  SH.nextN=SH.v.gap*(SH.raid?0.45:(0.85+Math.random()*0.3));
+  if(SH.notes.length<8)spawnNote();else SH.nextN=0.2;
+ }
+ // движение нот + пропуски
+ var gw=goodWin();
+ for(var m=SH.notes.length-1;m>=0;m--){
+  var nt=SH.notes[m];
+  if(nt.hit){SH.notes.splice(m,1);continue;}
+  nt.x-=spd*dt;
+  try{nt.el.style.left=nt.x+'%';}catch(e){}
+  if(nt.x<SH.zc-gw){
+   try{nt.el.remove();}catch(e2){}
+   SH.notes.splice(m,1);SH.combo=0;SH.misses++;
+   msg(nt.raid?'👹 Рейд-нота ушла!':'Пропустил ноту! 💨');blip(180);
+  }
+ }
+ // рейд тикает
+ if(SH.raid){SH.raid.t-=dt;
+  if(SH.raid.t<=0){SH.raid=null;try{document.getElementById('raid').style.display='none';}catch(e){}msg('Рейд ушёл... держи обычный темп 🎤');}
+ }
  // хейтеры (реже + не больше двух на полосе)
  SH.nextH-=dt;
  if(SH.nextH<=0){
@@ -304,7 +334,6 @@ function drawBar(){
  var zw=stZone(SH.v);
  var z=document.getElementById('rzone');
  z.style.left=(SH.zc-zw/2)+'%';z.style.width=zw+'%';
- document.getElementById('rcur').style.left='calc('+SH.pos+'% - 6px)';
 }
 function clearHaters(){if(SH)SH.haters=[];try{var bar=document.getElementById('rbar');var hs=bar.querySelectorAll('.hater');for(var i=0;i<hs.length;i++)hs[i].remove();}catch(e){}}
 function spawnHater(){
@@ -343,7 +372,7 @@ setInterval(function(){
  if(inc>0){S.f+=inc;save();renderRes();}
 },1000);
 /* крючок для тестов */
-window.__brohacho={state:function(){return S;},judge:function(pos,zc,zone){var d=Math.abs(pos-zc);if(d<=zone/4)return 'perfect';if(d<=zone/2)return 'gold';if(d<=zone)return 'edge';return 'miss';},lvlCost:lvlCost,haterEvery:function(){return stHaterEvery();},zoneLeft:function(){return 6+stZone(venueById('garage'))/2;}};
+window.__brohacho={state:function(){return S;},judgeDist:function(d,zone){if(d<=zone/4)return 'perfect';if(d<=zone/2)return 'great';if(d<=zone)return 'good';return 'miss';},lvlCost:lvlCost,haterEvery:function(){return stHaterEvery();},zoneLeft:function(){return 6+stZone(venueById('garage'))/2;}};
 </script>
 <script>/* 42-трекер онлайна */(function(){var SITE='brohacho';try{var s=null;try{s=localStorage.getItem('t42_sid');}catch(e){}if(!s||!/^[0-9a-f]{32}$/.test(s)){s='';var h='0123456789abcdef';for(var i=0;i<32;i++)s+=h[Math.floor(Math.random()*16)];try{localStorage.setItem('t42_sid',s);}catch(e){}}function b(){try{fetch('https://hub.bratuxa.zomb.top/api/track',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({site:SITE,sid:s}),keepalive:true}).catch(function(){});}catch(e){}}b();setInterval(b,30000);}catch(e){}})();</script>
 </body>
