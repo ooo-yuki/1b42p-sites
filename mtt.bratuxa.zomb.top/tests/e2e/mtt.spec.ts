@@ -16,7 +16,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await expect(page.locator('#goBtn')).toBeVisible();
     await page.click('#goBtn');
     await expect(page.locator('#menu')).toHaveCount(0);
-    await expect(page.locator('#mm')).toBeVisible();
+    await expect(page.locator('#mm')).toHaveCount(0);
     await expect(page.locator('#joy')).toBeAttached();
     await expect(page.locator('#hitBtn')).toBeAttached();
   });

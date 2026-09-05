@@ -61,7 +61,6 @@ const NICK_KEY = 'mtt_nick';
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const mmRef = useRef<HTMLCanvasElement>(null);
   const joyRef = useRef<HTMLDivElement>(null);
   const joyKnob = useRef<HTMLDivElement>(null);
   const joyId = useRef(-1);
@@ -83,8 +82,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!menu || !canvasRef.current || !mmRef.current || gameRef.current) return;
-    const game = new Game(canvasRef.current, mmRef.current, {
+    if (!menu || !canvasRef.current || gameRef.current) return;
+    const game = new Game(canvasRef.current, null, {
       onHud: (h) => setHud(h),
       onBusted: () => undefined,
     });
@@ -174,7 +173,6 @@ export default function App() {
           <small id="hint">WASD — идти · мышь/палец — осмотр · Пробел/J — удар · Shift — бег</small>
         </div>
       )}
-      <canvas id="mm" width={140} height={140} ref={mmRef} style={{ display: menu ? 'none' : undefined }} />
       {!menu && (
         <>
           <div

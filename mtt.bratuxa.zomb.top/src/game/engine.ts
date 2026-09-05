@@ -71,7 +71,7 @@ export class Game {
 
   constructor(
     private canvas: HTMLCanvasElement,
-    private mmCanvas: HTMLCanvasElement,
+    private mmCanvas: HTMLCanvasElement | null,
     private ev: GameEvents,
   ) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -372,6 +372,7 @@ export class Game {
   }
 
   private drawMM(): void {
+    if (!this.mmCanvas) return;
     const c = this.mmCanvas;
     const g = c.getContext('2d');
     if (!g) return;
