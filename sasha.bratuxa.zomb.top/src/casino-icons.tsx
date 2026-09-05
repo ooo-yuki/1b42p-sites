@@ -492,6 +492,22 @@ const ARTS: Record<string, Pix> = {
     ],
     colors: { K: K, B: '#0060AA', W: '#ffffff', R: '#E31E25' },
   },
+  ladder: {
+    grid: [
+      '........RRR.',
+      '........R.R.',
+      '.......KK...',
+      '......KWWK..',
+      '.....KWWK...',
+      '....KWWK....',
+      '...KWWK.....',
+      '..KWWK......',
+      '.KWWK.......',
+      'KWWK........',
+      'KKKK........',
+    ],
+    colors: { K: K, W: '#ffffff', R: '#E31E25' },
+  },
 };
 
 export function ItemIcon({ name, className }: { name: string; className?: string }): JSX.Element {

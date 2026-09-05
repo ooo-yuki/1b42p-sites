@@ -20,8 +20,9 @@ import Mines from './casino/Mines';
 import Bj from './casino/Bj';
 import Slots from './casino/Slots';
 import Plinko from './casino/Plinko';
+import Ladder from './casino/Ladder';
 
-/* КАЗИНО 42 — зал с восемью дверями. Оболочка: сайдбар, лобби-шоу, сцена.
+/* КАЗИНО 42 — зал с девятью дверями. Оболочка: сайдбар, лобби-шоу, сцена.
    Правила, балансы и шансы живут в залах (src/casino/*), святое — в PRODUCT.md. */
 
 /* Сброс батальона 05.09.2026: счета всех бойцов обнулены приказом Саши.
@@ -55,7 +56,7 @@ const reduced =
   typeof matchMedia !== 'undefined' &&
   matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-type View = 'lobby' | 'crash' | 'cases' | 'horses' | 'roulette' | 'mines' | 'bj' | 'slots' | 'plinko';
+type View = 'lobby' | 'crash' | 'cases' | 'horses' | 'roulette' | 'mines' | 'bj' | 'slots' | 'plinko' | 'ladder';
 
 const VIEWS: Array<{ id: View; name: string; icon: string; tag: string; min: string; desc: string }> = [
   { id: 'crash', name: 'Краш', icon: 'rocket', tag: 'до ×∞', min: 'от 10', desc: 'Множитель растёт, пока ракета летит. Забирай до крэша — иначе ставка сгорает.' },
@@ -66,10 +67,11 @@ const VIEWS: Array<{ id: View; name: string; icon: string; tag: string; min: str
   { id: 'bj', name: 'Блэкджек', icon: 'spade', tag: '×2.5', min: 'от 10', desc: 'Набери 21, но не больше. Дилер тянет до 17. Блэкджек с раздачи платит ×2.5.' },
   { id: 'slots', name: 'Слоты', icon: 'seven', tag: '1000', min: '50', desc: 'Автомат «Семёрка». Спин — 50 фишек, таблица выплат выбита на корпусе.' },
   { id: 'plinko', name: 'Плинко', icon: 'plinko', tag: 'до ×70', min: 'от 10', desc: 'Доска «Водопад 42». Шарик скачет по колышкам в лунку — края платят до ×70, шансы написаны честно.' },
+  { id: 'ladder', name: 'Лесенка', icon: 'ladder', tag: 'до ×195', min: 'от 10', desc: 'Сигнал «42». Восемь ступеней вверх: на каждой — рискнуть или забрать. Вершина платит ×195.' },
 ];
 
 const GAMES: Record<Exclude<View, 'lobby'>, (p: { api: Api }) => JSX.Element> = {
-  crash: Crash, cases: Cases, horses: Horses, roulette: Roulette, mines: Mines, bj: Bj, slots: Slots, plinko: Plinko,
+  crash: Crash, cases: Cases, horses: Horses, roulette: Roulette, mines: Mines, bj: Bj, slots: Slots, plinko: Plinko, ladder: Ladder,
 };
 
 function viewFromHash(): View {
@@ -251,7 +253,7 @@ export default function Casino(): JSX.Element {
             )}
             <Separator className="lobby-sep" />
             <Leaders me={user?.nick ?? null} />
-            <p className="cfoot">Фишки фантики, азарт настоящий. Восемь залов — всё на территории Саши. Мы уже победили</p>
+            <p className="cfoot">Фишки фантики, азарт настоящий. Девять залов — всё на территории Саши. Мы уже победили</p>
             <div className="cnav">
               <Button variant="outline" asChild><a href="game.html" className="no-underline">Игра</a></Button>
               <Button variant="outline" asChild><a href="index.html" className="no-underline">Главная</a></Button>
