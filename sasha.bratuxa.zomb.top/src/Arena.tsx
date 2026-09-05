@@ -195,6 +195,20 @@ export default function Arena(): JSX.Element {
         startClock(m.secs);
         if (m.turn === myIdRef.current) diceRattle();
         break;
+      case 'bjturn':
+        startClock(m.secs);
+        if (m.turn === myIdRef.current) cardSnap();
+        break;
+      case 'bjmove': {
+        if (m.kind === 'hit') cardSnap();
+        else arenaClick();
+        const blines: Record<string, string> = {
+          hit: `${m.name} берёт.`,
+          stand: m.auto ? `${m.name} молчал — клуб встал.` : `${m.name} стоит.`,
+        };
+        pushFeed(blines[m.kind] ?? `${m.name} сходил.`, m.bust);
+        break;
+      }
       case 'mmove': {
         if (m.kind === 'roll') diceRattle();
         else arenaClick();

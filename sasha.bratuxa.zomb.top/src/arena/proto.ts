@@ -30,6 +30,15 @@ export type DurakPublic = {
   handN: Record<string, number>;
 };
 
+/** Карта блэкджека: r 1..13 (1=туз 11=В 12=Д 13=К), s масть ♠♥♦♣ — общая с казино. */
+export type BjCard = { r: number; s: string };
+export type BjPublic = {
+  hands: Record<string, BjCard[]>; status: Record<string, 'play' | 'stand' | 'bust'>;
+  natural: Record<string, boolean>;
+  dealer: BjCard[]; dealerN: number; holeHidden: boolean;
+  turn: string | null; phase: string;
+  winner: string | null; draw: boolean; reason: string | null;
+};
 /** Фигура шахмат: c цвет w/b, k вид p/n/b/r/q/k. Клетка 0=a8..63=h1. */
 export type ChessPiece = { c: string; k: string } | null;
 export type ChessPublic = {
@@ -93,6 +102,8 @@ export type SMsg =
   | { t: 'hmove'; id: string; name: string; kind: string; path: number[] | null; auto?: boolean }
   | { t: 'mturn'; ids: string[]; turn: string; secs: number }
   | { t: 'mmove'; id: string; name: string; kind: string; d1?: number; d2?: number; cell?: number | null; auto?: boolean }
+  | { t: 'bjturn'; turn: string | null; secs: number }
+  | { t: 'bjmove'; id: string; name: string; kind: string; bust: boolean; auto?: boolean }
   | { t: 'elim'; id: string; name: string; v: number; round: number; alive: string[] }
   | { t: 'over'; winner: string | null; name: string }
   | { t: 'log'; text: string }

@@ -395,3 +395,27 @@ button.dr-sq:hover{filter:brightness(1.15)}
 .ar-feed::-webkit-scrollbar-thumb,.ar-lines::-webkit-scrollbar-thumb{
   background:rgba(0,96,170,.5); border-radius:999px}
 .ar-feed::-webkit-scrollbar-track,.ar-lines::-webkit-scrollbar-track{background:transparent}
+/* БЛЭКДЖЕК 21 — стол клуба поверх ночи */
+.bj-wrap{display:flex;flex-direction:column;gap:10px}
+.bj-row{display:flex;align-items:center;gap:12px;padding:10px 12px;
+  border:1px solid rgba(0,96,170,.4);border-radius:14px;background:rgba(13,20,40,.7)}
+.bj-row.me{border-color:#0060AA;box-shadow:0 0 18px rgba(0,96,170,.5)}
+.bj-row.turn{border-color:#E31E25}
+.bj-row.dealer{border-style:dashed}
+.bj-who{font-size:14px;color:#f0f0f0;min-width:120px}
+.bj-who b{color:#ffffff;font-variant-numeric:tabular-nums}
+.bj-who b.bust{color:#E31E25}
+.bj-who i{font-style:normal;font-size:11px;margin-left:6px;padding:2px 8px;border-radius:999px}
+.bj-nat{background:rgba(0,96,170,.4);color:#ffffff}
+.bj-out{background:rgba(227,30,37,.4);color:#ffffff}
+.bj-stand{background:rgba(128,128,128,.3);color:#f0f0f0}
+.bj-cards{display:flex;gap:6px;flex-wrap:wrap}
+.bj-card{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;
+  width:44px;height:62px;border-radius:8px;background:#ffffff;color:#070b18;
+  font-weight:800;line-height:1}
+.bj-card b{font-size:16px}
+.bj-card i{font-style:normal;font-size:18px}
+.bj-card.red{color:#E31E25}
+.bj-card.hole{background:#0d1428;color:#0060AA;border:1px dashed #0060AA;font-size:20px}
+.bj-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px;color:#f0f0f0}
+.bj-meta{color:#808080;font-size:13px}

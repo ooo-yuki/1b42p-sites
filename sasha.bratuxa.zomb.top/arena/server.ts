@@ -27,6 +27,7 @@ const GAMES: Record<string, GameDef> = {
   chess: { label: 'Шахматы', min: 2, max: 2, turnSecs: 60, icon: 'chess' },
   checkers: { label: 'Шашки русские', min: 2, max: 2, turnSecs: 45, icon: 'checkers' },
   monopoly: { label: 'Монополия 42', min: 2, max: 5, turnSecs: 60, icon: 'mono' },
+  bj: { label: 'Блэкджек 21', min: 2, max: 99, turnSecs: 20, icon: 'cards' },
 };
 const GAME_IDS = Object.keys(GAMES);
 
@@ -59,6 +60,7 @@ type Room = {
   cstate: ChessState | null; // шахматы — вся правда здесь; позиция открыта, в gdata — полный срез
   kstate: KState | null; // шашки — вся правда здесь; позиция открыта, в gdata — полный срез
   mstate: MState | null; // монополия — вся правда здесь; деньги открыты, в gdata — полный срез
+  bstate: BState | null; // блэкджек — вся правда здесь; руки открыты, в gdata — публичный срез
 };
 
 type Pool = {
@@ -90,6 +92,11 @@ import {
   applyMove as monoApply, createMonopoly, removePlayer as monoRemove,
   timeoutAction as monoTimeoutAction, type MonoState as MState,
 } from './monopoly';
+import {
+  applyMove as bjApply, bjPublic, createBj, removePlayer as bjRemove,
+  timeoutMove as bjTimeout, type BState,
+} from './blackjack';
+import { handValue as bjHandValue } from '../src/casino/bj/data';
 
 const clients = new Map<string, Client>();
 const rooms = new Map<string, Room>();
@@ -192,7 +199,7 @@ function roomState(r: Room): Record<string, unknown> {
     private: r.private,
     round: r.round, alive: [...r.alive], contenders: [...r.contenders],
     rolls: { ...r.rolls }, winner: r.winner,
-    gdata: r.game === 'durak' ? durakPublic(r) : r.game === 'chess' ? chessPublic(r) : r.game === 'checkers' ? checkersPublic(r) : r.game === 'monopoly' ? monoPublic(r) : { ...r.gdata },
+    gdata: r.game === 'durak' ? durakPublic(r) : r.game === 'chess' ? chessPublic(r) : r.game === 'checkers' ? checkersPublic(r) : r.game === 'monopoly' ? monoPublic(r) : r.game === 'bj' && r.bstate ? bjPublic(r.bstate) : { ...r.gdata },
   };
 }
 
@@ -283,6 +290,10 @@ function detach(c: Client): void {
     broadcast(r, { t: 'left', id: c.id, name: c.name });
     return durakLeave(r, c.id);
   }
+  if (r.phase === 'play' && r.game === 'bj' && r.bstate) {
+    broadcast(r, { t: 'left', id: c.id, name: c.name });
+    return bjLeave(r, c.id);
+  }
   if (r.phase === 'play') {
     broadcast(r, { t: 'left', id: c.id, name: c.name });
     if (r.alive.length === 1) return finishGame(r);
@@ -340,7 +351,7 @@ function formRoom(ids: string[]): void {
   const r: Room = {
     code, players: [], host: fitted[0], private: false, game,
     phase: 'lobby', alive: [], contenders: [], rolls: {}, round: 0,
-    timer: null, createdAt: now(), winner: null, gdata: {}, dstate: null, cstate: null, kstate: null, mstate: null,
+    timer: null, createdAt: now(), winner: null, gdata: {}, dstate: null, cstate: null, kstate: null, mstate: null, bstate: null,
   };
   rooms.set(code, r);
   for (const id of fitted) {
@@ -465,7 +476,7 @@ function onCreate(c: Client, game: unknown): void {
   const r: Room = {
     code, players: [c.id], host: c.id, private: true, game: sanitizeGame(game),
     phase: 'lobby', alive: [], contenders: [], rolls: {}, round: 0,
-    timer: null, createdAt: now(), winner: null, gdata: {}, dstate: null, cstate: null, kstate: null, mstate: null,
+    timer: null, createdAt: now(), winner: null, gdata: {}, dstate: null, cstate: null, kstate: null, mstate: null, bstate: null,
   };
   rooms.set(code, r);
   c.roomId = code;
@@ -975,6 +986,101 @@ function monoLeave(r: Room, id: string): void {
   monoTick(r);
 }
 
+/* ---------- блэкджек 21: проводка движка ----------
+   Колода и правила — общие с казино (src/casino/bj/data.ts).
+   2 игрока — дуэль сильнейших рук, 3+ — на выбывание (перебор = вылет).
+   Фишек нет: победа — в летопись. */
+
+const BREASON_TEXT: Record<string, string> = {
+  allbust: 'все сгорели', tie: 'равные руки',
+};
+
+function startBj(r: Room): void {
+  if (r.players.length < 2) return;
+  r.bstate = createBj([...r.players]);
+  r.phase = 'play';
+  r.alive = [...r.players];
+  r.round = 1;
+  broadcast(r, {
+    t: 'log',
+    text: 'Бой начался! Игра — Блэкджек 21. У дилера дырка закрыта: бери или стой.',
+  });
+  broadcast(r, roomState(r));
+  bjTick(r);
+}
+
+function bjTick(r: Room): void {
+  const st = r.bstate;
+  if (r.phase !== 'play' || !st) return;
+  if (st.phase === 'over') return finishBj(r);
+  const secs = GAMES.bj.turnSecs;
+  broadcast(r, roomState(r));
+  broadcast(r, { t: 'bjturn', turn: st.turn, secs });
+  killTimer(r);
+  r.timer = setTimeout(() => bjFlag(r), secs * 1000);
+}
+
+function bjAfter(r: Room): void {
+  if (!r.bstate) return;
+  if (r.bstate.phase === 'over') return finishBj(r);
+  bjTick(r);
+}
+
+function onBjMove(c: Client, mv: Record<string, unknown>): void {
+  const r = c.roomId ? rooms.get(c.roomId) : undefined;
+  const st = r?.bstate;
+  if (!r || !st || r.phase !== 'play') return;
+  const kind = String(mv.kind ?? '');
+  if (kind !== 'hit' && kind !== 'stand') return send(c.ws, { t: 'err', msg: 'бей или стой' });
+  const res = bjApply(st, c.id, { kind: kind as 'hit' | 'stand' });
+  if (!res.ok) return send(c.ws, { t: 'err', msg: res.err ?? 'так нельзя' });
+  const busted = st.status[c.id] === 'bust';
+  broadcast(r, { t: 'bjmove', id: c.id, name: c.name, kind, bust: busted });
+  if (busted) broadcast(r, {
+    t: 'elim', id: c.id, name: c.name,
+    v: bjHandValue(st.hands[c.id] ?? []), round: r.round,
+    alive: st.order.filter(p => st.status[p] !== 'bust'),
+  });
+  bjAfter(r);
+}
+
+/** Флаг: молчал на ходу — клуб встаёт за него. */
+function bjFlag(r: Room): void {
+  const st = r.bstate;
+  if (!st || r.phase !== 'play') return;
+  const t = bjTimeout(st);
+  if (t.by) {
+    const who = clients.get(t.by)?.name ?? '???';
+    broadcast(r, { t: 'bjmove', id: t.by, name: who, kind: 'stand', auto: true });
+  }
+  bjAfter(r);
+}
+
+function finishBj(r: Room): void {
+  const st = r.bstate;
+  if (!st) return;
+  killTimer(r);
+  r.phase = 'over';
+  r.winner = st.winner;
+  r.alive = st.winner ? [st.winner] : [];
+  r.rolls = {};
+  const wname = (st.winner && clients.get(st.winner)?.name) ?? null;
+  const why = BREASON_TEXT[st.reason ?? ''] ?? st.reason ?? 'конец';
+  broadcast(r, {
+    t: 'over', winner: r.winner,
+    name: st.winner ? wname : `Ничья — ${why}`,
+  });
+  broadcast(r, roomState(r));
+}
+
+function bjLeave(r: Room, id: string): void {
+  if (!r.bstate || r.phase !== 'play') return;
+  bjRemove(r.bstate, id);
+  if (r.bstate.phase === 'over') return finishBj(r);
+  broadcast(r, roomState(r));
+  bjTick(r);
+}
+
 /* ---------- кости на выбывание ---------- */
 
 function startGame(r: Room): void {
@@ -984,6 +1090,7 @@ function startGame(r: Room): void {
   if (r.game === 'chess') return startChess(r);
   if (r.game === 'checkers') return startCheckers(r);
   if (r.game === 'monopoly') return startMono(r);
+  if (r.game === 'bj') return startBj(r);
   r.phase = 'play';
   r.alive = [...r.players];
   r.contenders = [];
@@ -1074,6 +1181,7 @@ const PLUGINS: Record<string, Plugin> = {
   chess: { onMove(c, mv) { onChessMove(c, mv); } },
   checkers: { onMove(c, mv) { onCheckersMove(c, mv); } },
   monopoly: { onMove(c, mv) { onMonoMove(c, mv); } },
+  bj: { onMove(c, mv) { onBjMove(c, mv); } },
 };
 
 function onMove(c: Client, mv: unknown): void {

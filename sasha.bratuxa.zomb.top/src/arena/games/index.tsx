@@ -3,6 +3,7 @@ import DurakTable from './durak';
 import ChessBoard from './chess';
 import CheckersBoard from './checkers';
 import MonoBoard from './monopoly';
+import BjTable from './blackjack';
 import type { DCard, RoomView } from '../proto';
 
 /* Реестр вьюх игр. Новая игра = новая вьюха + одна строка в GAME_VIEWS.
@@ -30,6 +31,7 @@ export const GAME_VIEWS = {
   chess: ChessBoard,
   checkers: CheckersBoard,
   monopoly: MonoBoard,
+  bj: BjTable,
 } as const;
 
 export function gameView(game: string): ((p: GameViewProps) => JSX.Element) | null {

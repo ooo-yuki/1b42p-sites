@@ -27,6 +27,9 @@ PLUGINS.onMove, gdata в roomState) + вьюха в src/arena/games/* + стро
 CheckersBoard, взятие обязательно и по максимуму, путь тапами, дамка летает).
 Пятая игра доказывает пати: монополия 42 (движок arena/monopoly.ts + MonoBoard,
 40 клеток батальона, 2–5 магнатов, дома, тюрьма, банкротство — вылет).
+Шестая игра доказывает колоду: блэкджек 21 (движок arena/blackjack.ts + BjTable,
+2 — дуэль сильнейших рук, 3–99 — перебор вылетает; колода и правила общие
+с казино src/casino/bj/data.ts, фишек нет — победа в летопись).
 FINISH: unreviewed and undocumented is unfinished; this build ends with the
 finish review, the verdict, DESIGN.md, and every shipping raster carrying
 its provenance.
