@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>GTAEVV — эльфийский беспредел 🧝🚗</title>
+<!-- GTAEVV v1: угоняй тачку, уходи от копов, собери монеты -->
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
+ font-family:"Segoe UI",system-ui,sans-serif;touch-action:none}
+#c{position:fixed;inset:0}
+#hud{position:fixed;top:10px;left:10px;z-index:5;font-size:17px;font-weight:700;
+ text-shadow:0 2px 6px #000;pointer-events:none;line-height:1.7}
+#stars{letter-spacing:2px}
+#menu{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;
+ justify-content:center;background:rgba(4,8,16,.88);text-align:center;padding:20px}
+#menu h1{margin:0;font-size:min(13vw,64px);color:#ffd23f;text-shadow:0 0 30px #ff8800}
+#menu p{color:#c6cdf2;max-width:60ch}
+#goBtn{background:#ffd23f;border:none;border-radius:14px;padding:14px 44px;font-size:20px;
+ font-weight:900;color:#231a00;cursor:pointer}
+#touch{position:fixed;inset:auto 0 0 0;z-index:5;display:none;justify-content:space-between;
+ padding:0 12px 14px;pointer-events:none}
+.tgrp{display:flex;gap:10px}
+.tbtn{pointer-events:auto;width:64px;height:64px;border-radius:50%;border:2px solid #ffd23f;
+ background:rgba(13,20,40,.7);color:#ffd23f;font-size:24px;font-weight:900}
+.tbtn:active{background:#ffd23f;color:#231a00}
+#busted{position:fixed;inset:0;z-index:9;display:none;align-items:center;justify-content:center;
+ background:rgba(120,0,0,.55);font-size:min(12vw,60px);font-weight:900;color:#fff}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">🪙 <span id="coins">0</span> · 🚗 <span id="speed">0</span> км/ч<br>
+<span id="stars">☆☆☆☆☆</span> · 🏆 <span id="score">0</span><br>
+<small id="hint">WASD — ехать/идти · E — сесть/выйти · Space — ручник</small></div>
+<div id="menu"><h1>🧝 GTAEVV 🚗</h1>
+<p>Эльфийский город ночью. Угоняй тачку, дави на газ, собирай монеты — но не попадись копам!
+Пешеходы — боты, копы злятся: таран и давка поднимают розыск.</p>
+<button id="goBtn">▶️ ПОГНАЛИ</button></div>
+<div id="busted">ПОЙМАН! 👮</div>
+<div id="touch"><div class="tgrp">
+<button class="tbtn" id="tL">◀</button><button class="tbtn" id="tR">▶</button></div>
+<div class="tgrp"><button class="tbtn" id="tE">E</button><button class="tbtn" id="tG">▲</button>
+<button class="tbtn" id="tB">▼</button></div></div>
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script>
+/* ================= GTAEVV v1 ================= */
+var cv=document.getElementById('c');
+var renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+addEventListener('resize',function(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();});
+var scene=new THREE.Scene();
+scene.background=new THREE.Color(0x060a12);
+scene.fog=new THREE.Fog(0x060a12,60,220);
+var camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,500);
+scene.add(new THREE.AmbientLight(0x8899bb,.55));
+var moon=new THREE.DirectionalLight(0x8fb4ff,.8);moon.position.set(-40,80,-30);scene.add(moon);
+/* земля + дороги-сетка */
+var CITY=200,HALF=CITY/2;
+var ground=new THREE.Mesh(new THREE.PlaneGeometry(CITY,CITY),
+ new THREE.MeshStandardMaterial({color:0x0d1626,roughness:1}));
+ground.rotation.x=-Math.PI/2;scene.add(ground);
+var roadMat=new THREE.MeshStandardMaterial({color:0x1a2233,roughness:.9});
+var lineMat=new THREE.MeshBasicMaterial({color:0xffd23f});
+for(var ri=-HALF;ri<=HALF;ri+=40){
+ var r1=new THREE.Mesh(new THREE.PlaneGeometry(CITY,7),roadMat);
+ r1.rotation.x=-Math.PI/2;r1.position.set(0,.02,ri);scene.add(r1);
+ var r2=new THREE.Mesh(new THREE.PlaneGeometry(7,CITY),roadMat);
+ r2.rotation.x=-Math.PI/2;r2.position.set(ri,.02,0);scene.add(r2);
+ for(var d=-HALF+6;d<HALF;d+=12){
+  var s1=new THREE.Mesh(new THREE.PlaneGeometry(3,.5),lineMat);
+  s1.rotation.x=-Math.PI/2;s1.position.set(d,.04,ri);scene.add(s1);
+  var s2=new THREE.Mesh(new THREE.PlaneGeometry(.5,3),lineMat);
+  s2.rotation.x=-Math.PI/2;s2.position.set(ri,.04,d);scene.add(s2);
+ }
+}
+/* дома с окнами */
+var winTex=(function(){
+ var c=document.createElement('canvas');c.width=64;c.height=64;
+ var g=c.getContext('2d');g.fillStyle='#101828';g.fillRect(0,0,64,64);
+ for(var y=4;y<64;y+=12)for(var x=4;x<64;x+=12){
+  g.fillStyle=Math.random()<.5?'#ffe27a':'#27436b';g.fillRect(x,y,7,8);
+ }
+ var t=new THREE.CanvasTexture(c);return t;
+})();
+function house(x,z,w,h,d){
+ var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),
+  new THREE.MeshStandardMaterial({map:winTex,roughness:.8}));
+ m.position.set(x,h/2,z);scene.add(m);return m;
+}
+var solids=[];
+for(var bx=-HALF+20;bx<HALF;bx+=40)for(var bz=-HALF+20;bz<HALF;bz+=40){
+ if(Math.abs(bx)<25&&Math.abs(bz)<25)continue;
+ var h=12+Math.random()*30;
+ solids.push({x:bx,z:bz,r:11,mesh:house(bx,bz,16+Math.random()*8,h,16+Math.random()*8)});
+}
+/* фонари */
+var lampLight=[];
+for(var lx=-HALF+20;lx<HALF;lx+=40)for(var lz=-HALF+20;lz<HALF;lz+=40){
+ var fx=lx+10,fz=lz+10;
+ var pole=new THREE.Mesh(new THREE.CylinderGeometry(.25,.25,9,8),
+  new THREE.MeshStandardMaterial({color:0x334155}));
+ pole.position.set(fx,4.5,fz);scene.add(pole);
+ var bulb=new THREE.Mesh(new THREE.SphereGeometry(.6,10,10),
+  new THREE.MeshBasicMaterial({color:0xffe9a8}));
+ bulb.position.set(fx,9.2,fz);scene.add(bulb);
+ if(lampLight.length<10){var pl=new THREE.PointLight(0xffd88a,1.2,42);pl.position.set(fx,9,fz);scene.add(pl);lampLight.push(pl);}}
+/* --- тачки --- */
+function makeCar(color,isCop){
+ var g=new THREE.Group();
+ var mat=new THREE.MeshStandardMaterial({color:color,roughness:.35,metalness:.6});
+ var b=new THREE.Mesh(new THREE.BoxGeometry(2.2,0.8,4.4),mat);b.position.y=.75;g.add(b);
+ var cab=new THREE.Mesh(new THREE.BoxGeometry(1.9,0.7,2.2),
+  new THREE.MeshStandardMaterial({color:0x0e1626,roughness:.2,metalness:.8}));
+ cab.position.set(0,1.4,-.2);g.add(cab);
+ var wg=new THREE.CylinderGeometry(.45,.45,.4,12);
+ var wm=new THREE.MeshStandardMaterial({color:0x111111,roughness:.9});
+ g.userData.wheels=[];
+ [[-1.15,1.5],[1.15,1.5],[-1.15,-1.5],[1.15,-1.5]].forEach(function(p){
+  var w=new THREE.Mesh(wg,wm);w.rotation.z=Math.PI/2;w.position.set(p[0],.45,p[1]);
+  g.add(w);g.userData.wheels.push(w);
+ });
+ var hl=new THREE.Mesh(new THREE.BoxGeometry(1.8,.3,.2),
+  new THREE.MeshBasicMaterial({color:0xfff6c8}));
+ hl.position.set(0,.8,2.25);g.add(hl);
+ if(isCop){
+  var bar=new THREE.Mesh(new THREE.BoxGeometry(1.2,.25,.5),
+   new THREE.MeshBasicMaterial({color:0x2244ff}));
+  bar.position.set(0,1.9,-.2);bar.name='copbar';g.add(bar);
+  g.userData.bar=bar;
+ }
+ g.userData.v=0;g.userData.steer=0;
+ return g;
+}
+var car=makeCar(0x2fbf71,false);car.position.set(0,0,10);scene.add(car);
+var cops=[];
+function spawnCop(){
+ var c=makeCar(0x2255dd,true);
+ var a=Math.random()*Math.PI*2;
+ c.position.set(Math.cos(a)*70,0,Math.sin(a)*70);
+ scene.add(c);cops.push(c);
+}
+/* --- эльф-пешеход (ты) --- */
+function makeElf(shirt){
+ var g=new THREE.Group();
+ var legs=new THREE.Mesh(new THREE.BoxGeometry(.5,0.8,.4),
+  new THREE.MeshStandardMaterial({color:0x273449}));legs.position.y=.4;g.add(legs);
+ var torso=new THREE.Mesh(new THREE.BoxGeometry(.6,.8,.45),
+  new THREE.MeshStandardMaterial({color:shirt}));torso.position.y=1.2;g.add(torso);
+ var head=new THREE.Mesh(new THREE.SphereGeometry(.28,12,12),
+  new THREE.MeshStandardMaterial({color:0xf2c9a0}));head.position.y=1.95;g.add(head);
+ var hat=new THREE.Mesh(new THREE.ConeGeometry(.3,.7,10),
+  new THREE.MeshStandardMaterial({color:0x2fbf71}));hat.position.y=2.4;g.add(hat);
+ return g;
+}
+var elf=makeElf(0x2fbf71);elf.position.set(3,0,10);elf.visible=false;scene.add(elf);
+/* --- боты-пешеходы --- */
+var bots=[],BOTN=0;
+function spawnBot(){
+ BOTN++;
+ var colors=[0xff7bac,0xffd23f,0x4fc3f7,0xba68c8,0xff6b35];
+ var b=makeElf(colors[BOTN%colors.length]);
+ var a=Math.random()*Math.PI*2,r=20+Math.random()*60;
+ b.position.set(Math.cos(a)*r,0,Math.sin(a)*r);
+ b.userData={dir:Math.random()*Math.PI*2,sp:1+Math.random()*1.5,name:'Бот'+BOTN,dead:0};
+ scene.add(b);bots.push(b);
+}
+for(var bi=0;bi<10;bi++)spawnBot();
+/* --- монеты --- */
+var coins=[];
+var coinGeo=new THREE.CylinderGeometry(.7,.7,.15,18);
+var coinMat=new THREE.MeshStandardMaterial({color:0xffd23f,metalness:.9,roughness:.25,emissive:0x553300});
+function spawnCoin(){
+ var m=new THREE.Mesh(coinGeo,coinMat);
+ var rx=(Math.floor(Math.random()*5)-2)*40,rz=(Math.floor(Math.random()*5)-2)*40;
+ m.position.set(rx+(Math.random()*10-5),1.1,rz+(Math.random()*10-5));
+ m.rotation.x=Math.PI/2;scene.add(m);coins.push(m);
+}
+for(var ci=0;ci<14;ci++)spawnCoin();
+/* --- состояние --- */
+var S={coins:0,score:0,wanted:0,inCar:true,heat:0,over:false,t:0};
+var keys={};
+addEventListener('keydown',function(e){keys[e.code]=true;if(e.code==='KeyE')toggleCar();});
+addEventListener('keyup',function(e){keys[e.code]=false;});
+function bindHold(id,code){
+ var el=document.getElementById(id);
+ var on=function(e){e.preventDefault();keys[code]=true;};
+ var off=function(e){e.preventDefault();keys[code]=false;};
+ el.addEventListener('pointerdown',on);el.addEventListener('pointerup',off);
+ el.addEventListener('pointerleave',off);el.addEventListener('pointercancel',off);
+}
+bindHold('tL','ArrowLeft');bindHold('tR','ArrowRight');
+bindHold('tG','ArrowUp');bindHold('tB','ArrowDown');
+document.getElementById('tE').addEventListener('click',function(){toggleCar();});
+if('ontouchstart' in window)document.getElementById('touch').style.display='flex';
+function toggleCar(){
+ if(S.over)return;
+ S.inCar=!S.inCar;
+ if(S.inCar){car.position.copy(elf.position);car.rotation.y=elf.rotation.y;elf.visible=false;}
+ else{elf.position.set(car.position.x+2.5,0,car.position.z);elf.rotation.y=car.rotation.y;elf.visible=true;}
+ blip(S.inCar?500:300);
+}
+function addWanted(n){
+ S.wanted=Math.max(0,Math.min(5,S.wanted+n));S.heat=1;
+ while(cops.length<S.wanted)spawnCop();
+ drawStars();
+}
+function drawStars(){
+ var s='';for(var i=0;i<5;i++)s+=i<S.wanted?'★':'☆';
+ document.getElementById('stars').textContent=s;
+}
+function hitSolid(x,z,rad){
+ for(var i=0;i<solids.length;i++){
+  var s=solids[i],dx=x-s.x,dz=z-s.z;
+  if(dx*dx+dz*dz<(s.r+rad)*(s.r+rad))return s;
+ }
+ return null;
+}
+function clampCity(v){return Math.max(-HALF+4,Math.min(HALF-4,v));}
+/* звук */
+var AC=null;
+function blip(f){try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+ var o=AC.createOscillator(),g=AC.createGain();o.type='square';o.frequency.value=f;
+ g.gain.value=.06;o.connect(g);g.connect(AC.destination);
+ o.start();o.stop(AC.currentTime+.09);}catch(e){}}
+/* --- цикл --- */
+var clock=new THREE.Clock();
+var fwd=new THREE.Vector3();
+function steerCar(dt){
+ var gas=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0);
+ var lr=(keys.KeyA||keys.ArrowLeft?1:0)-(keys.KeyD||keys.ArrowRight?1:0);
+ var u=car.userData;
+ u.v+=gas*22*dt;u.v*=Math.pow(keys.Space?0.2:0.92,dt*60);
+ u.v=Math.max(-14,Math.min(34,u.v));
+ u.steer+=((u.v>=0?lr:-lr)*.55-u.steer)*Math.min(1,dt*8);
+ car.rotation.y+=u.steer*dt*Math.min(1,Math.abs(u.v)/8)*(u.v>=0?1:-1)*2;
+ fwd.set(0,0,1).applyEuler(car.rotation);
+ var nx=car.position.x+fwd.x*u.v*dt,nz=car.position.z+fwd.z*u.v*dt;
+ if(!hitSolid(nx,nz,2.4)){car.position.x=clampCity(nx);car.position.z=clampCity(nz);}
+ else{u.v*=-.3;if(Math.abs(u.v)>6)addWanted(0);blip(140);}
+ u.wheels.forEach(function(w){w.rotation.x+=u.v*dt*2;});
+ document.getElementById('speed').textContent=Math.round(Math.abs(u.v)*3.6);
+ /* давка ботов */
+ for(var i=bots.length-1;i>=0;i--){
+  var b=bots[i];if(b.userData.dead>0)continue;
+  var dx=b.position.x-car.position.x,dz=b.position.z-car.position.z;
+  if(dx*dx+dz*dz<7&&Math.abs(u.v)>4){
+   b.userData.dead=5;b.rotation.x=-Math.PI/2;b.position.y=.4;
+   addWanted(1);S.score+=10;blip(90);
+  }
+ }
+ /* копы таранят */
+ for(var k=cops.length-1;k>=0;k--){
+  var c=cops[k],dx2=c.position.x-car.position.x,dz2=c.position.z-car.position.z;
+  if(dx2*dx2+dz2*dz2<9){u.v*=.5;S.heat=1;}
+ }
+}
+function steerElf(dt){
+ var mx=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0);
+ var mz=(keys.KeyS||keys.ArrowDown?1:0)-(keys.KeyW||keys.ArrowUp?1:0);
+ var sp=keys.ShiftLeft?11:6;
+ if(mx||mz){
+  var a=Math.atan2(mx,mz);elf.rotation.y=a;
+  var nx=elf.position.x+Math.sin(a)*sp*dt,nz=elf.position.z+Math.cos(a)*sp*dt;
+  if(!hitSolid(nx,nz,1)){elf.position.x=clampCity(nx);elf.position.z=clampCity(nz);}
+  elf.position.y=Math.abs(Math.sin(S.t*10))*.15;
+ }else elf.position.y=0;
+ document.getElementById('speed').textContent=0;
+}
+function updateBots(dt){
+ for(var i=0;i<bots.length;i++){
+  var b=bots[i],u=b.userData;
+  if(u.dead>0){u.dead-=dt;if(u.dead<=0){b.rotation.x=0;b.position.y=0;
+   var a=Math.random()*Math.PI*2,r=20+Math.random()*60;
+   b.position.set(Math.cos(a)*r,0,Math.sin(a)*r);}continue;}
+  if(Math.random()<dt*.3)u.dir+= (Math.random()-.5)*2;
+  b.rotation.y=u.dir;
+  var nx=b.position.x+Math.sin(u.dir)*u.sp*dt,nz=b.position.z+Math.cos(u.dir)*u.sp*dt;
+  if(!hitSolid(nx,nz,1)&&Math.abs(nx)<HALF&&Math.abs(nz)<HALF){b.position.x=nx;b.position.z=nz;}
+  else u.dir+=Math.PI/2;
+  b.position.y=Math.abs(Math.sin(S.t*8+i))*.1;
+ }
+}
+function updateCops(dt){
+ var tx=S.inCar?car.position:elf.position;
+ for(var i=0;i<cops.length;i++){
+  var c=cops[i];
+  var dx=tx.x-c.position.x,dz=tx.z-c.position.z,d=Math.hypot(dx,dz)||1;
+  var want=S.wanted>0;
+  var sp=want?20:0;
+  if(want){
+   c.rotation.y=Math.atan2(dx,dz);
+   fwd.set(0,0,1).applyEuler(c.rotation);
+   var nx=c.position.x+fwd.x*sp*dt,nz=c.position.z+fwd.z*sp*dt;
+   if(!hitSolid(nx,nz,2.4)){c.position.x=clampCity(nx);c.position.z=clampCity(nz);}
+   c.userData.bar.material.color.setHex(Math.floor(S.t*4)%2?0xff2222:0x2244ff);
+   if(d<4){
+    if(S.inCar&&Math.abs(car.userData.v)<2){bust();}
+    else if(!S.inCar){bust();}
+   }
+  }
+ }
+ /* розыск остывает */
+ if(S.wanted>0){
+  S.heat-=dt*.05;
+  if(S.heat<=0){S.wanted--;S.heat=S.wanted>0?1:0;drawStars();
+   while(cops.length>S.wanted){var c2=cops.pop();scene.remove(c2);}}
+ }
+}
+function bust(){
+ if(S.over)return;S.over=true;
+ document.getElementById('busted').style.display='flex';
+ blip(70);
+ setTimeout(function(){
+  document.getElementById('busted').style.display='none';
+  S.over=false;S.wanted=0;S.coins=Math.max(0,S.coins-5);drawStars();
+  while(cops.length){var c=cops.pop();scene.remove(c);}
+  car.position.set(0,0,10);car.userData.v=0;car.rotation.y=0;
+  if(!S.inCar){S.inCar=true;elf.visible=false;}
+  hud();
+ },2200);
+}
+function updateCoins(dt){
+ var p=S.inCar?car.position:elf.position;
+ for(var i=coins.length-1;i>=0;i--){
+  var m=coins[i];m.rotation.z+=dt*3;
+  var dx=m.position.x-p.x,dz=m.position.z-p.z;
+  if(dx*dx+dz*dz<6){
+   scene.remove(m);coins.splice(i,1);
+   S.coins++;S.score+=25;blip(880);spawnCoin();hud();
+  }
+ }
+}
+function hud(){
+ document.getElementById('coins').textContent=S.coins;
+ document.getElementById('score').textContent=S.score;
+}
+var started=false;
+document.getElementById('goBtn').onclick=function(){
+ document.getElementById('menu').style.display='none';
+ started=true;blip(660);
+};
+function animate(){
+ requestAnimationFrame(animate);
+ var dt=Math.min(clock.getDelta(),.05);
+ if(started&&!S.over){
+  S.t+=dt;S.score+=Math.floor(dt*(S.inCar?Math.abs(car.userData.v):2));
+  if(S.inCar)steerCar(dt);else steerElf(dt);
+  updateBots(dt);updateCops(dt);updateCoins(dt);
+  if(Math.floor(S.t*2)%2===0)hud();
+  var f=S.inCar?car.position:elf.position;
+  var back=S.inCar?13:8,up=S.inCar?7:5;
+  fwd.set(0,0,1).applyEuler(S.inCar?car.rotation:elf.rotation);
+  /* камера не лезет в дома: укорачиваем штангу до первого чистого места */
+  var ct=1;
+  for(var tt=1;tt>0.2;tt-=0.1){
+   var px=f.x-fwd.x*back*tt,pz=f.z-fwd.z*back*tt;
+   if(!hitSolid(px,pz,2)){ct=tt;break;}
+   ct=tt;
+  }
+  camera.position.set(f.x-fwd.x*back*ct,up+(1-ct)*4,f.z-fwd.z*back*ct);
+  camera.lookAt(f.x,2,f.z);
+ }
+ renderer.render(scene,camera);
+}
+drawStars();hud();animate();
+/* крючок для тестов */
+window.__gta={coins:function(){return S.coins;},wanted:function(){return S.wanted;},
+ start:function(){document.getElementById('goBtn').click();return started;},
+ drive:function(s){keys.KeyW=s;return car.userData.v;},
+ pos:function(){return {x:Math.round(car.position.x),z:Math.round(car.position.z),car:S.inCar};},
+ bust:function(){bust();return S.over;}};
+</script>
+<script>/* 42-трекер онлайна */(function(){var SITE='gtaevv';try{var s=null;try{s=localStorage.getItem('t42_sid');}catch(e){}if(!s||!/^[0-9a-f]{32}$/.test(s)){s='';var h='0123456789abcdef';for(var i=0;i<32;i++)s+=h[Math.floor(Math.random()*16)];try{localStorage.setItem('t42_sid',s);}catch(e){}}function b(){try{fetch('https://hub.bratuxa.zomb.top/api/track',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({site:SITE,sid:s}),keepalive:true}).catch(function(){});}catch(e){}}b();setInterval(b,30000);}catch(e){}})();</script>
+<!-- Баннер Саши 42 -->
+<a class="sasha42-banner" href="https://sasha.bratuxa.zomb.top" target="_blank" rel="noopener" title="Сайт Саши 42 — статистика, арена, казино"><img src="./img/sasha42.jpg" alt="Сайт Саши 42 — статистика, арена, казино"></a>
+<style>.sasha42-banner{position:fixed;right:12px;bottom:12px;z-index:42;display:block;width:min(220px,42vw);border-radius:12px;overflow:hidden;box-shadow:0 0 18px rgba(0,96,170,.55);border:1px solid #0060AA;background:#070b18}.sasha42-banner img{display:block;width:100%;height:auto}</style>
+</body>
+</html>

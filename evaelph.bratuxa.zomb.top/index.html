@@ -2261,5 +2261,8 @@ window.__elf={get:function(){return S;},tool:function(){return tool;},build:func
 </script>
 <script>/* 42-трекер онлайна */(function(){var SITE='evaelph';try{var s=null;try{s=localStorage.getItem('t42_sid');}catch(e){}if(!s||!/^[0-9a-f]{32}$/.test(s)){s='';var h='0123456789abcdef';for(var i=0;i<32;i++)s+=h[Math.floor(Math.random()*16)];try{localStorage.setItem('t42_sid',s);}catch(e){}}function b(){try{fetch('https://hub.bratuxa.zomb.top/api/track',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({site:SITE,sid:s}),keepalive:true}).catch(function(){});}catch(e){}}b();setInterval(b,30000);}catch(e){}})();</script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('./sw.js').catch(function(){})});}</script>
+<!-- Баннер Саши 42 -->
+<a class="sasha42-banner" href="https://sasha.bratuxa.zomb.top" target="_blank" rel="noopener" title="Сайт Саши 42 — статистика, арена, казино"><img src="./img/sasha42.jpg" alt="Сайт Саши 42 — статистика, арена, казино"></a>
+<style>.sasha42-banner{position:fixed;right:12px;bottom:12px;z-index:42;display:block;width:min(220px,42vw);border-radius:12px;overflow:hidden;box-shadow:0 0 18px rgba(0,96,170,.55);border:1px solid #0060AA;background:#070b18}.sasha42-banner img{display:block;width:100%;height:auto}</style>
 </body>
 </html>
