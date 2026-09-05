@@ -260,9 +260,19 @@ export class Game {
     fg.scale.set(1.3, 0.13, 1);
     fg.position.set(0, 2.25, 0);
     g.add(fg);
-    const a = Math.random() * Math.PI * 2;
-    const r = 30 + Math.random() * 18;
-    g.position.set(clampArena(Math.cos(a) * r), 0, clampArena(Math.sin(a) * r));
+    // точка спавна: только свободная (не внутри укрытий) и не впритык к игроку
+    let sx = 0, sz = 40;
+    for (let t = 0; t < 24; t++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = 26 + Math.random() * 22;
+      const cx = clampArena(Math.cos(a) * r);
+      const cz = clampArena(Math.sin(a) * r);
+      if (this.hitSolid(cx, cz, 2)) continue;
+      if (Math.hypot(cx - this.px, cz - this.pz) < 10) continue;
+      sx = cx; sz = cz;
+      break;
+    }
+    g.position.set(sx, 0, sz);
     this.scene.add(g);
     this.enemies.push({
       g, body, hpBg: bg, hpFg: fg,
@@ -313,8 +323,10 @@ export class Game {
       e.hp -= 32 + Math.random() * 8;
       e.hurtT = 0.18;
       const push = 1.6;
-      e.g.position.x = clampArena(e.g.position.x + (dx / (d || 1)) * push);
-      e.g.position.z = clampArena(e.g.position.z + (dz / (d || 1)) * push);
+      const nx = clampArena(e.g.position.x + (dx / (d || 1)) * push);
+      const nz = clampArena(e.g.position.z + (dz / (d || 1)) * push);
+      if (!this.hitSolid(nx, e.g.position.z, 0.8)) e.g.position.x = nx;
+      if (!this.hitSolid(e.g.position.x, nz, 0.8)) e.g.position.z = nz;
       this.updateHpBar(e);
       hits++;
       if (e.hp <= 0) {
@@ -407,6 +419,12 @@ export class Game {
   }
   debugAttack(): number { return this.attack(); }
   debugHp(): number { return Math.round(this.hp); }
+  debugSpots(): Array<{ x: number; z: number }> {
+    return this.enemies.filter((e) => !e.dead).map((e) => ({ x: e.g.position.x, z: e.g.position.z }));
+  }
+  debugSolids(): Array<{ x: number; z: number; r: number }> {
+    return this.solids.map((s) => ({ ...s }));
+  }
 
   private loop = (): void => {
     if (this.destroyed) return;

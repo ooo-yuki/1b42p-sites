@@ -42,3 +42,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
  display:flex;flex-direction:column;align-items:center;justify-content:center;touch-action:none;cursor:pointer}
 #hitBtn span{font-size:13px;letter-spacing:1px}
 #hitBtn:active{background:#ff3b3b}
+#weapon{position:fixed;right:132px;bottom:6px;z-index:6;width:120px;pointer-events:none;transform-origin:bottom right}
+#weapon img{width:100%;filter:drop-shadow(0 0 12px rgba(255,159,28,.7))}
+#weapon.swing{animation:wswing .25s ease-out}
+@keyframes wswing{0%{transform:rotate(0)}40%{transform:rotate(-38deg) translateY(-12px)}100%{transform:rotate(0)}}

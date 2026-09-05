@@ -63,6 +63,7 @@ export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const joyRef = useRef<HTMLDivElement>(null);
   const joyKnob = useRef<HTMLDivElement>(null);
+  const weaponRef = useRef<HTMLDivElement>(null);
   const joyId = useRef(-1);
   const gameRef = useRef<Game | null>(null);
   const [menu, setMenu] = useState(true);
@@ -92,12 +93,21 @@ export default function App() {
       pos: () => game.debugPos(),
       attack: () => game.debugAttack(),
       hp: () => game.debugHp(),
+      spots: () => game.debugSpots(),
+      solids: () => game.debugSolids(),
       joy: (x: number, y: number) => game.setJoy(x, y),
       look: (dx: number, dy: number) => game.addLook(dx, dy),
     };
+    const swing = () => {
+      const w = weaponRef.current;
+      if (!w) return;
+      w.classList.remove('swing');
+      void w.offsetWidth;
+      w.classList.add('swing');
+    };
     const kd = (e: KeyboardEvent) => {
       game.input[e.code] = true;
-      if (e.code === 'Space' || e.code === 'KeyJ') e.preventDefault();
+      if (e.code === 'Space' || e.code === 'KeyJ') { e.preventDefault(); swing(); }
     };
     const ku = (e: KeyboardEvent) => { game.input[e.code] = false; };
     window.addEventListener('keydown', kd);
@@ -187,10 +197,15 @@ export default function App() {
           </div>
           <button
             id="hitBtn"
-            onPointerDown={() => gameRef.current?.attack()}
+            onPointerDown={() => {
+              gameRef.current?.attack();
+              const w = weaponRef.current;
+              if (w) { w.classList.remove('swing'); void w.offsetWidth; w.classList.add('swing'); }
+            }}
           >
             👊<span>УДАР</span>
           </button>
+          <div id="weapon" ref={weaponRef}><img src={oruzh2Url} alt="секира" /></div>
         </>
       )}
       {hud.dead && !menu && <div id="busted" style={{ display: 'flex' }}>ЗАВАЛЕН! 👊<br />{hud.score} 🏆</div>}

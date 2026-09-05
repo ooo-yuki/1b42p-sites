@@ -62,6 +62,27 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await expect(page.locator('#camBtn')).toHaveCount(0);
   });
 
+  test('враги не в стенах, оружие на экране', async ({ page }) => {
+    await page.click('#goBtn');
+    await page.waitForTimeout(1000);
+    const st = await page.evaluate(() => {
+      const m = (window as unknown as {
+        __mtt: {
+          spots: () => Array<{ x: number; z: number }>;
+          solids: () => Array<{ x: number; z: number; r: number }>;
+        };
+      }).__mtt;
+      return { spots: m.spots(), solids: m.solids() };
+    });
+    expect(st.spots.length).toBeGreaterThan(0);
+    for (const s of st.spots) {
+      for (const o of st.solids) {
+        expect(Math.hypot(s.x - o.x, s.z - o.z)).toBeGreaterThan(o.r + 0.5);
+      }
+    }
+    await expect(page.locator('#weapon img')).toBeVisible();
+  });
+
   test('API: валидация и топ без мусора', async ({ request }) => {
     const bad = await request.post('/api/score', { data: { nick: 'pw', score: -5, coins: 1 } });
     expect(bad.status()).toBe(400);
