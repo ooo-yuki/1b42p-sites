@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import vrag1Url from '../assets/vrag1.png';
 import vrag2Url from '../assets/vrag2.png';
 import dom1Url from '../assets/dom1.png';
+import travaUrl from '../assets/trava.jpg';
 
 export interface HudState {
   hp: number;
@@ -299,9 +300,14 @@ export class Game {
     moon.shadow.bias = -0.0004;
     scene.add(moon);
 
+    // пол — трава МТТ с фото (тайлится по арене)
+    const grassTex = new THREE.TextureLoader().load(travaUrl);
+    grassTex.colorSpace = THREE.SRGBColorSpace;
+    grassTex.wrapS = grassTex.wrapT = THREE.RepeatWrapping;
+    grassTex.repeat.set(28, 28);
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(ARENA + 20, ARENA + 20),
-      new THREE.MeshStandardMaterial({ color: 0x4a5d7d, roughness: 0.6, metalness: 0.15 }),
+      new THREE.MeshStandardMaterial({ map: grassTex, roughness: 0.95, metalness: 0 }),
     );
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
