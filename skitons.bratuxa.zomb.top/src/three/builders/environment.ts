@@ -6,12 +6,28 @@ import { C, box, cyl, sph, mat } from '../palette';
 export interface Environment {
   group: THREE.Group;
   update: (t: number) => void;
+  lamps: THREE.PointLight[];
+  glints: THREE.Sprite[];
 }
 
 function pulse(m: THREE.Material, seed = 0): void {
   m.userData.pulse = true;
   m.userData.base = (m as THREE.MeshStandardMaterial).emissiveIntensity ?? 1;
   m.userData.seed = seed;
+}
+
+// Мягкий радиальный блик для ламп (аддитивный спрайт)
+function makeGlowTexture(): THREE.Texture {
+  const cv = document.createElement('canvas');
+  cv.width = 64; cv.height = 64;
+  const ctx = cv.getContext('2d')!;
+  const gr = ctx.createRadialGradient(32, 32, 2, 32, 32, 30);
+  gr.addColorStop(0, 'rgba(255,240,210,1)');
+  gr.addColorStop(0.4, 'rgba(255,215,150,0.5)');
+  gr.addColorStop(1, 'rgba(255,200,120,0)');
+  ctx.fillStyle = gr;
+  ctx.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(cv);
 }
 
 export function buildEnvironment(): Environment {
@@ -34,18 +50,18 @@ export function buildEnvironment(): Environment {
   lawn.receiveShadow = true;
   g.add(lawn);
 
-  // Дорога (серая лента + пунктир)
-  g.add(box(40, 0.04, 3.2, 0xcfc4b8, 0, 0.02, 14.5));
-  for (let i = -9; i <= 9; i += 2) {
+  // Дорога (серая лента + пунктир) — за края земли
+  g.add(box(64, 0.04, 3.2, 0xcfc4b8, 0, 0.02, 14.5));
+  for (let i = -15; i <= 15; i += 2) {
     g.add(box(0.9, 0.05, 0.15, 0xfff6ea, i * 2, 0.03, 14.5));
   }
 
-  // Извилистая мощёная дорожка к крыльцу (плоские камешки)
+  // Мощёная дорожка: крыльцо (z≈4.3) → калитка (z=12) → дорога
   const pebbleCols = [0xe8d9c8, 0xefe0cc, 0xdccbb4];
-  for (let i = 0; i < 9; i++) {
-    const z = 8.2 + i * 0.68;
-    const x = Math.sin(i * 0.9) * 0.55;
-    const w = 0.65 + (i % 3) * 0.1;
+  for (let i = 0; i < 14; i++) {
+    const z = 4.6 + i * 0.76;
+    const x = Math.sin(i * 0.8) * 0.3;
+    const w = 0.7 + (i % 3) * 0.1;
     const stone = new THREE.Mesh(
       new THREE.CylinderGeometry(w / 2, w / 2 + 0.04, 0.09, 7),
       mat(pebbleCols[i % pebbleCols.length]),
@@ -108,7 +124,7 @@ export function buildEnvironment(): Environment {
 
   // Деревья по периметру (декоративные)
   const treePos: Array<[number, number, number]> = [
-    [-10, -4, 1], [10.5, -3, 1.3], [-8, 6, 0.9], [9, 9, 1.1], [-12, 2, 1.2], [12, 4, 0.8],
+    [-10, -4, 1], [13.5, -6.5, 1.3], [-8, 6, 0.9], [9, 9, 1.1], [-12, 2, 1.2], [12, 4, 0.8],
   ];
   for (const [x, z, s] of treePos) {
     const tree = new THREE.Group();
@@ -121,7 +137,7 @@ export function buildEnvironment(): Environment {
   }
 
   // 3 яблони с яблоками
-  const appleTrees: Array<[number, number]> = [[-7.5, -1.5], [7.8, -2.2], [-5.5, -7]];
+  const appleTrees: Array<[number, number]> = [[-7.5, -1.5], [0.5, -9.5], [-5.5, -7]];
   for (const [x, z] of appleTrees) {
     const t = new THREE.Group();
     t.position.set(x, 0, z);
@@ -244,7 +260,24 @@ export function buildEnvironment(): Environment {
     g.add(box(0.08, 0.12, 13, 0xffffff, side * 11.5, 0.75, 0));
   }
 
-  // Фонари (светятся, пульс — в сцене через userData.pulse)
+  // Передний забор (z=12) с разрывом-калиткой |x|<1.4 + столбы и арка
+  for (const sgn of [-1, 1]) {
+    for (let x = 1.6; x <= 11.4; x += 1.65) {
+      g.add(box(0.14, 0.9, 0.14, 0xffffff, sgn * x, 0.45, 12));
+    }
+    g.add(box(9.9, 0.12, 0.08, 0xffffff, sgn * 6.55, 0.75, 12));
+  }
+  for (const sx of [-1.35, 1.35]) {
+    g.add(cyl(0.11, 0.13, 1.5, C.cocoa, sx, 0.75, 12, 8));
+    g.add(sph(0.16, C.cocoa, sx, 1.58, 12));
+  }
+  const arch = box(3.0, 0.14, 0.14, C.cocoa, 0, 2.15, 12);
+  g.add(arch);
+
+  // Фонари (светятся, пульс — в сцене через userData.pulse) + блики-спрайты
+  const lamps: THREE.PointLight[] = [];
+  const glints: THREE.Sprite[] = [];
+  const glowTex = makeGlowTexture();
   for (const [x, z] of [[-3.5, 7.5], [3.5, 7.5]] as Array<[number, number]>) {
     g.add(cyl(0.07, 0.09, 2.4, C.cocoa, x, 1.2, z, 8));
     const lampMat = new THREE.MeshStandardMaterial({ color: 0xffe6a3, emissive: 0xffc978, emissiveIntensity: 1.1, roughness: 0.5, flatShading: true });
@@ -257,11 +290,22 @@ export function buildEnvironment(): Environment {
     g.add(cap);
     const pl = new THREE.PointLight(0xffc978, 6, 9, 2);
     pl.position.set(x, 2.55, z);
+    pl.userData.base = 6;
     g.add(pl);
+    lamps.push(pl);
+    const gm = new THREE.SpriteMaterial({ map: glowTex, color: 0xffd9a0, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false });
+    gm.userData.base = 0.5;
+    const glint = new THREE.Sprite(gm);
+    glint.scale.set(1.5, 1.5, 1);
+    glint.position.set(x, 2.55, z);
+    g.add(glint);
+    glints.push(glint);
   }
 
   return {
     group: g,
+    lamps,
+    glints,
     update: (t: number) => {
       clouds.children.forEach((cl, i) => {
         cl.position.x += Math.sin(t * 0.05 + i) * 0.002 + 0.002;

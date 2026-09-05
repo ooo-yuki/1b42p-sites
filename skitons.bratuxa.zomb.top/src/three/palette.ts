@@ -79,6 +79,10 @@ export function sph(
 // конфликтовать с src/game/balance.ts (кто бы его ни писал).
 export type Levels = Record<string, number>;
 
+// Верх чистового пола зала: сплошной цоколь с крышкой заливает низ,
+// поэтому вся начинка интерьера и ноги людей внутри стоят на FLOOR_Y.
+export const FLOOR_Y = 0.74;
+
 export function lvl(l: Levels | undefined, id: string): number {
   const v = l?.[id] ?? 0;
   return Math.max(0, Math.min(5, Math.floor(v)));

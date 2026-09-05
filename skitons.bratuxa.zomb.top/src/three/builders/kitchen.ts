@@ -1,26 +1,26 @@
 import * as THREE from 'three';
 import { C, box, cyl, sph, mat } from '../palette';
 
-// Кухонный блок (стоит в пристрое справа от дома, x ≈ +5).
-// fridge lvl: 0 — ящик-ледник; 1+ — холодильник, растёт и хорошеет
-//   (наклейки-фрукты с 3, двойной с 5). +уплотнитель, полки сбоку,
-//   банка варенья.
-// stove lvl: 0 — костёр с котелком; 1+ — плита; конфорок 1→4,
-//   духовка с 2, вытяжка с 4. Огонь — ТРЁХСЛОЙНЫЙ (ядро/язык/ореол,
-//   у каждого слоя name='flame', flicker сцены цепляет каждый).
-// pan lvl: 0 — пустая стена; 1+ — сковородки на стене (1→5 штук),
-//   с 3 — полка с баночками специй, с 5 — золотая сковорода.
-// Локальные x витрины: fridge -1.4 / stove 0.2 / pan 1.8 — держать.
+// Кухонный блок в пристрое. Группа ставится сценой в (5.6, 0, -0.6),
+// мировые позиции (контракт): холодильник (5.2,-2.3), плита (6.4,-2.3),
+// доска со сковородками на восточной стене (7.7,-1.2) лицом на запад.
+// fridge lvl: 0 — ящик-ледник; 1+ — холодильник (наклейки с 3, двойной с 5).
+// stove lvl: 0 — костёр с котелком; 1+ — плита (духовка с 2, вытяжка с 4).
+// pan lvl: 0 — пустая доска; 1+ — сковородки (1→5, золотая с 5), специи с 3.
+// Огонь — ТРЁХСЛОЙНЫЙ, у каждого слоя name='flame' (flicker сцены).
+const FRIDGE: [number, number] = [-0.4, -1.7];
+const STOVE: [number, number] = [0.8, -1.7];
+const BOARD: [number, number] = [2.1, -0.6];
+
 export function buildKitchen(levels: { fridge: number; stove: number; pan: number }): THREE.Group {
   const g = new THREE.Group();
-  g.add(buildFridge(Math.max(0, Math.min(5, levels.fridge)), -1.4));
-  g.add(buildStove(Math.max(0, Math.min(5, levels.stove)), 0.2));
-  g.add(buildPans(Math.max(0, Math.min(5, levels.pan)), 1.8));
+  g.add(buildFridge(Math.max(0, Math.min(5, levels.fridge)), FRIDGE[0], FRIDGE[1]));
+  g.add(buildStove(Math.max(0, Math.min(5, levels.stove)), STOVE[0], STOVE[1]));
+  g.add(buildPans(Math.max(0, Math.min(5, levels.pan)), BOARD[0], BOARD[1]));
   return g;
 }
 
-// Трёхслойный огонь: ореол + язык + ядро. Геометрия задаёт размер
-// (scale трогает сцена во flicker — держать scale=1).
+// Трёхслойный огонь: ореол + язык + ядро (scale=1 — flicker трогает scale).
 function buildFlame(size: number): THREE.Group {
   const g = new THREE.Group();
   const halo = new THREE.Mesh(
@@ -50,13 +50,13 @@ function buildFlame(size: number): THREE.Group {
   );
   core.position.y = size * 0.6;
   core.name = 'flame';
-  // Искры — ребёнок языка: flicker языка тащит их за собой
+  // Искры — дети языка: flicker языка тащит их за собой
   tongue.add(makeSparks(size));
   g.add(halo, tongue, core);
   return g;
 }
 
-// Искры: точки над огнём (пульс через масштаб родителя-flame).
+// Искры: точки над огнём.
 function makeSparks(size: number): THREE.Points {
   const n = 14;
   const pos = new Float32Array(n * 3);
@@ -69,8 +69,7 @@ function makeSparks(size: number): THREE.Points {
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const m = new THREE.PointsMaterial({ color: 0xffd76a, size: 0.05, transparent: true, opacity: 0.9 });
-  return new THREE.Points(geo, m);
+  return new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffd76a, size: 0.05, transparent: true, opacity: 0.9 }));
 }
 
 // Угли: красные додекаэдры с горячим emissive.
@@ -94,24 +93,21 @@ function buildCoals(n: number, radius: number, y: number): THREE.Group {
   return g;
 }
 
-// Котелок на треноге: корпус + крышка + пузырьки кипения.
+// Котелок на треноге: корпус + крышка + пузырьки кипения + парок.
 function buildPot(scale = 1): THREE.Group {
   const g = new THREE.Group();
   const bodyM = mat(0x4a4a52, { rough: 0.6, metal: 0.5 });
   const body = new THREE.Mesh(new THREE.CylinderGeometry(0.24 * scale, 0.2 * scale, 0.26 * scale, 12), bodyM);
   body.castShadow = true;
   g.add(body);
-  // Ободок
   const rim = new THREE.Mesh(new THREE.TorusGeometry(0.24 * scale, 0.025 * scale, 6, 14), bodyM);
   rim.rotation.x = Math.PI / 2;
   rim.position.y = 0.13 * scale;
   g.add(rim);
-  // Крышка + ручка-набалдашник
   const lid = new THREE.Mesh(new THREE.SphereGeometry(0.22 * scale, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2.4), bodyM);
   lid.position.y = 0.13 * scale;
   g.add(lid);
   g.add(sph(0.045 * scale, C.woodDark, 0, 0.32 * scale, 0));
-  // Дужка
   const bail = new THREE.Mesh(new THREE.TorusGeometry(0.26 * scale, 0.02 * scale, 6, 12, Math.PI), bodyM);
   bail.position.y = 0.13 * scale;
   g.add(bail);
@@ -120,7 +116,6 @@ function buildPot(scale = 1): THREE.Group {
     const a = (i / 6) * Math.PI * 2;
     g.add(sph(0.03 * scale, 0xfff6ea, Math.cos(a) * 0.17 * scale, 0.12 * scale, Math.sin(a) * 0.17 * scale));
   }
-  // Статичный дымок-пар над котелком
   const steam = new THREE.Mesh(
     new THREE.SphereGeometry(0.12 * scale, 8, 6),
     new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.4, roughness: 1, flatShading: true }),
@@ -131,9 +126,9 @@ function buildPot(scale = 1): THREE.Group {
   return g;
 }
 
-function buildFridge(L: number, x: number): THREE.Group {
+function buildFridge(L: number, x: number, z: number): THREE.Group {
   const g = new THREE.Group();
-  g.position.set(x, 0, 0);
+  g.position.set(x, 0, z);
   if (L === 0) {
     // Деревянный ящик-ледник
     g.add(box(1.1, 0.9, 0.9, C.wood, 0, 0.45, 0));
@@ -143,20 +138,18 @@ function buildFridge(L: number, x: number): THREE.Group {
   }
   const tall = L >= 5 ? 2.2 : 1.7;
   const bodyC = L >= 3 ? 0xeaf7ff : C.fridge;
-  const body = box(1.1, tall, 0.95, bodyC, 0, tall / 2, 0);
-  g.add(body);
+  g.add(box(1.1, tall, 0.95, bodyC, 0, tall / 2, 0));
   // Уплотнитель дверцы: тёмная рамка по периметру
   const sealC = 0x6a767e;
-  const sz = 0.49;
-  g.add(box(1.0, 0.06, 0.03, sealC, 0, tall - 0.06, sz));
-  g.add(box(1.0, 0.06, 0.03, sealC, 0, 0.06, sz));
-  g.add(box(0.06, tall, 0.03, sealC, -0.5, tall / 2, sz));
-  g.add(box(0.06, tall, 0.03, sealC, 0.5, tall / 2, sz));
+  g.add(box(1.0, 0.06, 0.03, sealC, 0, tall - 0.06, 0.49));
+  g.add(box(1.0, 0.06, 0.03, sealC, 0, 0.06, 0.49));
+  g.add(box(0.06, tall, 0.03, sealC, -0.5, tall / 2, 0.49));
+  g.add(box(0.06, tall, 0.03, sealC, 0.5, tall / 2, 0.49));
   // Дверца-шов + ручка
-  g.add(box(0.04, tall * 0.8, 0.04, C.steel, 0, tall / 2, sz + 0.01));
+  g.add(box(0.04, tall * 0.8, 0.04, C.steel, 0, tall / 2, 0.5));
   g.add(cyl(0.04, 0.04, 0.4, C.cocoa, 0.35, tall / 2 + 0.2, 0.53, 6));
   // Морозилка-шов со 2
-  if (L >= 2) g.add(box(1.0, 0.05, 0.04, C.steel, 0, tall - 0.5, sz + 0.01));
+  if (L >= 2) g.add(box(1.0, 0.05, 0.04, C.steel, 0, tall - 0.5, 0.5));
   // Магнитики-фрукты с 3
   if (L >= 3) {
     const fruits = [0xf6a5b8, 0xffb347, 0xa8d5a2, 0xff7b54];
@@ -174,7 +167,7 @@ function buildFridge(L: number, x: number): THREE.Group {
       g.add(cyl(0.085, 0.085, 0.04, C.cocoa, 0.82, 0.91, -0.28 + i * 0.28, 8));
     });
   }
-  // Банка варенья на полке / на холодильнике
+  // Банка варенья: на верхней полке (с 2) или на холодильнике
   const jamY = L >= 2 ? 1.26 : tall + 0.12;
   const jamX = L >= 2 ? 0.82 : 0;
   const jam = new THREE.Mesh(
@@ -193,9 +186,9 @@ function buildFridge(L: number, x: number): THREE.Group {
   return g;
 }
 
-function buildStove(L: number, x: number): THREE.Group {
+function buildStove(L: number, x: number, z: number): THREE.Group {
   const g = new THREE.Group();
-  g.position.set(x, 0, 0);
+  g.position.set(x, 0, z);
   if (L === 0) {
     // Костёр: камни + угли + трёхслойный огонь + котелок на треноге
     for (let i = 0; i < 5; i++) {
@@ -206,14 +199,12 @@ function buildStove(L: number, x: number): THREE.Group {
     const flame = buildFlame(0.22);
     flame.position.y = 0.15;
     g.add(flame);
-    // Поленья
     for (const [rx, rz, rot] of [[-0.3, 0.1, 0.5], [0.3, -0.1, -0.5]] as Array<[number, number, number]>) {
       const log = cyl(0.06, 0.06, 0.8, C.trunk, rx, 0.2, rz, 6);
       log.rotation.z = Math.PI / 2.3;
       log.rotation.y = rot;
       g.add(log);
     }
-    // Тренога + котелок
     for (let i = 0; i < 3; i++) {
       const a = (i / 3) * Math.PI * 2;
       const leg = cyl(0.04, 0.04, 1.4, C.woodDark, Math.cos(a) * 0.4, 0.7, Math.sin(a) * 0.4, 6);
@@ -226,51 +217,46 @@ function buildStove(L: number, x: number): THREE.Group {
     g.add(pot);
     return g;
   }
-  // Корпус плиты
+  // Корпус плиты + ножки
   g.add(box(1.5, 0.9, 1.0, L >= 3 ? 0xfff6ea : 0xd8dee3, 0, 0.45, 0));
   g.add(box(1.5, 0.08, 1.0, 0x5a5a5a, 0, 0.94, 0));
-  // Ножки
   for (const [dx, dz] of [[-0.65, -0.4], [0.65, -0.4], [-0.65, 0.4], [0.65, 0.4]] as Array<[number, number]>) {
     g.add(cyl(0.05, 0.05, 0.12, 0x3a3a3a, dx, 0.06, dz, 6));
   }
-  // Конфорки: 1→4 + решётки
+  // Конфорки 1→4 + решётки-кресты + кастрюльки на первых двух
   const burners = [1, 2, 2, 3, 4, 4][L];
   const bp: Array<[number, number]> = [[-0.35, -0.2], [0.35, -0.2], [-0.35, 0.25], [0.35, 0.25]];
   for (let i = 0; i < burners; i++) {
     g.add(cyl(0.16, 0.16, 0.04, 0x3a3a3a, bp[i][0], 0.99, bp[i][1], 10));
-    // Решётка конфорки: крест из прутьев
     g.add(box(0.34, 0.03, 0.05, 0x2a2a2a, bp[i][0], 1.02, bp[i][1]));
     g.add(box(0.05, 0.03, 0.34, 0x2a2a2a, bp[i][0], 1.02, bp[i][1]));
     if (i < 2) {
-      // Кастрюльки на первых двух
       g.add(cyl(0.14, 0.12, 0.16, i ? C.door : C.roof, bp[i][0], 1.12, bp[i][1], 10));
       g.add(sph(0.03, C.cocoa, bp[i][0], 1.22, bp[i][1]));
     }
   }
-  // Ручки-регуляторы на передней панели
-  const knobs = Math.min(4, burners);
-  for (let i = 0; i < knobs; i++) {
+  // Ручки-регуляторы с рисками на передней панели
+  for (let i = 0; i < Math.min(4, burners); i++) {
     const kx = -0.45 + i * 0.3;
     const k = cyl(0.05, 0.05, 0.08, 0x8a6a5a, kx, 0.72, 0.52, 8);
     k.rotation.x = Math.PI / 2;
     g.add(k);
-    // Риска-индикатор
     g.add(box(0.02, 0.05, 0.02, 0xff4a2a, kx, 0.76, 0.55));
   }
-  // Огонь в духовке (трёхслойный, видно через окошко)
+  // Огонь в духовке: трёхслойный + угли, видно через окошко
   const fire = buildFlame(0.16);
   fire.position.set(0, 0.12, 0.4);
   fire.scale.z = 0.5;
   g.add(fire);
+  g.add(buildCoals(4, 0.14, 0.1));
   if (L >= 2) {
-    // Окошко духовки
     const win = new THREE.Mesh(
       new THREE.PlaneGeometry(0.9, 0.4),
       new THREE.MeshStandardMaterial({ color: 0x554433, emissive: 0xff9a4d, emissiveIntensity: 0.7, roughness: 0.4 }),
     );
     win.position.set(0, 0.35, 0.51);
     g.add(win);
-    // Ручка духовки + полотенце на ней
+    // Ручка духовки + вафельное полотенце на ней
     g.add(cyl(0.035, 0.035, 1.1, C.steel, 0, 0.62, 0.56, 8));
     const towel = new THREE.Mesh(
       new THREE.BoxGeometry(0.3, 0.45, 0.04),
@@ -279,11 +265,10 @@ function buildStove(L: number, x: number): THREE.Group {
     towel.position.set(0.3, 0.38, 0.56);
     g.add(towel);
   }
-  // Вытяжка с 4: купол + труба + фильтр-решётка
+  // Вытяжка с 4: купол + фильтр-решётка + труба
   if (L >= 4) {
     g.add(box(1.3, 0.5, 0.9, C.steel, 0, 2.2, 0));
     g.add(box(1.1, 0.1, 0.7, 0x9aa8b2, 0, 1.94, 0));
-    // Фильтр: рамка + 5 ламелей
     g.add(box(0.9, 0.04, 0.5, 0x7a8892, 0, 1.9, 0));
     for (let i = 0; i < 5; i++) {
       g.add(box(0.06, 0.05, 0.5, 0x5a6670, -0.32 + i * 0.16, 1.9, 0));
@@ -319,10 +304,11 @@ function towelTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-function buildPans(L: number, x: number): THREE.Group {
+// Доска со сковородками на восточной стене, лицо на запад (-x):
+// доска тонкая по x, крючки и сковородки висят с западной стороны.
+function buildPans(L: number, x: number, z: number): THREE.Group {
   const g = new THREE.Group();
-  g.position.set(x, 0, 0);
-  // Доска на стене + крючки
+  g.position.set(x, 0, z);
   g.add(box(0.12, 1.8, 2.2, C.wood, 0, 1.5, 0));
   g.add(box(0.14, 0.1, 2.2, C.woodDark, 0, 2.42, 0));
   const panCols = [0x5a5a5a, 0x5a5a5a, 0x777777, 0x777777, 0x8a8a8a, 0xd9a441];
@@ -330,25 +316,24 @@ function buildPans(L: number, x: number): THREE.Group {
     const py = 2.1 - i * 0.32;
     const pz = -0.7 + (i % 3) * 0.7;
     const gold = L >= 5 && i === 0;
-    g.add(sph(0.035, C.cocoa, 0.1, py + 0.3, pz));
-    const pan = cyl(0.16, 0.16, 0.05, gold ? panCols[5] : panCols[i], 0.12, py, pz, 12);
+    g.add(sph(0.035, C.cocoa, -0.1, py + 0.3, pz));
+    const pan = cyl(0.16, 0.16, 0.05, gold ? panCols[5] : panCols[i], -0.12, py, pz, 12);
     pan.rotation.z = Math.PI / 2;
     g.add(pan);
-    // Внутренность сковороды (блик)
-    const inner = cyl(0.12, 0.12, 0.055, gold ? 0xf3d27a : 0x3a3a3a, 0.12, py, pz, 12);
+    const inner = cyl(0.12, 0.12, 0.055, gold ? 0xf3d27a : 0x3a3a3a, -0.12, py, pz, 12);
     inner.rotation.z = Math.PI / 2;
     g.add(inner);
-    g.add(cyl(0.03, 0.03, 0.25, C.woodDark, 0.12, py + 0.24, pz, 6));
+    g.add(cyl(0.03, 0.03, 0.25, C.woodDark, -0.12, py + 0.24, pz, 6));
   }
   // Полка со специями с 3
   if (L >= 3) {
-    g.add(box(0.35, 0.06, 1.6, C.woodDark, 0.2, 0.75, 0));
-    g.add(box(0.35, 0.25, 0.06, C.woodDark, 0.2, 0.6, -0.8));
-    g.add(box(0.35, 0.25, 0.06, C.woodDark, 0.2, 0.6, 0.8));
+    g.add(box(0.35, 0.06, 1.6, C.woodDark, -0.2, 0.75, 0));
+    g.add(box(0.35, 0.25, 0.06, C.woodDark, -0.2, 0.6, -0.8));
+    g.add(box(0.35, 0.25, 0.06, C.woodDark, -0.2, 0.6, 0.8));
     const spice = [0xf6a5b8, 0xffb347, 0xa8d5a2, 0xd9c0e8];
     spice.slice(0, L).forEach((c, i) => {
-      g.add(cyl(0.07, 0.07, 0.14, c, 0.2, 0.85, -0.55 + i * 0.35, 8));
-      g.add(cyl(0.075, 0.075, 0.03, C.cocoa, 0.2, 0.93, -0.55 + i * 0.35, 8));
+      g.add(cyl(0.07, 0.07, 0.14, c, -0.2, 0.85, -0.55 + i * 0.35, 8));
+      g.add(cyl(0.075, 0.075, 0.03, C.cocoa, -0.2, 0.93, -0.55 + i * 0.35, 8));
     });
   }
   return g;

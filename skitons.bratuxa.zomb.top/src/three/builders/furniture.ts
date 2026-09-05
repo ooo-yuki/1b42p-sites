@@ -8,43 +8,38 @@ export interface TablesResult {
   seats: THREE.Object3D[];
 }
 
-// Столы: круглая столешница + ножка; скатерти в клетку/горох
-// (CanvasTexture), чашки с блюдцами и ложечками, вазочки с цветами.
-// chairs lvl: 0 — 1 стол/2 стула, бедные; 5 — 4 стола, стулья с
-// резными спинками, чашки с паром на каждом столе.
-// Счёт столов [1,2,2,3,3,4], позиции pos, по 2 seats на стол — НЕ менять.
+// Столы ВНУТРИ зала (зал x∈[-3.5,3.5], z∈[-2.8,2.8]).
+// Позиции [[-2.2,1.5],[2.2,1.5],[-2.2,-1.1],[2.2,-1.1]] — НЕ менять.
+// Счёт [1,2,2,3,3,4] по lvl chairs, по 2 seats на стол, радиус стульев 1.2.
+const POS: Array<[number, number]> = [[-2.2, 1.5], [2.2, 1.5], [-2.2, -1.1], [2.2, -1.1]];
+const COUNT = [1, 2, 2, 3, 3, 4];
+const CHAIR_R = 1.2;
+
 export function buildTables(chairsLvl: number): TablesResult {
   const g = new THREE.Group();
   const steamAnchors: THREE.Object3D[] = [];
   const seats: THREE.Object3D[] = [];
   const L = Math.max(0, Math.min(5, chairsLvl));
+  const n = COUNT[L];
+  const clothKinds = ['check', 'dots', 'check', 'dots'] as const;
+  const clothColors = [0xffffff, 0xf6a5b8, 0x9fd8c9, 0xffd9c0];
+  const flowerCols = [0xf6a5b8, 0xffb347, 0xd9c0e8, 0xff7b54];
 
-  const tableCount = [1, 2, 2, 3, 3, 4][L];
-  const pos: Array<[number, number]> = [
-    [-4.5, 5.5], [4.5, 5.5], [-4.5, 0.5], [4.8, 0.2], [0, 6.2], [-0.5, -3.5],
-  ];
-  const clothKinds = ['check', 'dots', 'check', 'dots', 'check', 'dots'] as const;
-  const clothColors = [0xffffff, 0xf6a5b8, 0x9fd8c9, 0xffd9c0, 0xcdeac0, 0xbfe3ff];
-  const flowerCols = [0xf6a5b8, 0xffb347, 0xd9c0e8, 0xff7b54, 0xfff3c4, 0x9fd8c9];
-
-  for (let t = 0; t < tableCount; t++) {
-    const [px, pz] = pos[t % pos.length];
+  for (let t = 0; t < n; t++) {
+    const [px, pz] = POS[t];
     const table = new THREE.Group();
     table.position.set(px, 0, pz);
-
-    // Столешница + ободок
-    const top = cyl(0.85, 0.85, 0.12, C.wood, 0, 0.78, 0, 14);
-    table.add(top);
+    table.add(cyl(0.85, 0.85, 0.12, C.wood, 0, 0.78, 0, 14));
     const rim = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.035, 6, 18), mat(C.woodDark));
     rim.rotation.x = Math.PI / 2;
     rim.position.y = 0.78;
     table.add(rim);
-    // Скатерть со 2 уровня: клетка/горох через CanvasTexture
+    // Скатерть со 2 уровня: клетка/горох через CanvasTexture + бахрома
     if (L >= 2) {
       const cloth = new THREE.Mesh(
         new THREE.CylinderGeometry(0.88, 0.95, 0.18, 14),
         new THREE.MeshStandardMaterial({
-          map: clothTexture(clothKinds[t % clothKinds.length], clothColors[t % clothColors.length]),
+          map: clothTexture(clothKinds[t % 4], clothColors[t % 4]),
           roughness: 1, flatShading: true,
         }),
       );
@@ -52,7 +47,6 @@ export function buildTables(chairsLvl: number): TablesResult {
       cloth.castShadow = true;
       cloth.receiveShadow = true;
       table.add(cloth);
-      // Бахрома скатерти: шарики по краю
       for (let i = 0; i < 10; i++) {
         const a = (i / 10) * Math.PI * 2;
         table.add(sph(0.035, 0xfff6ea, Math.cos(a) * 0.93, 0.73, Math.sin(a) * 0.93));
@@ -60,23 +54,17 @@ export function buildTables(chairsLvl: number): TablesResult {
     }
     table.add(cyl(0.09, 0.14, 0.75, C.woodDark, 0, 0.38, 0));
     table.add(cyl(0.4, 0.45, 0.08, C.woodDark, 0, 0.04, 0));
-
-    // Чашки с блюдцами и ложечками: 1 с lvl 1, 2 с lvl 4 + пар
+    // Чашки: 1 с lvl 1, 2 с lvl 4 (блюдце + чашка + чай + ручка + ложечка + пар)
     const cups = L >= 4 ? 2 : L >= 1 ? 1 : 0;
     for (let c = 0; c < cups; c++) {
       const cx = c === 0 ? 0.3 : -0.35;
       const cz = c === 0 ? 0.1 : -0.2;
-      // Блюдце
       table.add(cyl(0.16, 0.11, 0.03, 0xfff6ea, cx, 0.9, cz, 10));
-      // Чашка
       table.add(cyl(0.11, 0.09, 0.14, 0xffffff, cx, 0.99, cz, 10));
-      // Чай (поверхность)
       table.add(cyl(0.09, 0.09, 0.02, C.cocoa, cx, 1.05, cz, 10));
-      // Ручка чашки
       const handle = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.015, 6, 10), mat(0xffffff));
       handle.position.set(cx + 0.11, 0.99, cz);
       table.add(handle);
-      // Ложечка рядом
       const spoon = box(0.03, 0.015, 0.22, C.steel, cx + 0.2, 0.9, cz + 0.08);
       spoon.rotation.y = 0.5;
       table.add(spoon);
@@ -87,79 +75,65 @@ export function buildTables(chairsLvl: number): TablesResult {
       table.add(anchor);
       steamAnchors.push(anchor);
     }
-    // Вазочка с разными цветами с lvl 3
+    // Вазочка с цветком с lvl 3
     if (L >= 3) {
+      const fc = flowerCols[t % 4];
       table.add(cyl(0.07, 0.1, 0.18, C.door, -0.05, 1.0, 0.35, 8));
       table.add(cyl(0.02, 0.02, 0.25, C.leafDark, -0.05, 1.15, 0.35, 6));
-      const fc = flowerCols[t % flowerCols.length];
       table.add(sph(0.06, fc, -0.05, 1.3, 0.35));
-      // Лепестки вокруг сердцевины
       for (let i = 0; i < 5; i++) {
         const a = (i / 5) * Math.PI * 2;
         table.add(sph(0.035, fc, -0.05 + Math.cos(a) * 0.08, 1.3, 0.35 + Math.sin(a) * 0.08));
       }
       table.add(sph(0.035, 0xfff3c4, -0.05, 1.31, 0.35));
-      // Листик
       const leaf = sph(0.045, C.leaf, -0.12, 1.12, 0.35);
       leaf.scale.set(1.4, 0.5, 0.8);
       table.add(leaf);
     }
-
     g.add(table);
-
-    // Стулья вокруг (2 / 3 / 4 по уровню)
-    const chairs = L >= 4 ? 4 : L >= 2 ? 3 : 2;
-    for (let s = 0; s < chairs; s++) {
-      const a = (s / chairs) * Math.PI * 2 + t * 0.5;
-      const sx = px + Math.cos(a) * 1.5;
-      const sz = pz + Math.sin(a) * 1.5;
+    // По 2 стула на стол, r=1.2; оба — посадочные места лицом к столу
+    const base = t * 0.9 + 0.4;
+    for (let s = 0; s < 2; s++) {
+      const a = base + s * Math.PI;
+      const sx = px + Math.cos(a) * CHAIR_R;
+      const sz = pz + Math.sin(a) * CHAIR_R;
       const chair = buildChair(L, s);
       chair.position.set(sx, 0, sz);
-      chair.rotation.y = -a + Math.PI / 2;
+      chair.rotation.y = Math.atan2(px - sx, pz - sz);
       g.add(chair);
-      if (s < 2) {
-        const seat = new THREE.Object3D();
-        seat.position.set(sx, 0, sz);
-        seat.rotation.y = Math.atan2(px - sx, pz - sz);
-        seat.name = 'seat';
-        g.add(seat);
-        seats.push(seat);
-      }
+      const seat = new THREE.Object3D();
+      seat.position.set(sx, 0, sz);
+      seat.rotation.y = Math.atan2(px - sx, pz - sz);
+      seat.name = 'seat';
+      g.add(seat);
+      seats.push(seat);
     }
   }
   return { group: g, steamAnchors, seats };
 }
 
-// Стул: сиденье + ножки; с lvl 2 — резная спинка
-// (рейки + верхняя планка + круглый/сердечный медальон).
+// Стул: сиденье + ножки + перекладины; с lvl 2 — резная спинка
+// (стойки + точёные рейки + верхняя планка + медальон сердце/круг).
 function buildChair(L: number, variant: number): THREE.Group {
   const c = new THREE.Group();
   const seatC = L >= 3 ? C.peach : C.wood;
   c.add(box(0.55, 0.1, 0.55, seatC, 0, 0.45, 0));
-  // Ободок сиденья
   c.add(box(0.59, 0.05, 0.59, C.woodDark, 0, 0.4, 0));
-  const legC = C.woodDark;
   for (const [dx, dz] of [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]]) {
-    c.add(cyl(0.04, 0.04, 0.45, legC, dx, 0.22, dz, 6));
+    c.add(cyl(0.04, 0.04, 0.45, C.woodDark, dx, 0.22, dz, 6));
   }
-  // Перекладины между ножками
-  c.add(box(0.44, 0.05, 0.05, legC, 0, 0.15, -0.2));
-  c.add(box(0.44, 0.05, 0.05, legC, 0, 0.15, 0.2));
-  // Резная спинка с lvl 2
+  c.add(box(0.44, 0.05, 0.05, C.woodDark, 0, 0.15, -0.2));
+  c.add(box(0.44, 0.05, 0.05, C.woodDark, 0, 0.15, 0.2));
   if (L >= 2) {
-    // Боковые стойки
     c.add(box(0.07, 0.65, 0.07, seatC, -0.24, 0.82, -0.26));
     c.add(box(0.07, 0.65, 0.07, seatC, 0.24, 0.82, -0.26));
-    // Вертикальные резные рейки
     for (const bx of [-0.12, 0, 0.12]) {
       c.add(cyl(0.03, 0.03, 0.5, seatC, bx, 0.82, -0.26, 6));
       c.add(sph(0.045, C.woodDark, bx, 0.82, -0.26));
     }
-    // Верхняя планка с волной
     c.add(box(0.55, 0.12, 0.07, seatC, 0, 1.12, -0.26));
     c.add(sph(0.06, seatC, -0.2, 1.18, -0.26));
     c.add(sph(0.06, seatC, 0.2, 1.18, -0.26));
-    // Медальон: сердечко (чётные) или круг (нечётные)
     if (variant % 2 === 0) {
       const heart = makeHeartTiny(0.07, C.door);
       heart.position.set(0, 0.95, -0.22);
@@ -167,11 +141,7 @@ function buildChair(L: number, variant: number): THREE.Group {
     } else {
       c.add(sph(0.07, C.door, 0, 0.95, -0.22));
     }
-    if (L >= 5) c.add(box(0.45, 0.4, 0.1, C.mint, 0, 0.78, -0.24));
-  } else if (L >= 5) {
-    c.add(box(0.5, 0.08, 0.5, C.mint, 0, 0.53, 0));
   }
-  // Подушка-сидушка с lvl 4
   if (L >= 4) c.add(box(0.48, 0.07, 0.48, C.mint, 0, 0.53, 0));
   return c;
 }
@@ -181,8 +151,7 @@ function clothTexture(kind: 'check' | 'dots', base: number): THREE.CanvasTexture
   const cv = document.createElement('canvas');
   cv.width = 128; cv.height = 128;
   const ctx = cv.getContext('2d')!;
-  const css = '#' + base.toString(16).padStart(6, '0');
-  ctx.fillStyle = css;
+  ctx.fillStyle = '#' + base.toString(16).padStart(6, '0');
   ctx.fillRect(0, 0, 128, 128);
   if (kind === 'check') {
     ctx.strokeStyle = 'rgba(138,106,90,0.55)';
@@ -214,9 +183,9 @@ function makeHeartTiny(size: number, color: number): THREE.Mesh {
   return new THREE.Mesh(new THREE.ExtrudeGeometry(s, { depth: 0.03, bevelEnabled: false }), mat(color, { rough: 0.7 }));
 }
 
-// Веранда: настил + столбики + навес. Растёт с уровнем:
-// 0 — нет; 1 — маленький настил; 2 — +навес; 3 — +перила-балясины;
-// 4 — +гирлянда (шарики, светятся); 5 — большая, +качели на цепях + ковёр.
+// Веранда-терраса снаружи (перед домом): настил + столбики + навес.
+// 0 — нет; 1 — настил; 2 — +навес; 3 — +перила-балясины;
+// 4 — +гирлянда; 5 — +ковёр-дорожка и качели на цепях (имя 'swing').
 export function buildVeranda(lv: number): THREE.Group {
   const g = new THREE.Group();
   const L = Math.max(0, Math.min(5, lv));
