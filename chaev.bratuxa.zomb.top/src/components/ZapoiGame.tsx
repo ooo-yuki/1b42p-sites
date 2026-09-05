@@ -13,7 +13,7 @@ import UpgradeTree from './zapoi/UpgradeTree';
 import { motifFor, radio } from './zapoi/charMusic';
 
 export default function ZapoiGame() {
-  const { z, setZ, log, mutate, shatterBottle, pickChar, resetToSelect } = useZapoiState();
+  const { z, setZ, log, mutate, shatterBottle, pickChar, resetToSelect, streak, noteShattered } = useZapoiState();
   const [musicOn, setMusicOn] = useState<boolean>(() => {
     try { return localStorage.getItem('zapoi_music') !== 'off'; } catch { return true; }
   });
@@ -38,11 +38,11 @@ export default function ZapoiGame() {
 
   // ЭКРАН ВЫБОРА ПЕРСОНАЖА
   if (!z.char) {
-    return <CharSelect z={z} onPick={pickChar} />;
+    return <CharSelect z={z} streak={streak} onPick={pickChar} />;
   }
 
   const charDef = CHARACTERS.find((c) => c.id === z.char);
-  if (!charDef) return <CharSelect z={z} onPick={pickChar} />;
+  if (!charDef) return <CharSelect z={z} streak={streak} onPick={pickChar} />;
   // Пойло демона меняется в демонической форме (тёмная рука).
   const drinkImg = z.char === 'demon' && z.demonForm > 0 && charDef.drinkForm ? charDef.drinkForm : charDef.drink;
 
@@ -56,7 +56,7 @@ export default function ZapoiGame() {
       </p>
       <p className="hint">Основа: Чаев гонит <b>Бухло</b> 🍾, но каждый глоток бьёт по <b>Здоровью</b> 🫀. Упал в 0 — похмелье: −20% бухла, здоровье 30%. Лечилки лечат, но жрут бухло. Качай древо, бери артефакты. Формулы цен прямо в описаниях, ня~</p>
       <p className="hint">{motifFor(z.char, z.demonForm || 0).label}{' '}<button onClick={toggleMusic}>{musicOn ? '⏸ Выкл' : '▶ Вкл'}</button></p>
-      <DrinkPanel z={z} charDef={charDef} drinkImg={drinkImg} mutate={mutate} onShattered={() => setZ((prev) => newRun(prev.completed, null))} onChangeChar={resetToSelect} />
+      <DrinkPanel z={z} charDef={charDef} drinkImg={drinkImg} mutate={mutate} onShattered={() => { noteShattered(); setZ((prev) => newRun(prev.completed, null)); }} onChangeChar={resetToSelect} />
       <LevelPanel z={z} mutate={mutate} />
       <HealButtons z={z} mutate={mutate} />
       <div className="zlog">{log}</div>

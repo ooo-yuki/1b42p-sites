@@ -8,4 +8,5 @@ export * from './artifacts';
 export * from './heals';
 export * from './bottle';
 export * from './state';
+export * from './winstreak';
 export { SYNS, checkSyns, hangoverRate, synReady, hasArt } from '../synergies';

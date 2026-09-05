@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import {
   BAN_FORM_MULT, BOTTLE_COST, buyBottle, checkSyns, cloneZapoi, createZapoiState,
   DEMON_FORM_MULT, formDuration, hangoverLogLost, hangoverRate, isUnlocked, newRun, owned, tickZapoi,
+  bumpWinstreak, loadWinstreak, resetWinstreak,
 } from '../game/zapoi/index';
 import type { CharId, ZapoiState } from '../game/zapoi/index';
 import { blip } from '../components/ui/sound';
@@ -44,6 +45,7 @@ function loadZapoi(): ZapoiState {
 export function useZapoiState() {
   const [z, setZ] = useState<ZapoiState>(loadZapoi);
   const [log, setLog] = useState('');
+  const [streak, setStreak] = useState<number>(loadWinstreak);
 
   useEffect(() => {
     try {
@@ -66,6 +68,8 @@ export function useZapoiState() {
         } else if (ev === 'shattered') {
           setLog('💥 Бутылка разбилась! Забег окончен.');
           blip(200);
+          resetWinstreak();
+          setStreak(0);
           return newRun(next.completed, null);
         } else if (ev === 'demonform') {
           setLog(`😈 ДЕМОНИЧЕСКАЯ ФОРМА ×${owned(next, 'ban2w') ? BAN_FORM_MULT : DEMON_FORM_MULT} на ${formDuration(next)} сек! ЖГИ!`);
@@ -97,6 +101,7 @@ export function useZapoiState() {
       const completed = { ...next.completed, [next.char as string]: 1 };
       setLog('💥 Бутылка разбита! Персонаж закрыт. Так держать!');
       blip(200);
+      setStreak(bumpWinstreak());
       return newRun(completed, null);
     });
   };
@@ -113,5 +118,11 @@ export function useZapoiState() {
     setZ((prev) => newRun(prev.completed, null));
   };
 
-  return { z, setZ, log, setLog, mutate, shatterBottle, pickChar, resetToSelect };
+  // Провал забега по клику (душа призрака в 0): сброс стрика.
+  const noteShattered = (): void => {
+    resetWinstreak();
+    setStreak(0);
+  };
+
+  return { z, setZ, log, setLog, mutate, shatterBottle, pickChar, resetToSelect, streak, noteShattered };
 }

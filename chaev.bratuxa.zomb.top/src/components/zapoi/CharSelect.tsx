@@ -4,14 +4,16 @@ import type { CharId, ZapoiState } from '../../game/zapoi/index';
 
 interface CharSelectProps {
   z: Pick<ZapoiState, 'completed'>;
+  streak?: number;
   onPick: (id: CharId) => void;
 }
 
-export default function CharSelect({ z, onPick }: CharSelectProps) {
+export default function CharSelect({ z, streak, onPick }: CharSelectProps) {
   const doneCount = CHARACTERS.filter((c) => z.completed && z.completed[c.id]).length;
   return (
     <div className="card">
       <h2>🎭 ВЫБОР ПЕРСОНАЖА 🎭</h2>
+      <div style={{ fontSize: 13, color: '#aaa' }}>🔥 Винстрик: {streak ?? 0}</div>
       <p className="hint">Закрыто персонажей: {doneCount}/{CHARACTERS.length}. Разбей бутылку за Владимира — откроются остальные!</p>
       {CHARACTERS.map((c) => {
         const open = isUnlocked(z, c.id);
