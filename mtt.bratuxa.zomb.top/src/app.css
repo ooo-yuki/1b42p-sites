@@ -1,0 +1,33 @@
+html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
+ font-family:"Segoe UI",system-ui,sans-serif;touch-action:none}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block}
+#hud{position:fixed;top:10px;left:10px;z-index:5;font-size:17px;font-weight:700;
+ text-shadow:0 2px 6px #000;pointer-events:none;line-height:1.7}
+#stars{letter-spacing:2px}
+#nitroWrap{width:150px;height:10px;background:rgba(0,0,0,.6);border:1px solid #ff9f1c;
+ border-radius:6px;overflow:hidden;margin-top:4px}
+#nitroBar{height:100%;width:100%;background:linear-gradient(90deg,#ff9f1c,#ff3b3b)}
+#mm{position:fixed;top:10px;right:10px;z-index:5;border:2px solid #ff9f1c;border-radius:10px;
+ background:rgba(4,8,16,.8)}
+#menu{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;
+ justify-content:center;background:rgba(4,8,16,.88);text-align:center;padding:20px;overflow-y:auto}
+#menu h1{margin:0;font-size:min(13vw,64px);color:#ff9f1c;text-shadow:0 0 30px #ff3b3b}
+#menu p{color:#c6cdf2;max-width:60ch}
+#hubLink{color:#ff9f1c}
+.menuArt{display:flex;gap:14px;margin:6px 0 2px}
+.menuArt img{width:96px;height:96px;object-fit:contain;background:#0d1428;border:1px solid #ff9f1c;border-radius:12px;padding:6px}
+#nick{background:#0d1428;color:#fff;border:1px solid #ff9f1c;border-radius:10px;
+ padding:10px 14px;font-size:16px;margin:10px 0;max-width:240px;text-align:center}
+#goBtn{background:#ff9f1c;border:none;border-radius:14px;padding:14px 44px;font-size:20px;
+ font-weight:900;color:#231a00;cursor:pointer}
+.board{margin-top:14px;background:#0d1428;border:1px solid #ff9f1c;border-radius:12px;padding:8px 18px;max-width:320px}
+.board h3{margin:6px 0;color:#ff9f1c}
+.board ol{margin:6px 0;padding-left:22px;text-align:left;color:#e8edff}
+#touch{position:fixed;inset:auto 0 0 0;z-index:5;display:none;justify-content:space-between;
+ padding:0 12px 14px;pointer-events:none}
+.tgrp{display:flex;gap:10px}
+.tbtn{pointer-events:auto;width:64px;height:64px;border-radius:50%;border:2px solid #ff9f1c;
+ background:rgba(13,20,40,.7);color:#ff9f1c;font-size:24px;font-weight:900;touch-action:none}
+.tbtn:active{background:#ff9f1c;color:#231a00}
+#busted{position:fixed;inset:0;z-index:9;display:none;align-items:center;justify-content:center;
+ background:rgba(120,0,0,.55);font-size:min(12vw,60px);font-weight:900;color:#fff}
