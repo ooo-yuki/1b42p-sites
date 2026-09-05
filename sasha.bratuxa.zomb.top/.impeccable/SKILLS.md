@@ -29,7 +29,7 @@
 - Проверка идеи до стройки → `spike` (выкидной эксперимент, как feasibility арены)
 - Живые страницы глазами → `dogfood` (скриншоты + дефекты) + `impeccable/reference/live.md`
 - Честные цифры строк → `codebase-inspection` (`wc -l`, не на глаз)
-- Деплой/роутер/сервисы → `battalion-site-ops` + `battalion-sites`
+- Деплой/роутер/сервисы → `battalion-site-ops` + `battalion-sites` (серты: симлинки `live/*/fullchain.pem`+`privkey.pem` целы, после смены — рестарт `chaev-site.service`, даунтайм — по `references/downtime-triage.md`)
 - Бот статистики → `telegram-bots`
 - Тексты в стиле → `42-content` (тон 42, «Мы уже победили»)
 - Гуглёж идей/фактов → `research/grounded-citations` (источники честно, не выдумывать)
