@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>42 БРАТУХА: ФАБРИКА ХАЙПА 🏆</title>
+<style>
+:root{--gold:#f5c518;--bg:#0d0716;--panel:#1c102e;--line:#3d2457;--pink:#ff4fd8;}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:var(--bg);color:#f2eafc;font-family:system-ui,'Segoe UI',Roboto,Arial,sans-serif;min-height:100%}
+#top{position:sticky;top:0;z-index:5;background:linear-gradient(180deg,#1c102e,#120a1f);border-bottom:2px solid var(--gold);padding:10px 12px}
+#top h1{margin:0;font-size:20px;color:var(--gold);text-align:center}
+#top .sub{text-align:center;font-size:12px;color:#b9a3d6}
+#res{display:flex;gap:6px;justify-content:center;margin-top:8px;flex-wrap:wrap}
+.pill{background:#000a;border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:14px}
+.pill b{color:var(--gold)}
+#tabs{display:flex;gap:6px;justify-content:center;padding:10px;flex-wrap:wrap}
+#tabs button{font-size:15px;font-weight:700;border-radius:10px;border:2px solid var(--line);background:var(--panel);color:#f2eafc;padding:10px 14px;cursor:pointer}
+#tabs button.on{background:var(--gold);color:#181006;border-color:var(--gold)}
+#main{max-width:640px;margin:0 auto;padding:0 12px 40px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0}
+.card h3{margin:0 0 6px;color:var(--gold)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button.big{background:var(--gold);color:#181006;font-weight:800;font-size:18px;border:none;border-radius:12px;padding:14px 22px;cursor:pointer;width:100%;margin-top:8px}
+button.big:disabled{opacity:.45}
+button.buy{background:#2c1a4d;color:#fff;border:1px solid var(--gold);border-radius:8px;padding:8px 12px;font-size:14px;cursor:pointer}
+button.buy:disabled{opacity:.45}
+.hint{font-size:12px;color:#b9a3d6}
+.lock{color:#ff7b7b;font-size:13px}
+/* ритм-полоса */
+#rbar{position:relative;height:64px;background:#0a0512;border:2px solid var(--gold);border-radius:12px;overflow:hidden;margin:10px 0;touch-action:none}
+#rzone{position:absolute;top:0;bottom:0;background:rgba(245,197,24,.35);border-left:2px solid var(--gold);border-right:2px solid var(--gold)}
+#rcur{position:absolute;top:-2px;bottom:-2px;width:6px;background:#fff;border-radius:3px;box-shadow:0 0 10px #fff}
+.hater{position:absolute;top:6px;font-size:34px;cursor:pointer;user-select:none;animation:shake .3s infinite}
+@keyframes shake{0%{transform:translateX(-2px) rotate(-6deg)}50%{transform:translateX(2px) rotate(6deg)}100%{transform:translateX(-2px) rotate(-6deg)}}
+#raid{position:absolute;inset:0;background:rgba(120,0,20,.55);display:none;align-items:center;justify-content:center;flex-direction:column;font-size:22px;font-weight:800}
+#msg{min-height:24px;text-align:center;color:var(--gold);font-weight:700;margin-top:6px}
+#win{position:fixed;inset:0;background:rgba(5,2,10,.92);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+#winBox{background:var(--panel);border:3px solid var(--gold);border-radius:16px;padding:26px;max-width:440px;text-align:center}
+.shop{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.shop .card{margin:0}
+.lvl{color:var(--pink);font-weight:700}
+#timer{font-size:13px;color:#b9a3d6;text-align:center}
+a{color:var(--gold)}
+</style>
+</head>
+<body>
+<div id="top">
+<h1>42 БРАТУХА: ФАБРИКА ХАЙПА 🏆</h1>
+<div class="sub">продюсер Пятёрки · дорога на SLAY 2026 · <a href="https://hub.bratuxa.zomb.top">← Хаб 1Б42П</a></div>
+<div id="res">
+<span class="pill">🔥 Хайп: <b id="rH">0</b></span>
+<span class="pill">🎟️ Фантики: <b id="rF">0</b></span>
+<span class="pill">🙌 Фанаты: <b id="rFans">0</b></span>
+<span class="pill">⚡ Комбо: <b id="rC">0</b></span>
+</div>
+</div>
+<div id="tabs">
+<button data-t="stage" class="on">🎤 Сцена</button>
+<button data-t="team">🧑‍🤝‍🧑 Команда</button>
+<button data-t="boss">🕺 Босс</button>
+<button data-t="land">🎪 ФрикЛенд</button>
+</div>
+<div id="main">
+<div id="tab-stage">
+<div class="card"><h3>🎤 Площадки</h3><div id="venues"></div></div>
+<div class="card" id="showCard" style="display:none">
+<h3 id="showName">Шоу</h3>
+<div id="timer">30</div>
+<div id="rbar"><div id="rzone"></div><div id="rcur"></div><div id="raid">👹 РЕЙД-БОСС!<br><span id="raidN"></span></div></div>
+<button class="big" id="btnZavoz">ЗАВОЗ! 🍾</button>
+<button class="buy" id="btnRaid" style="width:100%;margin-top:6px">👹 Вызвать рейд-босса</button>
+<div id="msg"></div>
+</div>
+</div>
+<div id="tab-team" style="display:none"><div class="card"><h3>🧑‍🤝‍🧑 Команда Батальона</h3><div class="shop" id="team"></div></div></div>
+<div id="tab-boss" style="display:none"><div class="card"><h3>🕺 Прокачка Пятёрки</h3><div class="shop" id="looks"></div></div></div>
+<div id="tab-land" style="display:none"><div class="card"><h3>🎪 ФрикЛенд</h3><div class="shop" id="builds"></div><p class="hint">Каждый объект даёт перманентный буст. Мы уже победили 🏆</p></div></div>
+</div>
+<div id="win"><div id="winBox">
+<h2>🏆 ТРИУМФ НА SLAY 2026! 🏆</h2>
+<p>Пятёрка в слезах, ФрикЛенд ликует, хейтеры удалены из чата.<br>Босс поднял статуэтку: <b>1 БАТАЛЬОН 42 ПРОПАГАНДЫ — СНОВА ПЕРВЫЕ!</b><br><br>Мы уже победили 🏆</p>
+<button class="big" onclick="document.getElementById('win').style.display='none'">Кайфовать дальше 🍾</button>
+</div></div>
+<script>
+/* ============ 42 БРАТУХА: ФАБРИКА ХАЙПА (сейвы совместимы с будущими версиями) ============ */
+var KEY='brohacho42_v1';
+var WIN_GOAL=420000;
+var VENUES=[
+ {id:'garage',n:'Гараж в Кемерово',em:'🏚️',speed:55,zone:30,base:10,cost:0,need:''},
+ {id:'club',n:'Клуб «Фрик»',em:'🎪',speed:80,zone:24,base:25,cost:500,need:''},
+ {id:'arena',n:'Арена фриков',em:'🏟️',speed:115,zone:18,base:60,cost:5000,need:'jacket'},
+ {id:'slay',n:'Главная сцена SLAY',em:'🏆',speed:150,zone:12,base:150,cost:50000,need:'mantle+sneakers'}
+];
+var TEAM={
+ denis:{n:'Денис Биткоин',em:'🎤',d:'Замедляет бегунок: −12% скорости за уровень',base:50},
+ freak:{n:'Фрик из ФрикЛенда',em:'🤪',d:'Множитель Хайпа за точные попадания: +25% за уровень',base:200},
+ oper:{n:'Оператор СП',em:'🎧',d:'Хейтеры приходят реже: +50% к интервалу за уровень',base:800},
+ guard:{n:'Охрана Батальона',em:'💪',d:'Сама снимает мелких хейтеров через пару секунд',base:2000}
+};
+var LOOKS={
+ jacket:{n:'Зеркальный пиджак',em:'🧥',d:'Шире золотая зона: +3% за уровень. Открывает Арену фриков',base:300},
+ mantle:{n:'Мантия',em:'🧙',d:'Шанс двойного Хайпа: 10/20/35%',base:1200},
+ sneakers:{n:'Кроссовки',em:'👟',d:'Длиннее комбо: кап 10/15/22/30',base:1200},
+ hair:{n:'Причёска',em:'💇',d:'Бонус к криту: +0/25/50/100%',base:800}
+};
+var BUILDS={
+ arena:{n:'Арена фриков',em:'🏟️',d:'Базовый Хайп: +25% за уровень',base:300},
+ banka:{n:'Банка 3D',em:'🫙',d:'Фантики капают быстрее: +50% за уровень',base:500},
+ garden:{n:'Сад вихрей',em:'🌪️',d:'Комбо злее: +0.02 к шагу за уровень',base:500}
+};
+function lvlCost(base,lv){return Math.floor(base*Math.pow(3,lv));}
+function def(){return{h:0,f:0,total:0,un:['garage'],team:{denis:0,freak:0,oper:0,guard:0},look:{jacket:0,mantle:0,sneakers:0,hair:0},bld:{arena:0,banka:0,garden:0},win:false};}
+var S;
+function load(){try{S=JSON.parse(localStorage.getItem(KEY))||def();}catch(e){S=def();}
+ var d=def();for(var k in d)if(S[k]===undefined)S[k]=d[k];
+ for(var k2 of ['team','look','bld'])for(var j in d[k2])if(S[k2][j]===undefined)S[k2][j]=0;
+ if(!Array.isArray(S.un)||!S.un.length)S.un=['garage'];
+ save();}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+/* ---- производные статы ---- */
+function stSpeed(v){return v.speed*(1-0.12*S.team.denis);}
+function stZone(v){return v.zone+3*S.look.jacket;}
+function stBase(v){return Math.round(v.base*(1+0.25*S.bld.arena));}
+function stCritM(){return (1+0.25*S.team.freak)*(1+[0,0.25,0.5,1][S.look.hair]);}
+function stComboStep(){return 0.1+0.02*S.bld.garden;}
+function stComboCap(){return [10,15,22,30][S.look.sneakers];}
+function stDouble(){return [0,0.1,0.2,0.35][S.look.mantle];}
+function stHaterEvery(){return 6*(1+0.5*S.team.oper);}
+function fans(){return Math.floor(Math.sqrt(S.total)/5);}
+function fmt(n){n=Math.floor(n);if(n>=1e6)return (n/1e6).toFixed(2)+'M';if(n>=1e3)return (n/1e3).toFixed(1)+'K';return String(n);}
+/* ---- шоу ---- */
+var SH=null; // {v,pos,dir,t,hype,combo,best,golds,haters,nextH,raid:{n,need}|null,raidCd}
+function venueById(id){for(var i=0;i<VENUES.length;i++)if(VENUES[i].id===id)return VENUES[i];return VENUES[0];}
+function unlocked(v){
+ if(S.un.indexOf(v.id)>=0)return {ok:true};
+ if(S.h<v.cost)return {ok:false,why:'Нужно '+fmt(v.cost)+' 🔥'};
+ if(v.need==='jacket'&&S.look.jacket<1)return {ok:false,why:'Нужен зеркальный пиджак'};
+ if(v.need==='mantle+sneakers'&&(S.look.mantle<1||S.look.sneakers<1))return {ok:false,why:'Нужны мантия и кроссовки'};
+ return {ok:true,buy:true};
+}
+function startShow(id){
+ var v=venueById(id),u=unlocked(v);
+ if(!u.ok){msg(v.need&&S.h>=v.cost?u.why:u.why);blip(200);return;}
+ if(u.buy){S.h-=v.cost;S.un.push(v.id);save();}
+ SH={v:v,pos:0,dir:1,t:30,hype:0,combo:0,best:0,golds:0,haters:[],nextH:2,raid:null,raidCd:0,cd:0};
+ document.getElementById('showCard').style.display='block';
+ document.getElementById('showName').textContent=v.em+' '+v.n;
+ document.getElementById('raid').style.display='none';
+ renderVenues();blip(700);
+}
+function judge(){
+ // чистое судейство: |d|<=zone/2 — золото; <=zone — край; иначе мимо
+ var zw=stZone(SH.v),d=Math.abs(SH.pos-50);
+ if(d<=zw/2)return 'gold';
+ if(d<=zw)return 'edge';
+ return 'miss';
+}
+function zavoz(){
+ if(!SH||SH.cd>0)return;
+ SH.cd=0.35;
+ var j=judge(),base=stBase(SH.v);
+ if(SH.raid){
+  if(j==='gold'){SH.raid.n++;blip(990);
+   if(SH.raid.n>=SH.raid.need){gain(base*10*stCritM(),'👹 РЕЙД ОТБИТ! ×10!');SH.raid=null;document.getElementById('raid').style.display='none';}
+   else document.getElementById('raidN').textContent=SH.raid.n+'/'+SH.raid.need+' попади ещё!';
+  }else{SH.raid.n=0;SH.combo=0;document.getElementById('raidN').textContent='0/'+SH.raid.need+' — мимо, сначала!';blip(200);}
+  return;
+ }
+ if(j==='gold'){
+  SH.combo=Math.min(SH.combo+1,stComboCap());SH.best=Math.max(SH.best,SH.combo);SH.golds++;
+  var crit=base*(2*stCritM())*(1+SH.combo*stComboStep());
+  if(Math.random()<stDouble()){crit*=2;msg('✨ ДВОЙНОЙ ХАЙП! +'+fmt(crit));}
+  gain(crit,'');
+  blip(880);
+ }else if(j==='edge'){gain(base*0.3,'');blip(500);
+ }else{SH.combo=0;msg('Мимо! Комбо сгорело 💨');blip(200);}
+}
+function gain(n,txt){
+ SH.hype+=n;
+ if(txt)msg(txt+' +'+fmt(n)+' 🔥');
+}
+function msg(t){try{document.getElementById('msg').textContent=t;}catch(e){}}
+function blip(f){try{var C=blip.ac=blip.ac||new (window.AudioContext||window.webkitAudioContext)();if(C.state==='suspended')C.resume();
+ var o=C.createOscillator(),g=C.createGain();o.type='square';o.frequency.value=f;
+ g.gain.setValueAtTime(0.08,C.currentTime);g.gain.exponentialRampToValueAtTime(0.001,C.currentTime+0.15);
+ o.connect(g);g.connect(C.destination);o.start();o.stop(C.currentTime+0.16);}catch(e){}}
+function endShow(){
+ S.h+=Math.floor(SH.hype);S.total+=Math.floor(SH.hype);
+ msg('Шоу окончено: +'+fmt(SH.hype)+' 🔥 · точных: '+SH.golds+' · лучшее комбо: '+SH.best);
+ SH=null;document.getElementById('showCard').style.display='none';
+ if(S.total>=WIN_GOAL&&!S.win){S.win=true;document.getElementById('win').style.display='flex';blip(990);}
+ save();renderAll();
+}
+function callRaid(){
+ if(!SH||SH.raid||SH.raidCd>0)return;
+ SH.raid={n:0,need:5};document.getElementById('raid').style.display='flex';
+ document.getElementById('raidN').textContent='0/5 — 5 золотых подряд!';
+ SH.raidCd=20;msg('👹 РЕЙД-БОСС на полосе! 5 золотых подряд!');blip(300);
+}
+/* ---- рендер ---- */
+function renderRes(){
+ document.getElementById('rH').textContent=fmt(S.h);
+ document.getElementById('rF').textContent=fmt(S.f);
+ document.getElementById('rFans').textContent=fmt(fans());
+ document.getElementById('rC').textContent=SH?SH.combo:0;
+}
+function renderVenues(){
+ var el=document.getElementById('venues');el.innerHTML='';
+ VENUES.forEach(function(v){
+  var u=unlocked(v);
+  var d=document.createElement('div');d.className='card';d.style.margin='6px 0';
+  d.innerHTML='<b>'+v.em+' '+v.n+'</b><br><span class="hint">Скорость '+v.speed+' · зона '+v.zone+'% · база '+v.base+' 🔥'+(v.cost?' · вход '+fmt(v.cost)+' 🔥':'')+'</span><br>'+
+  (u.ok?'<button class="buy">'+(u.buy?'Открыть и выступить':'Выступить')+'</button>':'<span class="lock">🔒 '+u.why+'</span>');
+  var b=d.querySelector('button');if(b)b.onclick=function(){startShow(v.id);};
+  el.appendChild(d);
+ });
+}
+function shopList(elId,obj,lvls,cur,isF){
+ var el=document.getElementById(elId);el.innerHTML='';
+ for(var id in obj){
+  (function(id){
+   var o=obj[id],lv=lvls[id],max=3,c=lvlCost(o.base,lv);
+   var d=document.createElement('div');d.className='card';
+   d.innerHTML='<b>'+o.em+' '+o.n+'</b> <span class="lvl">'+lv+'/'+max+'</span><br><span class="hint">'+o.d+'</span><br>'+
+   (lv>=max?'<b style="color:gold">MAX 🏆</b>':'<button class="buy">Улучшить: '+fmt(c)+(isF?' 🎟️':' 🔥')+'</button>');
+   var b=d.querySelector('button');
+   if(b)b.onclick=function(){
+    if(isF&&S.f<c){msg('Не хватает фантиков! 🎟️');blip(200);return;}
+    if(!isF&&S.h<c){msg('Не хватает хайпа! 🔥');blip(200);return;}
+    if(isF)S.f-=c;else S.h-=c;
+    lvls[id]++;save();renderAll();blip(760);
+   };
+   el.appendChild(d);
+  })(id);
+ }
+}
+function renderAll(){renderRes();renderVenues();shopList('team',TEAM,S.team,true);shopList('looks',LOOKS,S.look,false);shopList('builds',BUILDS,S.bld,true);}
+/* ---- цикл ---- */
+var lastT=0;
+function frame(){
+ requestAnimationFrame(frame);
+ var now=Date.now(),dt=Math.min((now-(lastT||now))/1000,0.1);lastT=now;
+ if(!SH)return;
+ if(SH.cd>0)SH.cd-=dt;
+ if(SH.raidCd>0)SH.raidCd-=dt;
+ SH.t-=dt;
+ if(SH.t<=0){endShow();return;}
+ // бегунок туда-сюда
+ SH.pos+=SH.dir*stSpeed(SH.v)*dt;
+ if(SH.pos>=100){SH.pos=100;SH.dir=-1;}
+ if(SH.pos<=0){SH.pos=0;SH.dir=1;}
+ // хейтеры
+ SH.nextH-=dt;
+ if(SH.nextH<=0){
+  SH.nextH=stHaterEvery()*(0.7+Math.random()*0.6);
+  spawnHater();
+ }
+ // охрана сама снимает мелких
+ if(S.team.guard>0){
+  for(var i=SH.haters.length-1;i>=0;i--){
+   SH.haters[i].age+=dt;
+   if(SH.haters[i].age>2.5-0.5*S.team.guard){rmHater(i,true);}
+  }
+ }else for(var j=0;j<SH.haters.length;j++)SH.haters[j].age+=dt;
+ // протухшие хейтеры штрафуют
+ for(var k=SH.haters.length-1;k>=0;k--){
+  if(SH.haters[k].age>4){
+   SH.haters.splice(k,1);SH.combo=0;
+   msg('Хейтер сорвал кусок шоу! −10% 😡');SH.hype*=0.9;blip(200);drawHaters();
+  }
+ }
+ drawBar();
+ document.getElementById('timer').textContent=Math.ceil(SH.t)+'с · +'+fmt(SH.hype)+' 🔥';
+ renderRes();
+}
+function drawBar(){
+ var bar=document.getElementById('rbar');
+ var zw=stZone(SH.v);
+ var z=document.getElementById('rzone');
+ z.style.left=(50-zw/2)+'%';z.style.width=zw+'%';
+ document.getElementById('rcur').style.left='calc('+SH.pos+'% - 3px)';
+ drawHaters();
+}
+function spawnHater(){
+ var zw=stZone(SH.v);
+ var off=(Math.random()-0.5)*zw*0.7;
+ var el=document.createElement('div');el.className='hater';el.textContent='😡';
+ el.style.left='calc('+(50+off)+'% - 17px)';
+ var h={el:el,age:0};
+ el.onclick=function(e){e.stopPropagation();var i=SH.haters.indexOf(h);if(i>=0)rmHater(i,false);};
+ SH.haters.push(h);
+ document.getElementById('rbar').appendChild(el);
+ blip(240);
+}
+function rmHater(i,silent){
+ if(i<0||i>=SH.haters.length)return;
+ try{SH.haters[i].el.remove();}catch(e){}
+ SH.haters.splice(i,1);
+ if(!silent){gain(stBase(SH.v)*0.5,'Хейтер сброшен с полосы!');blip(660);}
+}
+function drawHaters(){/* хейтеры живут своими div-ами */}
+/* ---- табы ---- */
+document.querySelectorAll('#tabs button').forEach(function(b){
+ b.onclick=function(){
+  document.querySelectorAll('#tabs button').forEach(function(x){x.classList.remove('on');});
+  b.classList.add('on');
+  ['stage','team','boss','land'].forEach(function(t){document.getElementById('tab-'+t).style.display=(t===b.dataset.t?'block':'none');});
+  blip(600);
+ };
+});
+document.getElementById('btnZavoz').onclick=zavoz;
+document.getElementById('btnRaid').onclick=callRaid;
+/* ---- старт ---- */
+load();renderAll();requestAnimationFrame(frame);
+setInterval(function(){
+ var inc=fans()*0.05*(1+0.5*S.bld.banka);
+ if(inc>0){S.f+=inc;save();renderRes();}
+},1000);
+/* крючок для тестов */
+window.__brohacho={state:function(){return S;},judge:function(pos,zone){var d=Math.abs(pos-50);if(d<=zone/2)return 'gold';if(d<=zone)return 'edge';return 'miss';},lvlCost:lvlCost};
+</script>
+<script>/* 42-трекер онлайна */(function(){var SITE='brohacho';try{var s=null;try{s=localStorage.getItem('t42_sid');}catch(e){}if(!s||!/^[0-9a-f]{32}$/.test(s)){s='';var h='0123456789abcdef';for(var i=0;i<32;i++)s+=h[Math.floor(Math.random()*16)];try{localStorage.setItem('t42_sid',s);}catch(e){}}function b(){try{fetch('https://hub.bratuxa.zomb.top/api/track',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({site:SITE,sid:s}),keepalive:true}).catch(function(){});}catch(e){}}b();setInterval(b,30000);}catch(e){}})();</script>
+</body>
+</html>
