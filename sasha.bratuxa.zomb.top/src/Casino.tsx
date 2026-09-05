@@ -19,7 +19,9 @@ import Plinko from './casino/Plinko';
 /* КАЗИНО 42 — зал с восемью дверями. Оболочка: сайдбар, лобби-шоу, сцена.
    Правила, балансы и шансы живут в залах (src/casino/*), святое — в PRODUCT.md. */
 
-const LS = 'sasha_casino';
+/* Сброс батальона 05.09.2026: счета всех бойцов обнулены приказом Саши.
+   Старый кошелёк sasha_casino больше не читается — у каждого свежий старт. */
+const LS = 'sasha_casino2';
 const LS_WON = 'sasha_casino_won';
 const START_BALANCE = 1000;
 
