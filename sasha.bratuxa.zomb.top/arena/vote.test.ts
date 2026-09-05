@@ -27,11 +27,11 @@ describe('decideGame', () => {
 
   test('все на «любом» — валидная игра из каталога', () => {
     const ids = seed({ a: 'any', b: 'any', c: 'any' });
-    expect(['dice', 'durak', 'chess', 'checkers']).toContain(decideGame(ids));
+    expect(['dice', 'durak', 'chess', 'checkers', 'monopoly']).toContain(decideGame(ids));
   });
 
   test('пустой пул — валидная игра, не падает', () => {
-    expect(['dice', 'durak', 'chess', 'checkers']).toContain(decideGame([]));
+    expect(['dice', 'durak', 'chess', 'checkers', 'monopoly']).toContain(decideGame([]));
   });
 
   test('один голос решает при остальных «любых»', () => {
@@ -56,6 +56,7 @@ describe('game platform seams', () => {
     expect(sanitizeGame('durak')).toBe('durak');
     expect(sanitizeGame('chess')).toBe('chess');
     expect(sanitizeGame('checkers')).toBe('checkers');
+    expect(sanitizeGame('monopoly')).toBe('monopoly');
   });
 
   test('sanitizeGame гасит битую игру в dice', () => {
@@ -69,6 +70,7 @@ describe('game platform seams', () => {
     expect(gameCap('durak')).toBe(5);
     expect(gameCap('chess')).toBe(2);
     expect(gameCap('checkers')).toBe(2);
+    expect(gameCap('monopoly')).toBe(5);
     expect(gameCap('zzz')).toBe(5);
   });
 
@@ -77,5 +79,6 @@ describe('game platform seams', () => {
     expect(fitMembers(['a', 'b'], 'dice')).toEqual(['a', 'b']);
     expect(fitMembers(['a', 'b', 'c'], 'chess')).toEqual(['a', 'b']);
     expect(fitMembers(['a', 'b', 'c'], 'checkers')).toEqual(['a', 'b']);
+    expect(fitMembers(['a', 'b', 'c', 'd', 'e', 'f'], 'monopoly')).toEqual(['a', 'b', 'c', 'd', 'e']);
   });
 });

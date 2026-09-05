@@ -190,6 +190,26 @@ export default function Arena(): JSX.Element {
         pushFeed(m.auto ? `${m.name} молчал — клуб решил за него.` : (hlines[m.kind] ?? `${m.name} сходил.`), m.kind === 'resign');
         break;
       }
+      case 'mturn':
+        startClock(m.secs);
+        if (m.turn === myIdRef.current) diceRattle();
+        break;
+      case 'mmove': {
+        if (m.kind === 'roll') diceRattle();
+        else arenaClick();
+        const dice = m.kind === 'roll' && m.d1 && m.d2 ? ` ${m.d1}+${m.d2}` : '';
+        const mlines: Record<string, string> = {
+          roll: `${m.name} кинул${dice}.`,
+          buy: `${m.name} купил.`,
+          pass: `${m.name} отказался.`,
+          build: `${m.name} строит.`,
+          payJail: `${m.name} внёс залог.`,
+          useCard: `${m.name} вышел по карте.`,
+          resign: `${m.name} сдался.`,
+        };
+        pushFeed(m.auto ? `${m.name} молчал — клуб решил за него.` : (mlines[m.kind] ?? `${m.name} сходил.`), m.kind === 'resign');
+        break;
+      }
       case 'elim':
         elimGong();
         pushFeed(`Раунд ${m.round}: ${m.name} выбит с ${m.v}.`, true);

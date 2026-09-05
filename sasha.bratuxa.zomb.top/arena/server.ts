@@ -12,12 +12,13 @@ const WAIT_VOTE_SECS = 60;
 
 type Phase = 'lobby' | 'play' | 'over';
 
-type GameDef = { label: string; min: number; max: number; turnSecs: number; icon: 'dice' | 'cards' | 'chess' | 'checkers' };
+type GameDef = { label: string; min: number; max: number; turnSecs: number; icon: 'dice' | 'cards' | 'chess' | 'checkers' | 'mono' };
 const GAMES: Record<string, GameDef> = {
   dice: { label: 'Кости на выбывание', min: 2, max: 5, turnSecs: 12, icon: 'dice' },
   durak: { label: 'Дурак подкидной', min: 2, max: 5, turnSecs: 30, icon: 'cards' },
   chess: { label: 'Шахматы', min: 2, max: 2, turnSecs: 60, icon: 'chess' },
   checkers: { label: 'Шашки русские', min: 2, max: 2, turnSecs: 45, icon: 'checkers' },
+  monopoly: { label: 'Монополия 42', min: 2, max: 5, turnSecs: 60, icon: 'mono' },
 };
 const GAME_IDS = Object.keys(GAMES);
 
@@ -49,6 +50,7 @@ type Room = {
   dstate: DState | null; // дурак живёт здесь целиком, в gdata — только публичный срез
   cstate: ChessState | null; // шахматы — вся правда здесь; позиция открыта, в gdata — полный срез
   kstate: KState | null; // шашки — вся правда здесь; позиция открыта, в gdata — полный срез
+  mstate: MState | null; // монополия — вся правда здесь; деньги открыты, в gdata — полный срез
 };
 
 type Pool = {
@@ -76,6 +78,10 @@ import {
   applyMove as checkersApply, createCheckers, removePlayer as checkersRemove,
   type CheckersState as KState,
 } from './checkers';
+import {
+  applyMove as monoApply, createMonopoly, removePlayer as monoRemove,
+  timeoutAction as monoTimeoutAction, type MonoState as MState,
+} from './monopoly';
 
 const clients = new Map<string, Client>();
 const rooms = new Map<string, Room>();
@@ -109,6 +115,20 @@ function memberViews(r: Room): { id: string; name: string; alive: boolean }[] {
     name: clients.get(id)?.name ?? '???',
     alive: r.phase === 'lobby' ? true : r.alive.includes(id),
   }));
+}
+
+/** Полный срез монополии: деньги и улицы открыты — клиент рисует как есть. */
+function monoPublic(r: Room): Record<string, unknown> {
+  const st = r.mstate;
+  if (!st) return {};
+  return {
+    players: st.players.map(p => ({ ...p })),
+    turn: st.turn, doubles: st.doubles, rolled: st.rolled,
+    awaiting: st.awaiting, offerCell: st.offerCell,
+    owner: { ...st.owner }, houses: { ...st.houses },
+    history: st.history.slice(-30),
+    phase: st.phase, winner: st.winner, reason: st.reason,
+  };
 }
 
 /** Полный срез шашек: позиция открыта, тайн нет — клиент рисует как есть. */
@@ -164,7 +184,7 @@ function roomState(r: Room): Record<string, unknown> {
     private: r.private,
     round: r.round, alive: [...r.alive], contenders: [...r.contenders],
     rolls: { ...r.rolls }, winner: r.winner,
-    gdata: r.game === 'durak' ? durakPublic(r) : r.game === 'chess' ? chessPublic(r) : r.game === 'checkers' ? checkersPublic(r) : { ...r.gdata },
+    gdata: r.game === 'durak' ? durakPublic(r) : r.game === 'chess' ? chessPublic(r) : r.game === 'checkers' ? checkersPublic(r) : r.game === 'monopoly' ? monoPublic(r) : { ...r.gdata },
   };
 }
 
@@ -239,6 +259,10 @@ function detach(c: Client): void {
   delete r.rolls[c.id];
   if (r.players.length === 0) { destroyRoom(code); return; }
   if (r.host === c.id) r.host = r.players[0];
+  if (r.phase === 'play' && r.game === 'monopoly' && r.mstate) {
+    broadcast(r, { t: 'left', id: c.id, name: c.name });
+    return monoLeave(r, c.id);
+  }
   if (r.phase === 'play' && r.game === 'checkers' && r.kstate) {
     broadcast(r, { t: 'left', id: c.id, name: c.name });
     return checkersLeave(r, c.id);
@@ -308,7 +332,7 @@ function formRoom(ids: string[]): void {
   const r: Room = {
     code, players: [], host: fitted[0], private: false, game,
     phase: 'lobby', alive: [], contenders: [], rolls: {}, round: 0,
-    timer: null, createdAt: now(), winner: null, gdata: {}, dstate: null, cstate: null, kstate: null,
+    timer: null, createdAt: now(), winner: null, gdata: {}, dstate: null, cstate: null, kstate: null, mstate: null,
   };
   rooms.set(code, r);
   for (const id of fitted) {
@@ -433,7 +457,7 @@ function onCreate(c: Client, game: unknown): void {
   const r: Room = {
     code, players: [c.id], host: c.id, private: true, game: sanitizeGame(game),
     phase: 'lobby', alive: [], contenders: [], rolls: {}, round: 0,
-    timer: null, createdAt: now(), winner: null, gdata: {}, dstate: null, cstate: null, kstate: null,
+    timer: null, createdAt: now(), winner: null, gdata: {}, dstate: null, cstate: null, kstate: null, mstate: null,
   };
   rooms.set(code, r);
   c.roomId = code;
@@ -824,6 +848,118 @@ function checkersLeave(r: Room, id: string): void {
   finishCheckers(r);
 }
 
+/* ---------- монополия 42: проводка движка ---------- */
+
+const MONO_REASON: Record<string, string> = {
+  last: 'последний магнат', resign: 'сдача', timeout: 'флаг', leave: 'уход соперника',
+};
+
+function finishMono(r: Room): void {
+  const st = r.mstate;
+  if (!st) return;
+  killTimer(r);
+  r.phase = 'over';
+  r.winner = st.winner;
+  r.alive = st.winner ? [st.winner] : [];
+  r.rolls = {};
+  const wname = (st.winner && clients.get(st.winner)?.name) ?? '???';
+  broadcast(r, { t: 'over', winner: r.winner, name: `${wname} — ${MONO_REASON[st.reason ?? ''] ?? 'магнат'}!` });
+  broadcast(r, roomState(r));
+}
+
+function startMono(r: Room): void {
+  r.mstate = createMonopoly([...r.players], Math.random);
+  r.phase = 'play';
+  r.alive = [...r.players];
+  r.round = 1;
+  broadcast(r, { t: 'log', text: `Бой начался! Игра — Монополия 42. У каждого по 1500 фантиков. Кидайте кубики!` });
+  broadcast(r, roomState(r));
+  monoTick(r);
+}
+
+function monoTick(r: Room): void {
+  if (r.phase !== 'play' || !r.mstate) return;
+  const secs = GAMES.monopoly.turnSecs;
+  broadcast(r, roomState(r));
+  broadcast(r, { t: 'mturn', ids: r.mstate.players.map(p => p.id), turn: r.mstate.turn, secs });
+  killTimer(r);
+  r.timer = setTimeout(() => monoTimeout(r), secs * 1000);
+}
+
+function monoAfter(r: Room, echo: Record<string, unknown>): void {
+  if (!r.mstate) return;
+  broadcast(r, echo);
+  if (r.mstate.phase === 'over') return finishMono(r);
+  monoTick(r);
+}
+
+function onMonoMove(c: Client, mv: Record<string, unknown>): void {
+  const r = c.roomId ? rooms.get(c.roomId) : undefined;
+  const st = r?.mstate;
+  if (!r || !st || r.phase !== 'play') return;
+  const kind = String(mv.kind ?? '');
+  const base = { t: 'mmove', id: c.id, name: c.name, kind };
+  if (kind === 'roll') {
+    const d1 = 1 + Math.floor(Math.random() * 6);
+    const d2 = 1 + Math.floor(Math.random() * 6);
+    const res = monoApply(st, c.id, { kind: 'roll', d1, d2 });
+    if (!res.ok) return send(c.ws, { t: 'err', msg: res.err ?? 'так нельзя' });
+    return monoAfter(r, { ...base, d1, d2 });
+  }
+  if (kind === 'buy' || kind === 'pass') {
+    const offered = st.offerCell;
+    const res = monoApply(st, c.id, kind === 'buy' ? { kind: 'buy' } : { kind: 'pass' });
+    if (!res.ok) return send(c.ws, { t: 'err', msg: res.err ?? 'так нельзя' });
+    return monoAfter(r, { ...base, cell: offered });
+  }
+  if (kind === 'build') {
+    const cell = mv.cell;
+    const n = mv.n;
+    if (typeof cell !== 'number' || !Number.isInteger(cell) || cell < 0 || cell > 39) {
+      return send(c.ws, { t: 'err', msg: 'кривая клетка' });
+    }
+    const res = monoApply(st, c.id, {
+      kind: 'build', cell,
+      ...(typeof n === 'number' && Number.isInteger(n) ? { n } : {}),
+    });
+    if (!res.ok) return send(c.ws, { t: 'err', msg: res.err ?? 'так нельзя' });
+    return monoAfter(r, { ...base, cell });
+  }
+  if (kind === 'payJail' || kind === 'useCard' || kind === 'resign') {
+    const res = monoApply(st, c.id,
+      kind === 'resign' ? { kind: 'resign' } : kind === 'payJail' ? { kind: 'payJail' } : { kind: 'useCard' });
+    if (!res.ok) return send(c.ws, { t: 'err', msg: res.err ?? 'так нельзя' });
+    return monoAfter(r, base);
+  }
+}
+
+/** Молчун: клуб решает за него (добрать решение движка). */
+function monoTimeout(r: Room): void {
+  const st = r.mstate;
+  if (r.phase !== 'play' || !st) return;
+  const who = clients.get(st.turn)?.name ?? '???';
+  const act = monoTimeoutAction(st);
+  const res = monoApply(st, st.turn, act);
+  broadcast(r, { t: 'log', text: `${who} молчал — клуб решил за него.` });
+  if (!res.ok) {
+    // движок отказался (крайний случай) — ход сгорает дальше
+    if (st.phase === 'play') monoTick(r);
+    return;
+  }
+  broadcast(r, { t: 'mmove', id: st.turn, name: who, kind: act.kind, auto: true });
+  if (st.phase === 'over') return finishMono(r);
+  monoTick(r);
+}
+
+/** Уход посреди монополии: банкротство ушедшего, живые делят. */
+function monoLeave(r: Room, id: string): void {
+  if (!r.mstate || r.phase !== 'play') return;
+  monoRemove(r.mstate, id);
+  if (r.mstate.phase === 'over') return finishMono(r);
+  broadcast(r, roomState(r));
+  monoTick(r);
+}
+
 /* ---------- кости на выбывание ---------- */
 
 function startGame(r: Room): void {
@@ -831,6 +967,7 @@ function startGame(r: Room): void {
   if (r.game === 'durak') return startDurak(r);
   if (r.game === 'chess') return startChess(r);
   if (r.game === 'checkers') return startCheckers(r);
+  if (r.game === 'monopoly') return startMono(r);
   r.phase = 'play';
   r.alive = [...r.players];
   r.contenders = [];
@@ -919,6 +1056,7 @@ const PLUGINS: Record<string, Plugin> = {
   durak: { onMove(c, mv) { onDurakMove(c, mv); } },
   chess: { onMove(c, mv) { onChessMove(c, mv); } },
   checkers: { onMove(c, mv) { onCheckersMove(c, mv); } },
+  monopoly: { onMove(c, mv) { onMonoMove(c, mv); } },
 };
 
 function onMove(c: Client, mv: unknown): void {

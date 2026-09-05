@@ -25,6 +25,8 @@ PLUGINS.onMove, gdata в roomState) + вьюха в src/arena/games/* + стро
 открытая позиция в gdata, ход минута, флаг — поражение, сдача и мировая).
 Четвёртая игра доказывает взятие: шашки русские (движок arena/checkers.ts +
 CheckersBoard, взятие обязательно и по максимуму, путь тапами, дамка летает).
+Пятая игра доказывает пати: монополия 42 (движок arena/monopoly.ts + MonoBoard,
+40 клеток батальона, 2–5 магнатов, дома, тюрьма, банкротство — вылет).
 FINISH: unreviewed and undocumented is unfinished; this build ends with the
 finish review, the verdict, DESIGN.md, and every shipping raster carrying
 its provenance.

@@ -304,6 +304,62 @@ if (!overK) throw new Error('шашки не кончились!');
 if (!overK.winner) throw new Error('сдача не поставила чемпиона!');
 console.log('checkers winner:', overK.name);
 for (const p of [K, L]) p.ws.close();
+
+// монополия-трек: приватное пати, пилоты катают по состоянию,
+// белые после пары кругов сдаются — чемпион чёрных.
+const M = client('Тест-Н');
+const N = client('Тест-О');
+await Promise.all([M.ready, N.ready]);
+const wM = await M.waitFor((m) => m.t === 'welcome');
+const wN = await N.waitFor((m) => m.t === 'welcome');
+idOf.set(M, wM.id);
+idOf.set(N, wN.id);
+M.send({ t: 'create', game: 'monopoly' });
+const rmo = await M.waitFor((m) => m.t === 'room' && m.private);
+if (rmo.game !== 'monopoly') throw new Error('приватка не с монополией!');
+N.send({ t: 'join', code: rmo.code });
+await N.waitFor((m) => m.t === 'room' && m.code === rmo.code);
+M.send({ t: 'start' });
+function monoPilot(gd: any, pid: string): { kind: string } | null {
+  if (gd.turn !== pid) return null;
+  const me = (gd.players as any[]).find(p => p.id === pid);
+  if (!me || me.bankrupt) return null;
+  if (gd.awaiting === 'decide') {
+    return me.money >= 400 ? { kind: 'buy' } : { kind: 'pass' };
+  }
+  if (me.inJail) return me.money >= 50 ? { kind: 'payJail' } : { kind: 'roll' };
+  if (!gd.rolled) {
+    if ((gd.history as string[]).length > 14 && gd.turn === (gd.players as any[])[0].id) {
+      return { kind: 'resign' };
+    }
+    return { kind: 'roll' };
+  }
+  return null;
+}
+const byMn = (id: string): any => (idOf.get(M) === id ? M : N);
+let overM: any = null;
+{
+  const t5 = Date.now();
+  let cur: any = await M.waitFor((m) => m.t === 'room' && m.phase === 'play');
+  while (!overM && Date.now() - t5 < 120000) {
+    const gd = cur.gdata as any;
+    const turnId = gd.turn as string;
+    const mv = monoPilot(gd, turnId);
+    if (mv) byMn(turnId).send({ t: 'move', move: mv });
+    const nxt = await Promise.race([
+      M.waitFor((m) => m.t === 'room' && m.phase === 'play').catch(() => null),
+      M.waitFor((m) => m.t === 'over', 120000).catch(() => null),
+      N.waitFor((m) => m.t === 'over', 120000).catch(() => null),
+    ]);
+    if (!nxt) continue;
+    if (nxt.t === 'over') { overM = nxt; break; }
+    if (nxt.t === 'room') cur = nxt;
+  }
+}
+if (!overM) throw new Error('монополия не кончилась!');
+if (!overM.winner) throw new Error('без чемпиона!');
+console.log('monopoly winner:', overM.name);
+for (const p of [M, N]) p.ws.close();
 const check = await fetch('http://127.0.0.1:8094/api/online').then((r) => r.json());
 console.log('online:', JSON.stringify(check));
 if (check.online < 3) throw new Error('онлайн врёт!');

@@ -2,12 +2,13 @@ import DiceTable from './dice';
 import DurakTable from './durak';
 import ChessBoard from './chess';
 import CheckersBoard from './checkers';
+import MonoBoard from './monopoly';
 import type { DCard, RoomView } from '../proto';
 
 /* Реестр вьюх игр. Новая игра = новая вьюха + одна строка в GAME_VIEWS.
    Неизвестная игра — честная заглушка, а не пустой экран. */
 
-export type GameMove = { kind: string; card?: DCard; target?: DCard; from?: number; to?: number; promote?: string; path?: number[] };
+export type GameMove = { kind: string; card?: DCard; target?: DCard; from?: number; to?: number; promote?: string; path?: number[]; cell?: number; n?: number };
 
 export type GameViewProps = {
   me: string;
@@ -28,6 +29,7 @@ export const GAME_VIEWS = {
   durak: DurakTable,
   chess: ChessBoard,
   checkers: CheckersBoard,
+  monopoly: MonoBoard,
 } as const;
 
 export function gameView(game: string): ((p: GameViewProps) => JSX.Element) | null {
