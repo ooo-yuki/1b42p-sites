@@ -163,6 +163,15 @@ class VHostHandler(SimpleHTTPRequestHandler):
         # JS/CSS с хешами в именах кэшируются как раньше, им это не вредит.
         if self.path.split('?')[0].split('#')[0].endswith(('.html', '/')):
             self.send_header('Cache-Control', 'no-cache')
+        # TLS-безопасность 1Б42П: HSTS только поверх TLS, остальное — всегда.
+        # CSP тут НЕ ставим: все сайты батальона на инлайн-скриптах, строгий CSP их убьёт.
+        try:
+            if isinstance(self.connection, ssl.SSLSocket):
+                self.send_header('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
+        except Exception:
+            pass
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('Referrer-Policy', 'strict-origin-when-cross-origin')
         super().end_headers()
 
 def serve_http():
@@ -176,6 +185,16 @@ def serve_https():
     srv.request_queue_size = 128
     srv.timeout = 30
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    # Безопасный TLS 1Б42П: минимум 1.2, слабое — вон, сжатие — вон.
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    ctx.options |= getattr(ssl, "OP_NO_COMPRESSION", 0)
+    try:
+        ctx.set_ciphers("ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:"
+                        "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:"
+                        "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:"
+                        "DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384")
+    except Exception:
+        pass
     ctx.load_cert_chain(CERT, KEY)
     srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
     srv.serve_forever()
