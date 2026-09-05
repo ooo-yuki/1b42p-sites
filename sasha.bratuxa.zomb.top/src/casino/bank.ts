@@ -44,7 +44,7 @@ export function me(token: string): Promise<{ ok: boolean; nick?: string; balance
   return call('/api/bank/me', token);
 }
 
-export function syncDelta(token: string, delta: number): Promise<{ ok: boolean; balance?: number }> {
+export function syncDelta(token: string, delta: number): Promise<{ ok: boolean; balance?: number; error?: string }> {
   return call('/api/bank/sync', token, { delta });
 }
 

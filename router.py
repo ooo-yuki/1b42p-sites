@@ -1,5 +1,5 @@
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-import os, socket, ssl, threading, urllib.request
+import os, socket, ssl, threading, urllib.error, urllib.request
 
 BASE = "/root/sites"
 CERT = "/etc/letsencrypt/live/chaev.bratuxa.zomb.top/fullchain.pem"
@@ -80,9 +80,10 @@ class VHostHandler(SimpleHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0) or 0)
         body = self.rfile.read(length) if length else None
         req = urllib.request.Request(f"http://127.0.0.1:{port}{self.path}", data=body, method=self.command)
-        ctype = self.headers.get("Content-Type")
-        if ctype:
-            req.add_header("Content-Type", ctype)
+        for hk in ("Content-Type", "Authorization"):
+            hv = self.headers.get(hk)
+            if hv:
+                req.add_header(hk, hv)
         try:
             with urllib.request.urlopen(req, timeout=15) as r:
                 data = r.read()
@@ -95,6 +96,15 @@ class VHostHandler(SimpleHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
+        except urllib.error.HTTPError as e:
+            # Апстрим ответил осмысленным 4xx/5xx (401 кассы, 404) — везём как есть,
+            # а не хороним под 503: клиент должен понять, что случилось.
+            data = e.read()
+            self.send_response(e.code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
         except Exception as e:
             msg = b'{"error":"api-down"}'
             self.send_response(503)

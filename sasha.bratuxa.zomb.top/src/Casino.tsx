@@ -121,18 +121,33 @@ export default function Casino(): JSX.Element {
 
   const say = (t: string, tn: Tone = ''): void => { setMsg(t); setTone(tn); };
 
+  const bankLost = (): void => {
+    saveToken(null);
+    setToken(null);
+    setUser(null);
+    say('Касса забыла. Войди заново');
+  };
+
   const spend = (stake: number): boolean => {
     if (balRef.current < stake) { say(`Не хватает: надо ${stake}`); return false; }
     setBalance(b => b - stake);
     const t = tokenRef.current;
-    if (t) void syncDelta(t, -stake).catch(() => { /* касса спит — счёт локальный */ });
+    if (t) {
+      void syncDelta(t, -stake)
+        .then(r => { if (!r.ok && r.error === 'Войди в кассу') bankLost(); })
+        .catch(() => { /* касса спит — счёт локальный */ });
+    }
     return true;
   };
 
   const credit = (n: number): void => {
     setBalance(b => b + n);
     const t = tokenRef.current;
-    if (t) void syncDelta(t, n).catch(() => { /* касса спит */ });
+    if (t) {
+      void syncDelta(t, n)
+        .then(r => { if (!r.ok && r.error === 'Войди в кассу') bankLost(); })
+        .catch(() => { /* касса спит */ });
+    }
     setWon(w => {
       const nw = w + n;
       try { localStorage.setItem(LS_WON, String(nw)); } catch { /* не влезло */ }
