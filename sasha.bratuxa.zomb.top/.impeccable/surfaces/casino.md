@@ -11,7 +11,7 @@ OWN-WORLD: неоновая вывеска красно-синим, золото
 с пиксель-артом, порталы-залы; палитра и юмор 42 из PRODUCT.md.
 STORY: гость видит шоу, выбирает дверь, играет один на один с залом.
 FIRST VIEWPORT: сайдбар слева; вывеска КАЗИНО 42; тикер выданных выигрышей;
-ряд из восьми порталов; primary action — вход в портал.
+ряд из восьми порталов; касса (вход/гость) + таблица лидеров; primary action — вход в портал.
 FORM: лобби+арена (выбор пользователя); comp: `.impeccable/mocks/casino-lobby.jpg`.
 FINISH: unreviewed and undocumented is unfinished; this build ends with the
 finish review, the verdict, DESIGN.md, and every shipping raster carrying

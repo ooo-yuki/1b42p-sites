@@ -7,6 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { ItemIcon } from './casino-icons';
 import { Coins, CreditCard, House, RotateCcw, Trophy } from 'lucide-react';
 import type { Api, Tone } from './casino/shared';
+import AuthGate from './casino/AuthGate';
+import Leaders from './casino/Leaders';
+import { loadToken, me, saveToken, syncDelta, type BankUser } from './casino/bank';
+import './casino/bank.css';
 import Crash from './casino/Crash';
 import Cases from './casino/Cases';
 import Horses from './casino/Horses';
@@ -80,12 +84,33 @@ export default function Casino(): JSX.Element {
   const [tone, setTone] = useState<Tone>('');
   const [view, setView] = useState<View>(() => viewFromHash());
   const [confirmReset, setConfirmReset] = useState(false);
+  const [user, setUser] = useState<BankUser | null>(null);
+  const [token, setToken] = useState<string | null>(() => loadToken());
+  const [guest, setGuest] = useState(false);
   const balRef = useRef(balance);
   balRef.current = balance;
+  const tokenRef = useRef(token);
+  tokenRef.current = token;
 
   useEffect(() => {
     try { localStorage.setItem(LS, JSON.stringify({ balance })); } catch { /* не влезло */ }
   }, [balance]);
+
+  /* Тихий вход по сохранённому токену: касса подтверждает — забираем счёт. */
+  useEffect(() => {
+    if (!token || user || guest) return;
+    me(token).then(r => {
+      if (r.ok && r.nick && typeof r.balance === 'number') {
+        setUser({ nick: r.nick, balance: r.balance });
+        setBalance(r.balance);
+        say(`С возвращением, ${r.nick}. Касса помнит`);
+      } else {
+        saveToken(null);
+        setToken(null);
+      }
+    }).catch(() => { /* касса спит — гостем */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const onH = (): void => { setView(viewFromHash()); window.scrollTo(0, 0); };
@@ -98,11 +123,15 @@ export default function Casino(): JSX.Element {
   const spend = (stake: number): boolean => {
     if (balRef.current < stake) { say(`Не хватает: надо ${stake}`); return false; }
     setBalance(b => b - stake);
+    const t = tokenRef.current;
+    if (t) void syncDelta(t, -stake).catch(() => { /* касса спит — счёт локальный */ });
     return true;
   };
 
   const credit = (n: number): void => {
     setBalance(b => b + n);
+    const t = tokenRef.current;
+    if (t) void syncDelta(t, n).catch(() => { /* касса спит */ });
     setWon(w => {
       const nw = w + n;
       try { localStorage.setItem(LS_WON, String(nw)); } catch { /* не влезло */ }
@@ -119,7 +148,30 @@ export default function Casino(): JSX.Element {
     }
     setConfirmReset(false);
     setBalance(START_BALANCE);
+    const t = tokenRef.current;
+    if (t && user) {
+      const delta = START_BALANCE - balRef.current;
+      if (delta !== 0) void syncDelta(t, delta).catch(() => { /* касса спит */ });
+    }
     say('Баланс сброшен: снова 1000 фишек. Мы уже победили');
+  };
+
+  const enter = (u: BankUser, tok: string): void => {
+    saveToken(tok);
+    setToken(tok);
+    setUser(u);
+    setBalance(u.balance);
+    setGuest(false);
+    say(`Касса открыта, ${u.nick}. Ставки идут в таблицу`);
+  };
+
+  const exit = (): void => {
+    saveToken(null);
+    setToken(null);
+    setUser(null);
+    setGuest(false);
+    setBalance(START_BALANCE);
+    say('Вышел из кассы. Фишки фантики, азарт настоящий');
   };
 
   const api = { balance, msg, tone, reduced, spend, credit, say };
@@ -146,7 +198,9 @@ export default function Casino(): JSX.Element {
         <div className="stop">
           <Button variant="outline" size="sm" asChild><a href="index.html" title="На главную" className="no-underline"><House data-icon="inline-start" /> Главная</a></Button>
           <Badge variant="secondary" className="tabular-nums"><Coins data-icon="inline-start" /> {balance}</Badge>
+          {user && <Badge variant="secondary">{user.nick}</Badge>}
           <span className="sp" />
+          {user && <Button variant="outline" size="sm" onClick={exit} title="Выйти из кассы">Выйти</Button>}
           <Button variant="outline" size="sm" onClick={resetBalance}
             title="Сбросить баланс к стартовой тысяче">
             <RotateCcw data-icon="inline-start" /> {confirmReset ? 'Точно сбросить?' : 'Сброс'}</Button>
@@ -176,6 +230,10 @@ export default function Casino(): JSX.Element {
                 </a>
               ))}
             </div>
+            {(!user && !guest) && (
+              <AuthGate onAuth={enter} onGuest={() => { setGuest(true); say('Гость в зале. Счёт местный, в таблицу не идёт'); }} />
+            )}
+            <Leaders me={user?.nick ?? null} />
             <p className="cfoot">Фишки фантики, азарт настоящий. Восемь залов — всё на территории Саши. Мы уже победили</p>
             <div className="cnav">
               <Button variant="outline" asChild><a href="game.html" className="no-underline">Игра</a></Button>
@@ -192,7 +250,9 @@ export default function Casino(): JSX.Element {
               <Badge variant="secondary">{cur?.tag}</Badge>
             </div>
             {cur && <p className="gdesc">{cur.desc}</p>}
-            <Game api={api} />
+            {(!user && !guest)
+              ? <AuthGate onAuth={enter} onGuest={() => { setGuest(true); say('Гость в зале. Счёт местный, в таблицу не идёт'); }} />
+              : <Game api={api} />}
           </main>
         )}
       </div>

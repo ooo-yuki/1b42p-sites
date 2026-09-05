@@ -1,2 +1,5 @@
 node_modules/
 tw.out.css
+arena/bank42.db
+arena/*.test.db
+/tmp/
