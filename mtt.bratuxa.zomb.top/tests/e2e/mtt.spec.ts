@@ -9,7 +9,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
       if (m.type() === 'error') errors.push('console: ' + m.text().slice(0, 200));
     });
     await page.goto('/');
-    await expect(page).toHaveTitle(/МТТ VI/);
+    await expect(page).toHaveTitle(/42 LIVE/);
   });
 
   test('меню грузится, GO стартует игру', async ({ page }) => {
