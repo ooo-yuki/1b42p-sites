@@ -1,0 +1,27 @@
+/* КОЛЕСО — лента фортуны: спины, сектора, лучший клин. */
+
+.fw-book{display:flex; flex-direction:column; gap:10px; width:100%; max-width:560px}
+.fw-book .book-total{display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end;
+  background:#0d1428; border:1px solid rgba(0,96,170,.4); border-radius:12px;
+  padding:10px 14px; font-size:12.5px}
+.fw-book .book-total dt{color:#808080; font-size:11px}
+.fw-book .book-total dd{margin:0; color:#fff; font-weight:700;
+  font-variant-numeric:tabular-nums}
+.fw-book .book-total .minus dd{color:#E31E25}
+.fw-book .book-total .best{display:flex; align-items:center; gap:6px}
+.fw-book .book-clear{margin-left:auto; background:none; border:1px solid #808080;
+  color:#808080; border-radius:999px; padding:4px 12px; font-size:12px; cursor:pointer}
+.fw-book .book-clear:hover{color:#fff; border-color:#fff}
+.fw-book ul{list-style:none; margin:0; padding:0; display:flex;
+  flex-direction:column; gap:6px}
+.fw-book li{display:flex; align-items:center; gap:10px; background:#0d1428;
+  border:1px solid rgba(128,128,128,.3); border-radius:10px; padding:8px 12px;
+  font-size:13px}
+.fw-book li.plus{border-color:rgba(0,96,170,.5)}
+.fw-book li.jack{border-color:#E31E25; box-shadow:0 0 16px rgba(227,30,37,.35)}
+.fw-book .h-label{color:#c6cdf2}
+.fw-book .h-amount{margin-left:auto; color:#fff; font-weight:700;
+  font-variant-numeric:tabular-nums}
+.fw-book .h-profit{color:#808080; font-variant-numeric:tabular-nums; min-width:56px;
+  text-align:right}
+.fw-book li.plus .h-profit{color:#fff}
