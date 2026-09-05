@@ -8,27 +8,37 @@
 :root{--gold:#f5c518;--bg:#0d0716;--panel:#1c102e;--line:#3d2457;--pink:#ff4fd8;}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0;background:var(--bg);color:#f2eafc;font-family:system-ui,'Segoe UI',Roboto,Arial,sans-serif;min-height:100%}
-#top{position:sticky;top:0;z-index:5;background:linear-gradient(180deg,#1c102e,#120a1f);border-bottom:2px solid var(--gold);padding:10px 12px}
-#top h1{margin:0;font-size:20px;color:var(--gold);text-align:center}
-#top .sub{text-align:center;font-size:12px;color:#b9a3d6}
-#res{display:flex;gap:6px;justify-content:center;margin-top:8px;flex-wrap:wrap}
-.pill{background:#000a;border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:14px}
+/* ===== АФИША: мачта ===== */
+#top{position:sticky;top:0;z-index:5;background:linear-gradient(180deg,#1c102e 60%,#120a1f);border-bottom:2px solid var(--gold);padding:14px 12px 12px;overflow:hidden}
+#top:before{content:'';position:absolute;inset:0;background:radial-gradient(60% 120% at 50% -20%,rgba(245,197,24,.14),transparent 70%);pointer-events:none}
+#top h1{margin:0;text-align:center;font-weight:900;letter-spacing:.02em;line-height:1.02;font-size:clamp(26px,7.5vw,44px);color:var(--gold);text-shadow:0 0 26px rgba(245,197,24,.35);animation:rise .5s ease-out backwards}
+#top h1 .k{display:block;font-size:.52em;letter-spacing:.34em;color:#f2eafc;text-shadow:none}
+#top .sub{text-align:center;font-size:12px;color:#b9a3d6;margin-top:6px;animation:rise .5s .08s ease-out backwards}
+#res{display:flex;gap:6px;justify-content:center;margin-top:10px;flex-wrap:wrap;animation:rise .5s .14s ease-out backwards}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.pill{background:#000a;border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:14px;font-variant-numeric:tabular-nums}
 .pill b{color:var(--gold)}
-#tabs{display:flex;gap:6px;justify-content:center;padding:10px;flex-wrap:wrap}
-#tabs button{font-size:15px;font-weight:700;border-radius:10px;border:2px solid var(--line);background:var(--panel);color:#f2eafc;padding:10px 14px;cursor:pointer}
+/* ===== сегмент-переключатель сцен ===== */
+#tabs{display:flex;gap:0;justify-content:center;padding:12px 12px 4px;max-width:640px;margin:0 auto}
+#tabs button{flex:1;font-size:14px;font-weight:800;border:1px solid var(--line);background:var(--panel);color:#f2eafc;padding:12px 6px;cursor:pointer;min-height:48px}
+#tabs button:first-child{border-radius:14px 0 0 14px}
+#tabs button:last-child{border-radius:0 14px 14px 0}
+#tabs button+button{border-left:none}
 #tabs button.on{background:var(--gold);color:#181006;border-color:var(--gold)}
 #main{max-width:640px;margin:0 auto;padding:0 12px 40px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0}
-.card h3{margin:0 0 6px;color:var(--gold)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}
+.card h3{margin:0 0 8px;color:var(--gold);font-size:15px;letter-spacing:.06em}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-button.big{background:var(--gold);color:#181006;font-weight:800;font-size:18px;border:none;border-radius:12px;padding:14px 22px;cursor:pointer;width:100%;margin-top:8px}
-button.big:disabled{opacity:.45}
-button.buy{background:#2c1a4d;color:#fff;border:1px solid var(--gold);border-radius:8px;padding:8px 12px;font-size:14px;cursor:pointer}
+button.big{background:var(--gold);color:#181006;font-weight:800;font-size:18px;border:none;border-radius:14px;padding:15px 22px;cursor:pointer;width:100%;margin-top:8px;min-height:52px;box-shadow:0 4px 22px rgba(245,197,24,.25)}
+button.big:disabled{opacity:.45;box-shadow:none}
+button.big:active{transform:scale(.98)}
+button.buy{background:#2c1a4d;color:#fff;border:1px solid var(--gold);border-radius:10px;padding:10px 14px;font-size:14px;cursor:pointer;min-height:44px}
 button.buy:disabled{opacity:.45}
+button.buy:active{transform:scale(.97)}
 .hint{font-size:12px;color:#b9a3d6}
 .lock{color:#ff7b7b;font-size:13px}
-/* ритм-полоса */
-#rbar{position:relative;height:64px;background:#0a0512;border:2px solid var(--gold);border-radius:12px;overflow:hidden;margin:10px 0;touch-action:none}
+/* ===== сцена: портал ритма ===== */
+#rbar{position:relative;height:76px;background:#0a0512;border:2px solid var(--gold);border-radius:14px;overflow:hidden;margin:10px 0;touch-action:none;box-shadow:0 0 26px rgba(245,197,24,.22),inset 0 0 30px rgba(0,0,0,.6)}
 #rzone{position:absolute;top:0;bottom:0;background:rgba(245,197,24,.35);border-left:2px solid var(--gold);border-right:2px solid var(--gold);pointer-events:none}
 #rzone:after{content:'ЖМИ ТУТ';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--gold);opacity:.8}
 #rcur{position:absolute;top:-4px;bottom:-4px;width:12px;background:linear-gradient(180deg,#fff,#ff4fd8 60%,#f5c518);border:2px solid #fff;border-radius:6px;box-shadow:0 0 14px #ff4fd8,0 0 5px #fff;pointer-events:none;z-index:4}
@@ -37,23 +47,29 @@ button.buy:disabled{opacity:.45}
 .note.hit{animation:pop .18s ease-out}
 @keyframes pop{0%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.6);opacity:.9}100%{transform:translateX(-50%) scale(0.2);opacity:0}}
 .note.raidnote{filter:drop-shadow(0 0 8px #ff4fd8)}
-#tempo{text-align:center;font-size:13px;color:#ffb3ec;min-height:18px}
+#tempo{text-align:center;font-size:13px;color:#ffb3ec;min-height:18px;font-variant-numeric:tabular-nums}
 .hater{position:absolute;top:2px;font-size:34px;line-height:1;padding:10px;margin:-10px;cursor:pointer;user-select:none;-webkit-user-select:none;z-index:5;animation:shake .3s infinite}
 @keyframes shake{0%{transform:translateX(-2px) rotate(-6deg)}50%{transform:translateX(2px) rotate(6deg)}100%{transform:translateX(-2px) rotate(-6deg)}}
 #raid{position:absolute;inset:0;background:rgba(120,0,20,.55);display:none;align-items:center;justify-content:center;flex-direction:column;font-size:22px;font-weight:800}
 #msg{min-height:24px;text-align:center;color:var(--gold);font-weight:700;margin-top:6px}
 #win{position:fixed;inset:0;background:rgba(5,2,10,.92);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
-#winBox{background:var(--panel);border:3px solid var(--gold);border-radius:16px;padding:26px;max-width:440px;text-align:center}
-.shop{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#winBox{background:var(--panel);border:3px solid var(--gold);border-radius:16px;padding:26px;max-width:440px;text-align:center;box-shadow:0 0 60px rgba(245,197,24,.3)}
+.shop{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
 .shop .card{margin:0}
-.lvl{color:var(--pink);font-weight:700}
-#timer{font-size:13px;color:#b9a3d6;text-align:center}
+.lvl{color:var(--pink);font-weight:700;font-variant-numeric:tabular-nums}
+#timer{font-size:13px;color:#b9a3d6;text-align:center;font-variant-numeric:tabular-nums}
 a{color:var(--gold)}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){
+ #top h1,#top .sub,#res{animation:none}
+ .note.hit,.hater{animation:none}
+ #rcur{box-shadow:none}
+}
 </style>
 </head>
 <body>
 <div id="top">
-<h1>42 БРАТУХА: ФАБРИКА ХАЙПА 🏆</h1>
+<h1><span class="k">42 БРАТУХА</span>ФАБРИКА ХАЙПА 🏆</h1>
 <div class="sub">продюсер Пятёрки · дорога на SLAY 2026 · <a href="https://hub.bratuxa.zomb.top">← Хаб 1Б42П</a></div>
 <div id="res">
 <span class="pill">🔥 Хайп: <b id="rH">0</b></span>
