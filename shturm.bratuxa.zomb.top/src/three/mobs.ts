@@ -93,3 +93,13 @@ export function makeMob(kind: MobKind): THREE.Group {
     case 'seagull': return makeSeagull();
   }
 }
+
+/**
+ * Просадка FPS → гасим SpotLight'ы стрелков, остаётся emissive-линза
+ * (дешёвый минор Task 10: свет без теней всё равно дорог в массе).
+ */
+export function setMobLightDetail(root: THREE.Object3D, low: boolean): void {
+  root.traverse((o) => {
+    if ((o as THREE.SpotLight).isSpotLight) o.visible = !low;
+  });
+}
