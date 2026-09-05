@@ -5,9 +5,9 @@ BASE = "/root/sites"
 CERT = "/etc/letsencrypt/live/chaev.bratuxa.zomb.top/fullchain.pem"
 KEY = "/etc/letsencrypt/live/chaev.bratuxa.zomb.top/privkey.pem"
 # Хосты, отдаваемые из подпапки сборки (Vite dist/ как корень сайта).
-STATIC_ROOTS = {"chaev.bratuxa.zomb.top": "dist", "sasha.bratuxa.zomb.top": "dist"}
+STATIC_ROOTS = {"chaev.bratuxa.zomb.top": "dist", "sasha.bratuxa.zomb.top": "dist", "mtt.bratuxa.zomb.top": "dist"}
 # локальные API-бэкенды: host -> порт (прокси /api/*, включая WS-апгрейд /api/ws)
-API_BACKENDS = {"miqqil.bratuxa.zomb.top": 8091, "evaelph.bratuxa.zomb.top": 8092, "hub.bratuxa.zomb.top": 8093, "sasha.bratuxa.zomb.top": 8094}
+API_BACKENDS = {"miqqil.bratuxa.zomb.top": 8091, "evaelph.bratuxa.zomb.top": 8092, "hub.bratuxa.zomb.top": 8093, "sasha.bratuxa.zomb.top": 8094, "mtt.bratuxa.zomb.top": 8095}
 
 class VHostHandler(SimpleHTTPRequestHandler):
     timeout = 30
