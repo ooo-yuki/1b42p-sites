@@ -76,12 +76,15 @@ describe('unlocked', () => {
 describe('scoreHit', () => {
   test('perfect ×3, great ×2, good ×0.5, комбо и крит множат', () => {
     // base 100, combo 0, crit 1, без дабла
-    expect(scoreHit(100, 'perfect', 0, 1, 0.1, 0.1, () => 0.99)).toBe(300);
-    expect(scoreHit(100, 'great', 0, 1, 0.1, 0.1, () => 0.99)).toBe(200);
-    expect(scoreHit(100, 'good', 0, 1, 0.1, 0.1, () => 0.99)).toBe(50);
+    expect(scoreHit(100, 'perfect', 0, 1, 0.1, 0.1, () => 0.99).val).toBe(300);
+    expect(scoreHit(100, 'great', 0, 1, 0.1, 0.1, () => 0.99).val).toBe(200);
+    expect(scoreHit(100, 'good', 0, 1, 0.1, 0.1, () => 0.99).val).toBe(50);
     // комбо 4 при шаге 0.1 → ×1.4
-    expect(scoreHit(100, 'perfect', 4, 1, 0.1, 0.1, () => 0.99)).toBe(420);
-    // дабл при ролле ниже шанса → ×2
-    expect(scoreHit(100, 'perfect', 0, 1, 0.1, 0.35, () => 0.1)).toBe(600);
+    expect(scoreHit(100, 'perfect', 4, 1, 0.1, 0.1, () => 0.99).val).toBe(420);
+    // дабл при ролле ниже шанса → ×2 и флаг
+    const d = scoreHit(100, 'perfect', 0, 1, 0.1, 0.35, () => 0.1);
+    expect(d.val).toBe(600);
+    expect(d.doubled).toBe(true);
+    expect(scoreHit(100, 'perfect', 0, 1, 0.1, 0.35, () => 0.99).doubled).toBe(false);
   });
 });

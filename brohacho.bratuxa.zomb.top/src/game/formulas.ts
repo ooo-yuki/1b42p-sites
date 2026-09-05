@@ -83,11 +83,12 @@ export function stDouble(s: Save): number {
 export function scoreHit(
   base: number, j: Judge, combo: number, critM: number,
   comboStep: number, doubleP: number, rng: () => number = Math.random,
-): number {
+): { val: number; doubled: boolean } {
   const mult = j === 'perfect' ? 3 : j === 'great' ? 2 : 0.5;
   let val = base * mult * critM * (1 + combo * comboStep);
-  if (rng() < doubleP) val *= 2;
-  return val;
+  const doubled = rng() < doubleP;
+  if (doubled) val *= 2;
+  return { val, doubled };
 }
 
 export type Unlock = { ok: boolean; buy?: boolean; why?: string };
