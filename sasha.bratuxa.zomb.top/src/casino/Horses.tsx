@@ -18,7 +18,7 @@ import './horses/betdesk.css';
 import './horses/hhist.css';
 
 /* ЗАЛ «СКАЧКИ» — ипподром 42. Оркестрация: паддок → будка → газон → касса → протоколы.
-   Правила святы: кэфы, минималка 10, тик +1.5+rnd*5 до 100, выплата floor(ставка×кэф). */
+   Правила святы: кэфы, гандикап, минималка 10, тик до 100, выплата floor(ставка×кэф). */
 
 export default function Horses({ api }: { api: Api }): JSX.Element {
   const [horse, setHorse] = useState(DEFAULT_HORSE);

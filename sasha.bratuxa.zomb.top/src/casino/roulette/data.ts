@@ -1,5 +1,5 @@
-/* РУЛЕТКА — данные салона. Правила СВЯТЫ: европейская, зеро ×14,
-   цвет ×2, точное число ×35, минималка 10. */
+/* РУЛЕТКА — данные салона. Правила СВЯТЫ: европейская, зеро ×35
+   (обычный straight-up, не ловушка), цвет ×2, точное число ×35, минималка 10. */
 
 export const N = 37;
 export const MIN_STAKE = 10;
@@ -27,7 +27,7 @@ export function pocketColor(n: number): string {
 /** Расчёт выигрыша — святая формула. Возвращает выплату (0 — мимо). */
 export function settle(choice: string, n: number, stake: number): number {
   const isRed = EU_REDS.includes(n);
-  if (choice === 'green' && n === 0) return stake * 14;
+  if (choice === 'green' && n === 0) return stake * 35;
   if (choice === 'red' && isRed) return stake * 2;
   if (choice === 'black' && n !== 0 && !isRed) return stake * 2;
   if (/^\d+$/.test(choice) && Number(choice) === n) return stake * 35;
@@ -45,7 +45,7 @@ export function choiceLabel(choice: string): string {
 /** Потенциал ставки — для честного превью («если зайдёт»). */
 export function potential(choice: string, stake: number): number {
   if (choice === 'red' || choice === 'black') return stake * 2;
-  if (choice === 'green') return stake * 14;
+  if (choice === 'green') return stake * 35;
   if (/^\d+$/.test(choice)) return stake * 35;
   return 0;
 }
@@ -57,7 +57,7 @@ export function validateRoulette(): string[] {
   if (N !== 37) bad.push(`карманов ${N}, святых 37`);
   if (EU_REDS.join(',') !== canon.join(',')) bad.push('красные карманы не по-европейски');
   if (settle('red', 1, 10) !== 20) bad.push('красное не ×2');
-  if (settle('green', 0, 10) !== 140) bad.push('зеро не ×14');
+  if (settle('green', 0, 10) !== 350) bad.push('зеро не ×35');
   if (settle('7', 7, 10) !== 350) bad.push('число не ×35');
   return bad;
 }

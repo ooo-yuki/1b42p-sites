@@ -26,7 +26,7 @@ function previewText(choice: string, stake: number): string {
   const p = potential(choice, stake);
   if (choice === 'red') return `красное ×2 → +${p}`;
   if (choice === 'black') return `чёрное ×2 → +${p}`;
-  if (choice === 'green') return `зеро ×14 → +${p}`;
+  if (choice === 'green') return `зеро ×35 → +${p}`;
   return `число ${choice} ×35 → +${p}`;
 }
 
@@ -39,7 +39,7 @@ export default function Cloth({ rchoice, rbet, spinning, stake, hot, onChoice, o
         disabled={spinning} className="flex flex-wrap justify-start gap-2">
         <ToggleGroupItem value="red"><span className="rdot red" /> Красное ×2</ToggleGroupItem>
         <ToggleGroupItem value="black"><span className="rdot black" /> Чёрное ×2</ToggleGroupItem>
-        <ToggleGroupItem value="green"><span className="rdot green" /> Зеро ×14</ToggleGroupItem>
+        <ToggleGroupItem value="green"><span className="rdot green" /> Зеро ×35</ToggleGroupItem>
       </ToggleGroup>
       <div className="numbers" role="group" aria-label="Точное число, выплата ×35">
         {Array.from({ length: N }, (_, n) => {
@@ -48,7 +48,7 @@ export default function Cloth({ rchoice, rbet, spinning, stake, hot, onChoice, o
             <button key={n} disabled={spinning}
               className={cn('num', cls, String(n) === rchoice && 'sel')}
               onClick={() => onChoice(String(n))}
-              title={n === 0 ? 'Зеро — выплата ×14' : `${n} ${EU_REDS.includes(n) ? 'красное' : 'чёрное'} — выплата ×35`}>
+              title={n === 0 ? 'Зеро — выплата ×35' : `${n} ${EU_REDS.includes(n) ? 'красное' : 'чёрное'} — выплата ×35`}>
               {n}
               {hot.has(n) && <i className="heat" aria-label="часто падает" />}
             </button>

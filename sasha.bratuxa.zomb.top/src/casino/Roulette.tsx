@@ -15,7 +15,7 @@ import './roulette/cloth.css';
 import './roulette/rhist.css';
 
 /* ЗАЛ «РУЛЕТКА» — салон. Оркестрация: колесо → сукно → журнал.
-   Правила святы: европейская, зеро ×14, цвет ×2, число ×35, минималка 10. */
+   Правила святы: европейская, зеро ×35, цвет ×2, число ×35, минималка 10. */
 
 export default function Roulette({ api }: { api: Api }): JSX.Element {
   const [rbet, setRbet] = useState(DEFAULT_BET);

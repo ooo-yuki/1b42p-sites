@@ -61,7 +61,7 @@ export default function BetDesk({ horses, horse, hbet, racing, onHorse, onBet, o
             : `ставка от ${MIN_STAKE} фишек`}
         </span>
       </div>
-      <p className="fine">Кэфы честные: выплата — floor(ставка × кэф). Фаворит — Торнадо ×1.8, дерзость — Пятёрка ×7.</p>
+      <p className="fine">Кэфы честные: выплата — floor(ставка × кэф). Фаворит — Торнадо ×2.35, дерзость — Пятёрка ×7.5.</p>
     </div>
   );
 }

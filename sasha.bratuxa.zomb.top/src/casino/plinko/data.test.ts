@@ -41,7 +41,7 @@ describe('plinko board', () => {
 });
 
 describe('plinko honesty', () => {
-  test('низкий риск: края ×10, EV около 0.99', () => {
+  test('низкий риск: края ×10, EV 0.95–1.00', () => {
     expect(RISKS.low[0]).toBe(10);
     expect(RISKS.low[12]).toBe(10);
     const ev = expectedValue('low');
