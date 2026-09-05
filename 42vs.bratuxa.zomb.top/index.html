@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>42 VS SASAZOMBIES 🧟</title>
+<style>
+  html,body{margin:0;padding:0;background:#0d0716;min-height:100%;}
+  body{font-family:Arial,sans-serif;color:#fff;display:flex;flex-direction:column;align-items:center;}
+  #top{padding:10px;text-align:center;}
+  #top h1{margin:4px 0;color:#f5c518;font-size:30px;}
+  #top .sub{color:#aaa;font-size:14px;}
+  #top .sub a{color:#f5c518;}
+  #wrap{position:relative;width:min(1100px,100vw);}
+  canvas{display:block;width:100%;height:auto;background:#000;border:3px solid #f5c518;border-radius:12px;touch-action:none;}
+  .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.55);border-radius:12px;text-align:center;padding:20px;}
+  .overlay.hidden{display:none;}
+  .overlay h2{color:#f5c518;font-size:40px;margin:0 0 10px;}
+  .overlay p{max-width:560px;color:#ddd;line-height:1.5;}
+  .bigbtn{background:#f5c518;border:none;font-weight:bold;font-size:20px;padding:14px 34px;border-radius:12px;
+    cursor:pointer;margin-top:14px;color:#111;}
+  .bigbtn:hover{background:#ffd700;}
+  #hint{color:#888;font-size:13px;padding:8px;text-align:center;max-width:1100px;}
+</style>
+</head>
+<body>
+<div id="top">
+  <h1>42 VS SASAZOMBIES 🧟</h1>
+  <div class="sub">оборона лужайки Батальона · <a href="https://hub.bratuxa.zomb.top">← Хаб 1Б42П</a></div>
+</div>
+<div id="wrap">
+  <canvas id="cv" width="1100" height="600"></canvas>
+  <div id="menu" class="overlay">
+    <h2>42 VS SASAZOMBIES</h2>
+    <p>Сасазомби идут с дороги! Выставляй юнитов на лужайку 9×5 и держи дом.<br>
+    Мопсострел бьёт мопсами по своей линии · Подсолнух даёт солнца · Бомба бахает 3×3.<br>
+    Убей 10 зомби — уровень пройден!</p>
+    <button class="bigbtn" id="btnLevel1">ПЕРЕЙТИ НА ПЕРВЫЙ УРОВЕНЬ 🌻</button>
+  </div>
+  <div id="endov" class="overlay hidden">
+    <h2 id="endT">ПОБЕДА!</h2>
+    <p id="endP"></p>
+    <button class="bigbtn" id="btnAgain">НАЧАТЬ ЗАНОВО 🔄</button>
+  </div>
+</div>
+<div id="hint">ЛКМ/палец: перетащи семечко с правой панели на клетку · повторный клик отменяет · солнце падает с неба и растёт на Подсолнухе</div>
+<script>
+/* ============ 42 VS SASAZOMBIES — уровень 1 (PvZ-механика, Canvas2D) ============ */
+'use strict';
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+/* --- поле 9×5 по лужайке фона (фон 1100×472 сверху, снизу полоса) --- */
+var BGW=1100,BGH=472;
+var GX0=150,GX1=795,GY0=45,GY1=472,COLS=9,ROWS=5;
+var CW=(GX1-GX0)/COLS,CH=(GY1-GY0)/ROWS;
+var PANELX=810; // правая панель поверх дороги
+/* --- баланс --- */
+var Z_HP=141,Z_BITE=141,Z_SPEED=10,SPAWN_EVERY=15,KILLS_TO_WIN=10,SPAWN_TOTAL=14;
+var U_MOPSO={hp:422,dmg:24,rate:1.5,cost:100,cd:7};
+var U_SUN={hp:300,cost:50,cd:7,sunEvery:12,sunVal:25};
+var U_BOMB={hp:300,cost:150,cd:20,fuse:1.2};
+var SKY_SUN_EVERY=10,SKY_SUN_VAL=25,START_SUN=150;
+/* --- состояние --- */
+var G=null;
+function newGame(){
+  G={state:'play',t:0,sun:START_SUN,units:[],zoms:[],peas:[],fx:[],floats:[],
+    kills:0,spawned:0,spawnT:3,skyT:6,seeds:{mopso:0,sun:0,bomb:0},drag:null,over:null};
+}
+function cellXY(r,c){return {x:GX0+c*CW,y:GY0+r*CH};}
+function rowY(r){return GY0+r*CH+CH/2;}
+function unitAt(r,c){for(var i=0;i<G.units.length;i++){var u=G.units[i];if(u.r===r&&u.c===c)return u;}return null;}
+/* --- текстуры --- */
+var IMG={},IMGNAMES={bg:'tex/bg1.jpg',zombie:'tex/zombie.png',mopso:'tex/mopso.png',sunflow:'tex/sunflow.png',bomba:'tex/bomba.png',mops:'tex/mops.png'};
+var IMG_OK=0,IMG_NEED=Object.keys(IMGNAMES).length;
+function loadAll(next){
+  Object.keys(IMGNAMES).forEach(function(k){
+    var im=new Image();
+    im.onload=function(){IMG_OK++;if(IMG_OK>=IMG_NEED)next();};
+    im.onerror=function(){IMG_OK++;if(IMG_OK>=IMG_NEED)next();};
+    im.src=IMGNAMES[k];IMG[k]=im;
+  });
+}
+/* --- звук-пищалка --- */
+var MUTED=false;
+function beep(f,d,type){try{
+  if(MUTED)return;
+  var C=beep.ac=beep.ac||new (window.AudioContext||window.webkitAudioContext)();
+  if(C.state==='suspended')C.resume();
+  var o=C.createOscillator(),g=C.createGain();o.type=type||'square';o.frequency.value=f;
+  g.gain.setValueAtTime(0.06,C.currentTime);g.gain.exponentialRampToValueAtTime(0.001,C.currentTime+(d||0.1));
+  o.connect(g);g.connect(C.destination);o.start();o.stop(C.currentTime+(d||0.1)+0.02);
+}catch(e){}}
+/* --- спавн --- */
+function spawnZom(){
+  var r=Math.floor(Math.random()*ROWS);
+  G.zoms.push({r:r,x:GX1+30,hp:Z_HP,eatT:0,ph:Math.random()*6});
+  G.spawned++;
+}
+function firePea(u){
+  var p=cellXY(u.r,u.c);
+  G.peas.push({r:u.r,x:p.x+CW*0.6,y:rowY(u.r)-14});
+  beep(520,0.07);
+}
+/* --- посадка --- */
+function seedDef(k){
+  if(k==='mopso')return {cost:U_MOPSO.cost,cd:U_MOPSO.cd,img:'mopso',name:'Мопсострел'};
+  if(k==='sun')return {cost:U_SUN.cost,cd:U_SUN.cd,img:'sunflow',name:'Подсолнух'};
+  return {cost:U_BOMB.cost,cd:U_BOMB.cd,img:'bomba',name:'Бомба'};
+}
+function tryPlant(k,r,c){
+  var d=seedDef(k);
+  if(G.seeds[k]>0||G.sun<d.cost||unitAt(r,c))return false;
+  G.sun-=d.cost;G.seeds[k]=d.cd;
+  var u={type:k,r:r,c:c,cool:0,fuse:k==='bomb'?U_BOMB.fuse:0,sunT:k==='sun'?6:0};
+  u.hp=u.maxhp=(k==='mopso'?U_MOPSO.hp:(k==='sun'?U_SUN.hp:U_BOMB.hp));
+  G.units.push(u);
+  if(k==='bomb')beep(200,0.2,'sawtooth');
+  return true;
+}
+/* --- логика --- */
+function update(dt){
+  if(G.state!=='play')return;
+  G.t+=dt;
+  for(var k in G.seeds)if(G.seeds[k]>0)G.seeds[k]-=dt;
+  /* спавн врагов */
+  if(G.spawned<SPAWN_TOTAL){G.spawnT-=dt;if(G.spawnT<=0){G.spawnT=SPAWN_EVERY;spawnZom();}}
+  /* небо-солнце */
+  G.skyT-=dt;
+  if(G.skyT<=0){G.skyT=SKY_SUN_EVERY;G.sun+=SKY_SUN_VAL;G.floats.push({x:600+Math.random()*150,y:120,t:1.5,txt:'+'+SKY_SUN_VAL+' ☀️'});}
+  /* юниты */
+  for(var i=G.units.length-1;i>=0;i--){var u=G.units[i],p=cellXY(u.r,u.c),ux=p.x+CW/2;
+    if(u.cool>0)u.cool-=dt;
+    if(u.type==='sun'){u.sunT-=dt;if(u.sunT<=0){u.sunT=U_SUN.sunEvery;G.sun+=U_SUN.sunVal;
+      G.floats.push({x:ux,y:p.y+10,t:1.5,txt:'+'+U_SUN.sunVal+' ☀️'});beep(880,0.08);}}
+    if(u.type==='bomb'){u.fuse-=dt;
+      if(u.fuse<=0){ /* БАБАХ 3×3 */
+        G.units.splice(i,1);
+        G.fx.push({x:ux,y:rowY(u.r),t:0.5,r:0});
+        beep(90,0.4,'sawtooth');
+        for(var j=G.zoms.length-1;j>=0;j--){var z=G.zoms[j];
+          var zx=z.x,zy=rowY(z.r);
+          if(Math.hypot(zx-ux,zy-rowY(u.r))<CW*2.2)killZom(j);
+        }
+        continue;
+      }}
+    if(u.type==='mopso'&&u.cool<=0){
+      var tgt=null;
+      for(var m=0;m<G.zoms.length;m++){var e=G.zoms[m];
+        if(e.r===u.r&&e.x>ux-10&&(tgt===null||e.x<tgt.x))tgt=e;}
+      if(tgt){u.cool=U_MOPSO.rate;firePea(u);}
+    }
+  }
+  /* снаряды строго по горизонтали */
+  for(var a=G.peas.length-1;a>=0;a--){var s=G.peas[a];s.x+=220*dt;
+    var hit=false;
+    for(var b=0;b<G.zoms.length;b++){var w=G.zoms[b];
+      if(w.r===s.r&&Math.abs(w.x-s.x)<34){w.hp-=U_MOPSO.dmg;hit=true;
+        G.fx.push({x:s.x,y:s.y,t:0.2,r:6});break;}}
+    if(hit||s.x>GX1+60)G.peas.splice(a,1);
+  }
+  /* враги: плавно влево, впритык — едят */
+  for(var c=G.zoms.length-1;c>=0;c--){var n=G.zoms[c];
+    if(n.hp<=0){killZom(c);continue;}
+    var col=Math.floor((n.x-GX0)/CW),meal=(col>=0&&col<COLS)?unitAt(n.r,col):null;
+    if(meal&&Math.abs(n.x-(GX0+col*CW+CW/2))<CW*0.55){
+      n.eatT+=dt;
+      if(n.eatT>=1){n.eatT=0;meal.hp-=Z_BITE;beep(160,0.15,'sawtooth');
+        if(meal.hp<=0){for(var d=0;d<G.units.length;d++)if(G.units[d]===meal)G.units.splice(d,1);}}
+    }else{n.eatT=0;n.x-=Z_SPEED*dt;}
+    if(n.x<GX0-12){return lose();}
+  }
+  /* эффекты */
+  for(var f=G.fx.length-1;f>=0;f--){G.fx[f].t-=dt;if(G.fx[f].t<=0)G.fx.splice(f,1);}
+  for(var g=G.floats.length-1;g>=0;g--){var fl=G.floats[g];fl.t-=dt;fl.y-=20*dt;if(fl.t<=0)G.floats.splice(g,1);}
+}
+function killZom(i){
+  var z=G.zoms[i];G.zoms.splice(i,1);G.kills++;
+  G.fx.push({x:z.x,y:rowY(z.r)-30,t:0.4,r:10});beep(330,0.12);
+  if(G.kills>=KILLS_TO_WIN)win();
+}
+function win(){G.state='win';showEnd('ПОБЕДА! 🏆','Лужайка удержана! Зомби повержены: '+G.kills+'.<br>Мы уже победили 🏆');beep(660,0.3);}
+function lose(){G.state='lose';showEnd('ЗОМБИ ПРОРВАЛИСЬ 🧟','Сасазомби дошли до дома...<br>Убито: '+G.kills+' из '+KILLS_TO_WIN+'. Попробуй ещё!');beep(110,0.5,'sawtooth');}
+function showEnd(t,p){
+  document.getElementById('endT').textContent=t;
+  document.getElementById('endP').innerHTML=p;
+  document.getElementById('endov').classList.remove('hidden');
+}
+/* --- отрисовка --- */
+function drawImg(im,x,y,w,h){try{if(im&&im.complete&&im.naturalWidth)ctx.drawImage(im,x,y,w,h);}catch(e){}}
+function draw(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  drawImg(IMG.bg,0,0,BGW,BGH);
+  ctx.fillStyle='#1c102e';ctx.fillRect(0,BGH,cv.width,cv.height-BGH);
+  /* юниты */
+  for(var i=0;i<G.units.length;i++){var u=G.units[i],p=cellXY(u.r,u.c);
+    var key=u.type==='mopso'?'mopso':(u.type==='sun'?'sunflow':'bomba');
+    var s=u.type==='mopso'?66:60;
+    if(u.type==='bomb'&&Math.floor(G.t*8)%2===0){ctx.globalAlpha=0.6+0.4*Math.abs(Math.sin(G.t*10));}
+    drawImg(IMG[key],p.x+CW/2-s/2,p.y+CH-s-6,s,s);
+    ctx.globalAlpha=1;
+    if(u.hp<u.maxhp){ctx.fillStyle='#000';ctx.fillRect(p.x+8,p.y+CH-12,CW-16,5);
+      ctx.fillStyle='#0f6';ctx.fillRect(p.x+8,p.y+CH-12,(CW-16)*u.hp/u.maxhp,5);}
+  }
+  /* враги */
+  for(var j=0;j<G.zoms.length;j++){var z=G.zoms[j],zy=rowY(z.r);
+    var bob=Math.sin(G.t*4+z.ph)*3;
+    drawImg(IMG.zombie,z.x-38,zy-52+bob,76,100);
+    if(z.hp<Z_HP){ctx.fillStyle='#000';ctx.fillRect(z.x-30,zy-62,60,5);
+      ctx.fillStyle='#f55';ctx.fillRect(z.x-30,zy-62,60*z.hp/Z_HP,5);}
+  }
+  /* снаряды-мопсы */
+  for(var a=0;a<G.peas.length;a++){var q=G.peas[a];drawImg(IMG.mops,q.x-16,q.y-16,32,32);}
+  /* взрывы/попадания */
+  for(var f=0;f<G.fx.length;f++){var e2=G.fx[f];
+    var rr=e2.r||(1-e2.t*2)*CW*2.2;
+    ctx.globalAlpha=Math.min(1,e2.t*2.5);
+    ctx.fillStyle=e2.r?'#ffdd44':'#ff6a00';
+    ctx.beginPath();ctx.arc(e2.x,e2.y,Math.max(4,rr),0,7);ctx.fill();ctx.globalAlpha=1;}
+  /* всплывашки */
+  ctx.font='bold 18px Arial';ctx.textAlign='center';
+  for(var g=0;g<G.floats.length;g++){var fl=G.floats[g];
+    ctx.globalAlpha=Math.min(1,fl.t);ctx.fillStyle='#ffe26b';ctx.fillText(fl.txt,fl.x,fl.y);ctx.globalAlpha=1;}
+  /* призрак перетаскивания */
+  if(G.drag){var m=mouse;
+    drawImg(IMG[seedDef(G.drag).img],m.x-30,m.y-30,60,60);
+    var cell=cellFromXY(m.x,m.y);
+    if(cell){ctx.strokeStyle='#0f6';ctx.lineWidth=3;
+      ctx.strokeRect(GX0+cell.c*CW,GY0+cell.r*CH,CW,CH);}
+  }
+  drawPanel();
+}
+function seedRect(i){return {x:PANELX+40,y:120+i*130,w:220,h:110};}
+function drawPanel(){
+  ctx.fillStyle='rgba(10,5,20,.88)';ctx.fillRect(PANELX,0,cv.width-PANELX,cv.height);
+  ctx.strokeStyle='#f5c518';ctx.lineWidth=2;ctx.strokeRect(PANELX,0,cv.width-PANELX,cv.height);
+  ctx.fillStyle='#f5c518';ctx.font='bold 26px Arial';ctx.textAlign='left';
+  ctx.fillText('☀️ '+G.sun,PANELX+30,50);
+  ctx.fillStyle='#fff';ctx.font='bold 18px Arial';
+  ctx.fillText('🧟 '+G.kills+'/'+KILLS_TO_WIN,PANELX+30,80);
+  var keys=['mopso','sun','bomb'];
+  for(var i=0;i<3;i++){var k=keys[i],d=seedDef(k),R=seedRect(i);
+    var avail=G.sun>=d.cost&&G.seeds[k]<=0;
+    ctx.fillStyle=avail?'#2a1a3e':'#151020';
+    ctx.fillRect(R.x,R.y,R.w,R.h);
+    ctx.strokeStyle=G.drag===k?'#0f6':'#f5c518';ctx.lineWidth=G.drag===k?4:2;
+    ctx.strokeRect(R.x,R.y,R.w,R.h);
+    drawImg(IMG[d.img],R.x+8,R.y+15,70,70);
+    ctx.fillStyle='#fff';ctx.font='bold 15px Arial';
+    ctx.fillText(d.name,R.x+88,R.y+32);
+    ctx.fillStyle='#ffe26b';ctx.font='14px Arial';
+    ctx.fillText('☀️'+d.cost,R.x+88,R.y+54);
+    if(G.seeds[k]>0){ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(R.x,R.y,R.w,R.h);
+      ctx.fillStyle='#fff';ctx.font='bold 22px Arial';ctx.textAlign='center';
+      ctx.fillText(Math.ceil(G.seeds[k]),R.x+R.w/2,R.y+R.h/2+8);ctx.textAlign='left';}
+  }
+  /* кнопки */
+  ctx.fillStyle='#333';ctx.fillRect(PANELX+40,520,100,50);ctx.fillStyle='#fff';ctx.font='bold 15px Arial';
+  ctx.fillText('МЕНЮ',PANELX+62,550);
+  ctx.fillStyle='#333';ctx.fillRect(PANELX+160,520,100,50);
+  ctx.fillText(MUTED?'ЗВУК ВЫКЛ':'ЗВУК ВКЛ',PANELX+168,550);
+}
+/* --- ввод: drag&drop + клик-клик --- */
+var mouse={x:0,y:0};
+function evXY(e){var r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)*cv.width/r.width,y:(e.clientY-r.top)*cv.height/r.height};}
+function cellFromXY(x,y){
+  if(x<GX0||x>=GX1||y<GY0||y>=GY1)return null;
+  return {r:Math.min(ROWS-1,Math.floor((y-GY0)/CH)),c:Math.min(COLS-1,Math.floor((x-GX0)/CW))};
+}
+function seedAtXY(x,y){
+  var keys=['mopso','sun','bomb'];
+  for(var i=0;i<3;i++){var R=seedRect(i);
+    if(x>=R.x&&x<=R.x+R.w&&y>=R.y&&y<=R.y+R.h)return keys[i];}
+  return null;
+}
+cv.addEventListener('pointerdown',function(e){
+  var p=evXY(e);mouse=p;
+  if(!G||G.state!=='play')return;
+  /* кнопки панели */
+  if(p.x>PANELX+40&&p.x<PANELX+140&&p.y>520&&p.y<570){toMenu();return;}
+  if(p.x>PANELX+160&&p.x<PANELX+260&&p.y>520&&p.y<570){MUTED=!MUTED;return;}
+  var s=seedAtXY(p.x,p.y);
+  if(s){var d=seedDef(s);
+    if(G.sun>=d.cost&&G.seeds[s]<=0){G.drag=(G.drag===s?null:s);beep(440,0.06);}
+    else beep(150,0.1);
+    return;}
+  var cell=cellFromXY(p.x,p.y);
+  if(cell&&G.drag){tryPlant(G.drag,cell.r,cell.c);G.drag=null;}
+});
+cv.addEventListener('pointermove',function(e){mouse=evXY(e);});
+cv.addEventListener('pointerup',function(e){
+  if(!G||G.state!=='play'||!G.drag)return;
+  var p=evXY(e);
+  var cell=cellFromXY(p.x,p.y);
+  if(cell&&tryPlant(G.drag,cell.r,cell.c))G.drag=null;
+});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&G)G.drag=null;});
+/* --- цикл --- */
+var lastT=0;
+function loop(ts){
+  var dt=Math.min(0.05,(ts-lastT)/1000||0.016);lastT=ts;
+  if(G&&G.state==='play')update(dt);
+  if(G)draw();
+  else{ctx.clearRect(0,0,cv.width,cv.height);drawImg(IMG.bg,0,0,BGW,BGH);} // фон и за меню
+  requestAnimationFrame(loop);
+}
+/* --- экраны --- */
+function toMenu(){
+  G=null;
+  document.getElementById('endov').classList.add('hidden');
+  document.getElementById('menu').classList.remove('hidden');
+}
+document.getElementById('btnLevel1').onclick=function(){
+  document.getElementById('menu').classList.add('hidden');
+  document.getElementById('endov').classList.add('hidden');
+  newGame();
+  try{beep.ac=null;}catch(e){}
+};
+document.getElementById('btnAgain').onclick=function(){
+  document.getElementById('endov').classList.add('hidden');
+  newGame();
+};
+loadAll(function(){});
+requestAnimationFrame(loop);
+window.__z42={newGame:newGame,get G(){return G;},tryPlant:tryPlant,step:function(dt){update(dt);draw();},spawnZom:spawnZom};
+</script>
+</body>
+</html>
