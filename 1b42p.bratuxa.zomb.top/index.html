@@ -348,15 +348,18 @@ function initGL(){
  ring.rotation.x=-Math.PI/2;ring.position.y=0.06;scene.add(ring);
  var t42=new THREE.Sprite(new THREE.SpriteMaterial({map:textTex('42'),transparent:true,depthWrite:false}));
  t42.scale.set(6,3,1);t42.position.set(0,2.5,0);scene.add(t42);
- /* братуха в шубе: тело-шуба + папаха + бита */
+ /* братуха в камуфляже: шуба и папаха в зелёном камо + бита */
  playerG=new THREE.Group();
- var coat=new THREE.Mesh(new THREE.BoxGeometry(1.3,1.7,0.9),new THREE.MeshLambertMaterial({color:0x6d4c41}));
+ var heroCamoTex=null;
+ try{heroCamoTex=new THREE.TextureLoader().load('./img/hero-camo.jpg');}catch(e){}
+ var coatMat=new THREE.MeshLambertMaterial({color:0xffffff,map:heroCamoTex});
+ var coat=new THREE.Mesh(new THREE.BoxGeometry(1.3,1.7,0.9),coatMat);
  coat.position.y=1.0;playerG.add(coat);
  var collar=new THREE.Mesh(new THREE.TorusGeometry(0.42,0.18,8,16),new THREE.MeshLambertMaterial({color:0x4e342e}));
  collar.position.y=1.9;collar.rotation.x=Math.PI/2;playerG.add(collar);
  var head=new THREE.Mesh(new THREE.SphereGeometry(0.45,16,12),new THREE.MeshLambertMaterial({color:0xffcc99}));
  head.position.y=2.3;playerG.add(head);
- var hat=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.55,0.5,12),new THREE.MeshLambertMaterial({color:0x212121}));
+ var hat=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.55,0.5,12),new THREE.MeshLambertMaterial({color:0xffffff,map:heroCamoTex}));
  hat.position.y=2.75;playerG.add(hat);
  batMesh=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.12,1.8,8),new THREE.MeshLambertMaterial({color:0x8d6e63}));
  batMesh.position.set(0.9,1.2,0);batMesh.rotation.z=0.5;playerG.add(batMesh);

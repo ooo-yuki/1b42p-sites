@@ -40,7 +40,9 @@ export function playHangarDrop(stage, spec, { stars = 3 } = {}) {
     const W = () => stage.clientWidth || 2;
     const H = () => stage.clientHeight || 2;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+    // preserve нужен: сценка короткая (5с), а без него часть браузеров отдаёт
+    // пустой/чёрный canvas на скриншотах и при любом чтении пикселей.
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.setSize(W(), H());
     renderer.shadowMap.enabled = true;

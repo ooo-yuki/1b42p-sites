@@ -14,7 +14,7 @@ const NAMES: Record<string, string> = {
   hub: 'Хаб', chaev: 'Чаев', doom: 'Дум', evaelph: 'Эввград',
   smolgrad: 'Смолград', miqqil: 'Танки', setden: 'Сетден',
   svyatoslav: 'Святослав', denis: 'Денис', sasha: 'Саша', gtaevv: 'GTAEVV',
-  brohacho: 'Фабрика', '1b42p': 'Штурм', mtt: 'МТТ',
+  brohacho: 'Фабрика', '1b42p': 'Штурм', mtt: 'МТТ', laiv42: 'LAIV',
 };
 const COLORS: Record<string, string> = {
   hub: '#0060AA', chaev: '#7CFC00', doom: '#ff6b35', evaelph: '#ff7bac',

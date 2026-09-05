@@ -31,3 +31,16 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 .tbtn:active{background:#ff9f1c;color:#231a00}
 #busted{position:fixed;inset:0;z-index:9;display:none;align-items:center;justify-content:center;
  background:rgba(120,0,0,.55);font-size:min(12vw,60px);font-weight:900;color:#fff}
+#hpWrap{display:flex;align-items:center;gap:10px;font-size:17px}
+#hpBar{width:170px;height:14px;background:rgba(0,0,0,.65);border:2px solid #ff9f1c;border-radius:8px;overflow:hidden}
+#hpFill{height:100%;width:100%;background:linear-gradient(90deg,#39d353,#ff9f1c,#ff3b3b)}
+#hudRow{margin-top:2px}
+#joy{position:fixed;left:18px;bottom:24px;z-index:6;width:120px;height:120px;border-radius:50%;
+ border:2px solid #ff9f1c;background:rgba(13,20,40,.55);touch-action:none}
+#joyKnob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;
+ background:rgba(255,159,28,.85);box-shadow:0 0 14px #ff9f1c}
+#hitBtn{position:fixed;right:18px;bottom:24px;z-index:6;width:104px;height:104px;border-radius:50%;
+ border:3px solid #ff3b3b;background:rgba(60,8,8,.75);color:#fff;font-size:34px;font-weight:900;
+ display:flex;flex-direction:column;align-items:center;justify-content:center;touch-action:none;cursor:pointer}
+#hitBtn span{font-size:13px;letter-spacing:1px}
+#hitBtn:active{background:#ff3b3b}

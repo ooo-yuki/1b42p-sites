@@ -25,7 +25,6 @@ function sid(): string {
   }
 }
 
-// маяк трекера
 function beacon(): void {
   try {
     fetch('https://hub.bratuxa.zomb.top/api/track', {
@@ -63,9 +62,12 @@ const NICK_KEY = 'mtt_nick';
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mmRef = useRef<HTMLCanvasElement>(null);
+  const joyRef = useRef<HTMLDivElement>(null);
+  const joyKnob = useRef<HTMLDivElement>(null);
+  const joyId = useRef(-1);
   const gameRef = useRef<Game | null>(null);
   const [menu, setMenu] = useState(true);
-  const [hud, setHud] = useState<HudState>({ coins: 0, speed: 0, score: 0, stars: 0, nitro: 100, busted: false, inCar: true });
+  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false });
   const [scores, setScores] = useState<ScoreRow[]>([]);
   const [nick, setNick] = useState(() => {
     try { return localStorage.getItem(NICK_KEY) || 'Братуха'; } catch { return 'Братуха'; }
@@ -88,14 +90,15 @@ export default function App() {
     });
     gameRef.current = game;
     (window as unknown as { __mtt?: object }).__mtt = {
-      drive: (s: boolean) => game.debugDrive(s),
-      nitro: (s: boolean) => game.debugNitro(s),
       pos: () => game.debugPos(),
-      nitroLeft: () => game.debugNitroLeft(),
+      attack: () => game.debugAttack(),
+      hp: () => game.debugHp(),
+      joy: (x: number, y: number) => game.setJoy(x, y),
+      look: (dx: number, dy: number) => game.addLook(dx, dy),
     };
     const kd = (e: KeyboardEvent) => {
       game.input[e.code] = true;
-      if (e.code === 'KeyE') game.toggleCar();
+      if (e.code === 'Space' || e.code === 'KeyJ') e.preventDefault();
     };
     const ku = (e: KeyboardEvent) => { game.input[e.code] = false; };
     window.addEventListener('keydown', kd);
@@ -117,56 +120,87 @@ export default function App() {
     loadScores().then(setScores);
   }, [nick]);
 
-  const setFlag = useCallback((code: string, v: boolean) => {
-    if (gameRef.current) gameRef.current.input[code] = v;
-  }, []);
-
   const onBustedShown = useRef(false);
   useEffect(() => {
-    if (hud.busted && !onBustedShown.current) {
+    if (hud.dead && !onBustedShown.current) {
       onBustedShown.current = true;
-      submitScore(nick, hud.score, hud.coins);
+      submitScore(nick, hud.score, 0);
       window.setTimeout(() => {
         onBustedShown.current = false;
         loadScores().then(setScores);
       }, 2400);
     }
-  }, [hud.busted, hud.score, hud.coins, nick]);
+  }, [hud.dead, hud.score, nick]);
 
-  const isTouch = 'ontouchstart' in window;
+  // джойстик слева
+  const joyMove = useCallback((e: React.PointerEvent) => {
+    if (joyId.current === -1) return;
+    const base = joyRef.current;
+    if (!base) return;
+    const r = base.getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    let dx = (e.clientX - cx) / (r.width / 2);
+    let dy = (e.clientY - cy) / (r.height / 2);
+    dx = Math.max(-1, Math.min(1, dx));
+    dy = Math.max(-1, Math.min(1, dy));
+    gameRef.current?.setJoy(dx, dy);
+    if (joyKnob.current) joyKnob.current.style.transform = `translate(${dx * 34}px, ${dy * 34}px)`;
+  }, []);
+
+  const joyStart = useCallback((e: React.PointerEvent) => {
+    joyId.current = e.pointerId;
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    joyMove(e);
+  }, [joyMove]);
+
+  const joyEnd = useCallback(() => {
+    joyId.current = -1;
+    gameRef.current?.setJoy(0, 0);
+    if (joyKnob.current) joyKnob.current.style.transform = 'translate(0px, 0px)';
+  }, []);
+
+  const hpFrac = Math.max(0, hud.hp / hud.maxhp);
 
   return (
     <>
       <canvas id="c" ref={canvasRef} />
       {!menu && (
         <div id="hud">
-          🪙 {hud.coins} · 🚗 {hud.speed} км/ч<br />
-          <span id="stars">{'★'.repeat(hud.stars)}{'☆'.repeat(5 - hud.stars)}</span> · 🏆 {hud.score}<br />
-          <div id="nitroWrap"><div id="nitroBar" style={{ width: hud.nitro + '%' }} /></div>
-          <small id="hint">WASD — ехать/идти · E — сесть/выйти · Space — ручник · Shift — НИТРО</small>
+          <div id="hpWrap">
+            <span>❤️ {hud.hp}/{hud.maxhp}</span>
+            <div id="hpBar"><div id="hpFill" style={{ width: `${hpFrac * 100}%` }} /></div>
+          </div>
+          <div id="hudRow">🌊 Волна {hud.wave} · 👹 {hud.enemies} · 💀 {hud.kills} · 🏆 {hud.score}</div>
+          <small id="hint">WASD — идти · мышь/палец — осмотр · Пробел/J — удар · Shift — бег</small>
         </div>
       )}
       <canvas id="mm" width={140} height={140} ref={mmRef} style={{ display: menu ? 'none' : undefined }} />
       {!menu && (
-        <div id="touch" style={{ display: isTouch ? 'flex' : 'none' }}>
-          <div className="tgrp">
-            <button className="tbtn" onPointerDown={() => setFlag('ArrowLeft', true)} onPointerUp={() => setFlag('ArrowLeft', false)} onPointerLeave={() => setFlag('ArrowLeft', false)}>◀</button>
-            <button className="tbtn" onPointerDown={() => setFlag('ArrowRight', true)} onPointerUp={() => setFlag('ArrowRight', false)} onPointerLeave={() => setFlag('ArrowRight', false)}>▶</button>
+        <>
+          <div
+            id="joy"
+            ref={joyRef}
+            onPointerDown={joyStart}
+            onPointerMove={joyMove}
+            onPointerUp={joyEnd}
+            onPointerCancel={joyEnd}
+          >
+            <div id="joyKnob" ref={joyKnob} />
           </div>
-          <div className="tgrp">
-            <button className="tbtn" onClick={() => gameRef.current?.toggleCar()}>E</button>
-            <button className="tbtn" onPointerDown={() => setFlag('ShiftLeft', true)} onPointerUp={() => setFlag('ShiftLeft', false)} onPointerLeave={() => setFlag('ShiftLeft', false)}>🔥</button>
-            <button className="tbtn" onPointerDown={() => setFlag('ArrowUp', true)} onPointerUp={() => setFlag('ArrowUp', false)} onPointerLeave={() => setFlag('ArrowUp', false)}>▲</button>
-            <button className="tbtn" onPointerDown={() => setFlag('ArrowDown', true)} onPointerUp={() => setFlag('ArrowDown', false)} onPointerLeave={() => setFlag('ArrowDown', false)}>▼</button>
-          </div>
-        </div>
+          <button
+            id="hitBtn"
+            onPointerDown={() => gameRef.current?.attack()}
+          >
+            👊<span>УДАР</span>
+          </button>
+        </>
       )}
-      {hud.busted && !menu && <div id="busted" style={{ display: 'flex' }}>ПОЙМАН! 👮</div>}
+      {hud.dead && !menu && <div id="busted" style={{ display: 'flex' }}>ЗАВАЛЕН! 👊<br />{hud.score} 🏆</div>}
       {menu && (
         <div id="menu">
-          <h1>🏎️ МТТ VI 💨</h1>
-          <p>Личный ночной город МТТ с RTX-погодой: мокрый асфальт, неон, тени и фары.
-            Угоняй тачку, жги нитро, собирай монеты — но не попадись копам!
+          <h1>👊 МТТ VI 💥</h1>
+          <p>Арена МТТ от первого лица: машешься с волнами врагов, у каждого полоска HP.
+            Джойстик слева — движение, кнопка справа — удар. Выживи!
             <br /><a id="hubLink" href="https://hub.bratuxa.zomb.top">← Хаб 1Б42П</a></p>
           <div className="menuArt">
             <img src={oruzh1Url} alt="кулаки" />
@@ -184,7 +218,7 @@ export default function App() {
             <div className="board">
               <h3>🏆 Топ братух</h3>
               <ol>{scores.slice(0, 5).map((s, i) => (
-                <li key={i}>{s.nick} — {s.score} 🏆 · {s.coins} 🪙</li>
+                <li key={i}>{s.nick} — {s.score} 🏆</li>
               ))}</ol>
             </div>
           )}
