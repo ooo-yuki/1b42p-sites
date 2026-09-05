@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { C, box, cyl, sph, mat } from '../palette';
+import { buildFarPlan } from './farplan';
 
 // Статика мира: земля, дорожка, клумбы, деревья, облака, птицы,
 // бабочки, забор, фонари, грибы, пень.
@@ -50,9 +51,34 @@ export function buildEnvironment(): Environment {
   lawn.receiveShadow = true;
   g.add(lawn);
 
-  // Дорога (серая лента + пунктир) — за края земли
-  g.add(box(64, 0.04, 3.2, 0xcfc4b8, 0, 0.02, 14.5));
-  for (let i = -15; i <= 15; i += 2) {
+  // Дальний план: большой кремовый диск в цвет земли — видимого края нет,
+  // горизонт заполнен, а не плоскость пустоты
+  const far = new THREE.Mesh(
+    new THREE.CircleGeometry(120, 48),
+    mat(0xead9c2, { rough: 1 }),
+  );
+  far.rotation.x = -Math.PI / 2;
+  far.position.y = -0.04;
+  far.receiveShadow = false;
+  g.add(far);
+
+  // Пастельные проплешины дальнего плана — живая земля вместо плоскости
+  const patchCols = [0xe2d2ba, 0xd8e4c8, 0xead9c2, 0xdce8d2];
+  const patches: Array<[number, number, number, number]> = [
+    [-45, 30, 9, 0], [50, -20, 11, 1], [-20, -55, 8, 2], [60, 35, 7, 3],
+    [-60, -25, 10, 0], [25, 60, 8, 1], [-35, 70, 9, 2], [70, -50, 8, 3],
+  ];
+  for (const [x, z, r, ci] of patches) {
+    const p = new THREE.Mesh(new THREE.CircleGeometry(r, 24), mat(patchCols[ci], { rough: 1 }));
+    p.rotation.x = -Math.PI / 2;
+    p.position.set(x, -0.02, z);
+    p.receiveShadow = false;
+    g.add(p);
+  }
+
+  // Дорога (серая лента + пунктир) — тянется вдаль, а не в пустоту
+  g.add(box(170, 0.04, 3.2, 0xcfc4b8, 0, 0.02, 14.5));
+  for (let i = -42; i <= 42; i += 2) {
     g.add(box(0.9, 0.05, 0.15, 0xfff6ea, i * 2, 0.03, 14.5));
   }
 
@@ -135,6 +161,9 @@ export function buildEnvironment(): Environment {
     tree.add(sph(0.5 * s, C.leaf, -0.5 * s, 1.6 * s, -0.2 * s));
     g.add(tree);
   }
+
+  // Дальний план: кольцо деревьев, холмы, пруд и кусты (см. farplan.ts)
+  g.add(buildFarPlan());
 
   // 3 яблони с яблоками
   const appleTrees: Array<[number, number]> = [[-7.5, -1.5], [0.5, -9.5], [-5.5, -7]];
