@@ -4,9 +4,12 @@
    Поток: выбор игры → поиск (пул) → голос за заход → бой → реванш.
    Число игроков диктуют правила игры, не кнопки. Фишек нет: победа — в летопись. */
 
-import { closeBank, openBank } from './bank';
+import { openPgBank } from './bank-pg';
 
-const bank = openBank(new URL('./bank42.db', import.meta.url).pathname);
+/* Касса живёт в Neon Postgres (проект sasha-bank): URL — из секретного
+   .bank-url (chmod 600, в git не едет). SQLite bank42.db — запасной архив. */
+const BANK_URL = (await Bun.file(new URL('../.bank-url', import.meta.url).pathname).text()).trim();
+const bank = openPgBank(BANK_URL);
 
 const PORT = 8094;
 const ROUND_SECS = 12;
@@ -1141,29 +1144,29 @@ const server = import.meta.main ? Bun.serve({
     }
     if (u.pathname === '/api/bank/register' && req.method === 'POST') {
       const { nick, pass } = await req.json().catch(() => ({})) as { nick?: string; pass?: string };
-      const r = bank.register(String(nick ?? ''), String(pass ?? ''));
+      const r = await bank.register(String(nick ?? ''), String(pass ?? ''));
       return Response.json(r.ok ? { ok: true, token: r.token, nick: String(nick).trim(), balance: r.balance }
         : { ok: false, error: r.error });
     }
     if (u.pathname === '/api/bank/login' && req.method === 'POST') {
       const { nick, pass } = await req.json().catch(() => ({})) as { nick?: string; pass?: string };
-      const r = bank.login(String(nick ?? ''), String(pass ?? ''));
+      const r = await bank.login(String(nick ?? ''), String(pass ?? ''));
       return Response.json(r.ok ? { ok: true, token: r.token, nick: String(nick).trim(), balance: r.balance }
         : { ok: false, error: r.error });
     }
     if (u.pathname === '/api/bank/me' && req.method === 'GET') {
-      const me = bank.verify(tokenOf(req));
+      const me = await bank.verify(tokenOf(req));
       return Response.json(me ? { ok: true, ...me } : { ok: false });
     }
     if (u.pathname === '/api/bank/sync' && req.method === 'POST') {
-      const me = bank.verify(tokenOf(req));
+      const me = await bank.verify(tokenOf(req));
       if (!me) return Response.json({ ok: false, error: 'Войди в кассу' }, { status: 401 });
       const { delta } = await req.json().catch(() => ({})) as { delta?: number };
-      const r = bank.applyDelta(me.uid, Math.trunc(Number(delta)));
+      const r = await bank.applyDelta(me.uid, Math.trunc(Number(delta)));
       return Response.json(r ? { ok: true, balance: r.balance } : { ok: false, error: 'Касса пуста' });
     }
     if (u.pathname === '/api/bank/leaders' && req.method === 'GET') {
-      return Response.json({ ok: true, leaders: bank.leaders(20) });
+      return Response.json({ ok: true, leaders: await bank.leaders(20) });
     }
     return new Response('arena42', { status: 404 });
   },

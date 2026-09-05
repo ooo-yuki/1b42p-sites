@@ -1,5 +1,7 @@
 node_modules/
 tw.out.css
+.bank-url
+.bank-url-test
 arena/bank42.db
 arena/*.test.db
 /tmp/
