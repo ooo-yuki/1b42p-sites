@@ -293,7 +293,9 @@ export default function Crash({ api }: { api: Api }): JSX.Element {
     const stake = parseStake(bet, 10, api);
     if (stake === null) return;
     const r = Math.random();
-    const point = r < 0.03 ? 1 : Math.max(1, (0.97 / (1 - r)) * 0.97 + 0.03);
+    /* Краш-поинт — классика Bustabit v2 с edge 3%: 3% мгновенный крэш 1.00,
+       иначе 0.97/(1-r). Возврат 0.97 на любом выводе, медиана 1.94. */
+    const point = r < 0.03 ? 1 : Math.max(1, 0.97 / (1 - r));
     setPhase('ignite');
     sfx.click();
     api.say(`Зажигание… ракета уже дрожит`);
