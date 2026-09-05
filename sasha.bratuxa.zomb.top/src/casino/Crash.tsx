@@ -3,6 +3,7 @@ import { Api, Log, Num, parseStake } from './shared';
 import { ItemIcon } from '../casino-icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 import { sfx } from './sound';
 import './crash.css';
 
@@ -420,7 +421,7 @@ export default function Crash({ api }: { api: Api }): JSX.Element {
           <canvas className="curve" ref={cvRef} />
           <div className="presets" role="group" aria-label="Быстрая ставка">
             {PRESETS.map(p => (
-              <button key={p} className={bet === String(p) ? 'sel' : ''} onClick={() => { setBet(String(p)); sfx.click(); }}>
+              <button key={p} className={cn('preset', bet === String(p) && 'sel')} aria-pressed={bet === String(p)} onClick={() => { setBet(String(p)); sfx.click(); }}>
                 {p}
               </button>
             ))}
@@ -428,7 +429,7 @@ export default function Crash({ api }: { api: Api }): JSX.Element {
           <div className="crow" style={{ marginTop: 10 }}>
             <Input value={bet} onChange={e => setBet(e.target.value)} inputMode="numeric" aria-label="Ставка на краш" />
             {!live && !ignite
-              ? <Button onClick={start}>Погнали <ItemIcon name="rocket" /></Button>
+              ? <Button onClick={start}>Погнали <ItemIcon name="rocket" data-icon="inline-end" /></Button>
               : <Button variant="secondary" disabled={!live} onClick={cashOut}>
                   {ignite ? 'Зажигание…' : <>Забрать <Num>+{liveWin}</Num></>}
                 </Button>}

@@ -36,10 +36,11 @@ export default function Game(): JSX.Element {
     setSecret(true);
     if (!reduced) {
       requestAnimationFrame(() => {
+        gsap.killTweensOf('#secret .big, #secret h2');
         gsap.fromTo(
           '#secret .big',
           { scale: 0.4, rotation: -12, autoAlpha: 0 },
-          { scale: 1, rotation: 0, autoAlpha: 1, duration: 0.8, ease: 'back.out(1.6)' },
+          { scale: 1, rotation: 0, autoAlpha: 1, duration: 0.8, ease: 'back.out(1.6)', overwrite: 'auto' },
         );
         gsap.fromTo(
           '#secret h2',
@@ -102,13 +103,14 @@ export default function Game(): JSX.Element {
       const next = scoreRef.current + amt;
       scoreRef.current = next;
       setScore(next);
-      gsap.fromTo('#depBtn', { scale: 1 }, { scale: 1.15, duration: 0.14, yoyo: true, repeat: 1, ease: 'power2.out' });
+      gsap.killTweensOf('#depBtn');
+      gsap.fromTo('#depBtn', { scale: 1 }, { scale: 1.15, duration: 0.14, yoyo: true, repeat: 1, ease: 'power2.out', overwrite: 'auto', clearProps: 'transform' });
       const b = document.getElementById('depBtn');
       const r = b?.getBoundingClientRect();
       const cx = r ? r.left + r.width / 2 : window.innerWidth / 2;
       const cy = r ? r.top : window.innerHeight / 2;
       domRing(cx, cy);
-      fireRocket(cx, cy);
+      if (next >= GOAL) fireRocket(cx, cy);
     },
     [fireRocket, showSecret],
   );
@@ -139,6 +141,10 @@ export default function Game(): JSX.Element {
     (window as unknown as { __sasha42?: unknown }).__sasha42 = {
       score: () => scoreRef.current,
       three: () => typeof window !== 'undefined' && 'WebGLRenderingContext' in window,
+    };
+    return () => {
+      gsap.killTweensOf('#salto-pop, #ring, #score, #secret .big, #secret h2, #depBtn');
+      gsap.set('#secret .big, #secret h2, #depBtn', { clearProps: 'opacity,visibility,transform' });
     };
   }, []);
 

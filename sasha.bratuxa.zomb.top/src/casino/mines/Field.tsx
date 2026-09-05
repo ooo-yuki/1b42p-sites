@@ -29,8 +29,8 @@ export default function Field({ field, open, dead, blast, glow, onOpen }: Props)
             aria-label={op ? (mine ? 'Мина' : 'Кристалл') : `Закрытая клетка ${i + 1}, ряд ${Math.floor(i / SIZE) + 1}`}>
             {op ? (
               mine
-                ? <Bomb aria-hidden data-icon="inline" />
-                : <Gem aria-hidden data-icon="inline" />
+                ? <Bomb aria-hidden data-icon="inline-start" />
+                : <Gem aria-hidden data-icon="inline-start" />
             ) : (
               <span className="rivet" aria-hidden="true"><i /><i /><i /><i /></span>
             )}

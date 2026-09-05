@@ -9,6 +9,20 @@
 </head>
 <body>
 <div id="root"><p class="boot">Стучимся в клуб…</p></div>
+<script>
+window.addEventListener('error', function () {
+  var b = document.querySelector('#root .boot');
+  if (b && !b.dataset.dead) {
+    b.dataset.dead = '1';
+    b.textContent = 'Не достучались — ';
+    var btn = document.createElement('button');
+    btn.textContent = 'Попробовать снова';
+    btn.style.cssText = 'background:#0060AA;color:#fff;border:0;border-radius:999px;padding:8px 18px;font-size:14px;cursor:pointer';
+    btn.onclick = function () { location.reload(); };
+    b.appendChild(btn);
+  }
+});
+</script>
 <script type="module" src="./src/landing-main.tsx"></script>
 </body>
 </html>

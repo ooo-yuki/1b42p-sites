@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import gsap from 'gsap';
+import { Button } from '@/components/ui/button';
 import { startBeacon } from './lib/beacon';
 import './stats.css';
 import { Activity, ChartLine, Code, Medal, Radio, Trophy, Users } from 'lucide-react';
@@ -147,9 +148,14 @@ function Count({ to }: { to: number }): JSX.Element {
       return;
     }
     const o = ref.current;
+    let last = o.n;
     const tw = gsap.to(o, {
       n: to, duration: 0.8, ease: 'power2.out',
-      onUpdate: () => setV(Math.round(o.n)),
+      // тот же урок, что в рулетке: стейт только при смене целого, не на каждый кадр
+      onUpdate: () => {
+        const v = Math.round(o.n);
+        if (v !== last) { last = v; setV(v); }
+      },
     });
     return () => {
       tw.kill();
@@ -161,6 +167,8 @@ function Count({ to }: { to: number }): JSX.Element {
 export default function Stats(): JSX.Element {
   const [st, setSt] = useState<Stats | null>(null);
   const [mst, setMst] = useState<Metrics | null>(null);
+  const [fail, setFail] = useState(false);
+  const [retry, setRetry] = useState(0);
   const [upd, setUpd] = useState('');
   const cvRef = useRef<HTMLCanvasElement | null>(null);
   const first = useRef(true);
@@ -171,11 +179,13 @@ export default function Stats(): JSX.Element {
     const load = async (): Promise<void> => {
       try {
         const r = await (await fetch(API)).json();
-        if (dead || !r.ok) return;
+        if (dead) return;
+        if (!r.ok) { setFail(true); return; }
+        setFail(false);
         setSt(r as Stats);
         setUpd(new Date().toLocaleTimeString('ru-RU'));
       } catch {
-        /* offline — тихо */
+        if (!dead) setFail(true);
       }
       try {
         const m = await (await fetch('./metrics.json')).json();
@@ -190,7 +200,7 @@ export default function Stats(): JSX.Element {
       dead = true;
       clearInterval(t);
     };
-  }, []);
+  }, [retry]);
 
   useEffect(() => {
     if (st && cvRef.current) drawGraph(cvRef.current, st.history || []);
@@ -200,6 +210,11 @@ export default function Stats(): JSX.Element {
       gsap.from('.stx-card', { y: 22, autoAlpha: 0, duration: 0.5, stagger: 0.05, ease: 'power2.out', delay: 0.15 });
       gsap.from('.stx-sec', { y: 24, autoAlpha: 0, duration: 0.6, stagger: 0.12, ease: 'power2.out', delay: 0.3 });
     }
+    // размонтирование mid-flight: убить и снять инлайн-стили, иначе фриз
+    return () => {
+      gsap.killTweensOf('.stx-hero, .stx-card, .stx-sec');
+      gsap.set('.stx-hero, .stx-card, .stx-sec', { clearProps: 'opacity,visibility,transform' });
+    };
   }, [st]);
 
   useEffect(() => {
@@ -264,6 +279,18 @@ export default function Stats(): JSX.Element {
             <div className="stx-big-label">сейчас онлайн по всему батальону</div>
           </div>
         </div>
+        {fail && !st && (
+          <div className="stx-sec" role="alert">
+            <p>Хаб спит — онлайн не виден. Проверь связь и стукни ещё раз.</p>
+            <Button variant="outline" size="sm" onClick={() => setRetry(r => r + 1)}>Обновить</Button>
+          </div>
+        )}
+        {fail && st && (
+          <div className="stx-sec" role="alert">
+            <p>Данные протухли · показано на {upd} — хаб не отвечает.</p>
+            <Button variant="outline" size="sm" onClick={() => setRetry(r => r + 1)}>Обновить</Button>
+          </div>
+        )}
 
         <div className="stx-sec">
           <h2 className="stx-sec-t"><Activity data-icon="inline-start" /> По сайтам</h2>
@@ -297,6 +324,9 @@ export default function Stats(): JSX.Element {
                   <td>{x.n}</td>
                 </tr>
               ))}
+              {st && st.everPerSite.length === 0 && (
+                <tr><td colSpan={2}>Пока тихо — никто ещё не заходил. Будешь первым?</td></tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -335,6 +365,9 @@ export default function Stats(): JSX.Element {
                   <td>{peakTime(x.at)}</td>
                 </tr>
               ))}
+              {st && peaks.length === 0 && (
+                <tr><td colSpan={3}>Сутки ещё пишут историю — пиков пока нет.</td></tr>
+              )}
             </tbody>
           </table>
           <div className="stx-foot" style={{ marginTop: 8 }}>

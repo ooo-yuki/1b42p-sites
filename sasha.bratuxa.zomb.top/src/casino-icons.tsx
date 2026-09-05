@@ -510,9 +510,9 @@ const ARTS: Record<string, Pix> = {
   },
 };
 
-export function ItemIcon({ name, className }: { name: string; className?: string }): JSX.Element {
+export function ItemIcon({ name, className, ...rest }: { name: string; className?: string; [k: string]: unknown }): JSX.Element {
   const art = ARTS[name] ?? ARTS.star;
-  return <PixSvg art={art} className={className} />;
+  return <PixSvg art={art} className={className} {...rest} />;
 }
 
 export function iconNameForDrop(label: string): string {

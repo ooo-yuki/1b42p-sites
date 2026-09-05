@@ -36,7 +36,7 @@ export default function Wheel({ spinning, angle, ballPocket, rnum, won }: Props)
       <svg className="wheel" viewBox="0 0 200 200"
         style={{ transform: `rotate(${angle}deg)` }} role="img" aria-label="Колесо рулетки">
         <circle cx="100" cy="100" r="98" fill="#20242e" />
-        <circle cx="100" cy="100" r="98" fill="none" stroke="#c9a227" strokeWidth="1.6" opacity="0.7" />
+        <circle cx="100" cy="100" r="98" fill="none" stroke="#f0f0f0" strokeWidth="1.6" opacity="0.7" />
         {Array.from({ length: N }, (_, n) => (
           <path key={n} d={wedge(n)} fill={pocketColor(n)} stroke="#0b0e14" strokeWidth="0.8" />
         ))}

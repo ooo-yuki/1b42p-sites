@@ -7,7 +7,7 @@
 }
 .seat.dimmed{opacity:.75}
 .seat .badge{font-variant-numeric:tabular-nums}
-.bust-hint{display:block; margin-top:6px; font-size:11.5px; color:#c9a227}
+.bust-hint{display:block; margin-top:6px; font-size:11.5px; color:#f0f0f0}
 
 @media (prefers-reduced-motion:reduce){
   .hand .pcard.deal{animation:none}

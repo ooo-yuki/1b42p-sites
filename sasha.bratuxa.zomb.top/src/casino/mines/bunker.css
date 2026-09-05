@@ -29,7 +29,7 @@
 .risk-top b{color:#E31E25; font-size:14px}
 .risk-bar{display:block; height:6px; border-radius:3px; background:rgba(255,255,255,.08); overflow:hidden}
 .risk-bar i{display:block; height:100%; border-radius:3px;
-  background:linear-gradient(90deg, #2f9e44, #c9a227 55%, #E31E25);
+  background:linear-gradient(90deg, #2f9e44, #0060AA 55%, #E31E25);
   transition:width .25s ease-out}
 .risk small{font-size:11.5px; color:#808080}
 

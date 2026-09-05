@@ -34,7 +34,7 @@ export default function Landing(): JSX.Element {
           <a id="casinoBtn" className="pill ghost" href="casino.html" style={{ textDecoration: 'none' }}>
             <Dices data-icon="inline-start" /> Казино
           </a>
-          <a id="arenaBtn" className="pill solid" href="arena.html" style={{ textDecoration: 'none' }}>
+          <a id="arenaBtn" className="pill ghost" href="arena.html" style={{ textDecoration: 'none' }}>
             <Users data-icon="inline-start" /> Арена · онлайн 2–5
           </a>
           <a id="hubBtn" className="pill ghost" href="https://hub.bratuxa.zomb.top" style={{ textDecoration: 'none' }}>

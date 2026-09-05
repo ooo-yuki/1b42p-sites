@@ -486,9 +486,16 @@ function onJoin(c: Client, code: unknown): void {
   const cc = String(code ?? '').toUpperCase().trim();
   const r = rooms.get(cc);
   if (!r) return send(c.ws, { t: 'err', msg: 'комнаты с таким кодом нет' });
+  // свой reconneкт: уже в составе — вернуть состояние, без дублей и без фазы-чека
+  if (r.players.includes(c.id)) {
+    c.roomId = r.code;
+    send(c.ws, roomState(r));
+    return;
+  }
   if (r.players.length >= gameCap(r.game)) return send(c.ws, { t: 'err', msg: `комната полна (${r.players.length}/${gameCap(r.game)})` });
   if (r.phase === 'play') return send(c.ws, { t: 'err', msg: 'бой уже идёт — дождись конца' });
-  if (c.roomId) detach(c);
+  // вступление по коду всегда снимает с пула поиска — иначе призрак в кворуме
+  detach(c);
   c.roomId = r.code;
   r.players.push(c.id);
   send(c.ws, roomState(r));
@@ -516,7 +523,7 @@ function onRematch(c: Client): void {
 function onChat(c: Client, text: unknown): void {
   const r = c.roomId ? rooms.get(c.roomId) : undefined;
   if (!r) return;
-  if (now() - c.lastChat < 1500) return;
+  if (now() - c.lastChat < 1500) return send(c.ws, { t: 'err', msg: 'помедленнее, братуха — секунда передышки' });
   const t = String(text ?? '').trim().slice(0, 140).replace(/[<>&]/g, '');
   if (!t) return;
   c.lastChat = now();
@@ -972,6 +979,7 @@ function monoLeave(r: Room, id: string): void {
 
 function startGame(r: Room): void {
   if (r.players.length < 2) return;
+  r.game = sanitizeGame(r.game);
   if (r.game === 'durak') return startDurak(r);
   if (r.game === 'chess') return startChess(r);
   if (r.game === 'checkers') return startCheckers(r);
@@ -1008,7 +1016,8 @@ function nextRound(r: Room): void {
 function resolveRound(r: Room): void {
   killTimer(r);
   const who = r.contenders.length > 0 ? r.contenders : r.alive;
-  const vals = who.map(id => ({ id, v: r.rolls[id] ?? rnd(6) }));
+  for (const id of who) r.rolls[id] ??= rnd(6);
+  const vals = who.map(id => ({ id, v: r.rolls[id] as number }));
   const min = Math.min(...vals.map(x => x.v));
   const lows = vals.filter(x => x.v === min);
   if (lows.length === vals.length) {

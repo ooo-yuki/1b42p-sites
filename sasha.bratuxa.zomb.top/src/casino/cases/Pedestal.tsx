@@ -15,7 +15,7 @@ type Props = {
   onAgain: () => void;
 };
 
-const CONFETTI = ['#0060AA', '#E31E25', '#FFFFFF', '#808080', '#2f9e44', '#c9a227'];
+const CONFETTI = ['#0060AA', '#E31E25', '#FFFFFF', '#808080', '#2f9e44', '#004578'];
 
 function useCountUp(target: number, dur = 900): number {
   const [v, setV] = useState(0);
@@ -25,7 +25,8 @@ function useCountUp(target: number, dur = 900): number {
     const step = (t: number): void => {
       const p = Math.min(1, (t - t0) / dur);
       const e = 1 - Math.pow(1 - p, 3);
-      setV(Math.round(target * e));
+      const next = Math.round(target * e);
+      setV(prev => (prev === next ? prev : next));
       if (p < 1) raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
@@ -44,9 +45,11 @@ export default function Pedestal({ win, price, reduced, onAgain }: Props): JSX.E
 
   useEffect(() => {
     if (stampRef.current && !reduced) {
-      gsap.fromTo(stampRef.current, { scale: 2.4, rotate: -14, opacity: 0 },
-        { scale: 1, rotate: -8, opacity: 1, duration: 0.45, ease: 'back.out(1.6)', delay: 0.35 });
+      const tw = gsap.fromTo(stampRef.current, { scale: 2.4, rotate: -14, autoAlpha: 0 },
+        { scale: 1, rotate: -8, autoAlpha: 1, duration: 0.45, ease: 'back.out(1.6)', delay: 0.35, overwrite: 'auto' });
+      return () => { tw.kill(); };
     }
+    return undefined;
   }, [win, reduced]);
 
   useEffect(() => {

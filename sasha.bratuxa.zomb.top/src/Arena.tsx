@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Trophy } from 'lucide-react';
 import Lobby from './arena/Lobby';
 import Room, { type ChatLine, type FeedLine } from './arena/Room';
 import Settings from './arena/Settings';
@@ -338,7 +339,10 @@ export default function Arena(): JSX.Element {
             {conn === 'dead' && (
               <p className="aerr" role="alert">
                 Клуб недоступен — сервер арены спит. Обнови страницу чуть позже.
-                {err ? ` (${err})` : ''}
+                {err ? ` (${err})` : ''}{' '}
+                <button className="pill ghost" style={{ marginLeft: 8 }} onClick={() => location.reload()}>
+                  Стучаться снова
+                </button>
               </p>
             )}
             {conn === 'connecting' && <p className="aconn">Стучимся в клуб…</p>}
@@ -366,7 +370,7 @@ export default function Arena(): JSX.Element {
                 onChat={t => send({ t: 'chat', text: t })} />
             )}
             {err && room && <p className="aerr" role="alert">{err}</p>}
-            <p className="amantra">Мы уже победили 🏆</p>
+            <p className="amantra">Мы уже победили <Trophy data-icon="inline-end" aria-hidden /></p>
           </div>
           <Settings name={name} wins={wins} online={online} muted={muted}
             onName={changeName}
