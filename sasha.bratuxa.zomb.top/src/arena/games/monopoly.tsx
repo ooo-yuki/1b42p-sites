@@ -25,7 +25,10 @@ function cellPos(i: number): { r: number; c: number } {
 
 const shortName = (n: string): string =>
   n.replace('Электростанция 42', 'Эл-ство').replace('Водокачка 42', 'Вода')
-    .replace('Саша-территория', 'Саша').replace('Вокзал ', 'Вкз. ');
+    .replace('Саша-территория', 'Саша').replace('Вокзал Смолград', 'Вкз. Смол.')
+    .replace('Вокзал ', 'Вкз. ').replace('Сарай Смолграда', 'Сарай Смол.')
+    .replace('Гараж Сетдена', 'Гараж').replace('Налоговая', 'Налог')
+    .replace('Суперналог', 'Супер.').replace('Эввград-', 'Эвв-');
 
 export default function MonoBoard({ me, room, secsLeft, onMove }: GameViewProps): JSX.Element {
   const [buildCell, setBuildCell] = useState<number | null>(null);
