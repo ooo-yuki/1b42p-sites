@@ -5,6 +5,7 @@ import './casino/hall.css';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ItemIcon } from './casino-icons';
+import { Separator } from '@/components/ui/separator';
 import { Coins, CreditCard, House, RotateCcw, Trophy } from 'lucide-react';
 import type { Api, Tone } from './casino/shared';
 import AuthGate from './casino/AuthGate';
@@ -233,6 +234,7 @@ export default function Casino(): JSX.Element {
             {(!user && !guest) && (
               <AuthGate onAuth={enter} onGuest={() => { setGuest(true); say('Гость в зале. Счёт местный, в таблицу не идёт'); }} />
             )}
+            <Separator className="lobby-sep" />
             <Leaders me={user?.nick ?? null} />
             <p className="cfoot">Фишки фантики, азарт настоящий. Восемь залов — всё на территории Саши. Мы уже победили</p>
             <div className="cnav">
