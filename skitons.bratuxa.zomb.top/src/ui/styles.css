@@ -23,6 +23,14 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--cocoa)
 
 .app { position: fixed; inset: 0; overflow: hidden; }
 .scene { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* Заглушка вместо вечного белого canvas, если WebGL упал/потерян */
+.scene-fallback {
+  position: absolute; inset: 0; z-index: 4;
+  display: flex; flex-direction: column; gap: 10px;
+  align-items: center; justify-content: center; text-align: center;
+  background: var(--cream); color: var(--cocoa); padding: 24px;
+}
+.scene-fallback p { margin: 0; font-size: 15px; font-weight: 700; }
 
 /* HUD */
 .hud {

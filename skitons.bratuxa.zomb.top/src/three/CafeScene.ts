@@ -26,7 +26,7 @@ interface Guest { mesh: Person; st: 'wait' | 'go' | 'sit' | 'back'; wi: number; 
 interface Glow { m: THREE.MeshStandardMaterial; base: number; seed: number; }
 
 export class CafeScene {
-  private renderer: THREE.WebGLRenderer;
+  private renderer!: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
   private camera: THREE.PerspectiveCamera;
   private env: Environment;
@@ -56,9 +56,39 @@ export class CafeScene {
   private tod = 0.35; private manual = 0; // 0..1, 0=полночь 0.5=полдень; manual=пауза автоцикла 240с
   private raf = 0; private clock = new THREE.Clock(); private disposed = false;
   private ro: ResizeObserver | null = null;
-  constructor(private canvas: HTMLCanvasElement, private getLevels: () => Levels) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  private onLost: (() => void) | null = null;
+  private lostHandler: ((e: Event) => void) | null = null;
+  private restoredHandler: (() => void) | null = null;
+  constructor(private canvas: HTMLCanvasElement, private getLevels: () => Levels, onFatal?: () => void) {
+    // Мобильные GPU/батарейки/WebView могут не дать WebGL с MSAA:
+    // пробуем с antialias, затем без, затем с минимальным pixelRatio.
+    // Без этого исключение из useEffect оставляло белый canvas навсегда.
+    const coarse = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      && window.matchMedia('(pointer: coarse)').matches;
+    // На телефонах режем backing store (~44% меньше пикселей, чем DPR 2):
+    // сцена low-poly, разница незаметна, а риск потери контекста ниже.
+    const prCap = coarse ? 1.5 : 2;
+    let lastErr: unknown = null;
+    for (const opts of [{ antialias: true }, { antialias: false }]) {
+      try {
+        this.renderer = new THREE.WebGLRenderer({ canvas, ...opts });
+        break;
+      } catch (e) { lastErr = e; }
+    }
+    if (!this.renderer) throw lastErr instanceof Error ? lastErr : new Error('WebGL недоступен');
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, prCap));
+    // Потеря контекста (фон, память, сброс GPU на мобильных) гасила canvas
+    // навсегда — останавливаем цикл и отдаём фатальную ошибку в UI с ретраем.
+    this.onLost = onFatal ?? null;
+    this.lostHandler = (e: Event) => {
+      e.preventDefault();
+      this.disposed = true;
+      cancelAnimationFrame(this.raf);
+      this.onLost?.();
+    };
+    this.restoredHandler = () => { this.onLost?.(); };
+    canvas.addEventListener('webglcontextlost', this.lostHandler, false);
+    canvas.addEventListener('webglcontextrestored', this.restoredHandler, false);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -189,6 +219,8 @@ export class CafeScene {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
     this.ro?.disconnect();
+    if (this.lostHandler) this.canvas.removeEventListener('webglcontextlost', this.lostHandler);
+    if (this.restoredHandler) this.canvas.removeEventListener('webglcontextrestored', this.restoredHandler);
     for (const p of [...this.dust, ...this.flies]) { (p.material as THREE.SpriteMaterial).dispose(); this.scene.remove(p); }
     this.dust = []; this.flies = [];
     disposeGroup(this.dyn);

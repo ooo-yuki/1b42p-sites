@@ -41,15 +41,26 @@ export default function App() {
   const sceneRef = useRef<CafeScene | null>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
+  const [sceneKey, setSceneKey] = useState(0);
+  const [sceneFailed, setSceneFailed] = useState(false);
 
   // Сцена: создать один раз, камеру и уровни — по состоянию.
+  // Ошибка WebGL / потеря контекста больше не дают вечный белый canvas:
+  // показываем заглушку с кнопкой повтора.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const scene = new CafeScene(canvas, () => stateRef.current.levels);
+    let scene: CafeScene | null = null;
+    try {
+      scene = new CafeScene(canvas, () => stateRef.current.levels, () => setSceneFailed(true));
+    } catch {
+      setSceneFailed(true);
+      return;
+    }
+    setSceneFailed(false);
     sceneRef.current = scene;
     return () => { scene.dispose(); sceneRef.current = null; };
-  }, []);
+  }, [sceneKey]);
 
   useEffect(() => { sceneRef.current?.setView(camera); }, [camera]);
   useEffect(() => { sceneRef.current?.applyLevels(state.levels); }, [state.levels]);
@@ -124,7 +135,13 @@ export default function App() {
 
   return (
     <div className="app">
-      <canvas ref={canvasRef} className="scene" aria-label="Кафе" />
+      <canvas key={sceneKey} ref={canvasRef} className="scene" aria-label="Кафе" />
+      {sceneFailed && (
+        <div className="scene-fallback" role="alert">
+          <p>3D не запустилось на этом устройстве</p>
+          <button className="pill-btn" onClick={() => setSceneKey((k) => k + 1)}>Попробовать снова</button>
+        </div>
+      )}
       <Hud coins={state.coins} gps={gps} ips={ips} stars={rating(state.levels)} />
 
       <div className="toasts" aria-live="polite">
