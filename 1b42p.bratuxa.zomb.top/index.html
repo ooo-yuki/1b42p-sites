@@ -64,7 +64,7 @@ html,body{margin:0;padding:0;background:var(--bg);color:#f2eafc;font-family:syst
 <body>
 <div id="top">
 <h1>1Б42П: ШТУРМ 3D ⚔️</h1>
-<div class="sub">арена Батальона в 3D · дойди до 42-й волны · <a href="https://hub.bratuxa.zomb.top">← Хаб 1Б42П</a></div>
+<div class="sub">Vice City Батальона в 3D · дойди до 42-й волны · F — тачка · <a href="https://hub.bratuxa.zomb.top">← Хаб 1Б42П</a></div>
 <div id="res">
 <span class="pill">⏱️ Время: <b id="rT">0:00</b></span>
 <span class="pill">💠 Ур: <b id="rL">1</b></span>
@@ -87,7 +87,7 @@ html,body{margin:0;padding:0;background:var(--bg);color:#f2eafc;font-family:syst
 </div>
 <div id="shop"><h3>🛒 Снаряга (фантики)</h3><div id="shopItems"></div></div>
 </div>
-<div class="hint">WASD/стрелки — движение · Пробел — рывок · E — вихрь · Q — ZOV · на телефоне — левый стик</div>
+<div class="hint">WASD/стрелки — движение · F — тачка · Пробел — рывок · E — вихрь · Q — ZOV · на телефоне — левый стик</div>
 <div id="over"><div id="overBox">
 <h2 id="overT">ШТУРМ ОКОНЧЕН</h2>
 <p id="overP"></p>
@@ -159,12 +159,17 @@ function GY(x,z){return groundHeight(x,z);}
 var ZONE_COL=null;
 function zoneColor(x,z,out){
  if(!ZONE_COL){ZONE_COL={beach:new THREE.Color(0xd9b84a),city:new THREE.Color(0x2a2a35),
-  forest:new THREE.Color(0x1e6a34),mtn:new THREE.Color(0x6b6f75)};}
+  forest:new THREE.Color(0x1e6a34),mtn:new THREE.Color(0x6b6f75),road:new THREE.Color(0x3a3a46)};}
  var r=rawZoneH(x,z);
  if(z>=125)out.copy(ZONE_COL.beach);
  else if(r>3)out.copy(ZONE_COL.mtn);
  else if(r>1)out.copy(ZONE_COL.forest);
- else out.copy(ZONE_COL.city);
+ else{
+  // улицы Vice City: сетка с шагом 50, ширина 8 — только по городу
+  var dx=Math.abs(x-Math.round(x/50)*50),dz=Math.abs(z-Math.round(z/50)*50);
+  if(Math.min(dx,dz)<4)out.copy(ZONE_COL.road);
+  else out.copy(ZONE_COL.city);
+ }
  return out;
 }
 var ground=null,waterMesh=null;
@@ -209,6 +214,109 @@ function palm(x,z,s){
   nut.position.set(topX+Math.cos(i*2.1+1)*0.9*s,topY-0.6*s,Math.sin(i*2.1+1)*0.9*s);g.add(nut);}
  g.position.set(x,0,z);scene.add(g);return g;
 }
+/* ---------- Vice City: павильоны + неон + фонари + коллизии ---------- */
+var solids=[];
+function collide(x,z,r){
+ for(var i=0;i<solids.length;i++){var s=solids[i];
+  var dx=x-s.x,dz=z-s.z;
+  var px=s.hx+r-Math.abs(dx),pz=s.hz+r-Math.abs(dz);
+  if(px>0&&pz>0){
+   if(px<pz)x=s.x+(dx>0?1:-1)*(s.hx+r);
+   else z=s.z+(dz>0?1:-1)*(s.hz+r);
+  }}
+ return[x,z];
+}
+function neonTex(txt,glow){
+ var c=document.createElement('canvas');c.width=256;c.height=64;
+ var g=c.getContext('2d');g.clearRect(0,0,256,64);
+ g.font='italic bold 40px sans-serif';g.textAlign='center';g.textBaseline='middle';
+ g.shadowColor=glow;g.shadowBlur=18;g.fillStyle=glow;
+ g.fillText(txt,128,34);g.fillText(txt,128,34);
+ return new THREE.CanvasTexture(c);
+}
+var NEON_SIGNS=[['VICE','#ff2fb3'],['42','#ffd700'],['ZOV','#00ffff'],['OCEAN','#ff6a00'],['SLAY','#b6ff5e'],['TURBO','#ff4fd8']];
+function buildViceCity(){
+ var spots=[[-64,-40],[64,-40],[-64,40],[64,40],[-114,-90],[114,-90],[-114,60],[114,60],[0,-100],[-40,-60],[40,80],[0,60]];
+ var cols=[0xf6a5b8,0x9fd8c9,0xbfe3ff,0xffd9c0,0xcdeac0,0xfff6ea];
+ for(var i=0;i<spots.length;i++){
+  var sx=spots[i][0],sz=spots[i][1];
+  if(Math.hypot(sx,sz)<30)continue;
+  var w=10+(i%3)*2,h=6,d=9+(i%2)*2;
+  var bmat=new THREE.MeshLambertMaterial({color:cols[i%cols.length]});
+  var b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),bmat);
+  b.position.set(sx,h/2,sz);scene.add(b);
+  var trim=new THREE.Mesh(new THREE.BoxGeometry(w+0.4,0.3,d+0.4),
+   new THREE.MeshBasicMaterial({color:0xff2fb3}));
+  trim.position.set(sx,h+0.1,sz);scene.add(trim);
+  var sg=NEON_SIGNS[i%NEON_SIGNS.length];
+  var sign=new THREE.Mesh(new THREE.PlaneGeometry(7,1.75),
+   new THREE.MeshBasicMaterial({map:neonTex(sg[0],sg[1]),transparent:true,side:THREE.DoubleSide}));
+  sign.position.set(sx,h+2.6,sz+d/2+0.3);scene.add(sign);
+  solids.push({x:sx,z:sz,hx:w/2,hz:d/2});
+ }
+ /* фонари вдоль проспекта x=0: столб + светящийся шар (без PointLight — FPS) */
+ var lampMat=new THREE.MeshBasicMaterial({color:0xffe6a3});
+ var poleMat=new THREE.MeshLambertMaterial({color:0x33333d});
+ for(var z=-100;z<=100;z+=25){
+  for(var k=0;k<2;k++){
+   var lx=k?-7.5:7.5;
+   var pole=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.2,7,6),poleMat);
+   pole.position.set(lx,3.5,z);scene.add(pole);
+   var bulb=new THREE.Mesh(new THREE.SphereGeometry(0.4,8,6),lampMat);
+   bulb.position.set(lx,7.2,z);scene.add(bulb);
+  }
+ }
+}
+/* ---------- Vice City: аркадная тачка (F — сесть/выйти) ---------- */
+var CAR={x:12,z:14,ang:0,speed:0,y:0,inCar:false,g:null,wheels:[]};
+function buildCar(){
+ var g=new THREE.Group();
+ var body=new THREE.Mesh(new THREE.BoxGeometry(4.2,0.9,2.1),
+  new THREE.MeshLambertMaterial({color:0xff2fb3}));
+ body.position.y=0.85;g.add(body);
+ var cab=new THREE.Mesh(new THREE.BoxGeometry(2.0,0.7,1.8),
+  new THREE.MeshLambertMaterial({color:0x00ffff}));
+ cab.position.set(-0.2,1.6,0);g.add(cab);
+ var wg=new THREE.CylinderGeometry(0.45,0.45,0.4,10);
+ var wm=new THREE.MeshLambertMaterial({color:0x181818});
+ [[1.4,1.0],[1.4,-1.0],[-1.4,1.0],[-1.4,-1.0]].forEach(function(p){
+  var w=new THREE.Mesh(wg,wm);
+  w.rotation.x=Math.PI/2;w.position.set(p[0],0.45,p[1]);
+  g.add(w);CAR.wheels.push(w);
+ });
+ g.position.set(CAR.x,0,CAR.z);scene.add(g);CAR.g=g;
+}
+function toggleCar(){
+ if(G.over)return;
+ if(!CAR.inCar){
+  if(Math.hypot(CAR.x-P.x,CAR.z-P.z)>5){msg('Подойди к тачке ближе! 🚗');return;}
+  CAR.inCar=true;CAR.speed=0;msg('🚗 Погнали! F — выйти');blip(500,0.15);
+ }else{
+  CAR.inCar=false;
+  P.x=CAR.x+3;P.z=CAR.z;
+  msg('На своих двоих, братуха!');blip(400,0.1);
+ }
+}
+function driveCar(dt){
+ var up=(keys['w']||keys['arrowup']||keys['ц'])?1:0;
+ var dn=(keys['s']||keys['arrowdown']||keys['ы'])?1:0;
+ var lf=(keys['a']||keys['arrowleft']||keys['ф'])?1:0;
+ var rt=(keys['d']||keys['arrowright']||keys['в'])?1:0;
+ if(stick.on){up=stick.dy<-0.2?1:0;dn=stick.dy>0.2?1:0;lf=stick.dx<-0.2?1:0;rt=stick.dx>0.2?1:0;}
+ CAR.speed+=(up*22-dn*14-CAR.speed*1.2)*dt;
+ CAR.speed=Math.max(-10,Math.min(30,CAR.speed));
+ if(Math.abs(CAR.speed)>0.5)CAR.ang+=(lf-rt)*1.6*dt*(CAR.speed>0?1:-1);
+ var nx=CAR.x+Math.sin(CAR.ang)*CAR.speed*dt;
+ var nz=CAR.z+Math.cos(CAR.ang)*CAR.speed*dt;
+ nx=Math.max(-IB,Math.min(IB,nx));nz=Math.max(-IB,Math.min(IB,nz));
+ var fixed=collide(nx,nz,2.2);CAR.x=fixed[0];CAR.z=fixed[1];
+ P.x=CAR.x;P.z=CAR.z;P.face=CAR.ang;
+ for(var i=G.foes.length-1;i>=0;i--){var f=G.foes[i];
+  if(Math.abs(CAR.speed)>6&&Math.hypot(f.x-CAR.x,f.z-CAR.z)<2.4+f.r){
+   damageFoe(f,P.dmg*2+10,CAR.x,CAR.z);
+  }}
+ for(var w=0;w<CAR.wheels.length;w++)CAR.wheels[w].rotation.y+=CAR.speed*dt*2;
+}
 function palmRows(){
  var x=0;
  for(x=-120;x<=120;x+=28){palm(x,132,1);palm(x+14,118,0.9);}
@@ -224,8 +332,8 @@ function liftIsland(){
 }
 function initGL(){
  scene=new THREE.Scene();
- scene.background=new THREE.Color(0x0d0716);
- scene.fog=new THREE.Fog(0x0d0716,70,340);
+ scene.background=new THREE.Color(0x2a1245);
+ scene.fog=new THREE.Fog(0xb0516e,80,340);
  camera=new THREE.PerspectiveCamera(55,1,0.1,900);
  renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
@@ -234,6 +342,8 @@ function initGL(){
  flashLight=new THREE.PointLight(0xff6a00,0,60);flashLight.position.set(0,6,0);scene.add(flashLight);
  buildTerrain();
  palmRows();
+ buildViceCity();
+ buildCar();
  var ring=new THREE.Mesh(new THREE.RingGeometry(4.4,5.4,48),new THREE.MeshBasicMaterial({color:0xf5c518,transparent:true,opacity:0.6,side:THREE.DoubleSide}));
  ring.rotation.x=-Math.PI/2;ring.position.y=0.06;scene.add(ring);
  var t42=new THREE.Sprite(new THREE.SpriteMaterial({map:textTex('42'),transparent:true,depthWrite:false}));
@@ -271,6 +381,7 @@ var keys={};
 document.addEventListener('keydown',function(e){keys[e.key.toLowerCase()]=true;
  if(e.key===' '){dash();e.preventDefault();}
  if(e.key.toLowerCase()==='e'||e.key.toLowerCase()==='у')vortex();
+ if(e.key.toLowerCase()==='f'||e.key.toLowerCase()==='а')toggleCar();
  if(e.key.toLowerCase()==='q'||e.key.toLowerCase()==='й')zov();});
 document.addEventListener('keyup',function(e){keys[e.key.toLowerCase()]=false;});
 var stick={on:false,id:null,x0:0,y0:0,dx:0,dy:0};
@@ -322,9 +433,9 @@ function spawnFoe(t){
   var face=emSprite(T.em,T.size*1.1);face.position.y=T.size+1.1;g.add(face);
   var bars=barSprites(Math.max(T.size,1.6));bars.bg.position.y=T.size+0.4;bars.fg.position.y=T.size+0.4;
   g.add(bars.bg);g.add(bars.fg);f.bars=bars;
-  g.position.set(f.x,0,f.z);scene.add(g);f.g=g;
+  g.position.set(f.x,GY(f.x,f.z),f.z);scene.add(g);f.g=g;
  }
- if(t==='boss'){f.x=0;f.z=-WH/2+2;if(f.g)f.g.position.set(f.x,0,f.z);
+ if(t==='boss'){f.x=0;f.z=-WH/2+2;if(f.g)f.g.position.set(f.x,GY(f.x,f.z),f.z);
   G.boss=f;try{document.getElementById('bossbar').style.display='block';}catch(e){}blip(120,0.4);}
  G.foes.push(f);
 }
@@ -386,20 +497,20 @@ function killFoe(f){
 function burst(x,z,em,n){
  for(var i=0;i<n;i++){
   var sp=scene?emSprite(em,1):null;
-  if(sp){sp.position.set(x,1,z);scene.add(sp);}
+  if(sp){sp.position.set(x,GY(x,z)+1,z);scene.add(sp);}
   G.parts.push({x:x,z:z,vx:(Math.random()-0.5)*14,vy:4+Math.random()*6,vz:(Math.random()-0.5)*14,t:0.5,sp:sp});
  }
 }
 function dropFx(k,x,z,v){
  var sp=scene?emSprite(k==='f'?'🎟️':'❤️',1.1):null;
- if(sp){sp.position.set(x,0.8,z);scene.add(sp);}
+ if(sp){sp.position.set(x,GY(x,z)+0.8,z);scene.add(sp);}
  G.drops.push({k:k,x:x,z:z,v:v,t:0,sp:sp});
 }
 function ringFx(x,z,R,color){
  if(!scene)return;
  var m=new THREE.Mesh(new THREE.RingGeometry(R-0.6,R,48),
   new THREE.MeshBasicMaterial({color:color,transparent:true,opacity:0.9,side:THREE.DoubleSide}));
- m.rotation.x=-Math.PI/2;m.position.set(x,0.1,z);scene.add(m);
+ m.rotation.x=-Math.PI/2;m.position.set(x,GY(x,z)+0.1,z);scene.add(m);
  G.rings.push({m:m,t:0.4});
 }
 /* магазин */
@@ -440,10 +551,16 @@ function updatePhysics(dt){
  if(keys['s']||keys['arrowdown']||keys['ы'])mz+=1;
  if(stick.on){mx=stick.dx;mz=stick.dy;}
  var ml=Math.hypot(mx,mz);if(ml>1){mx/=ml;mz/=ml;}
- var sp=P.spd*(P.dashT>0?2.6:1);
- P.x=Math.max(-WW/2+1,Math.min(WW/2-1,P.x+mx*sp*dt));
- P.z=Math.max(-WH/2+1,Math.min(WH/2-1,P.z+mz*sp*dt));
- if(ml>0.1)P.face=Math.atan2(mx,mz);
+ if(CAR.inCar){driveCar(dt);}
+ else{
+  var sp=P.spd*(P.dashT>0?2.6:1);
+  P.x=Math.max(-WW/2+1,Math.min(WW/2-1,P.x+mx*sp*dt));
+  P.z=Math.max(-WH/2+1,Math.min(WH/2-1,P.z+mz*sp*dt));
+  var pc=collide(P.x,P.z,1);P.x=pc[0];P.z=pc[1];
+  if(ml>0.1)P.face=Math.atan2(mx,mz);
+ }
+ if(typeof P.y!=='number')P.y=GY(P.x,P.z);
+ P.y+=(GY(P.x,P.z)-P.y)*Math.min(1,dt*6);
  if(P.dashCd>0)P.dashCd-=dt;if(P.dashT>0)P.dashT-=dt;
  if(P.vCd>0)P.vCd-=dt;if(P.zCd>0)P.zCd-=dt;
  if(P.swing>0)P.swing-=dt;
@@ -461,7 +578,10 @@ function updatePhysics(dt){
    var sx=e.x-o.x,sz2=e.z-o.z,sl=Math.hypot(sx,sz2);
    if(sl>0.01&&sl<e.r+o.r){e.x+=sx/sl*dt*2;e.z+=sz2/sl*dt*2;}}
   e.x=Math.max(-WW/2+1,Math.min(WW/2-1,e.x));e.z=Math.max(-WH/2+1,Math.min(WH/2-1,e.z));
-  if(e.g){e.g.position.x=e.x;e.g.position.z=e.z;
+  var ec=collide(e.x,e.z,e.r);e.x=ec[0];e.z=ec[1];
+  if(typeof e.y!=='number')e.y=GY(e.x,e.z);
+  e.y+=(GY(e.x,e.z)-e.y)*Math.min(1,dt*6);
+  if(e.g){e.g.position.x=e.x;e.g.position.y=e.y;e.g.position.z=e.z;
    if(e.bars)e.bars.fg.scale.x=e.bars.w*Math.max(e.hp,0)/e.maxhp;}
   if(e.cd>0)e.cd-=dt;
  }
@@ -495,12 +615,20 @@ function checkCollisions(dt){
 }
 // Рендер: камера + братуха + кадр + худ.
 function render(){
- playerG.position.set(P.x,0,P.z);
+ playerG.position.set(P.x,P.y||0,P.z);
  playerG.rotation.y=P.face;
+ playerG.visible=!CAR.inCar;
  batMesh.rotation.z=P.swing>0?-1.2:0.5;
- rangeRing.position.set(P.x,0.04,P.z);
+ rangeRing.position.set(P.x,(P.y||0)+0.06,P.z);
+ if(CAR.g){
+  if(typeof CAR.y!=='number')CAR.y=GY(CAR.x,CAR.z);
+  CAR.y+=(GY(CAR.x,CAR.z)-CAR.y)*0.2;
+  CAR.g.position.set(CAR.x,CAR.y,CAR.z);
+  CAR.g.rotation.y=CAR.ang;
+ }
+ var camH=CAR.inCar?34:26,camD=CAR.inCar?21:15;
  var shx=G.shake>0?(Math.random()-0.5)*G.shake:0,shz=G.shake>0?(Math.random()-0.5)*G.shake:0;
- camera.position.set(P.x*0.85+shx,26,P.z*0.85+15+shz);
+ camera.position.set(P.x*0.85+shx,camH,P.z*0.85+camD+shz);
  camera.lookAt(P.x*0.9,0,P.z*0.9);
  renderer.render(scene,camera);
  hud();
