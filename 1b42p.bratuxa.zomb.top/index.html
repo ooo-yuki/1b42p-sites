@@ -97,7 +97,7 @@ html,body{margin:0;padding:0;background:var(--bg);color:#f2eafc;font-family:syst
 /* ============ 1Б42П: ШТУРМ 3D — арена-экшен ============ */
 var KEY='shturm42_v1';
 var LEGEND_WAVE=42;
-var WW=380,WH=380,IB=188; // остров 400x400 как у Дениса · вода-стена ±190
+var WW=600,WH=600,IB=280; // остров Дениса 1:1 · земля 600x600 · вода-стена ±280
 var TYPES={
  hater:{em:'😡',color:0xff5252,hp:30,dmg:8,spd:4.5,r:1.0,score:10,size:1.4},
  runner:{em:'🤡',color:0xffb300,hp:18,dmg:6,spd:8.5,r:0.9,score:15,size:1.2},
@@ -111,7 +111,7 @@ var S={best:0};
 try{var sv=JSON.parse(localStorage.getItem(KEY)||'{}');if(sv.best)S.best=sv.best;}catch(e){}
 function saveBest(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 var cv=document.getElementById('cv');
-var P={x:0,z:0,hp:100,maxhp:100,dmg:12,spd:14,range:6,atkCd:0,atkRate:0.45,dashCd:0,dashT:0,vCd:0,zCd:0,swing:0,face:0,up:{dmg:0,hp:0,spd:0,range:0}};
+var P={x:0,z:-100,hp:100,maxhp:100,dmg:12,spd:14,range:6,atkCd:0,atkRate:0.45,dashCd:0,dashT:0,vCd:0,zCd:0,swing:0,face:0,up:{dmg:0,hp:0,spd:0,range:0}}; // спавн как у Дениса
 var G={wave:0,hype:0,fant:0,combo:0,best:0,foes:[],parts:[],drops:[],rings:[],spawnQ:[],spawnT:0,breather:2,over:false,shake:0,boss:null,flash:0};
 /* ---------- 3D ---------- */
 var scene=null,camera=null,renderer=null,playerG=null,batMesh=null,rangeRing=null,flashLight=null;
@@ -140,46 +140,100 @@ function barSprites(w){
  bg.scale.set(w,0.28,1);fg.scale.set(w,0.22,1);
  return{bg:bg,fg:fg,w:w};
 }
-/* ---------- остров как у Дениса: зоны + рельеф одним мешем ---------- */
-function ss01(e0,e1,x){var t=Math.min(1,Math.max(0,(x-e0)/(e1-e0)));return t*t*(3-2*t);}
+/* ---------- остров Дениса 1:1: зоны + массив + рельеф (копия denis) ---------- */
 function rawZoneH(x,z){
- if(z>=125)return 0;                 // пляж
- if(z<=-130)return 3.6;              // горы
- if(x>=140&&z<=-30)return 3.6;       // хребет
- if(x>=40&&z>-30&&z<125)return 2.0;  // лес
- return 0.8;                         // город
+ if(z>=125) return 0;                 // пляж (юг)
+ if(z<=-230) return 3.6;              // горы (север, расширены)
+ if(z<=-150) return 3.6;              // горы (север, отодвинуты от города)
+ if(x>=140&&z<=-30) return 3.6;       // хребет (восток)
+ if(x>=40&&z>-30&&z<125) return 2.0;  // лес (восток)
+ return 0.8;                          // город (запад+центр)
 }
-function groundHeight(x,z){
- var r=10;
+function massif(x,z){
+ var mtnM=Math.min(1,Math.max(0,(rawZoneH(x,z)-2)/1.6)); // только в горах
+ if(mtnM<=0)return 0;
+ var g1=30*Math.exp(-((x+40)*(x+40)+(z+182)*(z+182))/(2*52*52)); // главная вершина
+ var g2=22*Math.exp(-((x-125)*(x-125)+(z-176)*(z-176))/(2*36*36)); // вторая вершина
+ var g3=14*Math.exp(-((x-178)*(x-178)+(z-120)*(z-120))/(2*28*28)); // хребет
+ var g4=26*Math.exp(-((x-178)*(x-178)+(z-60)*(z-60))/(2*42*42)); // вторая гора (восток)
+ var g5=26*Math.exp(-((x+80)*(x+80)+(z+270)*(z+270))/(2*45*45)); // северная вершина
+ var g6=20*Math.exp(-((x-90)*(x-90)+(z-278)*(z-278))/(2*38*38)); // северная вторая
+ var rg=1-Math.abs(Math.sin(x*0.11+1.3)*Math.sin(z*0.13+0.7)); // острые гребни
+ var mo=Math.sin(x*0.23+0.5)*Math.cos(z*0.21+1.1)*2+Math.sin(x*0.05+2.2)*Math.cos(z*0.06)*3;
+ return (g1+g2+g3+g4+g5+g6+rg*rg*4+mo)*mtnM;
+}
+function baseH(x,z){
+ var r=14;
  var h=(rawZoneH(x,z)+rawZoneH(x+r,z)+rawZoneH(x-r,z)+rawZoneH(x,z+r)+rawZoneH(x,z-r))/5;
- if(rawZoneH(x,z)>3)h+=(Math.sin(x*0.3)*Math.cos(z*0.27))*0.35;
+ h+=massif(x,z);
+ return h;
+}
+var AUTOPAD=[]; // автоплощадки под зданиями (заполняются перед buildTerrain)
+function padBlend(h,ph,d,r){var t=d/r;if(t>=1)return h;if(t<0.85)return ph;var s=(t-0.85)/0.15,u=s*s*(3-2*s);return ph+(h-ph)*u;}
+function groundHeight(x,z){
+ var h=baseH(x,z);
+ for(var fi=0;fi<AUTOPAD.length;fi++){var f=AUTOPAD[fi];h=padBlend(h,f.h,Math.hypot(x-f.x,z-f.z),f.r);}
+ for(var fj=0;fj<FLAT.length;fj++){var fl=FLAT[fj];h=padBlend(h,fl.h,Math.hypot(x-fl.x,z-fl.z),fl.r);}
+ var ph=pathH(x,z);if(ph){var t=ph.d/9,s=t*t*(3-2*t);var carved=ph.h+(h-ph.h)*s;h=(rawZoneH(x,z)>2)?carved:Math.min(h,carved);}
  return h;
 }
 function GY(x,z){return groundHeight(x,z);}
-var ZONE_COL=null;
-function zoneColor(x,z,out){
- if(!ZONE_COL){ZONE_COL={beach:new THREE.Color(0xd9b84a),city:new THREE.Color(0x2a2a35),
-  forest:new THREE.Color(0x1e6a34),mtn:new THREE.Color(0x6b6f75),road:new THREE.Color(0x3a3a46)};}
- var r=rawZoneH(x,z);
- if(z>=125)out.copy(ZONE_COL.beach);
- else if(r>3)out.copy(ZONE_COL.mtn);
- else if(r>1)out.copy(ZONE_COL.forest);
- else{
-  // улицы Vice City: сетка с шагом 50, ширина 8 — только по городу
-  var dx=Math.abs(x-Math.round(x/50)*50),dz=Math.abs(z-Math.round(z/50)*50);
-  if(Math.min(dx,dz)<4)out.copy(ZONE_COL.road);
-  else out.copy(ZONE_COL.city);
+var FLAT=[{x:0,z:-140,r:36,h:0.8},{x:158,z:-165,r:40,h:0}]; // SLAY-площадка + пещера (h пещеры досчитаем ниже)
+FLAT[1].h=baseH(158,-165);
+var PATH=[{x:140,z:-90},{x:150,z:-108},{x:155,z:-125},{x:158,z:-138}]; // тропа к пещере
+(function(){var L=[0];for(var i=1;i<PATH.length;i++)L.push(L[i-1]+Math.hypot(PATH[i].x-PATH[i-1].x,PATH[i].z-PATH[i-1].z));var h0=baseH(PATH[0].x,PATH[0].z),h1=FLAT[1].h;for(var k=0;k<PATH.length;k++)PATH[k].h=h0+(h1-h0)*(L[k]/L[L.length-1]);})();
+function pathH(x,z){
+ var best=null;
+ for(var i=0;i<PATH.length-1;i++){
+  var ax=PATH[i],bx=PATH[i+1];
+  var dx=bx.x-ax.x,dz=bx.z-ax.z,L2=dx*dx+dz*dz||1;
+  var t=((x-ax.x)*dx+(z-ax.z)*dz)/L2;t=t<0?0:(t>1?1:t);
+  var px=ax.x+dx*t,pz=ax.z+dz*t,d=Math.hypot(x-px,z-pz);
+  if(d<9){var h=ax.h+(bx.h-ax.h)*t;if(!best||d<best.d)best={d:d,h:h};}
  }
+ return best;
+}
+// стена от крутых склонов: замер по 2м, скользит вдоль
+function slopeBlock(px,pz,nx,nz){
+ var dx=nx-px,dz=nz-pz,d=Math.hypot(dx,dz);
+ if(d<0.001)return [nx,nz];
+ var ux=dx/d,uz=dz/d,ahead=2.0;
+ var h0=GY(px,pz);
+ if((GY(px+ux*ahead,pz+uz*ahead)-h0)/ahead>1.0){
+  if((GY(px+ux*ahead,pz)-h0)/ahead<1.0)return [nx,pz];
+  if((GY(px,pz+uz*ahead)-h0)/ahead<1.0)return [px,nz];
+  return [px,pz];
+ }
+ return [nx,nz];
+}
+var ZONE_COL={beach:new THREE.Color(0xd9b84a),shore:new THREE.Color(0xc9a94e),city:new THREE.Color(0x1c1c24),forest:new THREE.Color(0x1e6a34),mtn:new THREE.Color(0x3e7a33),road:new THREE.Color(0x33333d)};
+var _trailCol=new THREE.Color(0x1c1c24);
+function zoneColor(x,z,out){
+ var isCF=false;
+ if(z<=-150||(x>=140&&z<=-30)) out.copy(ZONE_COL.mtn);
+ else if(z>=125) out.copy(ZONE_COL.beach);
+ else if(x>=40&&z>-30){out.copy(ZONE_COL.forest);isCF=true;}
+ else {out.copy(ZONE_COL.city);isCF=true;}
+ if(isCF){var dx=Math.abs(x-Math.round(x/50)*50),dz=Math.abs(z-Math.round(z/50)*50);if(dx<4||dz<4)out.copy(ZONE_COL.road);}
+ try{if(pathH(x,z))out.copy(_trailCol);}catch(e){}
+ if(z>118&&z<133) out.copy(ZONE_COL.shore); // полоса прибоя
  return out;
 }
 var ground=null,waterMesh=null;
 function buildTerrain(){
- var g=new THREE.PlaneGeometry(400,400,100,100);
+ var g=new THREE.PlaneGeometry(600,600,240,240);
  var pos=g.attributes.position,cols=[],c=new THREE.Color(),wx=0,wz=0;
+ var rockHi=new THREE.Color(0x7a756c),dryGrass=new THREE.Color(0x6e7a3a),cliff=new THREE.Color(0x5a5550);
  for(var i=0;i<pos.count;i++){
   wx=pos.getX(i);wz=-pos.getY(i);
-  pos.setZ(i,groundHeight(wx,wz));
-  zoneColor(wx,wz,c);cols.push(c.r,c.g,c.b);
+  var hh=groundHeight(wx,wz);
+  pos.setZ(i,hh);
+  zoneColor(wx,wz,c);
+  var sl=(Math.abs(baseH(wx+2,wz)-baseH(wx-2,wz))+Math.abs(baseH(wx,wz+2)-baseH(wx,wz-2)))/4;
+  if(sl>0.5){c.lerp(cliff,Math.min(1,(sl-0.5)/0.5)*0.8);}
+  else if(hh>9){c.lerp(rockHi,Math.min(1,(hh-9)/6)*0.85);}
+  else if(hh>4.5){c.lerp(dryGrass,Math.min(1,(hh-4.5)/4.5)*0.55);}
+  cols.push(c.r,c.g,c.b);
  }
  g.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));
  g.computeVertexNormals();
@@ -189,7 +243,13 @@ function buildTerrain(){
   new THREE.MeshLambertMaterial({color:0x0d6fa8,transparent:true,opacity:0.92}));
  waterMesh.rotation.x=-Math.PI/2;waterMesh.position.y=-1.2;scene.add(waterMesh);
 }
-/* пальмы: общие материалы на всех, база y=0 (поднимет liftIsland) */
+/* пальмы как у Дениса: клумба на полу города + 9 листьев + тени */
+function planter(x,z){
+ var rim=new THREE.Mesh(new THREE.CylinderGeometry(2.2,2.45,0.9,12),new THREE.MeshLambertMaterial({color:0x8a8a94}));
+ rim.position.set(x,0.45,z);scene.add(rim);
+ var soil=new THREE.Mesh(new THREE.CylinderGeometry(1.95,1.95,0.25,12),new THREE.MeshLambertMaterial({color:0x3a2a1a}));
+ soil.position.set(x,0.85,z);scene.add(soil);
+}
 var _palmTrunkM=null,_palmTrunkM2=null,_palmLeafM=null,_palmLeafM2=null,_palmNutM=null;
 function palmMats(){
  if(_palmTrunkM)return;
@@ -201,12 +261,13 @@ function palmMats(){
 }
 function palm(x,z,s){
  palmMats();s=s||1;
+ try{var _h=rawZoneH(x,z);if(_h>0.4&&_h<1.2&&z<125)planter(x,z);}catch(e){}
  var g=new THREE.Group(),i=0,a=0;
- var px=0,segH=4.6*s,lean=(Math.random()-0.5)*0.3;
+ var px=0,segH=5*s,lean=(Math.random()-0.5)*0.3;
  for(i=0;i<3;i++){var t=new THREE.Mesh(new THREE.CylinderGeometry(0.42*s*(1-i*0.1),0.55*s*(1-i*0.1),segH,7),i%2?_palmTrunkM2:_palmTrunkM);
-  px+=lean*segH*0.3;t.position.set(px,segH/2+i*segH*0.94,0);t.rotation.z=-lean*0.3;g.add(t);}
- var topX=px,topY=segH*2.9;
- for(i=0;i<6;i++){a=i/6*Math.PI*2+Math.random()*0.3;
+  px+=lean*segH*0.3;t.position.set(px,segH/2+i*segH*0.94,0);t.rotation.z=-lean*0.3;t.castShadow=true;g.add(t);}
+ var topX=px,topY=segH*2.82;
+ for(i=0;i<9;i++){a=i/9*Math.PI*2+Math.random()*0.3;
   var leaf=new THREE.Mesh(new THREE.ConeGeometry(0.95*s,8.5*s,5),i%2?_palmLeafM2:_palmLeafM);
   leaf.scale.z=0.38;leaf.position.set(topX+Math.cos(a)*3.6*s,topY-1.2*s,Math.sin(a)*3.6*s);
   leaf.rotation.set(Math.sin(a)*1.95,0,-Math.cos(a)*1.95);g.add(leaf);}
@@ -235,8 +296,9 @@ function neonTex(txt,glow){
  return new THREE.CanvasTexture(c);
 }
 var NEON_SIGNS=[['VICE','#ff2fb3'],['42','#ffd700'],['ZOV','#00ffff'],['OCEAN','#ff6a00'],['SLAY','#b6ff5e'],['TURBO','#ff4fd8']];
+var VICE_SPOTS=[[-64,-40],[64,-40],[-64,40],[64,40],[-114,-90],[114,-90],[-114,60],[114,60],[0,-100],[-40,-60],[40,80],[0,60]];
 function buildViceCity(){
- var spots=[[-64,-40],[64,-40],[-64,40],[64,40],[-114,-90],[114,-90],[-114,60],[114,60],[0,-100],[-40,-60],[40,80],[0,60]];
+ var spots=VICE_SPOTS;
  var cols=[0xf6a5b8,0x9fd8c9,0xbfe3ff,0xffd9c0,0xcdeac0,0xfff6ea];
  for(var i=0;i<spots.length;i++){
   var sx=spots[i][0],sz=spots[i][1];
@@ -268,7 +330,7 @@ function buildViceCity(){
  }
 }
 /* ---------- Vice City: аркадная тачка (F — сесть/выйти) ---------- */
-var CAR={x:12,z:14,ang:0,speed:0,y:0,inCar:false,g:null,wheels:[]};
+var CAR={x:6,z:-96,ang:0,speed:0,y:0,inCar:false,g:null,wheels:[]}; // тачка рядом со спавном, как у Дениса
 function buildCar(){
  var g=new THREE.Group();
  var body=new THREE.Mesh(new THREE.BoxGeometry(4.2,0.9,2.1),
@@ -319,8 +381,10 @@ function driveCar(dt){
 }
 function palmRows(){
  var x=0;
- for(x=-120;x<=120;x+=28){palm(x,132,1);palm(x+14,118,0.9);}
+ for(x=-170;x<=170;x+=28){palm(x,132+Math.random()*50,1);} // южный пляж как у Дениса
+ for(x=-120;x<=120;x+=28){palm(x+14,118,0.9);}
  palm(-30,100,1.1);palm(30,100,1);palm(-60,60,1.2);palm(60,60,1);palm(0,40,1);
+ palm(-100,-40,1);palm(100,-20,1.1);palm(-50,-100,1);palm(60,-120,1); // город как у Дениса
 }
 function liftIsland(){
  if(!scene)return;
@@ -340,6 +404,7 @@ function initGL(){
  scene.add(new THREE.HemisphereLight(0xbfb3ff,0x1c102e,0.9));
  var dir=new THREE.DirectionalLight(0xfff2c0,1.1);dir.position.set(20,40,10);scene.add(dir);
  flashLight=new THREE.PointLight(0xff6a00,0,60);flashLight.position.set(0,6,0);scene.add(flashLight);
+ for(var vi=0;vi<VICE_SPOTS.length;vi++){var vs=VICE_SPOTS[vi];AUTOPAD.push({x:vs[0],z:vs[1],r:16,h:baseH(vs[0],vs[1])});} // площадки под павильонами до террейна, как у Дениса
  buildTerrain();
  palmRows();
  buildViceCity();
@@ -438,7 +503,7 @@ function spawnFoe(t){
   g.add(bars.bg);g.add(bars.fg);f.bars=bars;
   g.position.set(f.x,GY(f.x,f.z),f.z);scene.add(g);f.g=g;
  }
- if(t==='boss'){f.x=0;f.z=-WH/2+2;if(f.g)f.g.position.set(f.x,GY(f.x,f.z),f.z);
+ if(t==='boss'){f.x=0;f.z=-IB+10;if(f.g)f.g.position.set(f.x,GY(f.x,f.z),f.z);
   G.boss=f;try{document.getElementById('bossbar').style.display='block';}catch(e){}blip(120,0.4);}
  G.foes.push(f);
 }
@@ -557,9 +622,11 @@ function updatePhysics(dt){
  if(CAR.inCar){driveCar(dt);}
  else{
   var sp=P.spd*(P.dashT>0?2.6:1);
-  P.x=Math.max(-WW/2+1,Math.min(WW/2-1,P.x+mx*sp*dt));
-  P.z=Math.max(-WH/2+1,Math.min(WH/2-1,P.z+mz*sp*dt));
+  var _ox=P.x,_oz=P.z;
+  P.x=Math.max(-IB,Math.min(IB,P.x+mx*sp*dt));
+  P.z=Math.max(-IB,Math.min(IB,P.z+mz*sp*dt));
   var pc=collide(P.x,P.z,1);P.x=pc[0];P.z=pc[1];
+  var sb=slopeBlock(_ox,_oz,P.x,P.z);P.x=sb[0];P.z=sb[1]; // крутые склоны держат, как у Дениса
   if(ml>0.1)P.face=Math.atan2(mx,mz);
  }
  if(typeof P.y!=='number')P.y=GY(P.x,P.z);
@@ -576,12 +643,14 @@ function updatePhysics(dt){
   var esp=e.spd;
   if(e.t==='boss'){e.chg-=dt;if(e.chg<=0){e.chg=3;esp=e.spd*3;burst(e.x,e.z,'👹',3);blip(150,0.2);}}
   var step=Math.min(esp*dt,el);
+  var _eox=e.x,_eoz=e.z;
   e.x+=ex/el*step;e.z+=ez/el*step;
   for(var q=0;q<G.foes.length;q++){if(q===j)continue;var o=G.foes[q];
    var sx=e.x-o.x,sz2=e.z-o.z,sl=Math.hypot(sx,sz2);
    if(sl>0.01&&sl<e.r+o.r){e.x+=sx/sl*dt*2;e.z+=sz2/sl*dt*2;}}
-  e.x=Math.max(-WW/2+1,Math.min(WW/2-1,e.x));e.z=Math.max(-WH/2+1,Math.min(WH/2-1,e.z));
+  e.x=Math.max(-IB,Math.min(IB,e.x));e.z=Math.max(-IB,Math.min(IB,e.z));
   var ec=collide(e.x,e.z,e.r);e.x=ec[0];e.z=ec[1];
+  var esb=slopeBlock(_eox,_eoz,e.x,e.z);e.x=esb[0];e.z=esb[1];
   if(typeof e.y!=='number')e.y=GY(e.x,e.z);
   e.y+=(GY(e.x,e.z)-e.y)*Math.min(1,dt*6);
   if(e.g){e.g.position.x=e.x;e.g.position.y=e.y;e.g.position.z=e.z;
