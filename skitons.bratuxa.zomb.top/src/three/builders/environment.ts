@@ -94,7 +94,7 @@ export function buildEnvironment(): Environment {
     );
     stone.position.set(x, 0.05, z);
     stone.rotation.y = i * 0.4;
-    stone.castShadow = true;
+    stone.castShadow = false; // плоская галька — тени не читаются, только receive
     stone.receiveShadow = true;
     g.add(stone);
   }
@@ -117,7 +117,7 @@ export function buildEnvironment(): Environment {
           mat(bedCols[f % bedCols.length]),
         );
         cup.position.set(fx, 0.68, fz);
-        cup.castShadow = true;
+        cup.castShadow = false; // чашечка 9см — тень не видна
         g.add(cup);
       } else {
         // маргаритка: белые лепестки + жёлтая серединка

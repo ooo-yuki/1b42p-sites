@@ -176,7 +176,9 @@ export function buildUmbrellas(lv: number, tablePos: Array<[number, number]>): T
         u.add(seg);
       }
     }
-    u.add(sph(0.09, C.cocoa, 0, 3.1, 0));
+    const uball = sph(0.09, C.cocoa, 0, 3.1, 0);
+    uball.castShadow = false; // навершие 9см — тень не видна
+    u.add(uball);
     // Гирлянда-лампочки по краю с 5
     if (L >= 5) {
       for (let b = 0; b < 8; b++) {

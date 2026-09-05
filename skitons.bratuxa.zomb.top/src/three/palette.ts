@@ -30,25 +30,47 @@ export const C = {
   awning: 0xf6a5b8,
 } as const;
 
+const matPool = new Map<string, THREE.MeshStandardMaterial>();
 export function mat(
   color: number,
   opts: { rough?: number; metal?: number; emissive?: number; ei?: number } = {},
 ): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({
-    color,
-    roughness: opts.rough ?? 0.9,
-    metalness: opts.metal ?? 0,
-    flatShading: true,
-    emissive: opts.emissive ?? 0x000000,
-    emissiveIntensity: opts.ei ?? 1,
-  });
+  // Пул: одинаковые параметры — один материал (меньше шейдерных программ,
+  // быстрее старт, визуал 1:1). Помечаем pooled, чтобы disposeGroup не трогал.
+  const key = color + '|' + (opts.rough ?? 0.9) + '|' + (opts.metal ?? 0) + '|' + (opts.emissive ?? 0) + '|' + (opts.ei ?? 1);
+  let m = matPool.get(key);
+  if (!m) {
+    m = new THREE.MeshStandardMaterial({
+      color,
+      roughness: opts.rough ?? 0.9,
+      metalness: opts.metal ?? 0,
+      flatShading: true,
+      emissive: opts.emissive ?? 0x000000,
+      emissiveIntensity: opts.ei ?? 1,
+    });
+    (m.userData as Record<string, unknown>).pooled = true;
+    matPool.set(key, m);
+  }
+  return m;
+}
+
+const geoPool = new Map<string, THREE.BufferGeometry>();
+function pooledGeo(key: string, make: () => THREE.BufferGeometry): THREE.BufferGeometry {
+  // Пул геометрий: одинаковые размеры — один буфер (меньше VRAM и аплоада).
+  let g = geoPool.get(key);
+  if (!g) {
+    g = make();
+    g.userData.pooled = true;
+    geoPool.set(key, g);
+  }
+  return g;
 }
 
 export function box(
   w: number, h: number, d: number, color: number,
   x = 0, y = 0, z = 0,
 ): THREE.Mesh {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color));
+  const m = new THREE.Mesh(pooledGeo('b' + w + 'x' + h + 'x' + d, () => new THREE.BoxGeometry(w, h, d)), mat(color));
   m.position.set(x, y, z);
   m.castShadow = true;
   m.receiveShadow = true;
@@ -59,7 +81,7 @@ export function cyl(
   rt: number, rb: number, h: number, color: number,
   x = 0, y = 0, z = 0, seg = 10,
 ): THREE.Mesh {
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), mat(color));
+  const m = new THREE.Mesh(pooledGeo('c' + rt + 'x' + rb + 'x' + h + 'x' + seg, () => new THREE.CylinderGeometry(rt, rb, h, seg)), mat(color));
   m.position.set(x, y, z);
   m.castShadow = true;
   m.receiveShadow = true;
@@ -69,7 +91,7 @@ export function cyl(
 export function sph(
   r: number, color: number, x = 0, y = 0, z = 0,
 ): THREE.Mesh {
-  const m = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), mat(color));
+  const m = new THREE.Mesh(pooledGeo('s' + r, () => new THREE.SphereGeometry(r, 12, 10)), mat(color));
   m.position.set(x, y, z);
   m.castShadow = true;
   return m;
@@ -101,10 +123,12 @@ export function disposeGroup(g: THREE.Object3D): void {
   g.traverse((o) => {
     const mesh = o as THREE.Mesh;
     if (mesh.isMesh) {
-      mesh.geometry?.dispose();
+      // Пулёные геометрии/материалы живут дольше группы — не трогаем.
+      if (!(mesh.geometry?.userData as Record<string, unknown> | undefined)?.pooled) mesh.geometry?.dispose();
       const m = mesh.material as THREE.Material | THREE.Material[] | undefined;
       const mats = Array.isArray(m) ? m : m ? [m] : [];
       for (const x of mats) {
+        if ((x.userData as Record<string, unknown> | undefined)?.pooled) continue;
         const withMap = x as THREE.MeshStandardMaterial;
         withMap.map?.dispose();
         x.dispose();

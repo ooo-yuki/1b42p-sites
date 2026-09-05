@@ -22,6 +22,7 @@ const COUNTER = new THREE.Vector3(0, 0, -2.4), ANNEX = new THREE.Vector3(4.2, 0,
 const DAY_BG = new THREE.Color(C.cream), DUSK_BG = new THREE.Color(0xf2b48f), NIGHT_BG = new THREE.Color(0x45425e);
 const DAY_SUN = new THREE.Color(0xfff0dd), DUSK_SUN = new THREE.Color(0xff9a5a);
 const _c = new THREE.Color();
+const _v = new THREE.Vector3();
 interface Guest { mesh: Person; st: 'wait' | 'go' | 'sit' | 'back'; wi: number; seat: number; timer: number; path: THREE.Vector3[]; }
 interface Glow { m: THREE.MeshStandardMaterial; base: number; seed: number; }
 
@@ -101,7 +102,7 @@ export class CafeScene {
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(1024, 1024);
     Object.assign(this.sun.shadow.camera, { left: -18, right: 18, top: 18, bottom: -18 });
-    this.scene.add(this.hemi, this.sun, new THREE.AmbientLight(0xfff4e0, 0.25));
+    this.scene.add(this.hemi, this.sun);
     this.hallLamp = new THREE.PointLight(0xffd9a0, 14, 14, 1.8);
     this.hallLamp.position.set(0, 2.7, 0);
     this.scene.add(this.hallLamp);
@@ -121,6 +122,16 @@ export class CafeScene {
   }
 
   setView(v: ViewName): void { this.view = v; this.flying = true; this.applyCut(); }
+  /** Гейт производительности: вызовы отрисовки, треугольники, активный свет. */
+  stats(): { calls: number; tris: number; lights: number } {
+    const info = this.renderer.info.render;
+    let lights = 0;
+    this.scene.traverse((o) => {
+      const l = o as unknown as { visible: boolean; isLight?: boolean; isPointLight?: boolean; isDirectionalLight?: boolean; isSpotLight?: boolean; isHemisphereLight?: boolean; isAmbientLight?: boolean };
+      if (l.visible && (l.isPointLight || l.isDirectionalLight || l.isSpotLight || l.isHemisphereLight || l.isAmbientLight)) lights++;
+    });
+    return { calls: info.calls, tris: info.triangles, lights };
+  }
   /** Время суток 0..1: 0=полночь, 0.25=рассвет, 0.5=полдень, 0.75=закат. Глушит автоцикл на 90с. */
   setTimeOfDay(t: number): void { this.tod = Math.max(0, Math.min(1, t)); this.manual = 90; }
 
@@ -351,7 +362,14 @@ export class CafeScene {
     (this.scene.fog as THREE.Fog).color.copy(_c);
     this.hemi.intensity = 0.22 + dayF * 0.55;
     this.hallLamp.intensity = 10 + nightF * 18;
-    for (const pl of this.env.lamps) pl.intensity = (pl.userData.base as number) * (0.35 + nightF * 1.8);
+    // Днём уличные фонари не читаются на солнце — прячем из шейдера целиком
+    // (visible=false выкидывает свет из программы, emissive-плафоны и блики остаются).
+    // Зальная лампа нужна всегда — интерьер без неё просядет.
+    const lampsOn = nightF > 0.12;
+    for (const pl of this.env.lamps) {
+      pl.visible = lampsOn;
+      pl.intensity = (pl.userData.base as number) * (0.35 + nightF * 1.8);
+    }
     for (const g of this.env.glints) {
       const gm = g.material as THREE.SpriteMaterial;
       gm.opacity = (gm.userData.base as number) * (0.25 + nightF * 1.3);
@@ -422,7 +440,7 @@ export class CafeScene {
       }
       const goal = gu.path[gu.wi];
       if (!goal) { gu.st = 'wait'; gu.timer = 3; continue; }
-      m.position.lerp(new THREE.Vector3(goal.x, this.groundY(goal.x, goal.z), goal.z), 1 - Math.pow(0.02, dt));
+      m.position.lerp(_v.set(goal.x, this.groundY(goal.x, goal.z), goal.z), 1 - Math.pow(0.02, dt));
       m.lookAt(goal.x, 0, goal.z); up('walk');
       if (Math.hypot(m.position.x - goal.x, m.position.z - goal.z) >= (gu.st === 'go' && gu.wi === 1 ? 0.25 : 0.4)) continue;
       if (++gu.wi < gu.path.length) continue;
