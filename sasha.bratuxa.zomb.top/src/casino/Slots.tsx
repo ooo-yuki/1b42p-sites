@@ -69,7 +69,7 @@ export default function Slots({ api }: { api: Api }): JSX.Element {
           api.credit(ret); api.say('Три одинаковых: +250!', 'win');
           if (!api.reduced) tripsChime();
         } else if (kind === 'pair') {
-          api.credit(ret); api.say('Пара: +100');
+          api.credit(ret); api.say('Пара: +90');
           if (!api.reduced) pairClick();
         } else {
           api.say('Мимо. Ещё по одной?');

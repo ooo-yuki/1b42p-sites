@@ -1,11 +1,11 @@
 /* СЛОТЫ — данные автомата «Семёрка». Правила СВЯТЫ: спин 50,
-   777 = 1000, три одинаковых 250, пара 100, стопы 4/8/12, финал 14-й тик. */
+   777 = 1000, три одинаковых 250, пара 90 (RTP 95.8%), стопы 4/8/12, финал 14-й тик. */
 
 export const SLOT_ICONS = ['cherry', 'clover', 'star', 'coins', 'dices', 'seven'];
 export const COST = 50;
 export const PAY_JACKPOT = 1000;
 export const PAY_TRIPS = 250;
-export const PAY_PAIR = 100;
+export const PAY_PAIR = 90;
 export const LOCK_AT = [4, 8, 12];
 export const END_TICK = 14;
 export const TICK_MS = 90;
@@ -46,9 +46,9 @@ export function validateSlots(): string[] {
   const s = (f: [string, string, string]): number => settle(f).ret;
   if (s(['seven', 'seven', 'seven']) !== 1000) bad.push('777 не 1000');
   if (s(['star', 'star', 'star']) !== 250) bad.push('три не 250');
-  if (s(['star', 'star', 'coins']) !== 100) bad.push('пара не 100');
+  if (s(['star', 'star', 'coins']) !== 90) bad.push('пара не 90');
   if (s(['star', 'coins', 'cherry']) !== 0) bad.push('мимо не 0');
-  if (s(['star', 'coins', 'star']) !== 100) bad.push('пара через край не 100');
+  if (s(['star', 'coins', 'star']) !== 90) bad.push('пара через край не 90');
   if (lockedAt(5) !== 1 || lockedAt(9) !== 2 || lockedAt(13) !== 3) bad.push('стопы не 4/8/12');
   if (COST !== 50) bad.push(`спин ${COST}, святой 50`);
   return bad;
