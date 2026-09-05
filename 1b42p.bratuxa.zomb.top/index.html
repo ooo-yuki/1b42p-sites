@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>1Б42П: ШТУРМ 🏆</title>
+<style>
+:root{--gold:#f5c518;--bg:#0d0716;--panel:#1c102e;--line:#3d2457;--red:#ff3b3b;}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:var(--bg);color:#f2eafc;font-family:system-ui,'Segoe UI',Roboto,Arial,sans-serif;min-height:100%;overflow:hidden}
+#top{background:linear-gradient(180deg,#1c102e,#120a1f);border-bottom:2px solid var(--gold);padding:8px 10px}
+#top h1{margin:0;font-size:18px;color:var(--gold);text-align:center}
+#top .sub{text-align:center;font-size:11px;color:#b9a3d6}
+#top .sub a{color:var(--gold)}
+#res{display:flex;gap:6px;justify-content:center;margin-top:6px;flex-wrap:wrap}
+.pill{background:#000a;border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:13px}
+.pill b{color:var(--gold)}
+#hpwrap{max-width:640px;margin:6px auto 0;height:10px;background:#000a;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+#hpbar{height:100%;width:100%;background:linear-gradient(90deg,#37e05a,#b6ff5e);transition:width .15s}
+#bossbar{display:none;max-width:640px;margin:6px auto 0;padding:2px 8px;font-size:12px;color:#ffb3b3}
+#bossbar .track{height:8px;background:#000a;border:1px solid var(--red);border-radius:5px;overflow:hidden}
+#bosshp{height:100%;width:100%;background:var(--red)}
+#wrap{position:relative;max-width:900px;margin:0 auto}
+#cv{display:block;width:100%;height:calc(100vh - 210px);min-height:320px;background:#0a0512;touch-action:none}
+#btns{position:absolute;right:10px;bottom:10px;display:flex;gap:8px}
+#btns button{font-size:15px;font-weight:800;border-radius:12px;border:2px solid var(--gold);background:#000c;color:#fff;padding:12px 14px;cursor:pointer}
+#btns button:disabled{opacity:.4}
+#msg{position:absolute;left:0;right:0;top:8px;text-align:center;color:var(--gold);font-weight:800;text-shadow:0 2px 6px #000;pointer-events:none;min-height:22px}
+#shop{display:none;position:absolute;left:10px;top:10px;background:var(--panel);border:2px solid var(--gold);border-radius:12px;padding:10px;z-index:6}
+#shop h3{margin:0 0 6px;color:var(--gold);font-size:15px}
+#shop button{display:block;width:100%;margin:4px 0;background:#2c1a4d;color:#fff;border:1px solid var(--gold);border-radius:8px;padding:8px;font-size:13px;cursor:pointer}
+#over{position:fixed;inset:0;background:rgba(5,2,10,.92);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+#overBox{background:var(--panel);border:3px solid var(--gold);border-radius:16px;padding:26px;max-width:440px;text-align:center}
+#overBox button{background:var(--gold);color:#181006;font-weight:800;font-size:18px;border:none;border-radius:12px;padding:14px 22px;cursor:pointer;width:100%;margin-top:8px}
+.hint{font-size:11px;color:#b9a3d6;text-align:center;padding:4px}
+</style>
+</head>
+<body>
+<div id="top">
+<h1>1Б42П: ШТУРМ ⚔️</h1>
+<div class="sub">арена Батальона · дойди до 42-й волны · <a href="https://hub.bratuxa.zomb.top">← Хаб 1Б42П</a></div>
+<div id="res">
+<span class="pill">🌊 Волна: <b id="rW">0</b></span>
+<span class="pill">🔥 Хайп: <b id="rH">0</b></span>
+<span class="pill">🎟️ Фантики: <b id="rF">0</b></span>
+<span class="pill">⚡ Комбо: <b id="rC">0</b></span>
+<span class="pill">🏅 Рекорд: <b id="rB">0</b></span>
+</div>
+<div id="hpwrap"><div id="hpbar"></div></div>
+<div id="bossbar">👹 БОСС<div class="track"><div id="bosshp"></div></div></div>
+</div>
+<div id="wrap">
+<canvas id="cv"></canvas>
+<div id="msg"></div>
+<div id="btns">
+<button id="btnShop">🛒</button>
+<button id="btnV">🌪️ Вихрь</button>
+<button id="btnZ">🚀 ZOV</button>
+</div>
+<div id="shop"><h3>🛒 Снаряга (фантики)</h3><div id="shopItems"></div></div>
+</div>
+<div class="hint">WASD/стрелки — движение · Пробел — рывок · E — вихрь · Q — ZOV · на телефоне — левый стик</div>
+<div id="over"><div id="overBox">
+<h2 id="overT">ШТУРМ ОКОНЧЕН</h2>
+<p id="overP"></p>
+<button onclick="location.reload()">ЕЩЁ РАЗ ⚔️</button>
+</div></div>
+<script>
+/* ============ 1Б42П: ШТУРМ — арена-экшен ============ */
+var KEY='shturm42_v1';
+var LEGEND_WAVE=42;
+var TYPES={
+ hater:{em:'😡',hp:30,dmg:8,spd:70,r:16,score:10},
+ runner:{em:'🤡',hp:18,dmg:6,spd:130,r:14,score:15},
+ tank:{em:'🦍',hp:120,dmg:16,spd:45,r:22,score:30},
+ boss:{em:'👹',hp:900,dmg:25,spd:55,r:30,score:300}
+};
+function upCost(base,lv){return Math.floor(base*Math.pow(2.2,lv));}
+function waveComp(n){var c=4+2*n,boss=(n%5===0);if(boss)c+=3;return{count:c,boss:boss};}
+function enemyHp(base,n){return Math.round(base*(1+0.25*(n-1)));}
+var S={best:0};
+try{var sv=JSON.parse(localStorage.getItem(KEY)||'{}');if(sv.best)S.best=sv.best;}catch(e){}
+function saveBest(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=0,H=0;
+function fit(){var r=cv.getBoundingClientRect();W=cv.width=Math.max(300,r.width);H=cv.height=Math.max(300,r.height);}
+window.addEventListener('resize',fit);fit();
+var P={x:0,y:0,hp:100,maxhp:100,dmg:12,spd:220,range:90,atkCd:0,atkRate:0.45,dashCd:0,dashT:0,vx:0,vy:0,up:{dmg:0,hp:0,spd:0,range:0}};
+var G={wave:0,hype:0,fant:0,combo:0,best:0,foes:[],parts:[],drops:[],spawnQ:[],breather:2,over:false,shake:0,boss:null};
+var keys={};
+document.addEventListener('keydown',function(e){keys[e.key.toLowerCase()]=true;
+ if(e.key===' '){dash();e.preventDefault();}
+ if(e.key.toLowerCase()==='e'||e.key.toLowerCase()==='у')vortex();
+ if(e.key.toLowerCase()==='q'||e.key.toLowerCase()==='й')zov();});
+document.addEventListener('keyup',function(e){keys[e.key.toLowerCase()]=false;});
+/* левый стик */
+var stick={on:false,id:null,x0:0,y0:0,dx:0,dy:0};
+cv.addEventListener('touchstart',function(e){for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];
+ if(t.clientX<window.innerWidth/2&&!stick.on){stick.on=true;stick.id=t.identifier;stick.x0=t.clientX;stick.y0=t.clientY;stick.dx=0;stick.dy=0;}}
+ e.preventDefault();},{passive:false});
+cv.addEventListener('touchmove',function(e){for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];
+ if(stick.on&&t.identifier===stick.id){stick.dx=(t.clientX-stick.x0)/50;stick.dy=(t.clientY-stick.y0)/50;
+  var l=Math.hypot(stick.dx,stick.dy);if(l>1){stick.dx/=l;stick.dy/=l;}}}
+ e.preventDefault();},{passive:false});
+function touchEnd(e){for(var i=0;i<e.changedTouches.length;i++){if(stick.on&&e.changedTouches[i].identifier===stick.id){stick.on=false;stick.dx=0;stick.dy=0;}}}
+cv.addEventListener('touchend',touchEnd);cv.addEventListener('touchcancel',touchEnd);
+function msg(t){try{document.getElementById('msg').textContent=t;}catch(e){}}
+function blip(f,d){try{var C=blip.ac=blip.ac||new (window.AudioContext||window.webkitAudioContext)();if(C.state==='suspended')C.resume();
+ var o=C.createOscillator(),g=C.createGain();o.type='square';o.frequency.value=f;d=d||0.12;
+ g.gain.setValueAtTime(0.07,C.currentTime);g.gain.exponentialRampToValueAtTime(0.001,C.currentTime+d);
+ o.connect(g);g.connect(C.destination);o.start();o.stop(C.currentTime+d+0.02);}catch(e){}}
+function edge(){var m=24;return{x:m+Math.random()*(W-2*m),y:Math.random()<0.5?-20:H+20};}
+function startWave(n){
+ G.wave=n;var c=waveComp(n);
+ G.spawnQ=[];
+ for(var i=0;i<c.count;i++){var r=Math.random();
+  var t=n<3?'hater':(r<0.55?'hater':(r<0.8?'runner':'tank'));
+  G.spawnQ.push(t);}
+ if(c.boss)G.spawnQ.push('boss');
+ G.spawnT=0;
+ msg(n%5===0?'👹 ВОЛНА '+n+' — БОСС!':'🌊 Волна '+n);
+ blip(n%5===0?160:520,0.2);
+ try{document.getElementById('rW').textContent=n;}catch(e){}
+ updateShop();
+}
+function spawnFoe(t){
+ var T=TYPES[t],p=edge();
+ var f={t:t,em:T.em,x:p.x,y:p.y,hp:enemyHp(T.hp,G.wave),maxhp:enemyHp(T.hp,G.wave),dmg:T.dmg,spd:T.spd*(0.9+Math.random()*0.2),r:T.r,score:T.score,cd:0,chg:0};
+ if(t==='boss'){f.x=W/2;f.y=-40;G.boss=f;try{document.getElementById('bossbar').style.display='block';}catch(e){}blip(120,0.4);}
+ G.foes.push(f);
+}
+function hurtPlayer(d){
+ if(P.dashT>0||G.over)return;
+ P.hp-=d;G.combo=0;G.shake=6;blip(140,0.2);
+ if(P.hp<=0){P.hp=0;gameOver();}
+}
+function gameOver(){
+ G.over=true;
+ if(G.wave>S.best){S.best=G.wave;saveBest();}
+ var legend=G.wave>=LEGEND_WAVE?'<br>🏆 ЛЕГЕНДА 42! Батальон гордится!':'';
+ document.getElementById('overT').textContent='ШТУРМ ОКОНЧЕН НА '+G.wave+' ВОЛНЕ';
+ document.getElementById('overP').innerHTML='🔥 Хайп: '+fmt(G.hype)+'<br>⚡ Лучшее комбо: '+G.best+'<br>🏅 Рекорд: '+S.best+legend+'<br><br>Мы уже победили 🏆';
+ document.getElementById('over').style.display='flex';
+ blip(110,0.5);
+}
+function dash(){if(P.dashCd>0||G.over)return;P.dashCd=2;P.dashT=0.25;blip(700,0.08);}
+function vortex(){
+ if(G.over||P.vCd>0)return;P.vCd=6;
+ var R=150,done=0;
+ for(var i=G.foes.length-1;i>=0;i--){var f=G.foes[i];
+  if(Math.hypot(f.x-P.x,f.y-P.y)<R+f.r){damageFoe(f,P.dmg*3,P.x,P.y);done++;}}
+ burst(P.x,P.y,'🌪️',10);msg(done?('🌪️ Вихрь смёл '+done+'!'):'🌪️ Вихрь в пустоту...');blip(300,0.25);
+}
+function zov(){
+ if(G.over||P.zCd>0)return;
+ if(G.fant<25){msg('Нужно 25 🎟️ на ZOV!');blip(200);return;}
+ G.fant-=25;P.zCd=12;
+ var R=260;
+ for(var i=G.foes.length-1;i>=0;i--){var f=G.foes[i];
+  if(Math.hypot(f.x-P.x,f.y-P.y)<R+f.r)damageFoe(f,P.dmg*8,P.x,P.y);}
+ G.shake=14;burst(P.x,P.y,'🚀',24);msg('🚀 РАКЕТА ZOV!');blip(90,0.5);
+}
+function damageFoe(f,d,fx,fy){
+ f.hp-=d;
+ var dx=f.x-fx,dy=f.y-fy,l=Math.hypot(dx,dy)||1;
+ f.x+=dx/l*14;f.y+=dy/l*14;
+ burst(f.x,f.y,'💥',3);
+ if(f.hp<=0)killFoe(f);
+ else blip(600,0.05);
+}
+function killFoe(f){
+ var i=G.foes.indexOf(f);if(i>=0)G.foes.splice(i,1);
+ G.combo++;G.best=Math.max(G.best,G.combo);
+ var gain=Math.round(f.score*(1+G.combo*0.1));
+ G.hype+=gain;
+ if(Math.random()<0.35)G.drops.push({k:'f',x:f.x,y:f.y,v:1+Math.floor(f.score/15)});
+ else if(Math.random()<0.08)G.drops.push({k:'h',x:f.x,y:f.y,v:20});
+ burst(f.x,f.y,f.em,6);blip(880,0.08);
+ if(f.t==='boss'){G.boss=null;try{document.getElementById('bossbar').style.display='none';}catch(e){}
+  for(var j=0;j<5;j++)G.drops.push({k:'f',x:f.x+(Math.random()-0.5)*60,y:f.y+(Math.random()-0.5)*60,v:10});
+  msg('👹 БОСС ПОВЕРЖЕН! +'+gain+' 🔥');}
+}
+function burst(x,y,em,n){for(var i=0;i<n;i++)G.parts.push({x:x,y:y,vx:(Math.random()-0.5)*260,vy:(Math.random()-0.5)*260,t:0.5,em:em});}
+function fmt(n){n=Math.floor(n);if(n>=1e6)return (n/1e6).toFixed(2)+'M';if(n>=1e3)return (n/1e3).toFixed(1)+'K';return String(n);}
+/* магазин */
+var SHOP=[
+ {id:'dmg',n:'💪 Урон +4',base:30},{id:'hp',n:'❤️ Макс HP +25',base:30},
+ {id:'spd',n:'🥾 Скорость +10%',base:50},{id:'range',n:'🎯 Радиус +15',base:40}];
+function updateShop(){
+ var el=document.getElementById('shopItems');if(!el)return;el.innerHTML='';
+ SHOP.forEach(function(o){
+  var lv=P.up[o.id],c=upCost(o.base,lv);
+  var b=document.createElement('button');
+  b.textContent=o.n+' · '+lv+' ур. · '+c+' 🎟️';
+  b.onclick=function(){
+   if(G.fant<c){msg('Не хватает фантиков! 🎟️');blip(200);return;}
+   G.fant-=c;P.up[o.id]++;
+   if(o.id==='dmg')P.dmg+=4;
+   if(o.id==='hp'){P.maxhp+=25;P.hp=Math.min(P.maxhp,P.hp+25);}
+   if(o.id==='spd')P.spd*=1.1;
+   if(o.id==='range')P.range+=15;
+   blip(760);updateShop();
+  };
+  el.appendChild(b);
+ });
+}
+document.getElementById('btnShop').onclick=function(){var s=document.getElementById('shop');s.style.display=s.style.display==='block'?'none':'block';updateShop();blip(600);};
+document.getElementById('btnV').onclick=vortex;
+document.getElementById('btnZ').onclick=zov;
+/* цикл */
+var lastT=0;
+function frame(){
+ requestAnimationFrame(frame);
+ var now=Date.now(),dt=Math.min((now-(lastT||now))/1000,0.05);lastT=now;
+ if(G.over){draw();return;}
+ /* движение */
+ var mx=0,my=0;
+ if(keys['a']||keys['arrowleft']||keys['ф'])mx-=1;
+ if(keys['d']||keys['arrowright']||keys['в'])mx+=1;
+ if(keys['w']||keys['arrowup']||keys['ц'])my-=1;
+ if(keys['s']||keys['arrowdown']||keys['ы'])my+=1;
+ if(stick.on){mx=stick.dx;my=stick.dy;}
+ var ml=Math.hypot(mx,my);if(ml>1){mx/=ml;my/=ml;}
+ var sp=P.spd*(P.dashT>0?2.6:1);
+ P.x=Math.max(20,Math.min(W-20,P.x+mx*sp*dt));
+ P.y=Math.max(20,Math.min(H-20,P.y+my*sp*dt));
+ if(P.dashCd>0)P.dashCd-=dt;if(P.dashT>0)P.dashT-=dt;
+ if(P.vCd>0)P.vCd-=dt;if(P.zCd>0)P.zCd-=dt;
+ /* волны */
+ if(G.spawnQ.length){G.spawnT-=dt;if(G.spawnT<=0){G.spawnT=0.5;spawnFoe(G.spawnQ.shift());}}
+ else if(!G.foes.length){G.breather-=dt;
+  if(G.breather<=0){G.breather=4;G.fant+=5+G.wave;startWave(G.wave+1);}
+  else if(Math.floor(G.breather*2)!==Math.floor((G.breather+dt)*2))msg('Передышка... '+Math.ceil(G.breather)+'с (+фантики)');}
+ /* автоатака по ближайшему */
+ if(P.atkCd>0)P.atkCd-=dt;
+ if(P.atkCd<=0&&G.foes.length){
+  var bi=-1,bd=1e9;
+  for(var i=0;i<G.foes.length;i++){var f=G.foes[i];var d=Math.hypot(f.x-P.x,f.y-P.y)-f.r;
+   if(d<bd){bd=d;bi=i;}}
+  if(bi>=0&&bd<P.range){P.atkCd=P.atkRate;damageFoe(G.foes[bi],P.dmg,P.x,P.y);}
+ }
+ /* враги */
+ for(var j=G.foes.length-1;j>=0;j--){var e=G.foes[j];
+  var ex=P.x-e.x,ey=P.y-e.y,el=Math.hypot(ex,ey)||1;
+  var esp=e.spd;
+  if(e.t==='boss'){e.chg-=dt;if(e.chg<=0){e.chg=3;esp=e.spd*3;burst(e.x,e.y,'👹',4);blip(150,0.2);}}
+  e.x+=ex/el*Math.min(esp*dt,el);e.y+=ey/el*Math.min(esp*dt,el);
+  if(e.cd>0)e.cd-=dt;
+  if(el<e.r+14&&e.cd<=0){e.cd=0.8;hurtPlayer(e.dmg);}
+ }
+ /* дроп */
+ for(var k=G.drops.length-1;k>=0;k--){var dr=G.drops[k];
+  if(Math.hypot(dr.x-P.x,dr.y-P.y)<26){G.drops.splice(k,1);
+   if(dr.k==='f'){G.fant+=dr.v;blip(990,0.05);}
+   else{P.hp=Math.min(P.maxhp,P.hp+dr.v);msg('+'+dr.v+' HP ❤️');blip(700);}}}
+ /* частицы */
+ for(var p=G.parts.length-1;p>=0;p--){var pt=G.parts[p];pt.t-=dt;
+  pt.x+=pt.vx*dt;pt.y+=pt.vy*dt;if(pt.t<=0)G.parts.splice(p,1);}
+ if(G.shake>0)G.shake-=dt*40;
+ draw();hud();
+}
+function hud(){
+ try{
+ document.getElementById('rH').textContent=fmt(G.hype);
+ document.getElementById('rF').textContent=fmt(G.fant);
+ document.getElementById('rC').textContent=G.combo;
+ document.getElementById('rB').textContent=S.best;
+ document.getElementById('hpbar').style.width=(100*P.hp/P.maxhp)+'%';
+ if(G.boss)document.getElementById('bosshp').style.width=(100*Math.max(G.boss.hp,0)/G.boss.maxhp)+'%';
+ document.getElementById('btnV').disabled=P.vCd>0;
+ document.getElementById('btnZ').disabled=(P.zCd>0||G.fant<25);
+ }catch(e){}
+}
+function draw(){
+ ctx.save();
+ if(G.shake>0)ctx.translate((Math.random()-0.5)*G.shake,(Math.random()-0.5)*G.shake);
+ ctx.fillStyle='#0a0512';ctx.fillRect(-20,-20,W+40,H+40);
+ ctx.strokeStyle='rgba(245,197,24,.12)';ctx.lineWidth=1;
+ for(var gx=0;gx<W;gx+=40){ctx.beginPath();ctx.moveTo(gx,0);ctx.lineTo(gx,H);ctx.stroke();}
+ for(var gy=0;gy<H;gy+=40){ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(W,gy);ctx.stroke();}
+ ctx.strokeStyle='#f5c518';ctx.lineWidth=3;ctx.strokeRect(8,8,W-16,H-16);
+ ctx.font='13px sans-serif';
+ var i,f;
+ for(i=0;i<G.drops.length;i++){var dr=G.drops[i];ctx.font='18px sans-serif';ctx.fillText(dr.k==='f'?'🎟️':'❤️',dr.x-9,dr.y+6);}
+ for(i=0;i<G.foes.length;i++){f=G.foes[i];ctx.font=(f.r*1.8)+'px sans-serif';ctx.fillText(f.em,f.x-f.r*0.9,f.y+f.r*0.6);
+  ctx.fillStyle='#000a';ctx.fillRect(f.x-18,f.y-f.r-12,36,5);
+  ctx.fillStyle='#ff3b3b';ctx.fillRect(f.x-18,f.y-f.r-12,36*Math.max(f.hp,0)/f.maxhp,5);}
+ ctx.font='30px sans-serif';ctx.fillText('🧍',P.x-15,P.y+10);
+ if(P.dashT>0){ctx.strokeStyle='#4fc3f7';ctx.lineWidth=2;ctx.beginPath();ctx.arc(P.x,P.y,22,0,6.29);ctx.stroke();}
+ ctx.strokeStyle='rgba(79,195,247,.25)';ctx.lineWidth=1;ctx.beginPath();ctx.arc(P.x,P.y,P.range,0,6.29);ctx.stroke();
+ for(i=0;i<G.parts.length;i++){var pt=G.parts[i];ctx.font='14px sans-serif';ctx.globalAlpha=Math.max(pt.t*2,0);ctx.fillText(pt.em,pt.x-7,pt.y+5);}
+ ctx.globalAlpha=1;ctx.restore();
+}
+/* старт */
+P.x=W/2;P.y=H/2;
+updateShop();
+try{document.getElementById('rB').textContent=S.best;}catch(e){}
+requestAnimationFrame(frame);
+/* крючок для тестов */
+window.__shturm={waveComp:waveComp,enemyHp:enemyHp,upCost:upCost,types:Object.keys(TYPES)};
+</script>
+<script>/* 42-трекер онлайна */(function(){var SITE='1b42p';try{var s=null;try{s=localStorage.getItem('t42_sid');}catch(e){}if(!s||!/^[0-9a-f]{32}$/.test(s)){s='';var h='0123456789abcdef';for(var i=0;i<32;i++)s+=h[Math.floor(Math.random()*16)];try{localStorage.setItem('t42_sid',s);}catch(e){}}function b(){try{fetch('https://hub.bratuxa.zomb.top/api/track',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({site:SITE,sid:s}),keepalive:true}).catch(function(){});}catch(e){}}b();setInterval(b,30000);}catch(e){}})();</script>
+</body>
+</html>
