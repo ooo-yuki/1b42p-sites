@@ -86,6 +86,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('магазин: покупка биты и выбор оружия', async ({ page }) => {
     await page.click('#goBtn');
     await page.evaluate(() => (window as unknown as { __mtt: { give: (n: number) => number } }).__mtt.give(1000));
+    await page.evaluate(() => (window as unknown as { __mtt: { setWave: (n: number) => number } }).__mtt.setWave(2));
     await page.click('#shopBtn');
     await expect(page.locator('.sheet')).toContainText('Оружейка');
     await page.click('#buy-bat');
@@ -114,6 +115,21 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.locator('#sensRange').fill('2');
     await page.click('.wclose');
     await expect(page.locator('.modal')).toHaveCount(0);
+  });
+
+  test('бита закрыта на 1-й волне', async ({ page }) => {
+    await page.click('#goBtn');
+    await page.evaluate(() => (window as unknown as { __mtt: { give: (n: number) => number } }).__mtt.give(1000));
+    await page.click('#shopBtn');
+    await expect(page.locator('.sheet')).toContainText('С ВОЛНЫ 2');
+    await expect(page.locator('#buy-bat')).toHaveCount(0);
+    await page.click('.wclose');
+  });
+
+  test('плашка нового раунда всплывает', async ({ page }) => {
+    await page.click('#goBtn');
+    await expect(page.locator('#waveBanner')).toBeVisible();
+    await expect(page.locator('#waveBanner')).toContainText('ВОЛНА 1');
   });
 
   test('API: валидация и топ без мусора', async ({ request }) => {

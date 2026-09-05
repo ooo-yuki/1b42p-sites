@@ -14,6 +14,7 @@ export interface HudState {
   fantiki: number;
   weapon: string;
   owned: string[];
+  moving: boolean;
 }
 
 export interface WeaponDef {
@@ -24,12 +25,14 @@ export interface WeaponDef {
   range: number;
   cd: number;
   price: number;
+  /** С какой волны доступна. */
+  minWave: number;
 }
 
 export const WEAPONS: WeaponDef[] = [
-  { id: 'fists', name: '👊 Кулаки', desc: 'Всегда с тобой', dmg: 32, range: 3.8, cd: 0.45, price: 0 },
-  { id: 'bat', name: '🏏 Бита', desc: 'Длиннее и злее', dmg: 48, range: 4.3, cd: 0.6, price: 300 },
-  { id: 'axe', name: '🪓 Секира', desc: 'Тяжёлый аргумент', dmg: 70, range: 4.6, cd: 0.85, price: 800 },
+  { id: 'fists', name: '👊 Кулаки', desc: 'Всегда с тобой', dmg: 32, range: 3.8, cd: 0.45, price: 0, minWave: 1 },
+  { id: 'bat', name: '🏏 Бита', desc: 'Длиннее и злее', dmg: 48, range: 4.3, cd: 0.6, price: 300, minWave: 2 },
+  { id: 'axe', name: '🪓 Секира', desc: 'Тяжёлый аргумент', dmg: 70, range: 4.6, cd: 0.85, price: 800, minWave: 3 },
 ];
 
 export interface GameEvents {
@@ -40,13 +43,15 @@ export interface GameEvents {
 interface Enemy {
   g: THREE.Group;
   body: THREE.Sprite;
-  hpBg: THREE.Sprite;
-  hpFg: THREE.Sprite;
+  hpCv: HTMLCanvasElement;
+  hpTex: THREE.CanvasTexture;
+  hpSpr: THREE.Sprite;
   hp: number;
   maxhp: number;
   speed: number;
   hitCd: number;
   hurtT: number;
+  phase: number;
   dead: boolean;
 }
 
@@ -86,12 +91,52 @@ export class Game {
   private owned: string[] = ['fists'];
   private soundOn = true;
   private sens = 1;
+  private moving = false;
+  private bobPhase = 0;
   private enemies: Enemy[] = [];
   private solids: { x: number; z: number; r: number }[] = [];
   private AC: AudioContext | null = null;
   private lookPointer = -1;
   private lookLX = 0;
   private lookLY = 0;
+  private parts: Array<{ s: THREE.Sprite; vx: number; vy: number; vz: number; life: number }> = [];
+
+  /** Красные частицы удара: брызги в точке попадания. */
+  burst(x: number, y: number, z: number, n = 10): void {
+    for (let i = 0; i < n; i++) {
+      let p = this.parts.find((q) => q.life <= 0);
+      if (!p) {
+        if (this.parts.length >= 90) return;
+        const s = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0xff2222, transparent: true, depthWrite: false }));
+        s.scale.set(0.22, 0.22, 1);
+        this.scene.add(s);
+        p = { s, vx: 0, vy: 0, vz: 0, life: 0 };
+        this.parts.push(p);
+      }
+      const a = Math.random() * Math.PI * 2;
+      const sp = 2 + Math.random() * 4;
+      p.s.position.set(x, y, z);
+      p.vx = Math.cos(a) * sp;
+      p.vz = Math.sin(a) * sp;
+      p.vy = 1.5 + Math.random() * 3.5;
+      p.life = 0.45 + Math.random() * 0.2;
+      p.s.visible = true;
+      (p.s.material as THREE.SpriteMaterial).opacity = 1;
+    }
+  }
+
+  private updateParts(dt: number): void {
+    for (const p of this.parts) {
+      if (p.life <= 0) continue;
+      p.life -= dt;
+      if (p.life <= 0) { p.s.visible = false; continue; }
+      p.vy -= 9 * dt;
+      p.s.position.x += p.vx * dt;
+      p.s.position.y = Math.max(0.05, p.s.position.y + p.vy * dt);
+      p.s.position.z += p.vz * dt;
+      (p.s.material as THREE.SpriteMaterial).opacity = Math.min(1, p.life / 0.3);
+    }
+  }
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -107,8 +152,8 @@ export class Game {
     this.renderer.toneMappingExposure = 1.15;
     this.camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 400);
     this.camera.rotation.order = 'YXZ';
-    this.scene.background = new THREE.Color(0x060a12);
-    this.scene.fog = new THREE.Fog(0x060a12, 40, 160);
+    this.scene.background = new THREE.Color(0x9ecdf0);
+    this.scene.fog = new THREE.Fog(0x9ecdf0, 60, 200);
     this.loadShop();
     this.buildWorld();
     this.spawnWave();
@@ -126,13 +171,22 @@ export class Game {
   };
 
   private onPointerDown = (e: PointerEvent): void => {
-    // клик/тап по правой половине — осмотр; сам удар идёт кнопкой/пробелом
+    // клик по экрану — автозахват мыши (pointer lock), дальше осмотр без кнопок
+    try {
+      const r = (this.canvas.requestPointerLock as (() => Promise<void> | void) | undefined)?.call(this.canvas);
+      if (r && typeof (r as Promise<void>).catch === 'function') (r as Promise<void>).catch(() => undefined);
+    } catch { /* noop */ }
     if (this.lookPointer !== -1) return;
     this.lookPointer = e.pointerId;
     this.lookLX = e.clientX;
     this.lookLY = e.clientY;
   };
   private onPointerMove = (e: PointerEvent): void => {
+    // в захвате — поворот свободный, кнопка не нужна
+    if (typeof document !== 'undefined' && document.pointerLockElement === this.canvas) {
+      this.addLook(e.movementX || 0, e.movementY || 0);
+      return;
+    }
     if (e.pointerId !== this.lookPointer) return;
     const dx = e.clientX - this.lookLX;
     const dy = e.clientY - this.lookLY;
@@ -172,6 +226,7 @@ export class Game {
 
   buyWeapon(id: string): boolean {
     const w = Game.weapon(id);
+    if (this.wave < w.minWave) return false;
     if (this.owned.includes(w.id)) { this.weaponId = w.id; this.saveShop(); this.pushHud(); return true; }
     if (this.fantiki < w.price) return false;
     this.fantiki -= w.price;
@@ -228,8 +283,9 @@ export class Game {
 
   private buildWorld(): void {
     const scene = this.scene;
-    scene.add(new THREE.AmbientLight(0x8899bb, 0.6));
-    const moon = new THREE.DirectionalLight(0x8fb4ff, 0.9);
+    // светло: день вместо ночи
+    scene.add(new THREE.AmbientLight(0xffffff, 0.95));
+    const moon = new THREE.DirectionalLight(0xfff3d6, 1.4);
     moon.position.set(-40, 80, -30);
     moon.castShadow = true;
     moon.shadow.mapSize.width = 1024;
@@ -245,14 +301,14 @@ export class Game {
 
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(ARENA + 20, ARENA + 20),
-      new THREE.MeshStandardMaterial({ color: 0x0d1626, roughness: 0.55, metalness: 0.3 }),
+      new THREE.MeshStandardMaterial({ color: 0x4a5d7d, roughness: 0.6, metalness: 0.15 }),
     );
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
 
     // сетка улиц для ориентации
-    const lineMat = new THREE.MeshBasicMaterial({ color: 0x223148 });
+    const lineMat = new THREE.MeshBasicMaterial({ color: 0x8fa3c4 });
     for (let i = -HALF; i <= HALF; i += 22) {
       const l1 = new THREE.Mesh(new THREE.PlaneGeometry(ARENA, 0.4), lineMat);
       l1.rotation.x = -Math.PI / 2; l1.position.set(0, 0.02, i); scene.add(l1);
@@ -314,7 +370,7 @@ export class Game {
       const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.6, 10, 10), new THREE.MeshBasicMaterial({ color: 0xffe9a8 }));
       bulb.position.set(fx, 9.2, fz);
       scene.add(bulb);
-      const pl = new THREE.PointLight(0xffd88a, 1.1, 46);
+      const pl = new THREE.PointLight(0xffd88a, 0.5, 46);
       pl.position.set(fx, 9, fz);
       scene.add(pl);
     }
@@ -348,14 +404,14 @@ export class Game {
     body.scale.set(1.4, 2.0, 1);
     body.position.set(0, 1.0, 0);
     g.add(body);
-    const bg = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0x5a0d0d, depthTest: false }));
-    bg.scale.set(1.3, 0.13, 1);
-    bg.position.set(0, 2.25, 0);
-    g.add(bg);
-    const fg = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0x39d353, depthTest: false }));
-    fg.scale.set(1.3, 0.13, 1);
-    fg.position.set(0, 2.25, 0);
-    g.add(fg);
+    // полоска HP с цифрами: рисуем на канвасе (пиксель-стиль)
+    const hpCv = document.createElement('canvas');
+    hpCv.width = 128; hpCv.height = 32;
+    const hpTex = new THREE.CanvasTexture(hpCv);
+    const hpSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: hpTex, depthTest: false, transparent: true }));
+    hpSpr.scale.set(1.7, 0.42, 1);
+    hpSpr.position.set(0, 2.35, 0);
+    g.add(hpSpr);
     // точка спавна: только свободная (не внутри укрытий) и не впритык к игроку
     let sx = 0, sz = 40;
     for (let t = 0; t < 24; t++) {
@@ -370,19 +426,36 @@ export class Game {
     }
     g.position.set(sx, 0, sz);
     this.scene.add(g);
-    this.enemies.push({
-      g, body, hpBg: bg, hpFg: fg,
+    const foe: Enemy = {
+      g, body, hpCv, hpTex, hpSpr,
       hp: 100, maxhp: 100,
       speed: 1.7 + Math.random() * 1.1 + this.wave * 0.12,
-      hitCd: 0, hurtT: 0, dead: false,
-    });
+      hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, dead: false,
+    };
+    this.updateHpBar(foe);
+    this.enemies.push(foe);
   }
 
   private updateHpBar(e: Enemy): void {
     const f = Math.max(0, e.hp / e.maxhp);
-    e.hpFg.scale.x = 1.3 * f;
-    e.hpFg.position.x = -1.3 * (1 - f) / 2;
-    (e.hpFg.material as THREE.SpriteMaterial).color.set(f > 0.5 ? 0x39d353 : f > 0.25 ? 0xffd23f : 0xff3b3b);
+    const g = e.hpCv.getContext('2d')!;
+    // рамка + фон
+    g.fillStyle = '#101018';
+    g.fillRect(0, 0, 128, 32);
+    g.fillStyle = '#000';
+    g.fillRect(3, 3, 122, 26);
+    // заливка по доле
+    g.fillStyle = f > 0.5 ? '#39d353' : f > 0.25 ? '#ffd23f' : '#ff3b3b';
+    g.fillRect(5, 5, 118 * f, 22);
+    // цифры HP
+    g.font = 'bold 17px monospace';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillStyle = '#000';
+    g.fillText(`${Math.ceil(e.hp)}/${e.maxhp}`, 65, 17);
+    g.fillStyle = '#fff';
+    g.fillText(`${Math.ceil(e.hp)}/${e.maxhp}`, 64, 16);
+    e.hpTex.needsUpdate = true;
   }
 
   start(): void {
@@ -425,6 +498,7 @@ export class Game {
       if (!this.hitSolid(nx, e.g.position.z, 0.8)) e.g.position.x = nx;
       if (!this.hitSolid(e.g.position.x, nz, 0.8)) e.g.position.z = nz;
       this.updateHpBar(e);
+      this.burst(e.g.position.x, 1.2, e.g.position.z, 10);
       hits++;
       if (e.hp <= 0) {
         e.dead = true;
@@ -485,6 +559,7 @@ export class Game {
       fantiki: this.fantiki,
       weapon: this.weaponId,
       owned: [...this.owned],
+      moving: this.moving,
     });
   }
 
@@ -539,6 +614,11 @@ export class Game {
     return Math.round(this.hp);
   }
   debugRevive(): boolean { return this.revive(); }
+  debugSetWave(n: number): number {
+    this.wave = Math.max(1, Math.min(10, Math.floor(n)));
+    this.pushHud();
+    return this.wave;
+  }
   debugSpots(): Array<{ x: number; z: number }> {
     return this.enemies.filter((e) => !e.dead).map((e) => ({ x: e.g.position.x, z: e.g.position.z }));
   }
@@ -568,6 +648,8 @@ export class Game {
       const run = this.input.ShiftLeft || this.input.ShiftRight;
       const sp = run ? 8.2 : 5.6;
       const len = Math.hypot(f, r);
+      this.moving = len > 0.15;
+      if (this.moving) this.bobPhase += dt * 11;
       if (len > 0.01) {
         const nf = f / Math.max(1, len), nr = r / Math.max(1, len);
         const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
@@ -591,6 +673,7 @@ export class Game {
         } else if (e.hitCd <= 0) {
           e.hitCd = 0.95;
           this.hp -= 6 + Math.random() * 5;
+          this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
           this.shakeT = 0.25;
           this.blip(90);
           if (this.hp <= 0) {
@@ -602,6 +685,10 @@ export class Game {
           this.pushHud();
         }
         if (e.hitCd > 0) e.hitCd -= dt;
+        // анимация ходьбы: пружинка + покачивание
+        e.phase += dt * (2 + e.speed);
+        e.body.position.y = 1.0 + Math.abs(Math.sin(e.phase)) * 0.12;
+        e.body.material.rotation = Math.sin(e.phase) * 0.07;
         if (e.hurtT > 0) {
           e.hurtT -= dt;
           e.body.position.x = Math.sin(performance.now() / 30) * 0.08;
@@ -612,15 +699,17 @@ export class Game {
       if (this.atkCd > 0) this.atkCd -= dt;
       if (this.swingT > 0) this.swingT -= dt;
       if (this.shakeT > 0) this.shakeT -= dt;
+      this.updateParts(dt);
       if (Math.floor(performance.now() / 200) !== Math.floor((performance.now() - dt * 1000) / 200)) {
         this.pushHud();
         this.drawMM();
       }
     }
-    // камера от первого лица
+    // камера от первого лица + покачивание ходьбы
     const shake = this.shakeT > 0 ? Math.sin(performance.now() / 20) * 0.03 : 0;
+    const bob = this.moving ? Math.sin(this.bobPhase) * 0.055 : 0;
     const kick = this.swingT > 0 ? -this.swingT * 0.35 : 0;
-    this.camera.position.set(this.px, 1.7 + shake, this.pz);
+    this.camera.position.set(this.px, 1.7 + shake + bob, this.pz);
     this.camera.rotation.set(this.pitch + kick, this.yaw, 0);
     this.renderer.render(this.scene, this.camera);
   };

@@ -43,7 +43,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 #hitBtn span{font-size:13px;letter-spacing:1px}
 #hitBtn:active{background:#ff3b3b}
 #weapon{position:fixed;right:12px;bottom:0;z-index:5;width:min(58vmin,520px);pointer-events:none;transform-origin:bottom right;opacity:.95}
-#weapon img{width:100%;filter:drop-shadow(0 0 18px rgba(255,159,28,.8))}
+#weapon img{width:100%;image-rendering:pixelated;filter:drop-shadow(0 0 18px rgba(255,159,28,.8))}
+#weapon.walk img{animation:wbob .38s steps(2) infinite}
+@keyframes wbob{0%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-10px) rotate(2deg)}100%{transform:translateY(0) rotate(-2deg)}}
 #weapon.swing{animation:wswing .25s ease-out}
 @keyframes wswing{0%{transform:rotate(0)}40%{transform:rotate(-38deg) translateY(-12px)}100%{transform:rotate(0)}}
 #shopBtn{position:fixed;top:10px;right:10px;z-index:6;font-size:15px;font-weight:800;border-radius:10px;
@@ -74,3 +76,13 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 #deadScore{font-size:22px}
 #reviveBtn{background:#39d353;border:none;border-radius:14px;padding:14px 30px;font-size:19px;font-weight:900;color:#06240f;cursor:pointer}
 #retryBtn{background:transparent;border:2px solid #fff;border-radius:14px;padding:12px 30px;font-size:17px;font-weight:800;color:#fff;cursor:pointer}
+/* пиксель-оформление: рубленый моноширинный шрифт и жёсткие тени */
+#hud,#shopBtn,#setBtn,#hitBtn,.sheet,#waveBanner{font-family:'Courier New',Courier,monospace}
+#hud{text-shadow:2px 2px 0 #000}
+#shopBtn,#setBtn,#hitBtn{box-shadow:4px 4px 0 #000}
+.wbtn,.wclose{box-shadow:3px 3px 0 #000}
+#waveBanner{position:fixed;inset:0;z-index:15;display:flex;align-items:center;justify-content:center;
+ pointer-events:none;font-size:min(11vw,72px);font-weight:900;color:#ffd23f;
+ text-shadow:3px 3px 0 #7a2d00,6px 6px 0 rgba(0,0,0,.55);letter-spacing:2px;
+ animation:wavein 2.6s steps(12) forwards}
+@keyframes wavein{0%{opacity:0;transform:scale(.6)}12%{opacity:1;transform:scale(1.08)}22%{transform:scale(1)}78%{opacity:1}100%{opacity:0;transform:scale(1.05)}}

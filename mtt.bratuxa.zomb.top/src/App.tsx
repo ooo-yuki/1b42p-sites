@@ -69,12 +69,14 @@ export default function App() {
   const joyId = useRef(-1);
   const gameRef = useRef<Game | null>(null);
   const [menu, setMenu] = useState(true);
-  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'] });
+  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false });
   const [scores, setScores] = useState<ScoreRow[]>([]);
   const [shopOpen, setShopOpen] = useState(false);
   const [setOpen, setSetOpen] = useState(false);
   const [sound, setSound] = useState(true);
   const [sens, setSens] = useState(1);
+  const [waveBanner, setWaveBanner] = useState(0);
+  const prevWave = useRef(0);
   const [nick, setNick] = useState(() => {
     try { return localStorage.getItem(NICK_KEY) || 'Братуха'; } catch { return 'Братуха'; }
   });
@@ -106,6 +108,7 @@ export default function App() {
       give: (n: number) => game.debugGive(n),
       hurt: (n: number) => game.debugHurt(n),
       revive: () => game.debugRevive(),
+      setWave: (n: number) => game.debugSetWave(n),
       joy: (x: number, y: number) => game.setJoy(x, y),
       look: (dx: number, dy: number) => game.addLook(dx, dy),
     };
@@ -141,6 +144,14 @@ export default function App() {
   }, [nick]);
 
   const onBustedShown = useRef(false);
+  // плашка нового раунда: всплывает на каждую смену волны
+  useEffect(() => {
+    if (menu || hud.wave === prevWave.current) return;
+    prevWave.current = hud.wave;
+    setWaveBanner(hud.wave);
+    const t = window.setTimeout(() => setWaveBanner(0), 2600);
+    return () => window.clearTimeout(t);
+  }, [hud.wave, menu]);
   useEffect(() => {
     if (hud.dead && !onBustedShown.current) {
       onBustedShown.current = true;
@@ -209,7 +220,7 @@ export default function App() {
           </div>
           <div id="hudRow">🌊 Волна {hud.wave} · 👹 {hud.enemies} · 💀 {hud.kills} · 🏆 {hud.score}</div>
           <div id="hudRow2">🎟️ {hud.fantiki} · {wname}</div>
-          <small id="hint">WASD — идти · мышь/палец — осмотр · Пробел/J — удар · Shift — бег</small>
+          <small id="hint">WASD — идти · клик по экрану — захват мыши · Пробел/J — удар · Shift — бег</small>
         </div>
       )}
       {!menu && (
@@ -236,7 +247,10 @@ export default function App() {
           >
             👊<span>УДАР</span>
           </button>
-          <div id="weapon" ref={weaponRef}><img src={WIMG[hud.weapon] ?? oruzh1Url} alt="оружие" /></div>
+          <div id="weapon" ref={weaponRef} className={hud.moving ? 'walk' : ''}><img src={WIMG[hud.weapon] ?? oruzh1Url} alt="оружие" /></div>
+          {waveBanner > 0 && (
+            <div id="waveBanner" key={waveBanner}>🌊 ВОЛНА {waveBanner}</div>
+          )}
         </>
       )}
       {hud.dead && !menu && (
@@ -256,11 +270,13 @@ export default function App() {
             {WEAPONS.map((w) => {
               const has = hud.owned.includes(w.id);
               const cur = hud.weapon === w.id;
+              const locked = hud.wave < w.minWave;
               return (
                 <div className="wcard" key={w.id}>
                   <div className="wname">{w.name}</div>
                   <div className="wdesc">{w.desc} · 💥 {w.dmg} · 📏 {w.range}м · ⏱️ {w.cd}с</div>
                   {cur ? <button className="wbtn cur" disabled>✔ В РУКАХ</button>
+                    : locked ? <button className="wbtn" disabled>🔒 С ВОЛНЫ {w.minWave}</button>
                     : has ? <button className="wbtn" id={`sel-${w.id}`} onClick={() => buySel(w.id)}>ВЗЯТЬ</button>
                     : <button className="wbtn buy" id={`buy-${w.id}`} onClick={() => buySel(w.id)} disabled={hud.fantiki < w.price}>
                       КУПИТЬ за 🎟️ {w.price}
