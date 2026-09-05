@@ -93,6 +93,11 @@ export class ShowEngine {
     return stZone(this.v, this.s);
   }
 
+  /** Темп относительно базы площадки — для строки tempo в UI. */
+  tempo(): number {
+    return this.spd() / stSpeed(this.v, this.s);
+  }
+
   step(dt: number): void {
     if (this.over) return;
     if (this.cd > 0) this.cd -= dt;

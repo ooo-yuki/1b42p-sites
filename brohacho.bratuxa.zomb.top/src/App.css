@@ -1,184 +1,464 @@
-.counter {
-  font-size: 16px;
-  padding: 5px 10px;
-  border-radius: 5px;
-  color: var(--accent);
-  background: var(--accent-bg);
-  border: 2px solid transparent;
-  transition: border-color 0.3s;
-  margin-bottom: 24px;
-
-  &:hover {
-    border-color: var(--accent-border);
-  }
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
+/* Фабрика Хайпа 42 — афиша. Токены святы: золото/ночь/панель/рамка/розовый. */
+:root {
+  --gold: #f5c518;
+  --bg: #0d0716;
+  --panel: #1c102e;
+  --line: #3d2457;
+  --pink: #ff4fd8;
 }
 
-.hero {
-  position: relative;
-
-  .base,
-  .framework,
-  .vite {
-    inset-inline: 0;
-    margin: 0 auto;
-  }
-
-  .base {
-    width: 170px;
-    position: relative;
-    z-index: 0;
-  }
-
-  .framework,
-  .vite {
-    position: absolute;
-  }
-
-  .framework {
-    z-index: 1;
-    top: 34px;
-    height: 28px;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
-      scale(1.4);
-  }
-
-  .vite {
-    z-index: 0;
-    top: 107px;
-    height: 26px;
-    width: auto;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
-      scale(0.8);
-  }
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: #f2eafc;
+  font-family: system-ui, 'Segoe UI', Roboto, Arial, sans-serif;
+  min-height: 100%;
 }
 
-#center {
+#root {
+  min-height: 100%;
+  background: var(--bg);
+  color: #f2eafc;
+}
+
+/* ===== АФИША: мачта ===== */
+#top {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: linear-gradient(180deg, #1c102e 60%, #120a1f);
+  border-bottom: 2px solid var(--gold);
+  padding: 14px 12px 12px;
+  overflow: hidden;
+}
+#top:before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(60% 120% at 50% -20%, rgba(245, 197, 24, 0.14), transparent 70%);
+  pointer-events: none;
+}
+#top h1 {
+  margin: 0;
+  text-align: center;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  line-height: 1.02;
+  font-size: clamp(26px, 7.5vw, 44px);
+  color: var(--gold);
+  text-shadow: 0 0 26px rgba(245, 197, 24, 0.35);
+  animation: rise 0.5s ease-out backwards;
+}
+#top h1 .k {
+  display: block;
+  font-size: 0.52em;
+  letter-spacing: 0.34em;
+  color: #f2eafc;
+  text-shadow: none;
+}
+#top .sub {
+  text-align: center;
+  font-size: 12px;
+  color: #b9a3d6;
+  margin-top: 6px;
+  animation: rise 0.5s 0.08s ease-out backwards;
+}
+#res {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 10px;
+  flex-wrap: wrap;
+  animation: rise 0.5s 0.14s ease-out backwards;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.pill {
+  background: #000a;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.pill b {
+  color: var(--gold);
+}
+
+/* ===== сегмент-переключатель сцен (shadcn Tabs) ===== */
+#tabs {
   display: flex;
   flex-direction: column;
-  gap: 25px;
-  place-content: center;
-  place-items: center;
-  flex-grow: 1;
-
-  @media (max-width: 1024px) {
-    padding: 32px 20px 24px;
-    gap: 18px;
-  }
-}
-
-#next-steps {
-  display: flex;
-  border-top: 1px solid var(--border);
-  text-align: left;
-
-  & > div {
-    flex: 1 1 0;
-    padding: 32px;
-    @media (max-width: 1024px) {
-      padding: 24px 20px;
-    }
-  }
-
-  .icon {
-    margin-bottom: 16px;
-    width: 22px;
-    height: 22px;
-  }
-
-  @media (max-width: 1024px) {
-    flex-direction: column;
-    text-align: center;
-  }
-}
-
-#docs {
-  border-right: 1px solid var(--border);
-
-  @media (max-width: 1024px) {
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
-}
-
-#next-steps ul {
-  list-style: none;
-  padding: 0;
-  display: flex;
+  align-items: stretch;
+  padding: 12px 12px 4px;
+  max-width: 640px;
+  margin: 0 auto;
   gap: 8px;
-  margin: 32px 0 0;
-
-  .logo {
-    height: 18px;
-  }
-
-  a {
-    color: var(--text-h);
-    font-size: 16px;
-    border-radius: 6px;
-    background: var(--social-bg);
-    display: flex;
-    padding: 6px 12px;
-    align-items: center;
-    gap: 8px;
-    text-decoration: none;
-    transition: box-shadow 0.3s;
-
-    &:hover {
-      box-shadow: var(--shadow);
-    }
-    .button-icon {
-      height: 18px;
-      width: 18px;
-    }
-  }
-
-  @media (max-width: 1024px) {
-    margin-top: 20px;
-    flex-wrap: wrap;
-    justify-content: center;
-
-    li {
-      flex: 1 1 calc(50% - 8px);
-    }
-
-    a {
-      width: 100%;
-      justify-content: center;
-      box-sizing: border-box;
-    }
-  }
 }
-
-#spacer {
-  height: 88px;
-  border-top: 1px solid var(--border);
-  @media (max-width: 1024px) {
-    height: 48px;
-  }
-}
-
-.ticks {
-  position: relative;
+#tabs [data-slot='tabs-list'] {
+  display: flex;
   width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+#tabs [data-slot='tabs-trigger'] {
+  flex: 1;
+  border-radius: 0;
+  border: none;
+  border-right: 1px solid var(--line);
+  background: transparent;
+  color: #f2eafc;
+  font-size: 14px;
+  font-weight: 800;
+  min-height: 48px;
+  padding: 12px 6px;
+}
+#tabs [data-slot='tabs-trigger']:last-child {
+  border-right: none;
+}
+#tabs [data-slot='tabs-trigger'][aria-selected='true'],
+#tabs [data-slot='tabs-trigger'][data-selected],
+#tabs [data-slot='tabs-trigger'][data-state='active'] {
+  background: var(--gold);
+  color: #181006;
+}
+#tabs [data-slot='tabs-trigger']:after {
+  display: none;
+}
+.shop-hint {
+  text-align: center;
+  color: var(--gold);
+  font-weight: 700;
+  min-height: 24px;
+}
+#main {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0 12px 40px;
+  width: 100%;
+  box-sizing: border-box;
+}
 
-  &::before,
-  &::after {
-    content: '';
-    position: absolute;
-    top: -4.5px;
-    border: 5px solid transparent;
-  }
+/* ===== карточки (shadcn Card) ===== */
+[data-slot='card'] {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: #f2eafc;
+  padding: 14px;
+  margin: 12px 0;
+}
+[data-slot='card'] h3 {
+  margin: 0 0 8px;
+  color: var(--gold);
+  font-size: 15px;
+  letter-spacing: 0.06em;
+}
+.venue-row {
+  margin: 6px 0;
+}
 
-  &::before {
-    left: 0;
-    border-left-color: var(--border);
+/* ===== кнопки (shadcn Button) ===== */
+button.big {
+  background: var(--gold);
+  color: #181006;
+  font-weight: 800;
+  font-size: 18px;
+  border: none;
+  border-radius: 14px;
+  padding: 15px 22px;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 8px;
+  min-height: 52px;
+  box-shadow: 0 4px 22px rgba(245, 197, 24, 0.25);
+}
+button.big:disabled {
+  opacity: 0.45;
+  box-shadow: none;
+}
+button.big:active {
+  transform: scale(0.98);
+}
+button.buy {
+  background: #2c1a4d;
+  color: #fff;
+  border: 1px solid var(--gold);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  min-height: 44px;
+}
+button.buy:disabled {
+  opacity: 0.45;
+}
+button.buy:active {
+  transform: scale(0.97);
+}
+.raid-btn {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.hint {
+  font-size: 12px;
+  color: #b9a3d6;
+}
+.lock {
+  color: #ff7b7b;
+  font-size: 13px;
+}
+[data-slot='badge'].lvl {
+  color: var(--pink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+#lastShow {
+  text-align: center;
+  color: var(--gold);
+  font-weight: 700;
+  margin-top: 6px;
+  min-height: 24px;
+}
+
+/* ===== сцена: портал ритма ===== */
+#rbar {
+  position: relative;
+  height: 76px;
+  background: #0a0512;
+  border: 2px solid var(--gold);
+  border-radius: 14px;
+  overflow: hidden;
+  margin: 10px 0;
+  touch-action: none;
+  box-shadow:
+    0 0 26px rgba(245, 197, 24, 0.22),
+    inset 0 0 30px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+}
+#rzone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(245, 197, 24, 0.35);
+  border-left: 2px solid var(--gold);
+  border-right: 2px solid var(--gold);
+  pointer-events: none;
+}
+#rzone:after {
+  content: 'ЖМИ ТУТ';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--gold);
+  opacity: 0.8;
+}
+#rcur {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 12px;
+  background: linear-gradient(180deg, #fff, #ff4fd8 60%, #f5c518);
+  border: 2px solid #fff;
+  border-radius: 6px;
+  box-shadow:
+    0 0 14px #ff4fd8,
+    0 0 5px #fff;
+  pointer-events: none;
+  z-index: 4;
+}
+#rbar:before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg, transparent 0 9%, rgba(255, 255, 255, 0.09) 9% 10%);
+  pointer-events: none;
+}
+.note {
+  position: absolute;
+  top: 8px;
+  font-size: 30px;
+  line-height: 1;
+  z-index: 3;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 0 6px #f5c518);
+  pointer-events: none;
+}
+.note.hit {
+  animation: pop 0.18s ease-out;
+}
+@keyframes pop {
+  0% {
+    transform: translateX(-50%) scale(1);
   }
-  &::after {
-    right: 0;
-    border-right-color: var(--border);
+  50% {
+    transform: translateX(-50%) scale(1.6);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateX(-50%) scale(0.2);
+    opacity: 0;
+  }
+}
+.note.raidnote {
+  filter: drop-shadow(0 0 8px #ff4fd8);
+}
+#tempo {
+  text-align: center;
+  font-size: 13px;
+  color: #ffb3ec;
+  min-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.hater {
+  position: absolute;
+  top: 2px;
+  font-size: 34px;
+  line-height: 1;
+  padding: 10px;
+  margin: -10px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  z-index: 5;
+  animation: shake 0.3s infinite;
+}
+@keyframes shake {
+  0% {
+    transform: translateX(-2px) rotate(-6deg);
+  }
+  50% {
+    transform: translateX(2px) rotate(6deg);
+  }
+  100% {
+    transform: translateX(-2px) rotate(-6deg);
+  }
+}
+#raid {
+  position: absolute;
+  inset: 0;
+  background: rgba(120, 0, 20, 0.55);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  font-size: 22px;
+  font-weight: 800;
+  z-index: 6;
+}
+#msg {
+  min-height: 24px;
+  text-align: center;
+  color: var(--gold);
+  font-weight: 700;
+  margin-top: 6px;
+}
+#timer {
+  font-size: 13px;
+  color: #b9a3d6;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.shop {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+.shop [data-slot='card'] {
+  margin: 0;
+}
+
+/* ===== победа (shadcn Dialog) ===== */
+.win-box {
+  background: var(--panel);
+  border: 3px solid var(--gold);
+  border-radius: 16px;
+  color: #f2eafc;
+  box-shadow: 0 0 60px rgba(245, 197, 24, 0.3);
+  text-align: center;
+}
+.win-box [data-slot='dialog-title'] {
+  color: var(--gold);
+}
+
+a {
+  color: var(--gold);
+}
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* ===== баннер Саши 42 ===== */
+.sasha42-wrap {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 42;
+  width: min(220px, 42vw);
+}
+.sasha42-banner {
+  display: block;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 0 18px rgba(0, 96, 170, 0.55);
+  border: 1px solid #0060aa;
+  background: #070b18;
+}
+.sasha42-banner img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.sasha42-x {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #0d1428;
+  color: #fff;
+  border: 1px solid #0060aa;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #top h1,
+  #top .sub,
+  #res {
+    animation: none;
+  }
+  .note.hit,
+  .hater {
+    animation: none;
+  }
+  #rcur {
+    box-shadow: none;
   }
 }
