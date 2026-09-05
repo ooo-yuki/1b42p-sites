@@ -115,13 +115,13 @@ function massif(x,z){
  return (g1+g2+g3+g4+g5+g6+rg*rg*4+mo)*mtnM;
 }
 function baseH(x,z){
- const r=10;
+ const r=14;
  let h=(rawZoneH(x,z)+rawZoneH(x+r,z)+rawZoneH(x-r,z)+rawZoneH(x,z+r)+rawZoneH(x,z-r))/5;
  h+=massif(x,z); // горный массив вместо мелких неровностей
  return h;
 }
 const AUTOPAD=[]; // автоплощадки под зданиями (заполняются перед buildTerrain)
-function padBlend(h,ph,d,r){const t=d/r;if(t>=1)return h;if(t<0.7)return ph;const s=(t-0.7)/0.3,u=s*s*(3-2*s);return ph+(h-ph)*u;} // ровная середина, мягкий край
+function padBlend(h,ph,d,r){const t=d/r;if(t>=1)return h;if(t<0.85)return ph;const s=(t-0.85)/0.15,u=s*s*(3-2*s);return ph+(h-ph)*u;} // ровная середина, мягкий край
 function groundHeight(x,z){
  let h=baseH(x,z);
  for(const f of AUTOPAD)h=padBlend(h,f.h,Math.hypot(x-f.x,z-f.z),f.r);
@@ -1124,24 +1124,42 @@ function billboard(x,y,z){const m=new THREE.Mesh(new THREE.PlaneGeometry(15,4.5)
  const _zebraMA=new THREE.MeshBasicMaterial({map:_zebraA,transparent:true});
  const _zebraMB=new THREE.MeshBasicMaterial({map:_zebraB,transparent:true});
  const _curbM=new THREE.MeshStandardMaterial({color:0x9a9aa5,roughness:.8});
+ function ribbonGeo(w,len,horiz,cx,cz,y0){
+  // Лента, повторяющая рельеф: вершины каждые ~5м лежат на земле (лифт потом добавит высоту центра)
+  const seg=Math.max(1,Math.round(len/5));
+  const geo=new THREE.PlaneGeometry(w,len,1,seg);
+  if(horiz)geo.rotateZ(Math.PI/2);
+  geo.rotateX(-Math.PI/2);
+  const base=GY(cx,cz);
+  const pos=geo.attributes.position;
+  for(let i=0;i<pos.count;i++){
+   pos.setY(i, GY(pos.getX(i)+cx,pos.getZ(i)+cz)-base+y0);
+  }
+  geo.computeVertexNormals();
+  return geo;
+ }
  function roadSeg(ax,az,bx,bz){
-  // Прямой отрезок шоссе из (ax,az) в (bx,bz): строго вдоль X или Z (база y=0 — liftIsland поднимет)
+  // Прямой отрезок шоссе из (ax,az) в (bx,bz): строго вдоль X или Z.
+  // Ленты гнутся по рельефу, бордюры — кусками по 10м (каждый встаёт на свою высоту).
   const len=Math.hypot(bx-ax,bz-az);
   if(len<1)return;
   const horiz=Math.abs(bx-ax)>=Math.abs(bz-az);
   const cx=(ax+bx)/2,cz=(az+bz)/2;
   const tex=_roadTile.clone();tex.needsUpdate=true;tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.repeat.set(1,Math.max(1,Math.round(len/20)));
-  const r=new THREE.Mesh(new THREE.PlaneGeometry(10,len),new THREE.MeshStandardMaterial({map:tex,roughness:.92,metalness:.05}));
-  r.rotation.x=-Math.PI/2;if(horiz)r.rotation.z=Math.PI/2;
-  r.position.set(cx,horiz?0.025:0.02,cz);r.receiveShadow=true;scene.add(r);
+  const r=new THREE.Mesh(ribbonGeo(10,len,horiz,cx,cz,0.02),new THREE.MeshStandardMaterial({map:tex,roughness:.92,metalness:.05}));
+  r.position.set(cx,0,cz);r.receiveShadow=true;scene.add(r);
   for(const s of [-6,6]){
-   const w=new THREE.Mesh(new THREE.PlaneGeometry(2,len),_walkM);
-   w.rotation.x=-Math.PI/2;if(horiz)w.rotation.z=Math.PI/2;w.receiveShadow=true;
-   if(!horiz)w.position.set(cx+s,0.035,cz);else w.position.set(cx,0.04,cz+s);
+   const w=new THREE.Mesh(ribbonGeo(2,len,horiz,horiz?cx:cx+s,horiz?cz+s:cz,horiz?0.04:0.035),_walkM);
+   w.position.set(horiz?cx:cx+s,0,horiz?cz+s:cz);w.receiveShadow=true;
    scene.add(w);
-   const curb=new THREE.Mesh(new THREE.BoxGeometry(horiz?len:0.6,0.22,horiz?0.6:len),_curbM);
-   if(!horiz)curb.position.set(cx+Math.sign(s)*5,0.11,cz);else curb.position.set(cx,0.11,cz+Math.sign(s)*5);
-   scene.add(curb);
+   const n=Math.max(1,Math.round(len/10));
+   for(let k=0;k<n;k++){
+    const cl=((k+0.5)/n)*len;
+    const curb=new THREE.Mesh(new THREE.BoxGeometry(horiz?len/n:0.6,0.22,horiz?0.6:len/n),_curbM);
+    if(!horiz)curb.position.set(cx+Math.sign(s)*5,0.11,cz-len/2+cl);
+    else curb.position.set(cx-len/2+cl,0.11,cz+Math.sign(s)*5);
+    scene.add(curb);
+   }
   }
  }
  const _VA=[-200,-150,-100,-50,0],_HA=[-200,-150,-100,-50,0,50,100];
@@ -1180,8 +1198,8 @@ function billboard(x,y,z){const m=new THREE.Mesh(new THREE.PlaneGeometry(15,4.5)
   const vx=_vsegs.some(s=>s.av===av&&(Math.abs(s.z1-ah)<=6||Math.abs(s.z2-ah)<=6));
   const hx=_hsegs.some(s=>s.ah===ah&&(Math.abs(s.x1-av)<=6||Math.abs(s.x2-av)<=6));
   if(!vx||!hx)continue;
-  const xm=new THREE.Mesh(new THREE.PlaneGeometry(10,10),_xmat);
-  xm.rotation.x=-Math.PI/2;xm.position.set(av,0.022,ah);xm.receiveShadow=true;scene.add(xm);
+  const xm=new THREE.Mesh(ribbonGeo(10,10,false,av,ah,0.022),_xmat);
+  xm.position.set(av,0,ah);xm.receiveShadow=true;scene.add(xm);
   for(const s of _vsegs){if(s.av!==av)continue;for(const dz of [-8,8]){const z=ah+dz;if(z>=s.z1+2&&z<=s.z2-2){const zw=new THREE.Mesh(new THREE.PlaneGeometry(9,3),_zebraMA);zw.rotation.x=-Math.PI/2;zw.position.set(av,0.05,z);scene.add(zw);}}}
   for(const s of _hsegs){if(s.ah!==ah)continue;for(const dx of [-8,8]){const x=av+dx;if(x>=s.x1+2&&x<=s.x2-2){const zw=new THREE.Mesh(new THREE.PlaneGeometry(3,9),_zebraMB);zw.rotation.x=-Math.PI/2;zw.position.set(x,0.055,ah);scene.add(zw);}}}
  }
@@ -1531,7 +1549,7 @@ function caveTick(dt){
  for(const s of solids){
   if(Math.hypot(s.x-0,s.z+140)<45)continue; // SLAY-площадка
   if(Math.hypot(s.x-CAVE.x,s.z-CAVE.z)<42)continue; // пещера
-  AUTOPAD.push({x:s.x,z:s.z,r:Math.hypot(s.hx,s.hz)+4,h:baseH(s.x,s.z)});
+  AUTOPAD.push({x:s.x,z:s.z,r:Math.hypot(s.hx,s.hz)+6,h:baseH(s.x,s.z)});
  }
  try{buildTerrain();}catch(e){}
 })();
