@@ -9,7 +9,6 @@
 .rim-glow.on{opacity:1; animation:rimglow 1.2s ease-in-out infinite}
 @keyframes rimglow{50%{box-shadow:0 0 34px rgba(0,96,170,.45)}}
 .wheel{filter:drop-shadow(0 10px 28px rgba(0,0,0,.55))}
-.ball-orbit{transform-origin:100px 100px}
 .ball{fill:#fff; filter:drop-shadow(0 0 5px rgba(255,255,255,.95)) drop-shadow(0 0 12px rgba(0,96,170,.8))}
 .hub-num{font-variant-numeric:tabular-nums}
 .hub-num.win{filter:drop-shadow(0 0 10px rgba(0,96,170,.95))}

@@ -1,8 +1,9 @@
-import { EU_REDS, N, pocketColor } from './data';
+import { EU_REDS, N, pocketCenter, pocketColor } from './data';
 import { cn } from '@/lib/utils';
 import './wheel.css';
 
-/* Колесо: 37 карманов SVG, шарик по ободу, ступица с последним шаром. */
+/* Колесо: 37 карманов SVG, шарик в выигрышном кармане, ступица с последним шаром.
+   Крутится одной CSS-транзицией под уже решённый исход — без JS-кадров. */
 
 function polar(cx: number, cy: number, r: number, deg: number): [number, number] {
   const a = ((deg - 90) * Math.PI) / 180;
@@ -22,17 +23,18 @@ function wedge(i: number): string {
 type Props = {
   spinning: boolean;
   angle: number;
-  ballDeg: number;
+  ballPocket: number | null;
   rnum: number | null;
   won: boolean | null;
 };
 
-export default function Wheel({ spinning, angle, ballDeg, rnum, won }: Props): JSX.Element {
+export default function Wheel({ spinning, angle, ballPocket, rnum, won }: Props): JSX.Element {
+  const [bx, by] = ballPocket === null ? [0, 0] : polar(100, 100, 88, pocketCenter(ballPocket));
   return (
     <div className="wheel-box">
       <div className={cn('rim-glow', spinning && 'on')} aria-hidden="true" />
-      <svg className={cn('wheel', spinning && 'spin')} viewBox="0 0 200 200"
-        style={{ ['--spin' as string]: `${angle}deg` }} role="img" aria-label="Колесо рулетки">
+      <svg className="wheel" viewBox="0 0 200 200"
+        style={{ transform: `rotate(${angle}deg)` }} role="img" aria-label="Колесо рулетки">
         <circle cx="100" cy="100" r="98" fill="#20242e" />
         <circle cx="100" cy="100" r="98" fill="none" stroke="#c9a227" strokeWidth="1.6" opacity="0.7" />
         {Array.from({ length: N }, (_, n) => (
@@ -47,9 +49,9 @@ export default function Wheel({ spinning, angle, ballDeg, rnum, won }: Props): J
             </text>
           );
         })}
-        <g className="ball-orbit" style={{ transform: `rotate(${ballDeg}deg)` }}>
-          <circle cx="100" cy="9" r="5.5" className="ball" />
-        </g>
+        {ballPocket !== null && (
+          <circle cx={bx} cy={by} r="5.5" className="ball" />
+        )}
         <circle cx="100" cy="100" r="34" fill="#0d1428" stroke="#ffffff" strokeWidth="2" />
         <circle cx="100" cy="100" r="34" fill="none" stroke="#0060AA" strokeWidth="1" opacity="0.6" />
         <text x="100" y="100" textAnchor="middle" dominantBaseline="central" fontSize="26"

@@ -5,8 +5,7 @@
 
 .wheel-box{position:relative;width:100%;max-width:340px;margin:0 auto}
 .wheel{width:100%;height:auto;display:block;filter:drop-shadow(0 0 30px rgba(0,96,170,.3));
- transform:rotate(0deg);transition:transform 1.6s cubic-bezier(.2,.7,.25,1)}
-.wheel.spin{transform:rotate(var(--spin,720deg))}
+ transform:rotate(0deg);transition:transform 1.7s cubic-bezier(.2,.7,.25,1)}
 .pointer{position:absolute;top:-8px;left:50%;margin-left:-9px;width:18px;height:26px;
  background:linear-gradient(180deg,#0060AA,#013a66);clip-path:polygon(0 0,100% 0,50% 100%);
  filter:drop-shadow(0 0 8px rgba(0,96,170,.8))}

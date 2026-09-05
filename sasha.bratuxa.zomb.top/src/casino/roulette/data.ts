@@ -3,13 +3,16 @@
 
 export const N = 37;
 export const MIN_STAKE = 10;
-export const TICKS = 17;
-export const TICK_MS = 90;
-export const TICK_MS_REDUCED = 30;
 export const DEFAULT_BET = '50';
 export const DEFAULT_CHOICE = 'red';
 
 export const EU_REDS = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+
+/** Кругов докрутки: колесо едет только вперёд, минимум столько. */
+export const TURNS = 4;
+
+/** Длительность спина, мс — синхронно с transition в roulette.css. */
+export const SPIN_MS = 1700;
 
 export type Pocket = 'zero' | 'red' | 'black';
 
@@ -22,6 +25,34 @@ export function pocketOf(n: number): Pocket {
 export function pocketColor(n: number): string {
   if (n === 0) return '#0060AA';
   return EU_REDS.includes(n) ? '#E31E25' : '#16161a';
+}
+
+/** Исход спина — равномерный кубик 0–36. Решается ПЕРВЫМ, колесо едет под него. */
+export function spinPocket(rnd: () => number = Math.random): number {
+  return Math.min(N - 1, Math.floor(rnd() * N));
+}
+
+/** Центр кармана n в локальных градусах колеса (0 — верх, по часовой). */
+export function pocketCenter(n: number): number {
+  return ((n + 0.5) * 360) / N;
+}
+
+/** Угол, ставящий карман n под иглу сверху. Колесо крутится по часовой. */
+export function angleForPocket(n: number): number {
+  return (TURNS * 360 - pocketCenter(n)) % 360;
+}
+
+/** Какой карман под иглой при повороте колеса a. */
+export function pocketAtAngle(a: number): number {
+  const local = (((-a % 360) + 360) % 360 + 360) % 360;
+  return Math.floor(local / (360 / N)) % N;
+}
+
+/** Докрутка от текущего угла к карману n: только вперёд, минимум TURNS-1 кругов. */
+export function nextAngle(cur: number, n: number): number {
+  const target = angleForPocket(n);
+  const delta = (((target - cur) % 360) + 360) % 360;
+  return cur + (TURNS - 1) * 360 + delta;
 }
 
 /** Расчёт выигрыша — святая формула. Возвращает выплату (0 — мимо). */
