@@ -55,6 +55,7 @@ const sim = {
   enemies: [] as Enemy[],
   spawnQueue: [] as { type: keyof typeof ENEMIES }[],
   spawnT: 0,
+  summonCd: 12,
   intermission: 0,
   kills: 0,
   shots: 0,
@@ -169,6 +170,7 @@ function startWave(n: number) {
   sim.wave = n;
   sim.spawnQueue = makeWave(n).map((s) => ({ type: s.type as keyof typeof ENEMIES }));
   sim.spawnT = 0;
+  sim.summonCd = 12;
   pushHud(`Волна ${n}/7${n === 7 ? ' — БОСС Чайка Рукрасии � чайка' : ''}`);
 }
 
@@ -482,8 +484,13 @@ function tick(dt: number) {
       }
       pushHud();
     }
-    // Босс: крик-спавн каждые 12с.
-    if (e.type === 'boss' && Math.floor(sim.timeSec) % 12 === 0 && e.cd <= -0.4) {
+  }
+  // Босс: крик-спавн свиты — 2 раннера раз в 12с (кулдаун, один пуш).
+  // Было: floor(timeSec)%12==0 && cd<=-0.4 пушил каждый тик целую секунду (~120 пушей).
+  if (sim.wave >= 7 && sim.enemies.some((x) => x.type === 'boss')) {
+    sim.summonCd -= dt;
+    if (sim.summonCd <= 0) {
+      sim.summonCd = 12;
       for (let i = 0; i < 2; i++) sim.spawnQueue.push({ type: 'runner' });
     }
   }
