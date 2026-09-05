@@ -687,13 +687,13 @@ if(MI===1&&stage===0&&near(25,75,15)){stage=1;
 say(['<b>ДЕНИС БИТКОИН</b> заходит в чат батальона… тихо. Пыль. Старые скриншоты.<br><i>«Никого нет… 5 лет…»</i> 😔','Он листает: SLAY 2021, завозы Пятёрки, мопсы, самокаты. Ностальгия давит.','Вдруг из темноты — рык…'],()=>{kizyak.mesh.visible=true;kizyak.label.visible=true;
 say(['<b class="red">КИЗЯК:</b> ТЫ ВЫБРАЛ НЕ ТОТ ЧАТ, УБЛ*** 😡 <i>(замахивается битой)</i>','<i>…присматривается… роняет биту…</i>','<b class="grn">КИЗЯК:</b> ОООО… ДЕНИС БИТКОИН?! ВАСАП МА БОЙ!! 🤝🔥','<b class="grn">КИЗЯК:</b> Держи фрибет 500 монет — сгоняй в КАЗИНО у центра, поднимишь банк! 🎰🪙'],()=>{addResp(20);addMoney(500);setM('Миссия 2: Краска','Закрась 3 граффити конкурентов (!) — подойди и держи E');MI=2;stage=0;});});}
 if(MI===2){for(const s of sprays){if(!s.done&&near(s.x,s.z,14)){s.done=true;addResp(15);try{AU.spraySfx();}catch(_){}if(sprays.every(x=>x.done)){setM('Миссия 3: Территория','Иди к синей зоне, размотай 3 НАХ битой (ЛКМ)');MI=3;spawnNakhSquad(-80,-60);try{AU.missionDone();}catch(_){}}return;}}}
-if(MI===4&&near(21,79,15)){say(['<b>ДРУГ:</b> Денис, ну Винлайн платит… 42 не кормит…','<b>ДЕНИС:</b> Брат, хайп не продаётся. Пятёрка ждёт. Зал SLAY ждёт. Пошли домой.','<b>ДРУГ:</b> …ладно. Рвём контракт. <b>Мы с тобой.</b> ✊'],()=>{addResp(25);setTerr(55);setM('Миссия 5: Гонка','Садись в тачку (F) и доедь до SLAY за 90 сек');MI=5;MI5t=90;try{AU.missionDone();}catch(_){}});}
+if(MI===4&&near(21,79,15)){say(['<b>ДРУГ:</b> Денис, ну Винлайн платит… 42 не кормит…','<b>ДЕНИС:</b> Брат, хайп не продаётся. Пятёрка ждёт. Зал SLAY ждёт. Пошли домой.','<b>ДРУГ:</b> …ладно. Рвём контракт. <b>Мы с тобой.</b> ✊'],()=>{addResp(25);setTerr(55);setM('Миссия 5: Гонка','Садись в тачку (F) и доедь до SLAY — время не жмёт');MI=5;try{AU.missionDone();}catch(_){}});}
 if(MI===5&&near(0,-120,16)){enterVinlineWorld();return;}
 if(MI===6&&FIN.stage==='waves'&&near(0,-100,32)){try{winlineCheck();}catch(_){}return;}
 });
 addEventListener('keydown',e=>{if(e.code==='KeyF'){if(!inCar&&near(car.position.x,car.position.z,7)){inCar=true;player.visible=false;try{AU.doorSfx();}catch(_){}}else if(inCar){inCar=false;try{AU.doorSfx();}catch(_){}player.visible=true;player.position.set(car.position.x+3,GY(car.position.x+3,car.position.z),car.position.z);}}});
 // ===== ФИНАЛ: МИР ВИНЛАЙНА =====
-let MI5t=0,finished=false;
+let finished=false;
 const FIN={stage:'',wave:0,insT:0,light:null,light2:null};
 function enterVinlineWorld(){
  if(finished||FIN.stage)return;FIN.stage='waves';FIN.wave=0;FIN.insT=0;
@@ -1638,7 +1638,7 @@ car.userData.wheels.forEach(w=>w.rotation.x+=carSpeed*dt*2);
 car.position.x=Math.max(-280,Math.min(280,car.position.x));car.position.z=Math.max(-280,Math.min(280,car.position.z)); // вода-стена
 car.position.y+=(GY(car.position.x,car.position.z)-car.position.y)*Math.min(1,dt*6);
 player.position.set(car.position.x,car.position.y,car.position.z);
-if(MI===5){MI5t-=dt;setM('Миссия 5: Гонка','До SLAY: '+Math.ceil(MI5t)+' сек — жми!');if(near(0,-120,16)){try{enterVinlineWorld();}catch(_){}}else if(MI5t<=0){MI5t=90;car.position.set(33,GY(33,95),95);carSpeed=0;}}
+if(MI===5){setM('Миссия 5: Гонка','Доедь до SLAY — время не жмёт, жми!');if(near(0,-120,16)){try{enterVinlineWorld();}catch(_){}}}
 }
 // атака битой
 if(attackCD>0)attackCD-=dt;
