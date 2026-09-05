@@ -10,11 +10,13 @@ import {
   dmgPerSip, effMult, owned, refreshForm,
 } from './formulas';
 import { hangoverRate } from '../synergies';
+import { lvlMult } from './levels';
 
 export const ZDEF: ZapoiState = {
   m: 0, hp: 100, maxhp: 100, click: 1, auto: 0,
   mult: 1, regen: 0, toxic: 1, heals: 0, up: {}, arts: {}, syn: {},
   char: null, sips: 0, soul: 100, demonForm: 0, completed: {}, deals: 0, luck: 0,
+  lvl: 0, earned: 0, lvlSec: 0, offer: null, offerDone: {},
 };
 
 export function createZapoiState(): ZapoiState {
@@ -28,6 +30,7 @@ export function cloneZapoi(prev: ZapoiState): ZapoiState {
     arts: { ...prev.arts },
     syn: { ...prev.syn },
     completed: { ...(prev.completed || {}) },
+    offerDone: { ...(prev.offerDone || {}) },
   };
 }
 
@@ -48,7 +51,9 @@ export { HANGOVER_RATE, HANGOVER_RATE_GOD };
 export function jagerClick(z: ZapoiState): ZapoiEvent {
   if (z.char === 'ghost') {
     if (z.soul <= 0) return 'shattered';
-    z.m += z.click * effMult(z) * GHOST_SIP_MULT;
+    const gg = z.click * effMult(z) * GHOST_SIP_MULT * lvlMult(z);
+    z.m += gg;
+    z.earned = (z.earned || 0) + gg;
     z.soul -= GHOST_SOUL_SIP;
     if (z.soul <= 0) { z.soul = 0; return 'shattered'; }
     return null;
@@ -74,7 +79,9 @@ export function jagerClick(z: ZapoiState): ZapoiEvent {
     else gain *= 0.6 + Math.random() * 0.6;
   }
   if (z.char === 'demon') gain *= DEMON_SIP_MULT;
+  gain *= lvlMult(z);
   z.m += gain;
+  z.earned = (z.earned || 0) + gain;
   let dmg = dmgPerSip(z);
   if (z.char === 'demon') dmg *= DEMON_SIP_MULT;
   z.hp -= dmg;
@@ -89,11 +96,19 @@ export function jagerClick(z: ZapoiState): ZapoiEvent {
 
 // Тик 1 сек. Возвращает null | 'hangover' | 'shattered' | 'demonform' | 'demonend'.
 export function tickZapoi(z: ZapoiState): ZapoiEvent {
+  z.lvlSec = (z.lvlSec || 0) + 1;
+  const lm = lvlMult(z);
   if (z.auto > 0) {
-    z.m += z.auto * effMult(z);
+    const ag = z.auto * effMult(z) * lm;
+    z.m += ag;
+    z.earned = (z.earned || 0) + ag;
     if (z.char !== 'ghost') z.hp -= z.auto * AUTO_SELF_DMG * z.toxic;
   }
-  if (z.char === 'vladimir') z.m += VLADIMIR_PASSIVE * z.mult;
+  if (z.char === 'vladimir') {
+    const pg = VLADIMIR_PASSIVE * z.mult * lm;
+    z.m += pg;
+    z.earned = (z.earned || 0) + pg;
+  }
   if (z.regen > 0) z.hp += z.regen;
   if (z.char === 'ghost') {
     if (z.soul <= 0) return 'shattered';

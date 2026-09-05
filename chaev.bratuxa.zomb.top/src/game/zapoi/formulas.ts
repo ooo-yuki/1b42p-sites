@@ -1,5 +1,6 @@
 // Формулы запоя 42, 1-в-1 из legacy.html. Все цены и валы — только здесь.
 import type { UpgradeDef, ArtDef, ZapoiState } from './types';
+import { lvlMult } from './levels';
 // --- Скидки персонажей ---
 export const SIP_DISCOUNT_STEP = 0.002; // −0.2% за глоток/сделку
 export const SIP_DISCOUNT_MAX = 0.2; // потолок −20%
@@ -154,12 +155,13 @@ export function heal2cost(z: ZapoiState): number {
   return Math.floor(c * (1 - shopDiscount(z)));
 }
 
-// Сколько даст глоток (для кнопки; у винлайна — среднее).
+// Сколько даст глоток (для кнопки; у винлайна — среднее). С учётом выхлопа уровня.
 export function sipPreview(z: ZapoiState): number {
-  if (z.char === 'ghost') return Math.round(z.click * effMult(z) * GHOST_SIP_MULT);
-  if (z.char === 'demon') return Math.round(z.click * effMult(z) * DEMON_SIP_MULT);
-  if (z.char === 'winline') return Math.round(z.click * effMult(z) * WINLINE_SIP_AVG);
-  return Math.round(z.click * effMult(z));
+  const lm = lvlMult(z);
+  if (z.char === 'ghost') return Math.round(z.click * effMult(z) * GHOST_SIP_MULT * lm);
+  if (z.char === 'demon') return Math.round(z.click * effMult(z) * DEMON_SIP_MULT * lm);
+  if (z.char === 'winline') return Math.round(z.click * effMult(z) * WINLINE_SIP_AVG * lm);
+  return Math.round(z.click * effMult(z) * lm);
 }
 
 export function fmtZ(m: number): string {

@@ -24,6 +24,12 @@ function loadZapoi(): ZapoiState {
       if (z.sips == null) z.sips = 0;
       if (z.soul == null) z.soul = 100;
       if (z.demonForm == null) z.demonForm = 0;
+      // Старые сейвы без уровней запоя: начинаем с Похмелья.
+      if (z.lvl == null) z.lvl = 0;
+      if (z.earned == null) z.earned = 0;
+      if (z.lvlSec == null) z.lvlSec = 0;
+      if (z.offer === undefined) z.offer = null;
+      if (z.offerDone == null) z.offerDone = {};
       // Старые сейвы без персонажа: был прогресс — продолжаем Владимиром.
       if (!z.char && (z.m > 0 || Object.keys(z.up).length > 0)) z.char = 'vladimir';
     }
@@ -85,7 +91,7 @@ export function useZapoiState() {
     setZ((prev) => {
       const next = cloneZapoi(prev);
       if (!buyBottle(next)) {
-        setLog(`Бутылка ещё не готова: скупи всё и накопи ${BOTTLE_COST.toLocaleString('ru-RU')} 🍾`);
+        setLog(`Бутылка ещё не готова: скупи всё, дойди до 👁️ Делирия и накопи ${BOTTLE_COST.toLocaleString('ru-RU')} 🍾`);
         return prev;
       }
       const completed = { ...next.completed, [next.char as string]: 1 };

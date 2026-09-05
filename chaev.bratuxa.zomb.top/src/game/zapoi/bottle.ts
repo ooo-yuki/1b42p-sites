@@ -1,5 +1,7 @@
-// Финал забега: разбитая бутылка. Самый дорогой предмет, только когда всё куплено.
+// Финал забега: разбитая бутылка. Самый дорогой предмет, только когда всё куплено
+// И только на последнем уровне запоя (Делирий).
 import type { ZapoiState } from './types';
+import { LAST_LVL } from './levels';
 import { TREE } from './tree';
 import { ARTS } from './artifacts';
 import { SYNS } from '../synergies';
@@ -17,9 +19,11 @@ export function isAllBought(z: ZapoiState): boolean {
   return treeDone && artsDone && synsDone;
 }
 
-// Разбитая бутылка: самый дорогой предмет. Только когда всё куплено.
+// Разбитая бутылка: самый дорогой предмет. Только когда всё куплено
+// и только на последнем уровне запоя.
 // Возвращает false если нельзя, иначе списывает и возвращает true.
 export function buyBottle(z: ZapoiState): boolean {
+  if ((z.lvl ?? 0) < LAST_LVL) return false;
   if (!isAllBought(z) || z.m < BOTTLE_COST) return false;
   z.m -= BOTTLE_COST;
   return true;

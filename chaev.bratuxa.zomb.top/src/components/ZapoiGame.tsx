@@ -7,6 +7,7 @@ import Bottle from './zapoi/Bottle';
 import CharSelect from './zapoi/CharSelect';
 import DrinkPanel from './zapoi/DrinkPanel';
 import HealButtons from './zapoi/HealButtons';
+import LevelPanel from './zapoi/LevelPanel';
 import Synergies from './zapoi/Synergies';
 import UpgradeTree from './zapoi/UpgradeTree';
 import { motifFor, radio } from './zapoi/charMusic';
@@ -56,6 +57,7 @@ export default function ZapoiGame() {
       <p className="hint">Основа: Чаев гонит <b>Бухло</b> 🍾, но каждый глоток бьёт по <b>Здоровью</b> 🫀. Упал в 0 — похмелье: −20% бухла, здоровье 30%. Лечилки лечат, но жрут бухло. Качай древо, бери артефакты. Формулы цен прямо в описаниях, ня~</p>
       <p className="hint">{motifFor(z.char, z.demonForm || 0).label}{' '}<button onClick={toggleMusic}>{musicOn ? '⏸ Выкл' : '▶ Вкл'}</button></p>
       <DrinkPanel z={z} charDef={charDef} drinkImg={drinkImg} mutate={mutate} onShattered={() => setZ((prev) => newRun(prev.completed, null))} onChangeChar={resetToSelect} />
+      <LevelPanel z={z} mutate={mutate} />
       <HealButtons z={z} mutate={mutate} />
       <div className="zlog">{log}</div>
       <Artifacts z={z} mutate={mutate} />

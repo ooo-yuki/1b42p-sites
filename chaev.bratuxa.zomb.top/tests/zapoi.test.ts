@@ -5,6 +5,7 @@ import {
   buyUpgrade, buyArt, jagerClick, healSmall, healBig,
   tickZapoi, applyHangover, checkSyns,
   CHARACTERS, isUnlocked, isAllBought, BOTTLE_COST, buyBottle, newRun, bet,
+  LAST_LVL,
   artCost, charDiscount, effMult, cleanseDemon,
   pickleSmall, demonPickle, holyPickle, syringe, HEALS,
   shopDiscount, formDuration,
@@ -68,7 +69,8 @@ describe('запой: глотки, урон, похмелье', () => {
     const z = createZapoiState();
     z.auto = 2; z.mult = 1; z.regen = 0.3; z.hp = 50;
     tickZapoi(z);
-    expect(z.m).toBe(2);
+    // 1 сек на Похмелье: выхлоп 1 − 0.05/60
+    expect(z.m).toBeCloseTo(2 * (1 - 0.05 / 60), 10);
     expect(z.hp).toBeCloseTo(50 - 2 * 0.05 * 1 + 0.3, 5);
   });
 });
@@ -290,7 +292,7 @@ describe('персонажи и бутылка', () => {
     // джекпот ×5 за 300 глотков почти гарантирован (p≈1−0.95^300)
     expect(seenBig).toBe(true);
   });
-  it('бутылка: 50000, только когда всё куплено', () => {
+  it('бутылка: 50000, только когда всё куплено + Делирий', () => {
     const z = createZapoiState();
     z.char = 'vladimir';
     z.m = 1e9;
@@ -300,6 +302,9 @@ describe('персонажи и бутылка', () => {
     ARTS.forEach((a) => { z.arts[a.id] = 1; });
     checkSyns(z);
     expect(isAllBought(z)).toBe(true);
+    // всё скуплено, но уровень не тот — закрыта
+    expect(buyBottle(z)).toBe(false);
+    z.lvl = LAST_LVL;
     const before = z.m;
     expect(buyBottle(z)).toBe(true);
     expect(z.m).toBe(before - BOTTLE_COST);
