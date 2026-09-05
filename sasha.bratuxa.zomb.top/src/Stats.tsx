@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { startBeacon } from './lib/beacon';
 import './stats.css';
-import { Activity, ChartLine, Medal, Radio, Trophy, Users } from 'lucide-react';
+import { Activity, ChartLine, Code, Medal, Radio, Trophy, Users } from 'lucide-react';
 
 const API = 'https://hub.bratuxa.zomb.top/api/stats';
 const reduced =
@@ -24,6 +24,13 @@ interface HistPoint {
   ts: string;
   per_site: Record<string, number>;
   total: number;
+}
+interface FatFn { name: string; file: string; cc: number }
+interface SiteMetrics { site: string; files: number; loc: number; funcs: number; avgCc: number; top: FatFn[] }
+interface Metrics {
+  generated: string;
+  sites: Record<string, SiteMetrics>;
+  total: { files: number; loc: number; funcs: number; avgCc: number };
 }
 interface Stats {
   ok: boolean;
@@ -151,6 +158,7 @@ function Count({ to }: { to: number }): JSX.Element {
 
 export default function Stats(): JSX.Element {
   const [st, setSt] = useState<Stats | null>(null);
+  const [mst, setMst] = useState<Metrics | null>(null);
   const [upd, setUpd] = useState('');
   const cvRef = useRef<HTMLCanvasElement | null>(null);
   const first = useRef(true);
@@ -166,6 +174,12 @@ export default function Stats(): JSX.Element {
         setUpd(new Date().toLocaleTimeString('ru-RU'));
       } catch {
         /* offline — тихо */
+      }
+      try {
+        const m = await (await fetch('./metrics.json')).json();
+        if (!dead && m.sites) setMst(m as Metrics);
+      } catch {
+        /* метрик нет — секция молча не рисуется */
       }
     };
     void load();
@@ -325,6 +339,42 @@ export default function Stats(): JSX.Element {
             Маяк шлёт heartbeat каждые 30 сек · онлайн = был в последние 90 сек · срез истории — раз в минуту
           </div>
         </div>
+
+        {mst && (
+          <div className="stx-sec">
+            <h2 className="stx-sec-t"><Code data-icon="inline-start" /> Код батальона: {mst.total.loc.toLocaleString('ru-RU')} строк, {mst.total.funcs} функций</h2>
+            <div style={{ marginTop: 12, overflowX: 'auto' }}>
+            <table className="stx-table">
+              <tbody>
+                <tr>
+                  <th>Сайт</th>
+                  <th>Файлы</th>
+                  <th>Строки</th>
+                  <th>Сложн.</th>
+                  <th>Самая жирная</th>
+                </tr>
+                {[...ORDER]
+                  .map((s) => ({ s, m: mst.sites[s] }))
+                  .filter((x) => x.m)
+                  .sort((a, b) => b.m.loc - a.m.loc)
+                  .map((x, i) => (
+                    <tr key={x.s} className={x.s === 'sasha' ? 'me' : ''}>
+                      <td>{i < 3 ? <Medal className={`medal ${medalClass[i]}`} aria-label={`Место ${i + 1}`} /> : ''}{nm(x.s)}</td>
+                      <td>{x.m.files}</td>
+                      <td>{x.m.loc.toLocaleString('ru-RU')}</td>
+                      <td>{x.m.funcs ? x.m.avgCc : '—'}</td>
+                      <td>{x.m.top[0] ? `${x.m.top[0].name} · ${x.m.top[0].cc}` : '—'}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+            </div>
+            <div className="stx-foot" style={{ marginTop: 8 }}>
+              Считаем сами на сборке: строки кода без пустых и комментов · сложность = 1 + ветвления (if/for/while/case/catch/&&/||/??),
+              тернарник и match не считаем · без node_modules, dist и картинок
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
