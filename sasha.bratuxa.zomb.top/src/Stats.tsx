@@ -13,15 +13,15 @@ const NAMES: Record<string, string> = {
   hub: 'Хаб', chaev: 'Чаев', doom: 'Дум', evaelph: 'Эввград',
   smolgrad: 'Смолград', miqqil: 'Танки', setden: 'Сетден',
   svyatoslav: 'Святослав', denis: 'Денис', sasha: 'Саша', gtaevv: 'GTAEVV',
-  brohacho: 'Фабрика',
+  brohacho: 'Фабрика', '1b42p': 'Штурм',
 };
 const COLORS: Record<string, string> = {
   hub: '#0060AA', chaev: '#7CFC00', doom: '#ff6b35', evaelph: '#ff7bac',
   smolgrad: '#c9b458', miqqil: '#4fc3f7', setden: '#ba68c8',
   svyatoslav: '#ffee58', denis: '#80deea', sasha: '#E31E25', gtaevv: '#00e5ff',
-  brohacho: '#ff4fd8',
+  brohacho: '#ff4fd8', '1b42p': '#ff3b3b',
 };
-const ORDER = ['hub', 'chaev', 'doom', 'evaelph', 'smolgrad', 'miqqil', 'setden', 'svyatoslav', 'denis', 'sasha', 'gtaevv', 'brohacho'];
+const ORDER = ['hub', 'chaev', 'doom', 'evaelph', 'smolgrad', 'miqqil', 'setden', 'svyatoslav', 'denis', 'sasha', 'gtaevv', 'brohacho', '1b42p'];
 interface HistPoint {
   ts: string;
   per_site: Record<string, number>;
