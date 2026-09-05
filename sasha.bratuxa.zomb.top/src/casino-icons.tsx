@@ -476,6 +476,22 @@ const ARTS: Record<string, Pix> = {
     ],
     colors: { S: '#ffffff' },
   },
+  plinko: {
+    grid: [
+      '......K......',
+      '.....KBK.....',
+      '....KBWBK....',
+      '...KBWBWBK...',
+      '..KBWBWBWBK..',
+      '.KBWBWBWBWBK.',
+      'KBWBWBWBWBWBK',
+      '......R......',
+      '.....RRR.....',
+      '.....RRR.....',
+      '......R......',
+    ],
+    colors: { K: K, B: '#0060AA', W: '#ffffff', R: '#E31E25' },
+  },
 };
 
 export function ItemIcon({ name, className }: { name: string; className?: string }): JSX.Element {
