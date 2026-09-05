@@ -80,7 +80,9 @@ export default function Lobby({ me, online, pool, games, searching, busy, myVote
                 ? <span className="minicard" aria-hidden="true"><i>Т♠</i><i className="red">К♥</i></span>
                 : g.icon === 'chess'
                   ? <span className="minicard chess" aria-hidden="true"><i className="knight">♞</i></span>
-                  : <DiceFace v={5} hot={myVote === id} />}
+                  : g.icon === 'checkers'
+                    ? <span className="minicard draughts" aria-hidden="true"><i className="wd" /><i className="bd" /></span>
+                    : <DiceFace v={5} hot={myVote === id} />}
               <b>{g.label}</b>
               <small>{g.min === g.max ? (g.max === 2 ? 'дуэль' : `${g.max} игрока`) : `${g.min}–${g.max} игроков`} · голосов: <span className="tnum">{v}</span></small>
             </ToggleGroupItem>
@@ -162,6 +164,7 @@ export default function Lobby({ me, online, pool, games, searching, busy, myVote
         <li>Кости на выбывание: низший падает, ничья за вылет — переброс.</li>
         <li>Дурак подкидной: отбивайся или бери, скинул всё — чемпион.</li>
         <li>Шахматы — дуэль: белые и чёрные по жребию, на ход минута, флаг — поражение.</li>
+        <li>Шашки русские — дуэль: бить обязательно и по максимуму, дамка летает.</li>
       </ol>
     </div>
   );

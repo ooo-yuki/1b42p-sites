@@ -27,11 +27,11 @@ describe('decideGame', () => {
 
   test('все на «любом» — валидная игра из каталога', () => {
     const ids = seed({ a: 'any', b: 'any', c: 'any' });
-    expect(['dice', 'durak', 'chess']).toContain(decideGame(ids));
+    expect(['dice', 'durak', 'chess', 'checkers']).toContain(decideGame(ids));
   });
 
   test('пустой пул — валидная игра, не падает', () => {
-    expect(['dice', 'durak', 'chess']).toContain(decideGame([]));
+    expect(['dice', 'durak', 'chess', 'checkers']).toContain(decideGame([]));
   });
 
   test('один голос решает при остальных «любых»', () => {
@@ -55,6 +55,7 @@ describe('game platform seams', () => {
     expect(sanitizeGame('dice')).toBe('dice');
     expect(sanitizeGame('durak')).toBe('durak');
     expect(sanitizeGame('chess')).toBe('chess');
+    expect(sanitizeGame('checkers')).toBe('checkers');
   });
 
   test('sanitizeGame гасит битую игру в dice', () => {
@@ -67,6 +68,7 @@ describe('game platform seams', () => {
     expect(gameCap('dice')).toBe(5);
     expect(gameCap('durak')).toBe(5);
     expect(gameCap('chess')).toBe(2);
+    expect(gameCap('checkers')).toBe(2);
     expect(gameCap('zzz')).toBe(5);
   });
 
@@ -74,5 +76,6 @@ describe('game platform seams', () => {
     expect(fitMembers(['a', 'b', 'c', 'd', 'e', 'f'], 'dice')).toEqual(['a', 'b', 'c', 'd', 'e']);
     expect(fitMembers(['a', 'b'], 'dice')).toEqual(['a', 'b']);
     expect(fitMembers(['a', 'b', 'c'], 'chess')).toEqual(['a', 'b']);
+    expect(fitMembers(['a', 'b', 'c'], 'checkers')).toEqual(['a', 'b']);
   });
 });

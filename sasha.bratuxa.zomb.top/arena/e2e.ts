@@ -258,6 +258,52 @@ if (!overC) throw new Error('шахматы не кончились!');
 if (!overC.winner) throw new Error('мат не поставил чемпиона!');
 console.log('chess winner:', overC.name);
 for (const p of [H, J]) p.ws.close();
+
+// шашки-трек: приватная дуэль, два тихих хода по истории, потом сдача белых.
+const K = client('Тест-Л');
+const L = client('Тест-М');
+await Promise.all([K.ready, L.ready]);
+const wK = await K.waitFor((m) => m.t === 'welcome');
+const wL = await L.waitFor((m) => m.t === 'welcome');
+idOf.set(K, wK.id);
+idOf.set(L, wL.id);
+K.send({ t: 'create', game: 'checkers' });
+const rdr = await K.waitFor((m) => m.t === 'room' && m.private);
+if (rdr.game !== 'checkers') throw new Error('приватка не с шашками!');
+L.send({ t: 'join', code: rdr.code });
+await L.waitFor((m) => m.t === 'room' && m.code === rdr.code);
+K.send({ t: 'start' });
+function draughtMove(gd: any): { kind: string; path?: number[] } | null {
+  const n = (gd.history as string[]).length;
+  if (gd.turn === 'w') return n === 0 ? { kind: 'checkers', path: [42, 35] } : n === 2 ? { kind: 'resign' } : null;
+  return n === 1 ? { kind: 'checkers', path: [19, 26] } : null;
+}
+const byKd = (id: string): any => (idOf.get(K) === id ? K : L);
+let overK: any = null;
+{
+  const t4 = Date.now();
+  let cur: any = await K.waitFor((m) => m.t === 'room' && m.phase === 'play');
+  while (!overK && Date.now() - t4 < 60000) {
+    const gd = cur.gdata as any;
+    const mv = draughtMove(gd);
+    if (mv) {
+      const turnId = gd.turn === 'w' ? gd.white : gd.black;
+      byKd(turnId).send({ t: 'move', move: mv });
+    }
+    const nxt = await Promise.race([
+      K.waitFor((m) => m.t === 'room' && m.phase === 'play').catch(() => null),
+      K.waitFor((m) => m.t === 'over', 60000).catch(() => null),
+      L.waitFor((m) => m.t === 'over', 60000).catch(() => null),
+    ]);
+    if (!nxt) continue;
+    if (nxt.t === 'over') { overK = nxt; break; }
+    if (nxt.t === 'room') cur = nxt;
+  }
+}
+if (!overK) throw new Error('шашки не кончились!');
+if (!overK.winner) throw new Error('сдача не поставила чемпиона!');
+console.log('checkers winner:', overK.name);
+for (const p of [K, L]) p.ws.close();
 const check = await fetch('http://127.0.0.1:8094/api/online').then((r) => r.json());
 console.log('online:', JSON.stringify(check));
 if (check.online < 3) throw new Error('онлайн врёт!');

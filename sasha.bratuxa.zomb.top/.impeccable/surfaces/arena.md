@@ -23,6 +23,8 @@ PLUGINS.onMove, gdata в roomState) + вьюха в src/arena/games/* + стро
 Вторая игра доказывает: дурак (движок arena/durak.ts + DurakTable + приватные руки 'hand').
 Третья игра доказывает дуэль: шахматы (движок arena/chess.ts + ChessBoard,
 открытая позиция в gdata, ход минута, флаг — поражение, сдача и мировая).
+Четвёртая игра доказывает взятие: шашки русские (движок arena/checkers.ts +
+CheckersBoard, взятие обязательно и по максимуму, путь тапами, дамка летает).
 FINISH: unreviewed and undocumented is unfinished; this build ends with the
 finish review, the verdict, DESIGN.md, and every shipping raster carrying
 its provenance.

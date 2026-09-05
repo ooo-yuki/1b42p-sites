@@ -139,6 +139,13 @@
 /* конь шахмат на дуэльной карте */
 .minicard.chess i.knight{background:linear-gradient(160deg,#0d1428,#004578);
   color:#fff; border-color:rgba(0,96,170,.6); font-size:26px; transform:none}
+/* две шашки на дуэльной карте: белая поверх чёрной */
+.minicard.draughts{position:relative; width:44px}
+.minicard.draughts i{width:30px; height:30px; border-radius:50%; transform:none;
+  display:block; border:2px solid rgba(0,0,0,.5)}
+.minicard.draughts i.wd{background:radial-gradient(circle at 35% 30%,#fff,#c9c9c9)}
+.minicard.draughts i.bd{background:radial-gradient(circle at 35% 30%,#3a3a3a,#101010);
+  border-color:rgba(255,255,255,.35); margin-left:-14px; margin-top:12px}
 .avote-note{margin:0; font-size:12.5px; color:#808080; text-align:center}
 
 /* единственный авторский момент входа: фликер неона + каскад карт + подъём кнопки */
@@ -261,6 +268,44 @@ button.ch-sq:hover{filter:brightness(1.15)}
 .ch-actions{display:flex; gap:10px; justify-content:center; flex-wrap:wrap}
 .ch-hint{margin:0; text-align:center; font-size:12.5px; color:#808080; max-width:60ch}
 .ch-hist{margin:0; text-align:center; font-size:12px; color:#808080; max-width:100%;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+/* шашечная доска клуба: то же дерево, шашки — диски, дамка с короной-кольцом */
+.dr-wrap{display:flex; flex-direction:column; gap:10px; align-items:center}
+.dr-top{display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:center}
+.dr-turn{background:#0d1428; border:1px solid rgba(0,96,170,.4); border-radius:999px;
+  padding:6px 16px; font-size:14px; color:#fff}
+.dr-count{color:#808080; font-size:12.5px}
+.dr-board{display:grid; grid-template-columns:repeat(8,minmax(0,1fr));
+  width:min(100%,480px); aspect-ratio:1; border-radius:12px; overflow:hidden;
+  border:2px solid rgba(0,96,170,.45); box-shadow:0 0 30px rgba(0,96,170,.25)}
+.dr-sq{position:relative; aspect-ratio:1; border:0; padding:0; cursor:default;
+  background:#d8c49a; display:flex; align-items:center; justify-content:center}
+.dr-sq.dk{background:#5a3d24}
+.dr-sq.last{background:#7fb3e8}
+.dr-sq.dk.last{background:#4d86c2}
+.dr-sq.sel{outline:3px solid #fff; outline-offset:-3px; z-index:1}
+button.dr-sq{cursor:pointer}
+button.dr-sq:hover{filter:brightness(1.15)}
+.dr-sq.tgt::after{content:''; width:26%; aspect-ratio:1; border-radius:50%;
+  background:rgba(0,96,170,.75); box-shadow:0 0 10px rgba(0,96,170,.9)}
+.dr-sq.tcap::after{content:''; position:absolute; inset:6%; border-radius:50%;
+  border:3px solid rgba(227,30,37,.85); box-shadow:0 0 12px rgba(227,30,37,.6); pointer-events:none}
+.dr-pc{width:72%; aspect-ratio:1; border-radius:50%; pointer-events:none;
+  box-shadow:0 2px 4px rgba(0,0,0,.5)}
+.dr-pc.ww{background:radial-gradient(circle at 35% 30%,#ffffff,#c9c9c9);
+  border:2px solid rgba(0,0,0,.45)}
+.dr-pc.bb{background:radial-gradient(circle at 35% 30%,#3d3d3d,#101010);
+  border:2px solid rgba(255,255,255,.35)}
+.dr-pc.king::after{content:''; display:block; width:44%; aspect-ratio:1; border-radius:50%;
+  margin:28% auto 0; background:transparent;
+  border:3px solid #E31E25; box-shadow:0 0 8px rgba(227,30,37,.8)}
+.dr-coord{position:absolute; font-style:normal; font-size:10px; font-weight:700;
+  color:rgba(16,24,40,.7); pointer-events:none}
+.dr-coord.rank{top:2px; left:3px}
+.dr-coord.file{bottom:2px; right:4px}
+.dr-actions{display:flex; gap:10px; justify-content:center; flex-wrap:wrap}
+.dr-hint{margin:0; text-align:center; font-size:12.5px; color:#808080; max-width:60ch}
+.dr-hist{margin:0; text-align:center; font-size:12px; color:#808080; max-width:100%;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 /* пикер игры хоста в приватной комнате */
 .apick{display:flex; align-items:center; gap:10px; flex-wrap:wrap;

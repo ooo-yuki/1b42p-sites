@@ -171,6 +171,25 @@ export default function Arena(): JSX.Element {
         pushFeed(m.auto ? `${m.name} молчал — клуб решил за него.` : (clines[m.kind] ?? `${m.name} сходил.`), m.kind === 'resign');
         break;
       }
+      case 'hturn':
+        startClock(m.secs);
+        if (m.white === myIdRef.current || m.black === myIdRef.current) cardSnap();
+        break;
+      case 'hmove': {
+        if (m.kind === 'checkers') cardSnap();
+        else arenaClick();
+        const sq = (i: number): string => `${'abcdefgh'[i % 8]}${8 - Math.floor(i / 8)}`;
+        const trail = m.path && m.path.length > 1 ? ` ${m.path.map(sq).join('-')}` : '';
+        const hlines: Record<string, string> = {
+          checkers: `${m.name} сходил${trail}.`,
+          resign: `${m.name} сдался.`,
+          draw: `${m.name} предлагает мировую.`,
+          accept: `${m.name} согласен на мировую.`,
+          flag: `${m.name} прошляпил флаг.`,
+        };
+        pushFeed(m.auto ? `${m.name} молчал — клуб решил за него.` : (hlines[m.kind] ?? `${m.name} сходил.`), m.kind === 'resign');
+        break;
+      }
       case 'elim':
         elimGong();
         pushFeed(`Раунд ${m.round}: ${m.name} выбит с ${m.v}.`, true);

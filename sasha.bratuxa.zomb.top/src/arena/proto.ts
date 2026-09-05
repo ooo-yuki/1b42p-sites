@@ -19,7 +19,7 @@ export type RoomView = {
 };
 
 export type PoolMember = { id: string; name: string; vote: string; enter: boolean };
-export type GameDef = { label: string; min: number; max: number; turnSecs: number; icon: 'dice' | 'cards' | 'chess' };
+export type GameDef = { label: string; min: number; max: number; turnSecs: number; icon: 'dice' | 'cards' | 'chess' | 'checkers' };
 
 /** Карта дурака: r 6..14 (11=В 12=Д 13=К 14=Т), s масть S/H/D/C. */
 export type DCard = { r: number; s: string };
@@ -41,6 +41,17 @@ export type ChessPublic = {
   phase: string; winner: string | null; reason: string | null;
   castling: { wk: boolean; wq: boolean; bk: boolean; bq: boolean };
   ep: number | null;
+};
+
+/** Шашка: c цвет w/b, k вид m/k (простая/дамка). Клетка 0=a8..63=h1. */
+export type CheckerPiece = { c: string; k: string } | null;
+export type CheckersPublic = {
+  board: CheckerPiece[]; turn: string;
+  white: string; black: string;
+  last: { from: number; to: number } | null;
+  drawOffer: string | null;
+  history: string[];
+  phase: string; winner: string | null; reason: string | null;
 };
 
 export type PoolView = {
@@ -66,6 +77,8 @@ export type SMsg =
   | { t: 'dmove'; id: string; name: string; kind: string; card: DCard | null; target: DCard | null; auto?: boolean }
   | { t: 'cturn'; white: string; black: string; color: string; secs: number }
   | { t: 'cmove'; id: string; name: string; kind: string; from: number | null; to: number | null; promote: string | null; auto?: boolean }
+  | { t: 'hturn'; white: string; black: string; color: string; secs: number }
+  | { t: 'hmove'; id: string; name: string; kind: string; path: number[] | null; auto?: boolean }
   | { t: 'elim'; id: string; name: string; v: number; round: number; alive: string[] }
   | { t: 'over'; winner: string | null; name: string }
   | { t: 'log'; text: string }
@@ -88,7 +101,7 @@ export type CMsg =
   | { t: 'start' }
   | { t: 'rematch' }
   | { t: 'roll' }
-  | { t: 'move'; move: { kind: string; card?: DCard; target?: DCard; from?: number; to?: number; promote?: string } }
+  | { t: 'move'; move: { kind: string; card?: DCard; target?: DCard; from?: number; to?: number; promote?: string; path?: number[] } }
   | { t: 'chat'; text: string };
 
 export const NAME_KEY = 'sasha_arena_name';
