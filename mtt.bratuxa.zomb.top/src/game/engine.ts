@@ -11,7 +11,26 @@ export interface HudState {
   enemies: number;
   wave: number;
   dead: boolean;
+  fantiki: number;
+  weapon: string;
+  owned: string[];
 }
+
+export interface WeaponDef {
+  id: string;
+  name: string;
+  desc: string;
+  dmg: number;
+  range: number;
+  cd: number;
+  price: number;
+}
+
+export const WEAPONS: WeaponDef[] = [
+  { id: 'fists', name: '👊 Кулаки', desc: 'Всегда с тобой', dmg: 32, range: 3.8, cd: 0.45, price: 0 },
+  { id: 'bat', name: '🏏 Бита', desc: 'Длиннее и злее', dmg: 48, range: 4.3, cd: 0.6, price: 300 },
+  { id: 'axe', name: '🪓 Секира', desc: 'Тяжёлый аргумент', dmg: 70, range: 4.6, cd: 0.85, price: 800 },
+];
 
 export interface GameEvents {
   onHud(h: HudState): void;
@@ -62,6 +81,11 @@ export class Game {
   private atkCd = 0;
   private swingT = 0;
   private shakeT = 0;
+  private weaponId = 'fists';
+  private fantiki = 0;
+  private owned: string[] = ['fists'];
+  private soundOn = true;
+  private sens = 1;
   private enemies: Enemy[] = [];
   private solids: { x: number; z: number; r: number }[] = [];
   private AC: AudioContext | null = null;
@@ -85,6 +109,7 @@ export class Game {
     this.camera.rotation.order = 'YXZ';
     this.scene.background = new THREE.Color(0x060a12);
     this.scene.fog = new THREE.Fog(0x060a12, 40, 160);
+    this.loadShop();
     this.buildWorld();
     this.spawnWave();
     window.addEventListener('resize', this.onResize);
@@ -119,9 +144,80 @@ export class Game {
     if (e.pointerId === this.lookPointer) this.lookPointer = -1;
   };
 
+  static weapon(id: string): WeaponDef {
+    return WEAPONS.find((w) => w.id === id) ?? WEAPONS[0];
+  }
+
+  private loadShop(): void {
+    try {
+      const raw = localStorage.getItem('mtt_shop_v1');
+      if (!raw) return;
+      const d = JSON.parse(raw) as { fantiki?: number; owned?: string[]; weapon?: string; sound?: boolean; sens?: number };
+      if (typeof d.fantiki === 'number') this.fantiki = Math.max(0, Math.floor(d.fantiki));
+      if (Array.isArray(d.owned) && d.owned.length) this.owned = d.owned.filter((x) => WEAPONS.some((w) => w.id === x));
+      if (!this.owned.includes('fists')) this.owned.unshift('fists');
+      if (d.weapon && this.owned.includes(d.weapon)) this.weaponId = d.weapon;
+      if (typeof d.sound === 'boolean') this.soundOn = d.sound;
+      if (typeof d.sens === 'number') this.sens = Math.max(0.3, Math.min(2.5, d.sens));
+    } catch { /* noop */ }
+  }
+
+  private saveShop(): void {
+    try {
+      localStorage.setItem('mtt_shop_v1', JSON.stringify({
+        fantiki: this.fantiki, owned: this.owned, weapon: this.weaponId, sound: this.soundOn, sens: this.sens,
+      }));
+    } catch { /* noop */ }
+  }
+
+  buyWeapon(id: string): boolean {
+    const w = Game.weapon(id);
+    if (this.owned.includes(w.id)) { this.weaponId = w.id; this.saveShop(); this.pushHud(); return true; }
+    if (this.fantiki < w.price) return false;
+    this.fantiki -= w.price;
+    this.owned.push(w.id);
+    this.weaponId = w.id;
+    this.saveShop();
+    this.blip(700);
+    this.pushHud();
+    return true;
+  }
+
+  setWeapon(id: string): boolean {
+    if (!this.owned.includes(id)) return false;
+    this.weaponId = id;
+    this.saveShop();
+    this.blip(500);
+    this.pushHud();
+    return true;
+  }
+
+  setSound(v: boolean): void { this.soundOn = v; this.saveShop(); this.pushHud(); }
+  setSens(v: number): void { this.sens = Math.max(0.3, Math.min(2.5, v)); this.saveShop(); }
+  getSound(): boolean { return this.soundOn; }
+  getSens(): number { return this.sens; }
+
+  revive(): boolean {
+    if (!this.dead) return false;
+    this.dead = false;
+    this.hp = this.maxhp;
+    this.score = Math.max(0, this.score - 100);
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      const dx = e.g.position.x - this.px, dz = e.g.position.z - this.pz;
+      const d = Math.hypot(dx, dz) || 1;
+      e.g.position.x = clampArena(e.g.position.x + (dx / d) * 6);
+      e.g.position.z = clampArena(e.g.position.z + (dz / d) * 6);
+    }
+    this.blip(520);
+    this.pushHud();
+    this.drawMM();
+    return true;
+  }
+
   addLook(dx: number, dy: number): void {
-    this.yaw -= dx * 0.0042;
-    this.pitch -= dy * 0.0032;
+    this.yaw -= dx * 0.0042 * this.sens;
+    this.pitch -= dy * 0.0032 * this.sens;
     this.pitch = Math.max(-1.1, Math.min(1.1, this.pitch));
   }
 
@@ -307,7 +403,8 @@ export class Game {
   attack(): number {
     if (!this.started || this.dead) return 0;
     if (this.atkCd > 0) return 0;
-    this.atkCd = 0.45;
+    const W = Game.weapon(this.weaponId);
+    this.atkCd = W.cd;
     this.swingT = 0.22;
     this.blip(220);
     const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
@@ -317,10 +414,10 @@ export class Game {
       const dx = e.g.position.x - this.px;
       const dz = e.g.position.z - this.pz;
       const d = Math.hypot(dx, dz);
-      if (d > 3.8) continue;
+      if (d > W.range) continue;
       const cos = (dx * fx + dz * fz) / (d || 1);
       if (cos < 0.35) continue;
-      e.hp -= 32 + Math.random() * 8;
+      e.hp -= W.dmg + Math.random() * 8;
       e.hurtT = 0.18;
       const push = 1.6;
       const nx = clampArena(e.g.position.x + (dx / (d || 1)) * push);
@@ -334,6 +431,8 @@ export class Game {
         this.scene.remove(e.g);
         this.kills++;
         this.score += 100 + this.wave * 10;
+        this.fantiki += 10;
+        this.saveShop();
         this.blip(520);
       }
     }
@@ -342,6 +441,8 @@ export class Game {
     if (this.enemies.every((e) => e.dead)) {
       this.wave++;
       this.hp = Math.min(this.maxhp, this.hp + 25);
+      this.fantiki += 25;
+      this.saveShop();
       this.spawnWave();
     }
     this.drawMM();
@@ -357,6 +458,7 @@ export class Game {
   }
 
   private blip(f: number): void {
+    if (!this.soundOn) return;
     try {
       this.AC = this.AC || new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
       const o = this.AC.createOscillator();
@@ -380,6 +482,9 @@ export class Game {
       enemies: this.enemies.filter((e) => !e.dead).length,
       wave: this.wave,
       dead: this.dead,
+      fantiki: this.fantiki,
+      weapon: this.weaponId,
+      owned: [...this.owned],
     });
   }
 
@@ -419,6 +524,21 @@ export class Game {
   }
   debugAttack(): number { return this.attack(); }
   debugHp(): number { return Math.round(this.hp); }
+  debugGive(n: number): number { this.fantiki += n; this.saveShop(); this.pushHud(); return this.fantiki; }
+  debugHurt(n: number): number {
+    if (!this.started || this.dead) return Math.round(this.hp);
+    this.hp -= n;
+    if (this.hp <= 0) {
+      this.hp = 0;
+      this.dead = true;
+      this.pushHud();
+      this.ev.onBusted({ score: this.score, coins: 0 });
+    } else {
+      this.pushHud();
+    }
+    return Math.round(this.hp);
+  }
+  debugRevive(): boolean { return this.revive(); }
   debugSpots(): Array<{ x: number; z: number }> {
     return this.enemies.filter((e) => !e.dead).map((e) => ({ x: e.g.position.x, z: e.g.position.z }));
   }

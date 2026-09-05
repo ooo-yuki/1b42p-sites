@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Game, type HudState } from './game/engine';
+import { Game, WEAPONS, type HudState } from './game/engine';
 import oruzh1Url from './assets/oruzh1.png';
 import oruzh2Url from './assets/oruzh2.png';
 
@@ -8,6 +8,8 @@ interface ScoreRow {
   score: number;
   coins: number;
 }
+
+const WIMG: Record<string, string> = { fists: oruzh1Url, bat: oruzh1Url, axe: oruzh2Url };
 
 const SID_KEY = 't42_sid';
 function sid(): string {
@@ -67,8 +69,12 @@ export default function App() {
   const joyId = useRef(-1);
   const gameRef = useRef<Game | null>(null);
   const [menu, setMenu] = useState(true);
-  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false });
+  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'] });
   const [scores, setScores] = useState<ScoreRow[]>([]);
+  const [shopOpen, setShopOpen] = useState(false);
+  const [setOpen, setSetOpen] = useState(false);
+  const [sound, setSound] = useState(true);
+  const [sens, setSens] = useState(1);
   const [nick, setNick] = useState(() => {
     try { return localStorage.getItem(NICK_KEY) || 'Братуха'; } catch { return 'Братуха'; }
   });
@@ -89,12 +95,17 @@ export default function App() {
       onBusted: () => undefined,
     });
     gameRef.current = game;
+    setSound(game.getSound());
+    setSens(game.getSens());
     (window as unknown as { __mtt?: object }).__mtt = {
       pos: () => game.debugPos(),
       attack: () => game.debugAttack(),
       hp: () => game.debugHp(),
       spots: () => game.debugSpots(),
       solids: () => game.debugSolids(),
+      give: (n: number) => game.debugGive(n),
+      hurt: (n: number) => game.debugHurt(n),
+      revive: () => game.debugRevive(),
       joy: (x: number, y: number) => game.setJoy(x, y),
       look: (dx: number, dy: number) => game.addLook(dx, dy),
     };
@@ -141,7 +152,6 @@ export default function App() {
     }
   }, [hud.dead, hud.score, nick]);
 
-  // джойстик слева
   const joyMove = useCallback((e: React.PointerEvent) => {
     if (joyId.current === -1) return;
     const base = joyRef.current;
@@ -168,7 +178,25 @@ export default function App() {
     if (joyKnob.current) joyKnob.current.style.transform = 'translate(0px, 0px)';
   }, []);
 
+  const buySel = useCallback((id: string) => {
+    gameRef.current?.buyWeapon(id);
+  }, []);
+
+  const toggleSound = useCallback(() => {
+    const g = gameRef.current;
+    if (!g) return;
+    const v = !g.getSound();
+    g.setSound(v);
+    setSound(v);
+  }, []);
+
+  const changeSens = useCallback((v: number) => {
+    gameRef.current?.setSens(v);
+    setSens(v);
+  }, []);
+
   const hpFrac = Math.max(0, hud.hp / hud.maxhp);
+  const wname = WEAPONS.find((w) => w.id === hud.weapon)?.name ?? '👊 Кулаки';
 
   return (
     <>
@@ -180,11 +208,14 @@ export default function App() {
             <div id="hpBar"><div id="hpFill" style={{ width: `${hpFrac * 100}%` }} /></div>
           </div>
           <div id="hudRow">🌊 Волна {hud.wave} · 👹 {hud.enemies} · 💀 {hud.kills} · 🏆 {hud.score}</div>
+          <div id="hudRow2">🎟️ {hud.fantiki} · {wname}</div>
           <small id="hint">WASD — идти · мышь/палец — осмотр · Пробел/J — удар · Shift — бег</small>
         </div>
       )}
       {!menu && (
         <>
+          <button id="shopBtn" onClick={() => setShopOpen(true)}>🛒 Магазин</button>
+          <button id="setBtn" onClick={() => setSetOpen(true)}>⚙️</button>
           <div
             id="joy"
             ref={joyRef}
@@ -205,15 +236,68 @@ export default function App() {
           >
             👊<span>УДАР</span>
           </button>
-          <div id="weapon" ref={weaponRef}><img src={oruzh2Url} alt="секира" /></div>
+          <div id="weapon" ref={weaponRef}><img src={WIMG[hud.weapon] ?? oruzh1Url} alt="оружие" /></div>
         </>
       )}
-      {hud.dead && !menu && <div id="busted" style={{ display: 'flex' }}>ЗАВАЛЕН! 👊<br />{hud.score} 🏆</div>}
+      {hud.dead && !menu && (
+        <div id="busted" style={{ display: 'flex' }}>
+          <div id="deadPanel">
+            <div>ЗАВАЛЕН! 👊</div>
+            <div id="deadScore">{hud.score} 🏆 · {hud.kills} 💀</div>
+            <button id="reviveBtn" onClick={() => gameRef.current?.revive()}>💚 ВОЗРОДИТЬСЯ (−100 🏆)</button>
+            <button id="retryBtn" onClick={() => window.location.reload()}>🔄 ЗАНОВО</button>
+          </div>
+        </div>
+      )}
+      {shopOpen && !menu && (
+        <div className="modal" onClick={() => setShopOpen(false)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <h3>🛒 Оружейка <span id="shopMoney">🎟️ {hud.fantiki}</span></h3>
+            {WEAPONS.map((w) => {
+              const has = hud.owned.includes(w.id);
+              const cur = hud.weapon === w.id;
+              return (
+                <div className="wcard" key={w.id}>
+                  <div className="wname">{w.name}</div>
+                  <div className="wdesc">{w.desc} · 💥 {w.dmg} · 📏 {w.range}м · ⏱️ {w.cd}с</div>
+                  {cur ? <button className="wbtn cur" disabled>✔ В РУКАХ</button>
+                    : has ? <button className="wbtn" id={`sel-${w.id}`} onClick={() => buySel(w.id)}>ВЗЯТЬ</button>
+                    : <button className="wbtn buy" id={`buy-${w.id}`} onClick={() => buySel(w.id)} disabled={hud.fantiki < w.price}>
+                      КУПИТЬ за 🎟️ {w.price}
+                    </button>}
+                </div>
+              );
+            })}
+            <button className="wclose" onClick={() => setShopOpen(false)}>ЗАКРЫТЬ</button>
+          </div>
+        </div>
+      )}
+      {setOpen && !menu && (
+        <div className="modal" onClick={() => setSetOpen(false)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <h3>⚙️ Настройки</h3>
+            <div className="srow">
+              <span>🔊 Звук</span>
+              <button id="soundBtn" className="wbtn" onClick={toggleSound}>{sound ? 'ВЫКЛ' : 'ВКЛ'}</button>
+            </div>
+            <div className="srow">
+              <span>👀 Чувствительность: {sens.toFixed(1)}</span>
+            </div>
+            <input
+              id="sensRange"
+              type="range" min={0.3} max={2.5} step={0.1} value={sens}
+              onChange={(e) => changeSens(Number(e.target.value))}
+            />
+            <button className="wclose" onClick={() => setSetOpen(false)}>ЗАКРЫТЬ</button>
+          </div>
+        </div>
+      )}
       {menu && (
         <div id="menu">
           <h1>👊 МТТ VI 💥</h1>
           <p>Арена МТТ от первого лица: машешься с волнами врагов, у каждого полоска HP.
-            Джойстик слева — движение, кнопка справа — удар. Выживи!
+            Джойстик слева — движение, кнопка справа — удар. Фантики с врагов трать в 🛒 оружейке,
+            завал — жми 💚 возродиться!
             <br /><a id="hubLink" href="https://hub.bratuxa.zomb.top">← Хаб 1Б42П</a></p>
           <div className="menuArt">
             <img src={oruzh1Url} alt="кулаки" />

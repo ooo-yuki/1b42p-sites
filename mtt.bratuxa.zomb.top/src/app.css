@@ -46,3 +46,31 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 #weapon img{width:100%;filter:drop-shadow(0 0 12px rgba(255,159,28,.7))}
 #weapon.swing{animation:wswing .25s ease-out}
 @keyframes wswing{0%{transform:rotate(0)}40%{transform:rotate(-38deg) translateY(-12px)}100%{transform:rotate(0)}}
+#shopBtn{position:fixed;top:10px;right:10px;z-index:6;font-size:15px;font-weight:800;border-radius:10px;
+ border:2px solid #ff9f1c;background:rgba(13,20,40,.85);color:#ff9f1c;padding:10px 14px;cursor:pointer}
+#setBtn{position:fixed;top:62px;right:10px;z-index:6;font-size:18px;font-weight:800;border-radius:10px;
+ border:2px solid #ff9f1c;background:rgba(13,20,40,.85);color:#ff9f1c;padding:8px 12px;cursor:pointer}
+#hudRow2{margin-top:2px;color:#ffd23f}
+.modal{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
+ background:rgba(2,4,10,.75);padding:16px}
+.sheet{background:#0d1428;border:2px solid #ff9f1c;border-radius:16px;padding:18px;max-width:360px;width:100%;
+ max-height:85vh;overflow-y:auto;text-align:center}
+.sheet h3{margin:0 0 12px;color:#ff9f1c}
+#shopMoney{color:#ffd23f}
+.wcard{background:#141d33;border:1px solid #334155;border-radius:12px;padding:10px;margin:8px 0;text-align:left}
+.wname{font-size:17px;font-weight:900}
+.wdesc{font-size:13px;color:#c6cdf2;margin:4px 0 8px}
+.wbtn{width:100%;border-radius:10px;border:2px solid #ff9f1c;background:transparent;color:#ff9f1c;
+ font-weight:800;font-size:15px;padding:10px;cursor:pointer}
+.wbtn:disabled{opacity:.45}
+.wbtn.buy{background:#ff9f1c;color:#231a00}
+.wbtn.cur{border-color:#39d353;color:#39d353}
+.wclose{margin-top:10px;width:100%;border-radius:10px;border:none;background:#334155;color:#fff;
+ font-weight:800;font-size:15px;padding:10px;cursor:pointer}
+.srow{display:flex;justify-content:space-between;align-items:center;margin:10px 0;color:#e8edff}
+.srow .wbtn{width:auto;padding:8px 18px}
+#sensRange{width:100%;accent-color:#ff9f1c}
+#deadPanel{display:flex;flex-direction:column;gap:12px;font-size:min(9vw,44px);align-items:center}
+#deadScore{font-size:22px}
+#reviveBtn{background:#39d353;border:none;border-radius:14px;padding:14px 30px;font-size:19px;font-weight:900;color:#06240f;cursor:pointer}
+#retryBtn{background:transparent;border:2px solid #fff;border-radius:14px;padding:12px 30px;font-size:17px;font-weight:800;color:#fff;cursor:pointer}

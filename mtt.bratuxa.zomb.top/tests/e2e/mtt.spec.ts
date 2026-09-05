@@ -83,6 +83,39 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await expect(page.locator('#weapon img')).toBeVisible();
   });
 
+  test('магазин: покупка биты и выбор оружия', async ({ page }) => {
+    await page.click('#goBtn');
+    await page.evaluate(() => (window as unknown as { __mtt: { give: (n: number) => number } }).__mtt.give(1000));
+    await page.click('#shopBtn');
+    await expect(page.locator('.sheet')).toContainText('Оружейка');
+    await page.click('#buy-bat');
+    await expect(page.locator('#hud')).toContainText('Бита');
+    await page.click('#sel-fists');
+    await expect(page.locator('#hud')).toContainText('Кулаки');
+    await page.click('.wclose');
+  });
+
+  test('возрождение поднимает после завала', async ({ page }) => {
+    await page.click('#goBtn');
+    await page.waitForTimeout(800);
+    await page.evaluate(() => (window as unknown as { __mtt: { hurt: (n: number) => number } }).__mtt.hurt(500));
+    await expect(page.locator('#reviveBtn')).toBeVisible();
+    await page.click('#reviveBtn');
+    await expect(page.locator('#reviveBtn')).toHaveCount(0);
+    const hp = await page.evaluate(() => (window as unknown as { __mtt: { hp: () => number } }).__mtt.hp());
+    expect(hp).toBe(100);
+  });
+
+  test('настройки: звук и чувствительность', async ({ page }) => {
+    await page.click('#goBtn');
+    await page.click('#setBtn');
+    await expect(page.locator('.sheet')).toContainText('Настройки');
+    await page.click('#soundBtn');
+    await page.locator('#sensRange').fill('2');
+    await page.click('.wclose');
+    await expect(page.locator('.modal')).toHaveCount(0);
+  });
+
   test('API: валидация и топ без мусора', async ({ request }) => {
     const bad = await request.post('/api/score', { data: { nick: 'pw', score: -5, coins: 1 } });
     expect(bad.status()).toBe(400);
