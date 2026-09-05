@@ -406,29 +406,28 @@ function render(){
  renderer.render(scene,camera);
  hud();
 }
-// Заказанный gameLoop от эвв эльфа: физика → коллизии → рендер → следующий кадр.
+// Главный цикл от эвв эльфа: физика → коллизии → рендер → следующий кадр.
 function gameLoop(timestamp){
+ if(!renderer||G.over){gameLoop._running=true;requestAnimationFrame(gameLoop);return;}
  var dt=gameLoop._dt();
  updatePhysics(dt);
  checkCollisions(dt);
  render();
+ gameLoop._running=true;
  requestAnimationFrame(gameLoop);
 }
 gameLoop._last=0;
+gameLoop._running=false;
 gameLoop._dt=function(){
  var now=Date.now(),dt=Math.min((now-(gameLoop._last||now))/1000,0.05);
  gameLoop._last=now;return dt;
 };
-var lastT=0;
+// frame() оставлен как алиас ради совместимости: вся игра теперь на gameLoop.
 function frame(){
- requestAnimationFrame(frame);
- var now=Date.now(),dt=Math.min((now-(lastT||now))/1000,0.05);lastT=now;
- if(!renderer||G.over){return;}
- gameLoop._last=now;
- updatePhysics(dt);
- checkCollisions(dt);
- render();
+ if(gameLoop._running)return gameLoop(timestamp_now());
+ return gameLoop();
 }
+function timestamp_now(){return Date.now();}
 function hud(){
  try{
  document.getElementById('rH').textContent=fmt(G.hype);
@@ -448,10 +447,10 @@ try{
  if(typeof THREE==='undefined')throw new Error('no3d');
  initGL();
  msg('🌊 Волна 1 скоро... держись, братуха!');
- requestAnimationFrame(frame);
+ requestAnimationFrame(gameLoop);
 }catch(e){msg('WebGL недоступен 😢 зайди с другого устройства');}
 /* крючок для тестов */
-window.__shturm={waveComp:waveComp,enemyHp:enemyHp,upCost:upCost,types:Object.keys(TYPES)};
+window.__shturm={waveComp:waveComp,enemyHp:enemyHp,upCost:upCost,types:Object.keys(TYPES),gameLoop:gameLoop,updatePhysics:updatePhysics,checkCollisions:checkCollisions,render:render,frame:frame};
 </script>
 <script>/* 42-трекер онлайна */(function(){var SITE='1b42p';try{var s=null;try{s=localStorage.getItem('t42_sid');}catch(e){}if(!s||!/^[0-9a-f]{32}$/.test(s)){s='';var h='0123456789abcdef';for(var i=0;i<32;i++)s+=h[Math.floor(Math.random()*16)];try{localStorage.setItem('t42_sid',s);}catch(e){}}function b(){try{fetch('https://hub.bratuxa.zomb.top/api/track',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({site:SITE,sid:s}),keepalive:true}).catch(function(){});}catch(e){}}b();setInterval(b,30000);}catch(e){}})();</script>
 </body>
