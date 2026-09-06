@@ -88,13 +88,12 @@ function newGame(){
   G.wv={ph:0,pt:8,g:0,q:0,first:false,plan:buildPlan()}; /* волны: редко → волна → чаще → волна → победа */
   G.wv.total=G.wv.plan.total;
 }
-/* --- план уровня вперёд: 3 группы 1-2 → волна 7-10 → 3 группы 2-3 → волна 7-10 --- */
+/* --- план уровня вперёд: 5 одиночек → волна 7-10 → 3 группы 2-3 → волна 7-10 --- */
 function buildPlan(){
-  var t1=[],t2=[],i;
-  for(i=0;i<3;i++)t1.push(1+Math.floor(Math.random()*2));
+  var t1=[1,1,1,1,1],t2=[],i;
   for(i=0;i<3;i++)t2.push(2+Math.floor(Math.random()*2));
   var w1=7+Math.floor(Math.random()*4),w2=7+Math.floor(Math.random()*4);
-  var s1=t1[0]+t1[1]+t1[2];
+  var s1=t1[0]+t1[1]+t1[2]+t1[3]+t1[4];
   var total=s1+w1+t2[0]+t2[1]+t2[2]+w2;
   return {t1:t1,w1:w1,t2:t2,w2:w2,total:total,
     f1:s1/total,f2:(s1+w1+t2[0]+t2[1]+t2[2])/total};
@@ -243,7 +242,7 @@ function update(dt){
   var W=G.wv;
   if(W.ph===0){W.pt-=dt;
     if(W.pt<=0){W.pt=20;var n0=W.plan.t1[W.g]||1;for(var s0=0;s0<n0;s0++)spawnZom();W.g++;}
-    if(G.t>=60)startWave(1);}
+    if(G.t>=90)startWave(1);} /* первые полторы минуты — по одному раз в 20с */
   else if(W.ph===1||W.ph===3){
     if(W.q>0){W.pt-=dt;
       if(W.pt<=0){W.pt=2;spawnZom(W.first);W.first=false;W.q--;}}
