@@ -19,11 +19,16 @@
   .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
     background:rgba(0,0,0,.55);border-radius:12px;text-align:center;padding:20px;}
   .overlay.hidden{display:none;}
-  .overlay h2{color:#f5c518;font-size:40px;margin:0 0 10px;}
-  .overlay p{max-width:560px;color:#ddd;line-height:1.5;}
-  .bigbtn{background:#f5c518;border:none;font-weight:bold;font-size:20px;padding:14px 34px;border-radius:12px;
-    cursor:pointer;margin-top:14px;color:#111;font-family:'Z42B',Arial,sans-serif;}
-  .bigbtn:hover{background:#ffd700;}
+  .overlay h2{color:#ffe26b;font-size:40px;margin:0 0 10px;
+    text-shadow:0 0 18px rgba(245,197,24,.35),0 3px 12px rgba(0,0,0,.9),2px 2px 0 rgba(0,0,0,.8);}
+  .overlay p{max-width:560px;color:#ddd;line-height:1.5;text-shadow:0 2px 8px rgba(0,0,0,.9);}
+  /* каменные кнопки Yarchik: left+middle+right склеены в tex/ui/button.png (117×46) */
+  .bigbtn{border-style:solid;border-width:12px 24px;border-image-source:url('tex/ui/button.png');
+    border-image-slice:12 35 12 36 fill;border-image-repeat:stretch;background-color:#5b5b78;
+    font-weight:bold;font-size:20px;padding:6px 14px;cursor:pointer;margin-top:14px;color:#ffe26b;
+    font-family:'Z42B',Arial,sans-serif;text-shadow:2px 2px 0 rgba(0,0,0,.8),0 0 12px rgba(0,0,0,.8);}
+  .bigbtn:hover{filter:brightness(1.15);}
+  .bigbtn:active{border-image-source:url('tex/ui/button_down.png');}
   #hint{color:#888;font-size:13px;padding:8px;text-align:center;max-width:1600px;font-family:'Z42M',Arial,sans-serif;}
   #wrap:fullscreen{background:#000;display:flex;align-items:center;justify-content:center;}
   #wrap:fullscreen canvas{width:min(100vw,177.8vh);height:auto;}
@@ -83,7 +88,7 @@ var SKY_RESP_EVERY=18,SKY_RESP_VAL=25,START_RESP=50; // старт с 50 рэс�
 /* --- состояние --- */
 var G=null;
 function newGame(){
-  G={state:'play',t:0,resp:START_RESP,units:[],zoms:[],peas:[],fx:[],floats:[],resps:[],fly:[],debris:[],
+  G={state:'play',t:0,resp:START_RESP,respDisp:START_RESP,units:[],zoms:[],peas:[],fx:[],floats:[],resps:[],fly:[],debris:[],
     speed:1,kills:0,spawned:0,skyT:6,seeds:{mopso:0,sun:0,bomb:0},drag:null,over:null,
     seedFlash:null,cellFlash:null};
   G.wv={ph:0,pt:8,g:0,q:0,first:false,plan:buildPlan()}; /* волны: редко → волна → чаще → волна → победа */
@@ -113,7 +118,7 @@ function cellXY(r,c){return {x:GX0+c*CW,y:GY0+r*CH};}
 function rowY(r){return GY0+(r+0.65)*CH;} // линия точек трафарета: центр X, 65% высоты клетки
 function unitAt(r,c){for(var i=0;i<G.units.length;i++){var u=G.units[i];if(u.r===r&&u.c===c)return u;}return null;}
 /* --- текстуры --- */
-var IMG={},IMGNAMES={bg:'tex/bg1.jpg',zombie:'tex/zombie.png',mopso:'tex/mopso.png',sunflow:'tex/sunflow.png',bomba:'tex/bomba.png',mops:'tex/mops.png',resp:'tex/respect.png',panel:'tex/panel.png',cone:'tex/Enemies/cone.png',bucket:'tex/Enemies/bucket.png',flagz:'tex/Enemies/flagz.png',flaghead:'tex/Enemies/flaghead.png',flagtex:'tex/Enemies/flagtex.png'};
+var IMG={},IMGNAMES={bg:'tex/bg1.jpg',zombie:'tex/zombie.png',mopso:'tex/mopso.png',sunflow:'tex/sunflow.png',bomba:'tex/bomba.png',mops:'tex/mops.png',resp:'tex/respect.png',panel:'tex/panel.png',cone:'tex/Enemies/cone.png',bucket:'tex/Enemies/bucket.png',flagz:'tex/Enemies/flagz.png',flaghead:'tex/Enemies/flaghead.png',flagtex:'tex/Enemies/flagtex.png',btn:'tex/ui/button.png',btndown:'tex/ui/button_down.png'};
 var IMG_OK=0,IMG_NEED=Object.keys(IMGNAMES).length;
 function loadAll(next){
   Object.keys(IMGNAMES).forEach(function(k){
@@ -254,6 +259,9 @@ function tryPlant(k,r,c){
 function update(dt){
   if(G.state!=='play')return;
   G.t+=dt;
+  /* счётчик-секундомер: показанное быстрым перебором догоняет настоящее */
+  if(G.respDisp===undefined)G.respDisp=G.resp;
+  if(G.respDisp!==G.resp){var rdd=G.resp-G.respDisp,mv=240*dt;G.respDisp+=Math.abs(rdd)<=mv?rdd:(rdd>0?mv:-mv);}
   for(var k in G.seeds)if(G.seeds[k]>0)G.seeds[k]-=dt;
   if(G.seedFlash){G.seedFlash.t-=dt;if(G.seedFlash.t<=0)G.seedFlash=null;}
   if(G.cellFlash){G.cellFlash.t-=dt;if(G.cellFlash.t<=0)G.cellFlash=null;}
@@ -372,6 +380,10 @@ function showEnd(t,p){
   document.getElementById('endov').classList.remove('hidden');
 }
 /* --- отрисовка --- */
+/* текст с размытой тенью: fillStyle/шрифт/align выставить до вызова */
+function txt(s,x,y,blur){ctx.save();ctx.shadowColor='rgba(0,0,0,.85)';ctx.shadowBlur=(blur||8);ctx.fillText(s,x,y);ctx.restore();}
+/* мягкая размытая тень-эллипс под юнитом/врагом */
+function softShadow(x,y,rx,ry){ctx.save();ctx.fillStyle='rgba(0,0,0,.4)';ctx.shadowColor='rgba(0,0,0,.55)';ctx.shadowBlur=12;ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,7);ctx.fill();ctx.restore();}
 var SCALE2D=3840/1100; // бэкинг 4К 3840×2160, логика в тех же координатах
 function frame2d(){ctx.setTransform(SCALE2D,0,0,SCALE2D,0,0);ctx.clearRect(0,0,cv.width,cv.height);}
 function drawImg(im,x,y,w,h){try{if(im&&im.complete&&im.naturalWidth)ctx.drawImage(im,x,y,w,h);}catch(e){}}
@@ -384,8 +396,7 @@ function draw(){
     var s=u.type==='mopso'?66:60;
     if(u.type==='bomb'&&Math.floor(G.t*8)%2===0){ctx.globalAlpha=0.6+0.4*Math.abs(Math.sin(G.t*10));}
     var ax=p.x+CW/2,ay=rowY(u.r); // точка трафарета: корни чуть ниже точки
-    ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();
-    ctx.ellipse(ax,ay+12,CW*0.32,9,0,0,7);ctx.fill();
+    softShadow(ax,ay+12,CW*0.32,9);
     /* медленное вплющивание сверху вниз + плевок-выстрел */
     var sq=Math.sin(G.t*1.8+u.ph),sxq=1-0.045*sq,syq=1+0.06*sq;
     var kk=u.kick>0?Math.sin((u.kick/0.22)*Math.PI):0;
@@ -441,8 +452,7 @@ function drawArmor(kind,cx,topY,dark){ /* строго по центру баш�
       ctx.restore();
       ctx.globalAlpha=1;
       continue;}
-    ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();
-    ctx.ellipse(z.x+6,zy+25,30,10,0,0,7);ctx.fill();
+    softShadow(z.x+6,zy+25,30,10);
     /* зомби: медленное вплющивание + покачивание походкой */
     var zsq=Math.sin(G.t*1.6+z.ph),zsx=1-0.04*zsq,zsy=1+0.05*zsq;
     var sway=(z.eatT>0?0.02:0.06)*Math.sin(G.t*3.4+z.ph);
@@ -534,11 +544,12 @@ var SEED_ORDER=['mopso','sun','bomb'];
 function seedRect(i){return {x:6,y:77+i*59.7,w:121,h:56};} // размер как в версии с 9 слотами; ниже — пустое место
 function drawPanel(){
   drawImg(IMG.panel,0,0,133,619); // фон панели из архива ui
-  /* счётчик ровно по центру синей рамки: (990,389)→(93.2,36.7) */
+  /* счётчик-секундомер: цифры быстро добегают до настоящего значения */
+  var rd=(G.respDisp===undefined?G.resp:Math.round(G.respDisp));
   var cs=26;ctx.textAlign='center';
   ctx.font=cs+'px Z42H, Arial';
-  while(ctx.measureText(''+G.resp).width>56&&cs>12){cs-=2;ctx.font=cs+'px Z42H, Arial';}
-  ctx.fillStyle='#ffd94d';ctx.fillText(G.resp,93.2,46);
+  while(ctx.measureText(''+rd).width>56&&cs>12){cs-=2;ctx.font=cs+'px Z42H, Arial';}
+  ctx.fillStyle='#ffd94d';txt(rd,93.2,46);
   /* 3 кнопки как в примере chrome_sv70Ful6KL: тёмный пакт, светлая рамка, иконка+цена */
   for(var i=0;i<SEED_ORDER.length;i++){var k=SEED_ORDER[i],d=seedDef(k),R=seedRect(i);
     var avail=G.resp>=d.cost&&G.seeds[k]<=0;
@@ -550,10 +561,10 @@ function drawPanel(){
     ctx.fillStyle='#fff';ctx.textAlign='left';
     var nfs=14;ctx.font=nfs+'px Z42M, Arial'; /* длинное имя ужимаем в пакт */
     while(ctx.measureText(d.name).width>70&&nfs>9){nfs--;ctx.font=nfs+'px Z42M, Arial';}
-    ctx.fillText(d.name,R.x+46,R.y+22);
+    txt(d.name,R.x+46,R.y+22,6);
     drawImg(IMG.resp,R.x+46,R.y+30,16,16);
     ctx.fillStyle='#ffe26b';ctx.font='15px Z42B, Arial';
-    ctx.fillText(d.cost,R.x+66,R.y+43);
+    txt(d.cost,R.x+66,R.y+43,6);
     ctx.textAlign='left';
     if(G.seeds[k]>0){ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(R.x,R.y,R.w,R.h);
       ctx.fillStyle='#fff';ctx.font='22px Z42B, Arial';ctx.textAlign='center';
@@ -568,18 +579,28 @@ function drawPanel(){
 }
 var MENUBTN={x:982,y:12,w:106,h:42};
 var SPEEDBTN={x:870,y:12,w:106,h:42}; // ускорение времени 1.5x слева от МЕНЮ
+/* каменная кнопка из трёх кусков: left 36 + middle 46 + right 35 (спрайт 117×46) */
+function drawBtn3(x,y,w,h,down){
+  var im=down?IMG.btndown:IMG.btn;
+  if(im&&im.complete&&im.naturalWidth){
+    var ch=h,cL=ch*36/46,cR=ch*35/46;
+    try{
+      ctx.drawImage(im,0,0,36,46,x,y,cL,ch);
+      ctx.drawImage(im,36,0,46,46,x+cL,y,Math.max(1,w-cL-cR),ch);
+      ctx.drawImage(im,82,0,35,46,x+w-cR,y,cR,ch);
+      return;
+    }catch(e){}
+  }
+  ctx.fillStyle='#1a1410';ctx.fillRect(x,y,w,h); /* фолбэк пока текстура едет */
+}
 function drawMenuBtn(){
   var sp=G&&G.speed===1.5;
-  ctx.fillStyle=sp?'#f5b518':'#1a1410';ctx.fillRect(SPEEDBTN.x,SPEEDBTN.y,SPEEDBTN.w,SPEEDBTN.h);
-  ctx.strokeStyle=sp?'#fff':'#f5b518';ctx.lineWidth=2;
-  ctx.strokeRect(SPEEDBTN.x,SPEEDBTN.y,SPEEDBTN.w,SPEEDBTN.h);
-  ctx.fillStyle=sp?'#111':'#fff';ctx.font='20px Z42B, Arial';ctx.textAlign='center';
-  ctx.fillText('X1.5',SPEEDBTN.x+SPEEDBTN.w/2,SPEEDBTN.y+29);
-  ctx.fillStyle='#1a1410';ctx.fillRect(MENUBTN.x,MENUBTN.y,MENUBTN.w,MENUBTN.h);
-  ctx.strokeStyle='#f5b518';ctx.lineWidth=2;
-  ctx.strokeRect(MENUBTN.x,MENUBTN.y,MENUBTN.w,MENUBTN.h);
-  ctx.fillStyle='#fff';ctx.font='20px Z42B, Arial';ctx.textAlign='center';
-  ctx.fillText('МЕНЮ',MENUBTN.x+MENUBTN.w/2,MENUBTN.y+29);ctx.textAlign='left';
+  drawBtn3(SPEEDBTN.x,SPEEDBTN.y,SPEEDBTN.w,SPEEDBTN.h,sp);
+  ctx.fillStyle=sp?'#111':'#ffe26b';ctx.font='20px Z42B, Arial';ctx.textAlign='center';
+  txt('X1.5',SPEEDBTN.x+SPEEDBTN.w/2,SPEEDBTN.y+29,6);
+  drawBtn3(MENUBTN.x,MENUBTN.y,MENUBTN.w,MENUBTN.h,false);
+  ctx.fillStyle='#ffe26b';ctx.font='20px Z42B, Arial';ctx.textAlign='center';
+  txt('МЕНЮ',MENUBTN.x+MENUBTN.w/2,MENUBTN.y+29,6);ctx.textAlign='left';
 }
 /* --- ввод: drag&drop + клик-клик --- */
 var mouse={x:0,y:0};
