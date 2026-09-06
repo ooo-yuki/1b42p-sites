@@ -43,7 +43,7 @@
     Мопсострел бьёт мопсами по своей линии · Подсолнух роняет рэспэкт — подбирай кликом · Бомба бахает 3×3.<br>
     Убей 10 зомби — уровень пройден!</p>
     <button class="bigbtn" id="btnLevel1">ПЕРЕЙТИ НА ПЕРВЫЙ УРОВЕНЬ 🌻</button>
-    <p><a href="https://hub.bratuxa.zomb.top" style="color:#f5c518">← Хаб 1Б42П</a></p>
+    <button class="bigbtn" id="btnHub">ВЫЙТИ В ХАБ 🌯</button>
   </div>
   <div id="endov" class="overlay hidden">
     <h2 id="endT">ПОБЕДА!</h2>
@@ -65,9 +65,9 @@
 /* ============ 42 VS SASAZOMBIES — уровень 1 (PvZ-механика, Canvas2D) ============ */
 'use strict';
 var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
-/* --- поле 9×5 по лужайке фона (фон 1100×472 сверху, снизу полоса) --- */
-var BGW=1100,BGH=472;
-var GX0=201,GX1=765,GY0=65,GY1=444,COLS=9,ROWS=5; // трафарет Yarchik 1:1 (линии 183..695/59..404 ×1.1)
+/* --- поле 9×5 по лужайке фона (фон растянут на весь экран 1100×600) --- */
+var BGW=1100,BGH=600;
+var GX0=201,GX1=765,GY0=83,GY1=565,COLS=9,ROWS=5; // трафарет на растянутом фоне: X ×1.1, Y ×600/429
 var CW=(GX1-GX0)/COLS,CH=(GY1-GY0)/ROWS;
 var PANELX=0,PANELW=136; // компактная панель слева
 /* --- баланс --- */
@@ -141,6 +141,7 @@ function spawnZom(){
 function firePea(u){
   var p=cellXY(u.r,u.c);
   G.peas.push({r:u.r,x:p.x+CW/2+7,y:rowY(u.r)-27,rot:0}); // ровно из тёмной пасти
+  u.kick=0.22; // плевок: рывок вперёд
   sfx('shoot');
 }
 /* --- посадка --- */
@@ -174,6 +175,7 @@ function update(dt){
   /* юниты */
   for(var i=G.units.length-1;i>=0;i--){var u=G.units[i],p=cellXY(u.r,u.c),ux=p.x+CW/2;
     if(u.cool>0)u.cool-=dt;
+    if(u.kick>0)u.kick-=dt;
     if(u.type==='sun'){u.respT-=dt;if(u.respT<=0){u.respT=U_SUN.respEvery;spawnResp(ux+36,rowY(u.r)-70);}}
     if(u.type==='bomb'){u.fuse-=dt;
       if(u.fuse<=0){ /* БАБАХ 3×3 */
@@ -252,7 +254,6 @@ function drawImg(im,x,y,w,h){try{if(im&&im.complete&&im.naturalWidth)ctx.drawIma
 function draw(){
   frame2d();
   drawImg(IMG.bg,0,0,BGW,BGH);
-  ctx.fillStyle='#1c102e';ctx.fillRect(0,BGH,cv.width,cv.height-BGH);
   /* юниты */
   for(var i=0;i<G.units.length;i++){var u=G.units[i],p=cellXY(u.r,u.c);
     var key=u.type==='mopso'?'mopso':(u.type==='sun'?'sunflow':'bomba');
@@ -261,9 +262,10 @@ function draw(){
     var ax=p.x+CW/2,ay=rowY(u.r); // точка трафарета: корни чуть ниже точки
     ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();
     ctx.ellipse(ax,ay+12,CW*0.32,9,0,0,7);ctx.fill();
-    /* медленное вплющивание сверху вниз */
+    /* медленное вплющивание сверху вниз + плевок-выстрел */
     var sq=Math.sin(G.t*1.8+u.ph),sxq=1-0.045*sq,syq=1+0.06*sq;
-    ctx.save();ctx.translate(ax,ay+14);ctx.scale(sxq,syq);
+    var kk=u.kick>0?Math.sin((u.kick/0.22)*Math.PI):0;
+    ctx.save();ctx.translate(ax+kk*10,ay+14);ctx.scale(sxq+kk*0.08,syq-kk*0.08);
     drawImg(IMG[key],-s/2,-s,s,s);ctx.restore();
     ctx.globalAlpha=1;
 
@@ -300,7 +302,7 @@ function draw(){
   /* снаряды-мопсы с раскруткой */
   for(var a=0;a<G.peas.length;a++){var q=G.peas[a];
     ctx.save();ctx.translate(q.x,q.y);ctx.rotate(q.rot||0);
-    drawImg(IMG.mops,-16,-16,32,32);ctx.restore();}
+    drawImg(IMG.mops,-13,-13,26,26);ctx.restore();}
   /* взрывы/попадания */
   for(var f=0;f<G.fx.length;f++){var e2=G.fx[f];
     var rr=e2.r||(1-e2.t*2)*CW*2.2;
@@ -458,6 +460,7 @@ function toMenu(){
   document.getElementById('pauseov').classList.add('hidden');
   document.getElementById('menu').classList.remove('hidden');
 }
+document.getElementById('btnHub').onclick=function(){location.href='https://hub.bratuxa.zomb.top';};
 document.getElementById('btnLevel1').onclick=function(){
   document.getElementById('menu').classList.add('hidden');
   document.getElementById('endov').classList.add('hidden');
