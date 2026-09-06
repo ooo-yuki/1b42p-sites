@@ -360,7 +360,8 @@ function killZom(i){
   z.headVy=-160;z.headRot=0;z.headVr=dir*6;
   if(z.flag){if(!FLAGZ)buildFlagz(); /* голова и тело знаменосца — отдельно */
     if(FLAGZ){var fh=flagHeadWorld(z);z.headX=fh.x;z.headY=fh.y;z.fhw=fh.hw;z.fhh=fh.hh;}}
-  sfx('zfall'); /* звук падения зомби */
+  sfx('zdie'); /* крик умирания — сразу */
+  try{setTimeout(function(){sfx('zfall');},250);}catch(e){} /* грохот падения — когда тело долетает до газона */
 }
 function lose(){G.state='lose';showEnd('ЗОМБИ ПРОРВАЛИСЬ 🧟','Сасазомби дошли до дома...<br>Убито: '+G.kills+'. Держись дольше, братуха!');beep(110,0.5,'sawtooth');}
 function showEnd(t,p){
