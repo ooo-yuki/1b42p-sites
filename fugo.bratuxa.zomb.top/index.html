@@ -39,6 +39,12 @@
   #guest { font-size: 17px; min-height: 28px; }
   #msg { max-width: 600px; min-height: 30px; font-size: 16px; margin-top: 6px; }
   #start { background: #ffd700; font-size: 20px; }
+  #fx { position: fixed; inset: 0; pointer-events: none; z-index: 50; }
+  #shop { max-width: 600px; background: #ffffff10; border: 2px solid #ffd700;
+    border-radius: 12px; padding: 12px 16px; margin-top: 10px; }
+  #shop h2 { margin: 4px 0; font-size: 19px; }
+  #kalaBtn { background: linear-gradient(180deg, #ff2fb3, #8f1218); color: #fff; border-color: #5c0a0e; }
+  .shoprow { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
   a { color: #ffd700; }
   footer { margin-top: 14px; color: #777; font-size: 13px; }
 </style>
@@ -68,6 +74,16 @@
   <button id="btnServe" style="display:none">🫖 Подать гостю</button>
 </div>
 <div id="msg"></div>
+<div id="shop">
+  <h2>Мой уголок: <span id="myHookah">кальяна пока нет</span></h2>
+  <div>Кошель: <b id="wallet">0</b> монет • Уровень: <b id="upgLvl">0</b> • Жар кала: <b id="kala">0</b>/100</div>
+  <div class="shoprow">
+    <button id="btnBuy">Купить кальян (300)</button>
+    <button id="btnUpg">Улучшить (<span id="upgCost">200</span>)</button>
+    <button id="kalaBtn">Раскочегарь кала!</button>
+  </div>
+</div>
+<canvas id="fx"></canvas>
 
 <p><a href="https://hub.bratuxa.zomb.top">← Хаб 1Б42П</a></p>
 <footer>1Б42П • Мы уже победили 🏆</footer>
@@ -78,6 +94,77 @@ var G = null;
 
 function best() { try { return parseInt(localStorage.getItem(KEY)) || 0; } catch (_) { return 0; } }
 function setBest(v) { try { localStorage.setItem(KEY, v); } catch (_) {} }
+
+/* ===== СВОЙ КАЛЬЯН: кошелёк, покупка, улучшения, раскал с частицами ===== */
+var KEY2 = 'fugo_hookah_meta';
+var M = { wallet: 0, hookah: false, upg: 0, kala: 0 };
+try { var mm = JSON.parse(localStorage.getItem(KEY2)); if (mm) M = mm; } catch (_) {}
+var UPG_COSTS = [200, 400, 800];
+var UPG_NAMES = ['базовый', 'медный', 'золотой', 'алмазный 42'];
+function saveM() { try { localStorage.setItem(KEY2, JSON.stringify(M)); } catch (_) {} }
+function renderShop() {
+  document.getElementById('wallet').textContent = M.wallet;
+  document.getElementById('upgLvl').textContent = M.upg + ' (' + UPG_NAMES[M.upg] + ')';
+  document.getElementById('myHookah').textContent = M.hookah ? 'мой кальян при мне!' : 'кальяна пока нет — работай кальянщиком!';
+  document.getElementById('upgCost').textContent = M.upg < 3 ? UPG_COSTS[M.upg] : 'MAX';
+  document.getElementById('kala').textContent = M.kala;
+  document.getElementById('btnBuy').disabled = M.hookah || M.wallet < 300;
+  document.getElementById('btnUpg').disabled = !M.hookah || M.upg >= 3 || M.wallet < UPG_COSTS[M.upg];
+  document.getElementById('kalaBtn').disabled = !M.hookah;
+}
+var PC = [];
+function burst(lvl) {
+  var cv = document.getElementById('fx');
+  cv.width = window.innerWidth; cv.height = window.innerHeight;
+  var n = [60, 140, 280, 500][lvl];
+  var cols = [['#ffd700', '#ff6b4d'], ['#ffd700', '#ff6b4d', '#00d4ff'],
+              ['#ffd700', '#ff2fb3', '#00d4ff', '#4dff88'],
+              ['#ffd700', '#ff2fb3', '#00d4ff', '#4dff88', '#ffffff', '#c04dff']][lvl];
+  var spd = [3, 5, 8, 12][lvl];
+  for (var i = 0; i < n; i++) {
+    PC.push({ x: cv.width / 2 + (Math.random() - .5) * 120, y: cv.height - 120,
+      vx: (Math.random() - .5) * spd * 2, vy: -Math.random() * spd - 2,
+      r: 2 + Math.random() * (3 + lvl * 2), c: cols[i % cols.length], life: 1 });
+  }
+  if (!burst.on) { burst.on = true; requestAnimationFrame(fxTick); }
+}
+function fxTick() {
+  var cv = document.getElementById('fx'), ctx = cv.getContext('2d');
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  PC = PC.filter(function (p) { return p.life > 0; });
+  PC.forEach(function (p) {
+    p.x += p.vx; p.y += p.vy; p.vy += 0.08; p.life -= 0.008;
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = p.c;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+  if (PC.length) requestAnimationFrame(fxTick); else burst.on = false;
+}
+document.getElementById('btnBuy').onclick = function () {
+  if (M.hookah || M.wallet < 300) return;
+  M.wallet -= 300; M.hookah = true; saveM(); renderShop();
+  say('Кальян куплен! Теперь он твой!');
+};
+document.getElementById('btnUpg').onclick = function () {
+  if (!M.hookah || M.upg >= 3 || M.wallet < UPG_COSTS[M.upg]) return;
+  M.wallet -= UPG_COSTS[M.upg]; M.upg++; saveM(); renderShop();
+  say('Улучшено до «' + UPG_NAMES[M.upg] + '»! Частицы стали злее!');
+};
+var kalaCd = 0;
+document.getElementById('kalaBtn').onclick = function () {
+  if (!M.hookah) return;
+  var now = Date.now();
+  if (now - kalaCd < 400) return;
+  kalaCd = now;
+  M.kala += 20; saveM(); renderShop();
+  if (M.kala >= 100) {
+    M.kala = 0; saveM(); renderShop();
+    burst(M.upg);
+    say('Кал раскочегарен! Салют «' + UPG_NAMES[M.upg] + '»!');
+  }
+};
+renderShop();
 document.getElementById('best').textContent = best();
 
 function newGuest() {
@@ -143,6 +230,7 @@ function finish() {
   });
   var b = best();
   if (G.money > b) { setBest(G.money); b = G.money; }
+  M.wallet += G.money; saveM(); renderShop();
   document.getElementById('best').textContent = b;
   document.getElementById('guest').textContent = 'Смена окончена!';
   say('Выручка: ' + G.money + ' монет! ' +
