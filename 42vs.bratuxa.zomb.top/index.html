@@ -22,6 +22,8 @@
     cursor:pointer;margin-top:14px;color:#111;}
   .bigbtn:hover{background:#ffd700;}
   #hint{color:#888;font-size:13px;padding:8px;text-align:center;max-width:1100px;}
+  #wrap:fullscreen{background:#000;display:flex;align-items:center;justify-content:center;}
+  #wrap:fullscreen canvas{width:min(100vw,183.3vh);height:auto;}
   @media(max-width:700px){
     #top h1{font-size:22px;}
     #top .sub{font-size:12px;}
@@ -42,7 +44,7 @@
   <div id="menu" class="overlay">
     <h2>42 VS SASAZOMBIES</h2>
     <p>Сасазомби идут с дороги! Выставляй юнитов на лужайку 9×5 и держи дом.<br>
-    Мопсострел бьёт мопсами по своей линии · Подсолнух даёт солнца · Бомба бахает 3×3.<br>
+    Мопсострел бьёт мопсами по своей линии · Подсолнух роняет рэспэкт — подбирай кликом · Бомба бахает 3×3.<br>
     Убей 10 зомби — уровень пройден!</p>
     <button class="bigbtn" id="btnLevel1">ПЕРЕЙТИ НА ПЕРВЫЙ УРОВЕНЬ 🌻</button>
   </div>
@@ -56,10 +58,11 @@
     <p>Передохни, братуха. Сасазомби подождут.</p>
     <button class="bigbtn" id="btnResume">ПРОДОЛЖИТЬ ▶️</button>
     <button class="bigbtn" id="btnQuitMenu">В ГЛАВНОЕ МЕНЮ 🏠</button>
+    <button class="bigbtn" id="btnFS">⛶ ПОЛНЫЙ ЭКРАН</button>
     <p style="margin-top:16px">🔊 Громкость: <input type="range" id="volRange" min="0" max="100" value="80" style="width:220px;vertical-align:middle"> <b id="volVal">80%</b></p>
   </div>
 </div>
-<div id="hint">ЛКМ/палец: перетащи семечко с левой панели на клетку · повторный клик отменяет · ESC — пауза · солнце падает с неба и растёт на Подсолнухе</div>
+<div id="hint">ЛКМ/палец: перетащи семечко с левой панели на клетку · кликай падающий рэспэкт · ESC — пауза · F — полный экран</div>
 <script>
 /* ============ 42 VS SASAZOMBIES — уровень 1 (PvZ-механика, Canvas2D) ============ */
 'use strict';
@@ -72,13 +75,13 @@ var PANELX=0,PANELW=136; // компактная панель слева
 /* --- баланс --- */
 var Z_HP=141,Z_BITE=141,Z_SPEED=10,SPAWN_EVERY=15,KILLS_TO_WIN=10,SPAWN_TOTAL=14;
 var U_MOPSO={hp:422,dmg:24,rate:1.5,cost:100,cd:7};
-var U_SUN={hp:300,cost:50,cd:7,sunEvery:12,sunVal:25};
+var U_SUN={hp:300,cost:50,cd:7,respEvery:12,respVal:25};
 var U_BOMB={hp:300,cost:150,cd:20,fuse:1.2};
-var SKY_SUN_EVERY=10,SKY_SUN_VAL=25,START_SUN=150;
+var SKY_RESP_EVERY=10,SKY_RESP_VAL=25,START_RESP=150;
 /* --- состояние --- */
 var G=null;
 function newGame(){
-  G={state:'play',t:0,sun:START_SUN,units:[],zoms:[],peas:[],fx:[],floats:[],
+  G={state:'play',t:0,resp:START_RESP,units:[],zoms:[],peas:[],fx:[],floats:[],resps:[],
     kills:0,spawned:0,spawnT:3,skyT:6,seeds:{mopso:0,sun:0,bomb:0},drag:null,over:null,
     seedFlash:null,cellFlash:null};
 }
@@ -86,7 +89,7 @@ function cellXY(r,c){return {x:GX0+c*CW,y:GY0+r*CH};}
 function rowY(r){return GY0+(r+0.65)*CH;} // линия точек трафарета: центр X, 65% высоты клетки
 function unitAt(r,c){for(var i=0;i<G.units.length;i++){var u=G.units[i];if(u.r===r&&u.c===c)return u;}return null;}
 /* --- текстуры --- */
-var IMG={},IMGNAMES={bg:'tex/bg1.jpg',zombie:'tex/zombie.png',mopso:'tex/mopso.png',sunflow:'tex/sunflow.png',bomba:'tex/bomba.png',mops:'tex/mops.png'};
+var IMG={},IMGNAMES={bg:'tex/bg1.jpg',zombie:'tex/zombie.png',mopso:'tex/mopso.png',sunflow:'tex/sunflow.png',bomba:'tex/bomba.png',mops:'tex/mops.png',resp:'tex/respect.png'};
 var IMG_OK=0,IMG_NEED=Object.keys(IMGNAMES).length;
 function loadAll(next){
   Object.keys(IMGNAMES).forEach(function(k){
@@ -125,6 +128,12 @@ function sfx(k){try{
   var pr=a.play();if(pr&&pr.catch)pr.catch(function(){});
 }catch(e){}}
 sfxLoad();
+/* --- рэспэкт: падает с неба и с подсолнуха, подбирается кликом --- */
+var RESP_FALL=90,RESP_LIFE=20;
+function spawnResp(x,y){
+  if(x===undefined){x=GX0+40+Math.random()*(GX1-GX0-80);y=-30;}
+  G.resps.push({x:x,y:y,ty:(y<0?GY0+30+Math.random()*(GY1-GY0-60):y),v:SKY_RESP_VAL,t:RESP_LIFE,ph:Math.random()*6});
+}
 /* --- спавн --- */
 function spawnZom(){
   var r=Math.floor(Math.random()*ROWS);
@@ -144,9 +153,9 @@ function seedDef(k){
 }
 function tryPlant(k,r,c){
   var d=seedDef(k);
-  if(G.seeds[k]>0||G.sun<d.cost||unitAt(r,c))return false;
-  G.sun-=d.cost;G.seeds[k]=d.cd;
-  var u={type:k,r:r,c:c,cool:0,fuse:k==='bomb'?U_BOMB.fuse:0,sunT:k==='sun'?6:0};
+  if(G.seeds[k]>0||G.resp<d.cost||unitAt(r,c))return false;
+  G.resp-=d.cost;G.seeds[k]=d.cd;
+  var u={type:k,r:r,c:c,cool:0,fuse:k==='bomb'?U_BOMB.fuse:0,respT:k==='sun'?6:0};
   u.hp=u.maxhp=(k==='mopso'?U_MOPSO.hp:(k==='sun'?U_SUN.hp:U_BOMB.hp));
   G.units.push(u);
   if(k==='bomb')beep(200,0.2,'sawtooth');
@@ -161,14 +170,13 @@ function update(dt){
   if(G.cellFlash){G.cellFlash.t-=dt;if(G.cellFlash.t<=0)G.cellFlash=null;}
   /* спавн врагов */
   if(G.spawned<SPAWN_TOTAL){G.spawnT-=dt;if(G.spawnT<=0){G.spawnT=SPAWN_EVERY;spawnZom();}}
-  /* небо-солнце */
+  /* небо-рэспэкт: падает, подобрать кликом */
   G.skyT-=dt;
-  if(G.skyT<=0){G.skyT=SKY_SUN_EVERY;G.sun+=SKY_SUN_VAL;G.floats.push({x:600+Math.random()*150,y:120,t:1.5,txt:'+'+SKY_SUN_VAL+' ☀️'});}
+  if(G.skyT<=0){G.skyT=SKY_RESP_EVERY;spawnResp();}
   /* юниты */
   for(var i=G.units.length-1;i>=0;i--){var u=G.units[i],p=cellXY(u.r,u.c),ux=p.x+CW/2;
     if(u.cool>0)u.cool-=dt;
-    if(u.type==='sun'){u.sunT-=dt;if(u.sunT<=0){u.sunT=U_SUN.sunEvery;G.sun+=U_SUN.sunVal;
-      G.floats.push({x:ux,y:rowY(u.r)-60,t:1.5,txt:'+'+U_SUN.sunVal+' ☀️'});beep(880,0.08);}}
+    if(u.type==='sun'){u.respT-=dt;if(u.respT<=0){u.respT=U_SUN.respEvery;spawnResp(ux+36,rowY(u.r)-70);}}
     if(u.type==='bomb'){u.fuse-=dt;
       if(u.fuse<=0){ /* БАБАХ 3×3 */
         G.units.splice(i,1);
@@ -195,7 +203,10 @@ function update(dt){
         G.fx.push({x:s.x,y:s.y,t:0.2,r:6});break;}}
     if(hit||s.x>GX1+60)G.peas.splice(a,1);
   }
-  /* враги: плавно влево, впритык — едят */
+  /* рэспэкт падает и тает */
+  for(var qi=G.resps.length-1;qi>=0;qi--){var rp=G.resps[qi];
+    if(rp.y<rp.ty)rp.y=Math.min(rp.ty,rp.y+RESP_FALL*dt);
+    else{rp.t-=dt;if(rp.t<=0)G.resps.splice(qi,1);}}
   for(var c=G.zoms.length-1;c>=0;c--){var n=G.zoms[c];
     if(n.hp<=0){killZom(c);continue;}
     var col=Math.floor((n.x-GX0)/CW),meal=(col>=0&&col<COLS)?unitAt(n.r,col):null;
@@ -262,10 +273,16 @@ function draw(){
     ctx.globalAlpha=Math.min(1,e2.t*2.5);
     ctx.fillStyle=e2.r?'#ffdd44':'#ff6a00';
     ctx.beginPath();ctx.arc(e2.x,e2.y,Math.max(4,rr),0,7);ctx.fill();ctx.globalAlpha=1;}
+  /* рэспэкт на подбор: мигает перед тем как растаять */
+  for(var qi2=0;qi2<G.resps.length;qi2++){var rp2=G.resps[qi2];
+    var bob2=Math.sin(G.t*5+rp2.ph)*3;
+    if(rp2.t<4&&Math.floor(G.t*6)%2===0)ctx.globalAlpha=0.4;
+    drawImg(IMG.resp,rp2.x-22,rp2.y-22+bob2,44,44);ctx.globalAlpha=1;}
   /* всплывашки */
   ctx.font='bold 18px Arial';ctx.textAlign='center';
   for(var g=0;g<G.floats.length;g++){var fl=G.floats[g];
-    ctx.globalAlpha=Math.min(1,fl.t);ctx.fillStyle='#ffe26b';ctx.fillText(fl.txt,fl.x,fl.y);ctx.globalAlpha=1;}
+    ctx.globalAlpha=Math.min(1,fl.t);ctx.fillStyle='#ffe26b';ctx.fillText(fl.txt,fl.x,fl.y);
+    var fw=ctx.measureText(fl.txt).width;drawImg(IMG.resp,fl.x+fw/2+4,fl.y-18,18,18);ctx.globalAlpha=1;}
   /* красная вспышка: посадка не туда */
   if(G.cellFlash){var cf=G.cellFlash;
     ctx.fillStyle='rgba(255,40,40,'+(0.3+0.3*Math.abs(Math.sin(G.t*14)))+')';
@@ -284,14 +301,15 @@ function drawPanel(){
   ctx.fillStyle='rgba(10,5,20,.88)';ctx.fillRect(0,0,PANELW,cv.height);
   ctx.strokeStyle='#f5c518';ctx.lineWidth=2;ctx.strokeRect(1,1,PANELW-2,cv.height-2);
   ctx.fillStyle='#f5c518';ctx.font='bold 22px Arial';ctx.textAlign='left';
-  ctx.fillText('☀️'+G.sun,10,36);
+  drawImg(IMG.resp,6,12,26,26);
+  ctx.fillText(G.resp,38,36);
   ctx.fillStyle='#fff';ctx.font='bold 15px Arial';
   ctx.fillText('🧟'+G.kills+'/'+KILLS_TO_WIN,10,60);
   ctx.fillStyle='#888';ctx.font='12px Arial';
   ctx.fillText('СЕМЕНА',10,84);
   var keys=['mopso','sun','bomb'];
   for(var i=0;i<3;i++){var k=keys[i],d=seedDef(k),R=seedRect(i);
-    var avail=G.sun>=d.cost&&G.seeds[k]<=0;
+    var avail=G.resp>=d.cost&&G.seeds[k]<=0;
     ctx.fillStyle=avail?'#2a1a3e':'#151020';
     ctx.fillRect(R.x,R.y,R.w,R.h);
     ctx.strokeStyle=G.drag===k?'#0f6':'#f5c518';ctx.lineWidth=G.drag===k?4:2;
@@ -300,7 +318,9 @@ function drawPanel(){
     ctx.fillStyle='#fff';ctx.font='bold 11px Arial';ctx.textAlign='center';
     ctx.fillText(d.name,R.x+R.w/2,R.y+64);
     ctx.fillStyle='#ffe26b';ctx.font='11px Arial';
-    ctx.fillText('☀️'+d.cost,R.x+R.w/2,R.y+79);
+    var pcw=ctx.measureText(d.cost).width;
+    drawImg(IMG.resp,R.x+R.w/2-pcw/2-19,R.y+66,16,16);
+    ctx.fillText(d.cost,R.x+R.w/2+8,R.y+79);
     ctx.textAlign='left';
     if(G.seeds[k]>0){ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(R.x,R.y,R.w,R.h);
       ctx.fillStyle='#fff';ctx.font='bold 22px Arial';ctx.textAlign='center';
@@ -335,9 +355,15 @@ cv.addEventListener('pointerdown',function(e){
   /* кнопки панели */
   if(p.x>8&&p.x<128&&p.y>470&&p.y<514){toMenu();return;}
   if(p.x>8&&p.x<128&&p.y>522&&p.y<566){MUTED=!MUTED;return;}
+  /* подбор рэспэкта кликом */
+  for(var ri=G.resps.length-1;ri>=0;ri--){var rpi=G.resps[ri];
+    if(Math.hypot(p.x-rpi.x,p.y-rpi.y)<36){
+      if(G.drag)G.drag=null;
+      G.resps.splice(ri,1);G.resp+=rpi.v;
+      G.floats.push({x:rpi.x,y:rpi.y-20,t:1.2,txt:'+'+rpi.v});beep(880,0.08);return;}}
   var s=seedAtXY(p.x,p.y);
   if(s){var d=seedDef(s);
-    if(G.sun<d.cost){G.seedFlash={k:s,t:0.7};sfx('cancel');}
+    if(G.resp<d.cost){G.seedFlash={k:s,t:0.7};sfx('cancel');}
     else if(G.seeds[s]>0)beep(150,0.1);
     else{G.drag=(G.drag===s?null:s);beep(440,0.06);}
     return;}
@@ -401,6 +427,14 @@ document.getElementById('btnAgain').onclick=function(){
 };
 document.getElementById('btnResume').onclick=function(){togglePause();};
 document.getElementById('btnQuitMenu').onclick=function(){toMenu();};
+document.getElementById('btnFS').onclick=function(){toggleFS();};
+function toggleFS(){try{
+  if(document.fullscreenElement)document.exitFullscreen();
+  else{var w=document.getElementById('wrap');if(w.requestFullscreen)w.requestFullscreen();}
+}catch(e){}}
+document.addEventListener('keydown',function(e){
+  if((e.key==='f'||e.key==='а'||e.key==='F'||e.key==='А')&&G)toggleFS();
+});
 document.getElementById('volRange').oninput=function(e){
   VOL=Math.max(0,Math.min(100,+e.target.value))/100;
   document.getElementById('volVal').textContent=e.target.value+'%';
