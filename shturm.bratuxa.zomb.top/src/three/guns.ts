@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { batchRigid } from './mobBatch';
 import { getTex } from './textures';
 
 export type GunSlot = 'pistol' | 'auto' | 'shotgun';
@@ -131,6 +132,8 @@ function buildPistol(g: THREE.Group, M: ReturnType<typeof mats>): void {
   guard.castShadow = true;
   g.add(guard);
   box(g, 0.008, 0.03, 0.01, M.dark, 0, -0.02, -0.045, 0.25);
+  // Task 8: склейка статики ствола (вспышка/дым/гильзы добавляются позже — их не трогаем).
+  batchRigid(g);
 }
 
 // --- АВТОМАТ: изогнутый рожок, приклад, цевьё, прицел-кольцо. ---
@@ -190,6 +193,8 @@ function buildAuto(g: THREE.Group, M: ReturnType<typeof mats>): void {
   guard.castShadow = true;
   g.add(guard);
   box(g, 0.008, 0.028, 0.01, M.dark, 0, -0.038, 0.06, 0.25);
+  // Task 8: склейка статики ствола (вспышка/дым/гильзы добавляются позже — их не трогаем).
+  batchRigid(g);
 }
 
 // --- ДРОБОВИК: помпа, толстый ствол, приклад. ---
@@ -239,6 +244,8 @@ function buildShotgun(g: THREE.Group, M: ReturnType<typeof mats>): void {
     sw.position.set(0, -0.045, z);
     g.add(sw);
   }
+  // Task 8: склейка статики ствола (вспышка/дым/гильзы добавляются позже — их не трогаем).
+  batchRigid(g);
 }
 
 const BUILDERS: Record<GunSlot, { build: (g: THREE.Group, M: ReturnType<typeof mats>) => void; muzzleZ: number; impulse: number }> = {
@@ -301,7 +308,8 @@ export function makeGun(slot: GunSlot): THREE.Group {
   for (let i = 0; i < 10; i++) {
     const m = new THREE.Mesh(shellGeo, M.brass);
     m.visible = false;
-    m.castShadow = true;
+    // Task 8: гильзы 12мм тени не отбрасывают (−10 shadow calls в бою).
+    m.castShadow = false;
     inner.add(m);
     shells.push({
       mesh: m,

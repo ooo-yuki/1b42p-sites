@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { buildHumanoid, makeClips, phaseShiftRight } from '../rig';
+import { batchRigid, batchSkinned } from '../mobBatch';
 import { getTex } from '../textures';
 
 let furMat: THREE.MeshStandardMaterial | null = null;
@@ -117,6 +118,8 @@ export function makeRunner(): THREE.Group {
   }
 
   g.updateMatrixWorld(true);
+  // Task 8: склейка скина по материалам ДО bind — меньше draw calls, вид тот же.
+  batchSkinned(g, skinned);
   const skeleton = new THREE.Skeleton(order);
   for (const m of skinned) {
     m.bind(skeleton);
@@ -206,5 +209,7 @@ export function makeRunner(): THREE.Group {
   g.userData.mixer = mixer;
   g.userData.actions = actions;
   g.userData.dead = false;
+  // Task 8: склейка rigid-декора по родителям — меньше draw calls, вид тот же.
+  batchRigid(g);
   return g;
 }

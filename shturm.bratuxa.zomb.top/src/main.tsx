@@ -81,6 +81,9 @@ let lowT = 0;
 // ---------- Three ----------
 const { scene, camera, renderer } = initScene(canvas);
 renderer.setSize(window.innerWidth, window.innerHeight);
+// Task 8: честные draw calls приёмки — info копим за весь кадр
+// (все проходы композитора + shadow map), сброс вручную в step().
+renderer.info.autoReset = false;
 let mapGroup = buildMapVisual(mapId);
 scene.add(mapGroup);
 
@@ -621,6 +624,7 @@ let frameCount = 0;
 function step(now: number) {
   lastStep = now;
   frameCount += 1;
+  renderer.info.reset(); // Task 8: сброс счётчиков кадра (autoReset выкл — копим все проходы).
   let dt = (now - last) / 1000;
   last = now;
   if (dt > 0.25) dt = 0.25;

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { buildWings } from '../rig';
+import { batchRigid } from '../mobBatch';
 import { getTex } from '../textures';
 
 let featherMat: THREE.MeshStandardMaterial | null = null;
@@ -262,5 +263,7 @@ export function makeSeagull(): THREE.Group {
   g.userData.mixer = mixer;
   g.userData.actions = actions;
   g.userData.dead = false;
+  // Task 8: склейка rigid-декора по родителям — меньше draw calls, вид тот же.
+  batchRigid(g);
   return g;
 }
