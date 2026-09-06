@@ -85,7 +85,7 @@ interface Member {
   spawnIdx: number;
   ts: number;
 }
-interface Room { id: string; name: string; mode: 'arena' | 'duel'; created: number; round: number; lastWinner: string; players: Map<string, Member>; }
+interface Room { id: string; name: string; mode: 'arena' | 'duel'; created: number; round: number; lastWinner: string; owner: string; started: boolean; players: Map<string, Member>; pending: Map<string, Member>; }
 const rooms = new Map<string, Room>();
 const STALE_MS = 12000;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -108,6 +108,14 @@ function prune(room: Room): void {
   for (const [sid, m] of room.players) {
     if (now - m.ts > STALE_MS) room.players.delete(sid);
   }
+  for (const [sid, m] of room.pending) {
+    if (now - m.ts > STALE_MS) room.pending.delete(sid);
+  }
+  // создатель ушёл — владелец переходит старшему из оставшихся
+  if (!room.players.has(room.owner)) {
+    const next = [...room.players.keys()][0];
+    if (next) room.owner = next;
+  }
 }
 
 function cleanChar(v: unknown): string {
@@ -118,6 +126,11 @@ function pubList(m: Member): object {
   return { nick: m.nick, login: m.login, char: m.char, x: m.x, z: m.z, hp: m.hp, score: m.score, kills: m.kills, wave: m.wave };
 }
 
+// только для лобби создателя: sid нужен кнопкам ПРИНЯТЬ/КИК (beat его не отдаёт)
+function pubListSid(m: Member): object {
+  return { ...pubList(m) as Record<string, unknown>, sid: m.sid };
+}
+
 function duelSpawn(i: number): { x: number; z: number; yaw: number } {
   return i % 2 === 1 ? { x: 0, z: -20, yaw: Math.PI } : { x: 0, z: 20, yaw: 0 };
 }
@@ -125,7 +138,7 @@ function duelSpawn(i: number): { x: number; z: number; yaw: number } {
 async function roomsApi(req: Request): Promise<Response | null> {
   const u = new URL(req.url);
   const p = u.pathname;
-  if (!p.startsWith('/api/rooms') && !p.startsWith('/api/register') && !p.startsWith('/api/login') && !p.startsWith('/api/me')) return null;
+  if (!p.startsWith('/api/rooms') && !p.startsWith('/api/register') && !p.startsWith('/api/login') && !p.startsWith('/api/me') && !p.startsWith('/api/profile')) return null;
   const parts = p.split('/').filter(Boolean); // ['api','rooms', id?, action?]
 
   // ---- аккаунты ----
@@ -152,13 +165,25 @@ async function roomsApi(req: Request): Promise<Response | null> {
     if (!login) return Response.json({ error: 'nouser' }, { status: 401 });
     return Response.json({ login });
   }
+  if (p === '/api/profile' && req.method === 'GET') {
+    const login = String(u.searchParams.get('login') ?? '').slice(0, 20);
+    if (!login) return Response.json({ error: 'bad' }, { status: 400 });
+    try {
+      const row = db.query(
+        'SELECT COUNT(*) AS games, MAX(score) AS best, COALESCE(SUM(coins),0) AS coins FROM scores WHERE login = ?',
+      ).get(login) as { games: number; best: number | null; coins: number };
+      return Response.json({ login, games: row.games ?? 0, best: row.best ?? 0, coins: row.coins ?? 0 });
+    } catch {
+      return Response.json({ login, games: 0, best: 0, coins: 0 });
+    }
+  }
 
   if (req.method === 'GET' && parts.length === 2) {
     const out: object[] = [];
     for (const r of rooms.values()) {
       prune(r);
       if (r.players.size === 0) { rooms.delete(r.id); continue; }
-      out.push({ id: r.id, name: r.name, mode: r.mode, count: r.players.size });
+      out.push({ id: r.id, name: r.name, mode: r.mode, count: r.players.size, started: r.started });
     }
     return Response.json(out);
   }
@@ -178,7 +203,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const id = newCode();
     const sid = newSid();
     const sp = duelSpawn(0);
-    const room: Room = { id, name, mode, created: Date.now(), round: 1, lastWinner: '', players: new Map() };
+    const room: Room = { id, name, mode, created: Date.now(), round: 1, lastWinner: '', owner: sid, started: false, players: new Map(), pending: new Map() };
     room.players.set(sid, { sid, nick, login, char: cleanChar(body.char), x: mode === 'duel' ? sp.x : 0, z: mode === 'duel' ? sp.z : 22, yaw: mode === 'duel' ? sp.yaw : 0, hp: 100, score: 0, kills: 0, wave: 1, duelHp: 100, wins: 0, spawnIdx: 0, ts: Date.now() });
     rooms.set(id, room);
     return Response.json({ id, sid, mode, spawn: mode === 'duel' ? sp : null });
@@ -189,23 +214,81 @@ async function roomsApi(req: Request): Promise<Response | null> {
   if (!room) return Response.json({ error: 'noroom' }, { status: 404 });
   const action = parts[3];
 
-  // войти (дуэль — строго 1 на 1)
+  // войти = оставить заявку: в игру пускает только создатель (approve)
   if (req.method === 'POST' && action === 'join') {
     prune(room);
     const cap = room.mode === 'duel' ? 2 : 8;
-    if (room.players.size >= cap) return Response.json({ error: 'full' }, { status: 403 });
+    if (room.players.size + room.pending.size >= cap) return Response.json({ error: 'full' }, { status: 403 });
     const nick = cleanNick(body.nick);
     const login = loginByToken(body.token);
     const sid = newSid();
-    const idx = room.players.size;
-    const sp = duelSpawn(idx);
-    room.players.set(sid, { sid, nick, login, char: cleanChar(body.char), x: room.mode === 'duel' ? sp.x : 0, z: room.mode === 'duel' ? sp.z : 22, yaw: room.mode === 'duel' ? sp.yaw : 0, hp: 100, score: 0, kills: 0, wave: 1, duelHp: 100, wins: 0, spawnIdx: idx, ts: Date.now() });
-    return Response.json({ sid, name: room.name, mode: room.mode, spawn: room.mode === 'duel' ? sp : null });
+    room.pending.set(sid, { sid, nick, login, char: cleanChar(body.char), x: 0, z: 22, yaw: 0, hp: 100, score: 0, kills: 0, wave: 1, duelHp: 100, wins: 0, spawnIdx: room.players.size, ts: Date.now() });
+    return Response.json({ sid, name: room.name, mode: room.mode, pending: true });
+  }
+
+  // состояние лобби для меню: кто внутри, кто просится, запущена ли игра
+  if (req.method === 'GET' && action === 'info') {
+    prune(room);
+    const sid = String(u.searchParams.get('sid') ?? '');
+    const isOwner = sid !== '' && sid === room.owner;
+    const mine = sid !== '' && (room.players.has(sid) || room.pending.has(sid));
+    // чужим состав комнаты не показываем — только факт существования
+    if (!isOwner && !mine) return Response.json({ name: room.name, mode: room.mode, started: room.started, count: room.players.size });
+    const players = [...room.players.values()].filter((m) => m.sid !== sid).map(pubListSid);
+    const out: Record<string, unknown> = {
+      name: room.name, mode: room.mode, started: room.started,
+      owner: isOwner, count: room.players.size, players,
+    };
+    if (isOwner) out.pending = [...room.pending.values()].map(pubListSid);
+    else if (sid !== '') out.accepted = room.players.has(sid);
+    if (room.mode === 'duel' && sid !== '') {
+      const self = room.players.get(sid);
+      if (self) out.spawn = duelSpawn(self.spawnIdx);
+    }
+    return Response.json(out);
   }
 
   const sid = String(body.sid ?? '');
+  const isOwner = sid !== '' && sid === room.owner;
+
+  // действия создателя: принять / отклонить заявку, кикнуть, стартовать игру
+  if (req.method === 'POST' && (action === 'approve' || action === 'deny' || action === 'kick' || action === 'start')) {
+    if (!isOwner) return Response.json({ error: 'notowner' }, { status: 403 });
+    if (action === 'start') {
+      room.started = true;
+      return Response.json({ ok: true, started: true });
+    }
+    const target = String(body.target ?? '');
+    if (action === 'approve') {
+      const m = room.pending.get(target);
+      if (!m) return Response.json({ error: 'noreq' }, { status: 404 });
+      const cap = room.mode === 'duel' ? 2 : 8;
+      if (room.players.size >= cap) return Response.json({ error: 'full' }, { status: 403 });
+      room.pending.delete(target);
+      m.spawnIdx = room.players.size;
+      const sp = duelSpawn(m.spawnIdx);
+      if (room.mode === 'duel') { m.x = sp.x; m.z = sp.z; m.yaw = sp.yaw; }
+      m.ts = Date.now();
+      room.players.set(target, m);
+      return Response.json({ ok: true });
+    }
+    if (action === 'deny') {
+      room.pending.delete(target);
+      return Response.json({ ok: true });
+    }
+    // kick: выгнать игрока (не себя)
+    if (target !== sid) room.players.delete(target);
+    prune(room);
+    if (room.players.size === 0) rooms.delete(room.id);
+    return Response.json({ ok: true });
+  }
+
   const me = room.players.get(sid);
-  if (!me) return Response.json({ error: 'nosid' }, { status: 403 });
+  if (!me) {
+    // заявитель без места: понятная ошибка вместо глухого nosid
+    if (room.pending.has(sid)) return Response.json({ error: 'waiting' }, { status: 403 });
+    return Response.json({ error: 'nosid' }, { status: 403 });
+  }
 
   // удар по дуэлянту: урон ставит сервер, победу и новый раунд — тоже он
   if (req.method === 'POST' && action === 'hit') {
@@ -256,12 +339,14 @@ async function roomsApi(req: Request): Promise<Response | null> {
         };
       }
     }
-    return Response.json({ players: others, count: room.players.size, duel });
+    return Response.json({ players: others, count: room.players.size, duel, started: room.started, owner: sid === room.owner });
   }
 
-  // выйти
+  // выйти (из игроков и из заявителей; владелец уходит — комната живёт дальше)
   if (req.method === 'POST' && action === 'leave') {
     room.players.delete(sid);
+    room.pending.delete(sid);
+    prune(room);
     if (room.players.size === 0) rooms.delete(room.id);
     return Response.json({ ok: true });
   }

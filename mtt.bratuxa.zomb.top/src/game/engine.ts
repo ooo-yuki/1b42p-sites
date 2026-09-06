@@ -654,6 +654,79 @@ export class Game {
       }
     }
 
+    // переулки: два ряда узких высоких домов образуют улочки с фонарями (детерминированно, мимо коробок)
+    const alleyMat = new THREE.MeshStandardMaterial({ color: 0x8a6f4d, roughness: 0.9 });
+    const lampMat = new THREE.MeshBasicMaterial({ color: 0xffe9a3 });
+    const mkAlleyHouse = (hx: number, hz: number, h: number): void => {
+      const at = winTex.clone();
+      at.wrapS = at.wrapT = THREE.MirroredRepeatWrapping;
+      at.repeat.set(1, Math.max(1, Math.round(h / 6)));
+      at.needsUpdate = true;
+      const m = new THREE.Mesh(
+        new THREE.BoxGeometry(5, h, 6),
+        new THREE.MeshStandardMaterial({ map: at, roughness: 0.85, color: 0xd8c0a0 }),
+      );
+      m.position.set(hx, h / 2, hz);
+      m.castShadow = true; m.receiveShadow = true;
+      scene.add(m);
+      this.solids.push({ x: hx, z: hz, hx: 2.5, hz: 3, h });
+    };
+    for (const sx of [-1, 1]) {
+      for (const hz of [-30, -10, 10, 30]) {
+        mkAlleyHouse(sx * 18.5, hz, 9 + ((hz + 30) % 3));
+        mkAlleyHouse(sx * 9.5, hz + 5, 10 + ((hz + 40) % 2));
+      }
+      // фонари вдоль улочки
+      for (const hz of [-20, 0, 20]) {
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 3.4, 8), alleyMat);
+        pole.position.set(sx * 14, 1.7, hz);
+        scene.add(pole);
+        const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 8), lampMat);
+        bulb.position.set(sx * 14, 3.6, hz);
+        scene.add(bulb);
+      }
+    }
+
+    // входы в дома периметра: тёмный проём + козырёк + ступени + лампа (декор на внутренней грани)
+    const doorMat = new THREE.MeshStandardMaterial({ color: 0x0c0f16, roughness: 1 });
+    const stepMat = new THREE.MeshStandardMaterial({ color: 0x9aa0ad, roughness: 1 });
+    const mkDoor = (x: number, z: number, ry: number): void => {
+      const grp = new THREE.Group();
+      const door = new THREE.Mesh(new THREE.BoxGeometry(2.6, 3.6, 0.5), doorMat);
+      door.position.y = 1.8;
+      grp.add(door);
+      const canopy = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.25, 1.4), alleyMat);
+      canopy.position.set(0, 4.1, 0.5);
+      grp.add(canopy);
+      const step = new THREE.Mesh(new THREE.BoxGeometry(3, 0.3, 1.2), stepMat);
+      step.position.set(0, 0.15, 0.8);
+      grp.add(step);
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8), lampMat);
+      lamp.position.set(0, 4.6, 0.5);
+      grp.add(lamp);
+      grp.position.set(x, 0, z);
+      grp.rotation.y = ry;
+      scene.add(grp);
+    };
+    for (const ex of [-36, -12, 12, 36]) {
+      mkDoor(ex, HALF - 0.2, Math.PI);
+      mkDoor(ex, -HALF + 0.2, 0);
+      mkDoor(HALF - 0.2, ex, -Math.PI / 2);
+      mkDoor(-HALF + 0.2, ex, Math.PI / 2);
+    }
+
+    // клумбы у фонтана: плоские цветные круги (декор, проход свободный)
+    const bedCols = [0xff5d8f, 0xffd23f, 0xff6b35, 0xc77dff];
+    [[8, 8], [-8, 8], [8, -8], [-8, -8]].forEach(([fx, fz], i) => {
+      const bed = new THREE.Mesh(
+        new THREE.CircleGeometry(1.6, 20),
+        new THREE.MeshStandardMaterial({ color: bedCols[i % bedCols.length], roughness: 1 }),
+      );
+      bed.rotation.x = -Math.PI / 2;
+      bed.position.set(fx, 0.02, fz);
+      scene.add(bed);
+    });
+
     // фонари (центр занят фонтаном)
     for (const [fx, fz] of [[-44, -44], [44, -44], [-44, 44], [44, 44]] as Array<[number, number]>) {
       const pole = new THREE.Mesh(
@@ -861,6 +934,10 @@ export class Game {
   start(): void {
     this.started = true;
     this.blip(660);
+  }
+
+  stop(): void {
+    this.started = false;
   }
 
   destroy(): void {

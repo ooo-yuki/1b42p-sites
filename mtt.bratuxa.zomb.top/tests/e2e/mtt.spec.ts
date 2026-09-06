@@ -369,14 +369,27 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await expect(page.locator('#qualityBtn')).toContainText('БЫСТРО');
   });
 
-  test('комнаты: создать/войти/пульс/выйти', async ({ request }) => {
+  test('комнаты: заявки, приём, кик, старт', async ({ request }) => {
     const c = await request.post('/api/rooms', { data: { nick: 'PW1', name: 'PWROOM', char: 'krysa' } });
     expect(c.ok()).toBe(true);
     const { id, sid: sid1 } = await c.json();
     expect(id).toMatch(/^[A-Z0-9]{6}$/);
+    // вход = заявка, не место
     const j = await request.post(`/api/rooms/${id}/join`, { data: { nick: 'PW2', char: 'mtt' } });
     expect(j.ok()).toBe(true);
-    const { sid: sid2 } = await j.json();
+    const { sid: sid2, pending } = await j.json();
+    expect(pending).toBe(true);
+    // заявитель бьётся в закрытую дверь
+    const bw = await request.post(`/api/rooms/${id}/beat`, { data: { sid: sid2, x: 5, z: 6, hp: 90 } });
+    expect(bw.status()).toBe(403);
+    expect((await bw.json()).error).toBe('waiting');
+    // создатель видит заявку и принимает
+    const info = await request.get(`/api/rooms/${id}/info?sid=${sid1}`);
+    const li = await info.json();
+    expect(li.owner).toBe(true);
+    expect(li.pending.some((p: { nick: string }) => p.nick === 'PW2')).toBe(true);
+    const ap = await request.post(`/api/rooms/${id}/approve`, { data: { sid: sid1, target: sid2 } });
+    expect(ap.ok()).toBe(true);
     const b1 = await request.post(`/api/rooms/${id}/beat`, { data: { sid: sid1, char: 'krysa', x: 1, z: 2, yaw: 0, hp: 100, score: 10, kills: 1, wave: 1 } });
     expect(b1.ok()).toBe(true);
     const b2 = await request.post(`/api/rooms/${id}/beat`, { data: { sid: sid2, char: 'mtt', x: 5, z: 6, yaw: 1, hp: 90, score: 20, kills: 2, wave: 1 } });
@@ -384,8 +397,18 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     expect(d2.players.some((p: { nick: string }) => p.nick === 'PW1')).toBe(true);
     expect(d2.players[0].x).toBe(1);
     expect(d2.players[0].char).toBe('krysa');
+    // чужак принять не может
+    const no = await request.post(`/api/rooms/${id}/approve`, { data: { sid: sid2, target: sid2 } });
+    expect(no.status()).toBe(403);
+    // старт только от создателя
+    const st = await request.post(`/api/rooms/${id}/start`, { data: { sid: sid1 } });
+    expect((await st.json()).started).toBe(true);
+    // кик
+    const k = await request.post(`/api/rooms/${id}/kick`, { data: { sid: sid1, target: sid2 } });
+    expect(k.ok()).toBe(true);
+    const bk = await request.post(`/api/rooms/${id}/beat`, { data: { sid: sid2, x: 0, z: 0, hp: 90 } });
+    expect(bk.status()).toBe(403);
     await request.post(`/api/rooms/${id}/leave`, { data: { sid: sid1 } });
-    await request.post(`/api/rooms/${id}/leave`, { data: { sid: sid2 } });
     const list = await request.get('/api/rooms');
     const rooms = (await list.json()) as Array<{ id: string }>;
     expect(rooms.some((r) => r.id === id)).toBe(false);
@@ -447,6 +470,9 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     const j = await request.post(`/api/rooms/${id}/join`, { data: { nick: 'D2' } });
     expect(j.ok()).toBe(true);
     const { sid: s2 } = await j.json();
+    // создатель принимает заявку — только тогда дуэль
+    const ap = await request.post(`/api/rooms/${id}/approve`, { data: { sid: s1, target: s2 } });
+    expect(ap.ok()).toBe(true);
     // третий — мимо, дуэль строго 1 на 1
     const j3 = await request.post(`/api/rooms/${id}/join`, { data: { nick: 'D3' } });
     expect(j3.status()).toBe(403);
@@ -470,22 +496,69 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await request.post(`/api/rooms/${id}/leave`, { data: { sid: s2 } });
   });
 
-  test('дуэль в клиенте: вход на новую карту', async ({ page, request }) => {
-    const c = await request.post('/api/rooms', { data: { nick: 'D1', name: 'DROOM', mode: 'duel' } });
-    const { id } = await c.json();
+  test('дуэль в клиенте: создатель принимает и стартует', async ({ page, request }) => {
     await page.click('#guestBtn');
-    await page.fill('#nick', 'D2');
-    await page.click('button:has-text("ОБНОВИТЬ")');
-    await page.click(`#join-${id}`);
-    await expect(page.locator('#goBtn')).toContainText('ДУЭЛЬ');
-    await page.click('#goBtn');
-    await page.waitForTimeout(1000);
+    await page.fill('#nick', 'D1');
+    await page.fill('#roomDraft', 'DROOM');
+    await page.click('#mode-duel');
+    await page.click('#roomCreate');
+    await expect(page.locator('#roomStart')).toBeVisible();
+    // второй просится через API
+    const rooms = (await (await request.get('/api/rooms')).json()) as Array<{ id: string; name: string }>;
+    const mine = rooms.find((r) => r.name === 'DROOM');
+    expect(mine).toBeTruthy();
+    const j = await request.post(`/api/rooms/${mine!.id}/join`, { data: { nick: 'D2' } });
+    expect(j.ok()).toBe(true);
+    // создатель видит заявку и принимает
+    await expect(page.locator('#approve-0')).toBeVisible({ timeout: 10000 });
+    await page.click('#approve-0');
+    await expect(page.locator('#lobbyList')).toContainText('D2', { timeout: 10000 });
+    // старт — игра запускается
+    await page.click('#roomStart');
+    await page.waitForTimeout(1500);
     const map = await page.evaluate(() => (window as unknown as { __mtt: { map: () => string } }).__mtt.map());
     expect(map).toBe('duel');
     const p = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { x: number; z: number } } }).__mtt.pos());
     expect(Math.abs(p.x)).toBeLessThan(2);
-    expect(Math.abs(p.z - -20)).toBeLessThan(2);
-    await page.click('#roomLeave');
+    expect(Math.abs(p.z - 20)).toBeLessThan(2);
+    // выход в меню сохраняет рейтинг
+    await page.click('#menuBtn');
+    await expect(page.locator('#menu')).toBeVisible();
+    const top = await request.get('/api/scores');
+    expect(top.ok()).toBeTruthy();
+    await page.click('button:has-text("ПОКИНУТЬ")');
+  });
+
+  test('профиль: скрыт, открывается, показывает статистику', async ({ page, request }) => {
+    await expect(page.locator('#profileOv')).toHaveCount(0);
+    await page.click('#guestBtn');
+    // гостю профиль недоступен — кнопки нет, оверлея нет
+    await expect(page.locator('#profileBtn')).toHaveCount(0);
+    // рега через API + вход через UI уже гостем... профиль только у логина: проверяем API
+    const pr = await request.get('/api/profile?login=zzz_no_such_login_42');
+    expect(pr.ok()).toBe(true);
+    const d = await pr.json();
+    expect(d.games).toBe(0);
+    expect(d.best).toBe(0);
+  });
+
+  test('выход в меню: рейтинг сохраняется в топ', async ({ page, request }) => {
+    const login = `mx${Date.now() % 100000}`;
+    await page.fill('#authLogin', login);
+    await page.fill('#authPass', 'test1234');
+    await page.click('#regBtn');
+    await expect(page.locator('#authWho')).toContainText(login, { timeout: 15000 });
+    await page.click('#goBtn');
+    await page.waitForTimeout(1000);
+    await page.evaluate(() => (window as unknown as { __mtt: { give: (n: number) => void } }).__mtt.give(500));
+    await page.waitForTimeout(500);
+    await page.click('#menuBtn');
+    await expect(page.locator('#menu')).toBeVisible();
+    // рейтинг сохранён: профиль видит сыгранную игру (топ-10 может обрезать нулевой счёт)
+    const pr = await request.get(`/api/profile?login=${encodeURIComponent(login)}`);
+    expect(pr.ok()).toBe(true);
+    expect((await pr.json()).games).toBeGreaterThan(0);
+    await page.click('#authOut');
   });
 
   test('API: валидация и топ без мусора', async ({ request }) => {

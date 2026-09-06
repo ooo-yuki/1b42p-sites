@@ -73,6 +73,8 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
  border:2px solid #ff9f1c;background:rgba(13,20,40,.85);color:#ff9f1c;padding:8px 12px;cursor:pointer}
 #fsBtn{position:fixed;top:114px;right:10px;z-index:6;font-size:18px;font-weight:800;border-radius:10px;
  border:2px solid #ff9f1c;background:rgba(13,20,40,.85);color:#ff9f1c;padding:8px 12px;cursor:pointer}
+#menuBtn{position:fixed;top:166px;right:10px;z-index:6;font-size:13px;font-weight:800;border-radius:10px;
+ border:2px solid #ff9f1c;background:rgba(13,20,40,.85);color:#ff9f1c;padding:8px 10px;cursor:pointer}
 #hudRow2{margin-top:2px;color:#ffd23f}
 .modal{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
  background:rgba(2,4,10,.75);padding:16px}
@@ -123,9 +125,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 #reviveBtn{background:#39d353;border:none;border-radius:14px;padding:14px 30px;font-size:19px;font-weight:900;color:#06240f;cursor:pointer}
 #retryBtn{background:transparent;border:2px solid #fff;border-radius:14px;padding:12px 30px;font-size:17px;font-weight:800;color:#fff;cursor:pointer}
 /* пиксель-оформление: рубленый моноширинный шрифт и жёсткие тени */
-#hud,#shopBtn,#setBtn,#fsBtn,#hitBtn,.sheet,#waveBanner{font-family:'Courier New',Courier,monospace}
+#hud,#shopBtn,#setBtn,#fsBtn,#menuBtn,#hitBtn,.sheet,#waveBanner{font-family:'Courier New',Courier,monospace}
 #hud{text-shadow:2px 2px 0 #000}
-#shopBtn,#setBtn,#fsBtn,#hitBtn{box-shadow:4px 4px 0 #000}
+#shopBtn,#setBtn,#fsBtn,#menuBtn,#hitBtn{box-shadow:4px 4px 0 #000}
 .wbtn,.wclose{box-shadow:3px 3px 0 #000}
 #waveBanner{position:fixed;inset:0;z-index:15;display:flex;align-items:center;justify-content:center;
  pointer-events:none;font-size:min(11vw,72px);font-weight:900;color:#ffd23f;

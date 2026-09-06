@@ -56,6 +56,18 @@ interface RoomInfo {
   name: string;
   mode: 'arena' | 'duel';
   count: number;
+  started?: boolean;
+}
+
+interface LobbyInfo {
+  name: string;
+  mode: 'arena' | 'duel';
+  started: boolean;
+  owner: boolean;
+  count: number;
+  players: RoomMate[];
+  pending?: RoomMate[];
+  accepted?: boolean;
 }
 
 async function loadRooms(): Promise<RoomInfo[]> {
@@ -155,6 +167,12 @@ export default function App() {
   const [draftMode, setDraftMode] = useState<'arena' | 'duel'>('arena');
   const [roomsList, setRoomsList] = useState<RoomInfo[]>([]);
   const [mates, setMates] = useState<RoomMate[]>([]);
+  // лобби: владелец/заявки/старт. isOwner — я создал; waiting — моя заявка висит; lobby — свежий состав
+  const [isOwner, setIsOwner] = useState(false);
+  const [waiting, setWaiting] = useState(false);
+  const [lobby, setLobby] = useState<LobbyInfo | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profile, setProfile] = useState<{ login: string; games: number; best: number; coins: number } | null>(null);
   const [mapChoice, setMapChoice] = useState<MapId>('arena');
   const [duel, setDuel] = useState<DuelInfo | null>(null);
   const roomRef = useRef({ id: '', sid: '' });
@@ -311,6 +329,15 @@ export default function App() {
 
   const go = useCallback(() => {
     try { localStorage.setItem(NICK_KEY, nick); } catch { /* noop */ }
+    // создатель своим входом даёт старт всей комнате
+    const { id, sid } = roomRef.current;
+    if (id && sid && isOwner) {
+      fetch(`/api/rooms/${id}/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sid }),
+      }).catch(() => undefined);
+    }
     setMenu(false);
     window.setTimeout(() => {
       const g = gameRef.current;
@@ -320,7 +347,18 @@ export default function App() {
       g.start();
     }, 50);
     loadScores().then(setScores);
-  }, [nick, roomMode]);
+  }, [nick, roomMode, isOwner]);
+
+  // профиль: сведения об аккаунте, скрыты пока не откроешь
+  const openProfile = useCallback(async () => {
+    setProfileOpen(true);
+    if (authed === 'guest' || !authed) { setProfile(null); return; }
+    try {
+      const r = await fetch(`/api/profile?login=${encodeURIComponent(authed)}`);
+      if (!r.ok) { setProfile(null); return; }
+      setProfile((await r.json()) as { login: string; games: number; best: number; coins: number });
+    } catch { setProfile(null); }
+  }, [authed]);
 
   // ---- комнаты ----
   const refreshRooms = useCallback(() => { loadRooms().then(setRoomsList); }, []);
@@ -346,6 +384,9 @@ export default function App() {
       duelRef.current = null;
       setMates([]);
       matesRef.current = [];
+      setIsOwner(true);
+      setWaiting(false);
+      setLobby(null);
       refreshRooms();
     } catch { /* noop */ }
   }, [nick, roomDraft, draftMode, refreshRooms]);
@@ -358,18 +399,21 @@ export default function App() {
         body: JSON.stringify({ nick, char: gameRef.current?.getChar() ?? 'mtt', token: token() }),
       });
       if (!r.ok) return;
-      const d = (await r.json()) as { sid: string; name: string; mode: 'arena' | 'duel'; spawn: { x: number; z: number; yaw: number } | null };
+      const d = (await r.json()) as { sid: string; name: string; mode: 'arena' | 'duel'; pending?: boolean };
       roomRef.current = { id, sid: d.sid };
       setRoomId(id);
       setRoomName(d.name);
       setRoomMode(d.mode);
       setMapChoice(d.mode === 'duel' ? 'duel' : 'arena');
-      spawnRef.current = d.spawn;
+      spawnRef.current = null;
       prevRound.current = 1;
       setDuel(null);
       duelRef.current = null;
       setMates([]);
       matesRef.current = [];
+      setIsOwner(false);
+      setWaiting(!!d.pending);
+      setLobby(null);
       refreshRooms();
     } catch { /* noop */ }
   }, [nick, refreshRooms]);
@@ -387,6 +431,9 @@ export default function App() {
     duelRef.current = null;
     setMates([]);
     matesRef.current = [];
+    setIsOwner(false);
+    setWaiting(false);
+    setLobby(null);
     gameRef.current?.setRemotes([]);
     if (id && sid) {
       try {
@@ -399,6 +446,31 @@ export default function App() {
     }
     refreshRooms();
   }, [refreshRooms]);
+
+  // выйти в меню из боя: рейтинг сохраняем, движок ставим на паузу
+  const toMenu = useCallback(() => {
+    const h = hudRef.current;
+    submitScore(nick, h.score, 0);
+    gameRef.current?.stop();
+    setMenu(true);
+    loadScores().then(setScores);
+    refreshRooms();
+  }, [nick, refreshRooms]);
+
+  // действия создателя в лобби
+  const lobbyAct = useCallback(async (action: 'approve' | 'deny' | 'kick' | 'start', target?: string) => {
+    const { id, sid } = roomRef.current;
+    if (!id || !sid) return;
+    try {
+      const r = await fetch(`/api/rooms/${id}/${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sid, target }),
+      });
+      if (!r.ok) return;
+      if (action === 'start') go();
+    } catch { /* noop */ }
+  }, [go]);
 
   // пульс комнаты 2 раза в секунду: шлём себя, забираем сокомнатников (без задержек) + дуэль
   useEffect(() => {
@@ -437,6 +509,29 @@ export default function App() {
     }, 500);
     return () => window.clearInterval(t);
   }, []);
+
+  // пульс лобби в меню: состав, заявки, старт от создателя (не владелец сам входит по старту)
+  const startedRef = useRef(false);
+  useEffect(() => {
+    if (!menu || !roomId || !roomRef.current.sid) { startedRef.current = false; return; }
+    const t = window.setInterval(async () => {
+      const { id, sid } = roomRef.current;
+      if (!id || !sid) return;
+      try {
+        const r = await fetch(`/api/rooms/${id}/info?sid=${encodeURIComponent(sid)}`);
+        if (!r.ok) { setLobby(null); return; }
+        const d = (await r.json()) as LobbyInfo & { spawn?: { x: number; z: number; yaw: number } };
+        setLobby(d);
+        if (d.accepted) setWaiting(false);
+        if (d.started && !d.owner && !startedRef.current) {
+          startedRef.current = true;
+          if (d.spawn) spawnRef.current = d.spawn;
+          go();
+        }
+      } catch { /* noop */ }
+    }, 1500);
+    return () => window.clearInterval(t);
+  }, [menu, roomId, go]);
 
   const onBustedShown = useRef(false);
   // плашка нового раунда: всплывает на каждую смену волны
@@ -550,6 +645,7 @@ export default function App() {
             if (document.fullscreenElement) void document.exitFullscreen();
             else void document.documentElement.requestFullscreen().catch(() => {});
           }}>⛶</button>
+          <button id="menuBtn" onClick={toMenu}>🏠 В МЕНЮ</button>
           <div
             id="joy"
             ref={joyRef}
@@ -717,6 +813,8 @@ export default function App() {
               <div id="authWho">
                 {authed === 'guest' ? '👤 Гость' : `🔐 ${authed}`}
                 {' · '}
+                {authed !== 'guest' && <button id="profileBtn" onClick={openProfile}>👤 ПРОФИЛЬ</button>}
+                {' · '}
                 <button id="authOut" onClick={authOut}>{authed === 'guest' ? 'войти' : 'выйти'}</button>
               </div>
           <div className="menuArt">
@@ -748,13 +846,78 @@ export default function App() {
               ))}
             </div>
           </div>
-          <button id="goBtn" onClick={go}>{roomMode === 'duel' ? '⚔️ В ДУЭЛЬ' : '▶️ ПОГНАЛИ'}</button>
+          {(roomId && !isOwner) || waiting ? (
+            <button id="goBtn" disabled title="Ждём старта от создателя">⏳ ЖДУ СТАРТА…</button>
+          ) : (
+            <button id="goBtn" onClick={go}>{roomMode === 'duel' ? '⚔️ В ДУЭЛЬ' : '▶️ ПОГНАЛИ'}</button>
+          )}
+          {profileOpen && (
+            <div className="modal" id="profileOv">
+              <div className="sheet">
+                <h3>👤 Профиль</h3>
+                {authed === 'guest' ? (
+                  <div>Гость: статистика не ведётся. Войди под логином — будем считать!</div>
+                ) : profile ? (
+                  <>
+                    <div>🔐 <b>{profile.login}</b></div>
+                    <div>🎮 Игр сыграно: <b>{profile.games}</b></div>
+                    <div>🏆 Лучший счёт: <b>{profile.best}</b></div>
+                    <div>🎟️ Фантиков всего: <b>{profile.coins}</b></div>
+                    <div>🎭 Боец: {char === 'krysa' ? '🐀 Крыса' : '🕶️ МТТ'} · Ник: {nick}</div>
+                  </>
+                ) : (
+                  <div>Загрузка…</div>
+                )}
+                <button className="wclose" id="profileClose" onClick={() => setProfileOpen(false)}>ЗАКРЫТЬ</button>
+              </div>
+            </div>
+          )}
           <div className="board" id="roomSec">
             <h3>🌐 Комнаты</h3>
             {roomId ? (
               <>
-                <div>Сидишь в <b>{roomName || roomId}</b> ({roomId}) {roomMode === 'duel' ? '⚔️ ДУЭЛЬ 1×1' : '🌍 Арена'} — сокомнатники появятся на карте призраками.</div>
-                <button className="wclose" onClick={leaveRoom}>ПОКИНУТЬ</button>
+                <div>Сидишь в <b>{roomName || roomId}</b> ({roomId}) {roomMode === 'duel' ? '⚔️ ДУЭЛЬ 1×1' : '🌍 Арена'}{isOwner ? ' · 👑 ты создатель' : ''} — сокомнатники появятся на карте призраками.</div>
+                {(lobby?.players?.length ?? 0) > 0 && (
+                  <div id="lobbyList">
+                    <b>👥 В комнате ({(lobby?.players?.length ?? 0) + 1}):</b>
+                    <div>👑 {nick} (ты)</div>
+                    {(lobby?.players ?? []).map((m, i) => (
+                      <div className="srow" key={i}>
+                        <span>{m.char === 'krysa' ? '🐀' : '🕶️'} {m.nick}{m.login ? `(@${m.login})` : ''} · {m.score}🏆</span>
+                        {isOwner && <button className="wclose" id={`kick-${i}`} onClick={() => lobbyAct('kick', (m as RoomMate & { sid?: string }).sid ?? '')}>КИК</button>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {isOwner && (lobby?.pending?.length ?? 0) > 0 && (
+                  <div id="lobbyReqs">
+                    <b>🙋 Заявки ({lobby?.pending?.length}):</b>
+                    {(lobby?.pending ?? []).map((m, i) => {
+                      const psid = (m as RoomMate & { sid?: string }).sid ?? '';
+                      return (
+                        <div className="srow" key={i}>
+                          <span>{m.nick}{m.login ? `(@${m.login})` : ''}</span>
+                          <button className="wbtn" id={`approve-${i}`} onClick={() => lobbyAct('approve', psid)}>ПРИНЯТЬ</button>
+                          <button className="wclose" id={`deny-${i}`} onClick={() => lobbyAct('deny', psid)}>✕</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {isOwner ? (
+                  <div className="srow">
+                    <button className="wbtn" id="roomStart" onClick={() => lobbyAct('start')}>🚀 СТАРТ ИГРЫ</button>
+                    <button className="wclose" onClick={leaveRoom}>ПОКИНУТЬ</button>
+                  </div>
+                ) : (
+                  <>
+                    {waiting && <div>⏳ Заявка у создателя — жди, тебя примут!</div>}
+                    {lobby?.started
+                      ? <div>🚀 Создатель дал старт — заходим…</div>
+                      : <div>⏳ Игра начнётся, когда создатель нажмёт СТАРТ.</div>}
+                    <button className="wclose" onClick={leaveRoom}>ПОКИНУТЬ</button>
+                  </>
+                )}
               </>
             ) : (
               <>
