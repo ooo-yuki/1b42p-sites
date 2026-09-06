@@ -130,7 +130,7 @@ export function makeShooter(): THREE.Group {
   const add = (o: THREE.Object3D, parent: THREE.Object3D) => { parent.add(o); return o; };
   const box = (w: number, h: number, d: number, mat: THREE.Material) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    m.castShadow = true;
+    // Мелочёвка (<30 см) тени не отбрасывает: только лишний проход shadow map.
     return m;
   };
 
@@ -151,7 +151,6 @@ export function makeShooter(): THREE.Group {
   const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.12, 10), M.metalMat);
   scope.rotation.x = Math.PI / 2;
   scope.position.set(0.1, 0.1, -0.1);
-  scope.castShadow = true;
   add(scope, bones.head);
   const scopeGlass = new THREE.Mesh(new THREE.CircleGeometry(0.028, 10), M.visorMat);
   scopeGlass.position.set(0.1, 0.1, -0.165);
@@ -166,7 +165,6 @@ export function makeShooter(): THREE.Group {
     const filter = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.06, 8), M.metalMat);
     filter.rotation.x = Math.PI / 2;
     filter.position.set(0.07 * fs, -0.13, -0.125);
-    filter.castShadow = true;
     add(filter, bones.head);
     const cheek = box(0.05, 0.15, 0.13, M.darkMat);
     cheek.position.set(0.15 * fs, -0.03, -0.01);

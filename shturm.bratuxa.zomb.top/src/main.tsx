@@ -336,6 +336,17 @@ function pushHud(message?: string) {
   wave: (n: number) => startWave(n),
   get: () => gameStore.get(),
   dbg: () => ({ t: sim.timeSec, acc, fps: fpsAvg, n: tickCount, frames: frameCount, enemies: sim.enemies.length, queue: sim.spawnQueue.length }),
+  /** Draw calls приёмки: renderer.info.render (calls/triangles/points/lines). */
+  draw: () => ({ ...renderer.info.render }),
+  /** Перепись сцены приёмки: видимые меши, источники света с тенями. */
+  census: () => {
+    let meshes = 0; let shadowLights = 0;
+    scene.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh && o.visible) meshes++;
+      if ((o as THREE.Light).isLight && (o as THREE.DirectionalLight).castShadow) shadowLights++;
+    });
+    return { meshes, shadowLights, shadowMap: renderer.shadowMap.enabled };
+  },
   /** Тест-утилита приёмки: довернуть игрока к ближайшему мобу. */
   aimNearest: () => {
     const p = sim.player;

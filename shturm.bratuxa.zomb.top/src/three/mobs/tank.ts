@@ -197,7 +197,7 @@ export function makeTank(): THREE.Group {
   const add = (o: THREE.Object3D, parent: THREE.Object3D) => { parent.add(o); return o; };
   const box = (w: number, h: number, d: number, mat: THREE.Material) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    m.castShadow = true;
+    // Мелочёвка обвеса тени не отбрасывает: только лишний проход shadow map.
     return m;
   };
 
@@ -241,7 +241,6 @@ export function makeTank(): THREE.Group {
     add(trim, shoulder);
     const spike = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 6), M.plateMat);
     spike.position.set(-0.03 * sg, 0.2, 0);
-    spike.castShadow = true;
     add(spike, shoulder);
     for (const rs of [-1, 1]) {
       const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.022, 5, 4), M.darkMat);
@@ -253,6 +252,7 @@ export function makeTank(): THREE.Group {
   // Пояс-броня + юбка-пластины.
   const belt = box(0.56, 0.12, 0.4, M.plateMat);
   belt.position.set(0, 0.02, 0);
+  belt.castShadow = true;
   add(belt, bones.hips);
   for (let i = -1; i <= 1; i++) {
     const skirt = box(0.14, 0.2, 0.06, M.rustMat);
@@ -271,7 +271,6 @@ export function makeTank(): THREE.Group {
       const stud = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.07, 5), M.darkMat);
       stud.position.set(0.08 * k, -0.24, -0.06);
       stud.rotation.x = Math.PI;
-      stud.castShadow = true;
       add(stud, hand);
     }
   }
@@ -280,6 +279,7 @@ export function makeTank(): THREE.Group {
     const foot = s === 'L' ? bones.footL : bones.footR;
     const boot = box(0.28, 0.14, 0.42, M.plateMat);
     boot.position.set(0, -0.04, -0.09);
+    boot.castShadow = true;
     add(boot, foot);
     const toe = box(0.28, 0.06, 0.1, M.trimMat);
     toe.position.set(0, -0.01, -0.28);

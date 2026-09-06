@@ -131,7 +131,6 @@ export function makeRunner(): THREE.Group {
   const add = (o: THREE.Object3D, parent: THREE.Object3D) => { parent.add(o); return o; };
   const sph = (r: number, mat: THREE.Material, w = 12, h = 10) => {
     const m = new THREE.Mesh(new THREE.SphereGeometry(r, w, h), mat);
-    m.castShadow = true;
     return m;
   };
 
@@ -150,7 +149,6 @@ export function makeRunner(): THREE.Group {
     const f = new THREE.Mesh(new THREE.ConeGeometry(0.014, 0.05, 6), M.teethMat);
     f.position.set(0.05 * s, -0.1, -0.155);
     f.rotation.x = Math.PI;
-    f.castShadow = true;
     add(f, bones.head);
   }
   // Трапеция: скруглённый мост от торса к плечам (капсула лёжа).
@@ -166,7 +164,6 @@ export function makeRunner(): THREE.Group {
     const spike = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.12, 6), M.clawMat);
     spike.position.set(0, 0.05 - i * 0.18, 0.13);
     spike.rotation.x = 0.9;
-    spike.castShadow = true;
     add(spike, bones.spine);
   }
   // Когти на лапах (3 на кисть) и стопах.
@@ -175,12 +172,10 @@ export function makeRunner(): THREE.Group {
       const claw = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.12, 6), M.clawMat);
       claw.position.set(0.03 * c, -0.07, -0.02);
       claw.rotation.x = Math.PI;
-      claw.castShadow = true;
       add(claw, (bones as any)[`hand${s}`]);
       const toe = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.1, 6), M.clawMat);
       toe.position.set(0.035 * c, -0.03, -0.07);
       toe.rotation.x = -Math.PI / 2 - 0.2;
-      toe.castShadow = true;
       add(toe, (bones as any)[`foot${s}`]);
     }
   }
