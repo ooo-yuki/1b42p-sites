@@ -1,5 +1,6 @@
 import type { Slot } from '../sim/weapons';
 import type { MapId } from '../sim/maps';
+import { MAX_HP } from '../sim/player';
 
 export type Phase = 'menu' | 'playing' | 'paused' | 'won' | 'lost';
 export type View = 'first' | 'third';
@@ -30,8 +31,8 @@ const initial: Snapshot = {
   map: 'yard',
   difficulty: 'veteran',
   view: 'third',
-  hp: 100,
-  maxHp: 100,
+  hp: MAX_HP,
+  maxHp: MAX_HP,
   stamina: 43,
   wave: 1,
   slot: 'auto',

@@ -10,7 +10,7 @@ import { makeGun } from './three/guns';
 import { makeTracerPool, makeBoomPool, makeBloodPool, makeSparkPool, makeRocketTrail } from './three/effects';
 import { buildMapVisual, disposeMapVisual } from './three/mapsVisual';
 import { setView, getView, updateCamera, snapCamera } from './three/cameraRig';
-import { createPlayer, movePlayer, type PlayerState } from './sim/player';
+import { createPlayer, movePlayer, MAX_HP, type PlayerState } from './sim/player';
 import { WEAPONS, fireShot, type Slot } from './sim/weapons';
 import { ENEMIES } from './sim/enemies';
 import { makeWave } from './sim/waves';
@@ -317,6 +317,7 @@ function pushHud(message?: string) {
   const s = gameStore.get();
   gameStore.set({
     hp: Math.max(0, Math.round(sim.player.hp)),
+    maxHp: MAX_HP,
     stamina: Math.round(sim.player.stamina),
     wave: sim.wave,
     slot: sim.slot,
@@ -495,7 +496,7 @@ function tick(dt: number) {
               sim.reserve[sim.slot] += Math.ceil(MAG[sim.slot] / 2);
               pushHud('Дроп: патроны + 🏆');
             } else {
-              p.hp = Math.min(100, p.hp + 25);
+              p.hp = Math.min(MAX_HP, p.hp + 25);
               pushHud('Дроп: аптечка +25 HP 🏆');
             }
           } else pushHud();

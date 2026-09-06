@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import * as THREE from 'three';
 import { updateCamera, collideEye, thirdEye, setView, snapCamera } from '../src/three/cameraRig';
-import { createPlayer, movePlayer } from '../src/sim/player';
+import { createPlayer, movePlayer, WALK_SPEED } from '../src/sim/player';
 
 const cam = () => new THREE.PerspectiveCamera(75, 1, 0.1, 300);
 
@@ -67,19 +67,19 @@ describe('движение относительно yaw', () => {
     const p = createPlayer();
     movePlayer(p, { fwd: 1, strafe: 0, sprint: false, dt: 1 }, 1);
     expect(p.vx).toBeCloseTo(0, 6);
-    expect(p.vz).toBeCloseTo(-4, 6);
+    expect(p.vz).toBeCloseTo(-WALK_SPEED, 6);
   });
   test('W при yaw=π/2 везёт за камерой (-X)', () => {
     const p = createPlayer();
     p.yaw = Math.PI / 2;
     movePlayer(p, { fwd: 1, strafe: 0, sprint: false, dt: 1 }, 1);
-    expect(p.vx).toBeCloseTo(-4, 6);
+    expect(p.vx).toBeCloseTo(-WALK_SPEED, 6);
     expect(p.vz).toBeCloseTo(0, 6);
   });
   test('D при yaw=0 — вправо +X', () => {
     const p = createPlayer();
     movePlayer(p, { fwd: 0, strafe: 1, sprint: false, dt: 1 }, 1);
-    expect(p.vx).toBeCloseTo(4, 6);
+    expect(p.vx).toBeCloseTo(WALK_SPEED, 6);
     expect(p.vz).toBeCloseTo(0, 6);
   });
 });

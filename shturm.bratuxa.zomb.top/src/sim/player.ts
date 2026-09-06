@@ -1,9 +1,12 @@
+export const MAX_HP = 160;
+export const WALK_SPEED = 4.6;
+export const SPRINT_SPEED = 7.8;
 export interface PlayerState { x: number; z: number; vx: number; vz: number; hp: number; stamina: number; yaw: number; }
 export interface InputState { fwd: number; strafe: number; sprint: boolean; dt: number; }
-export function createPlayer(): PlayerState { return { x: 0, z: 0, vx: 0, vz: 0, hp: 100, stamina: 43, yaw: 0 }; }
+export function createPlayer(): PlayerState { return { x: 0, z: 0, vx: 0, vz: 0, hp: MAX_HP, stamina: 43, yaw: 0 }; }
 export function movePlayer(p: PlayerState, inp: InputState, dt: number) {
   const wantSprint = inp.sprint && p.stamina > 1 && inp.fwd !== 0;
-  const speed = wantSprint ? 7 : 4;
+  const speed = wantSprint ? SPRINT_SPEED : WALK_SPEED;
   if (wantSprint) p.stamina = Math.max(0, p.stamina - 10 * dt);
   else p.stamina = Math.min(43, p.stamina + 12 * dt);
   // Движение строго относительно обзора (yaw): W — куда смотрит камера,
