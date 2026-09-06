@@ -157,6 +157,24 @@ export function step(S, input) {
     break;
   }
 
+  if (S.key && !S.key.taken && Math.abs(S.seal.x - S.key.x) <= 1.0 && Math.abs(S.seal.y + 0.5 - S.key.y) <= 1.0) {
+    S.key.taken = true;
+    S.hasKey = true;
+  }
+  if (S.fish && !S.fish.taken && Math.abs(S.seal.x - S.fish.x) <= 1.0 && Math.abs(S.seal.y + 0.5 - S.fish.y) <= 1.0) {
+    S.fish.taken = true;
+    S.hasFish = true;
+  }
+  if (S.exit && S.hasKey && S.hasFish && Math.abs(S.seal.x - S.exit.x) <= 1.0 && Math.abs(S.seal.y + 0.5 - S.exit.y) <= 1.2) {
+    if (S.level >= LEVELS.length - 1) {
+      S.won = true;
+    } else {
+      const hearts = S.hearts;
+      loadLevel(S, S.level + 1);
+      S.hearts = hearts;
+    }
+  }
+
   if (S.hearts <= 0) S.dead = true;
 }
 
