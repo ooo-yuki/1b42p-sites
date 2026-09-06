@@ -74,8 +74,8 @@ var GX0=227,GX1=864,GY0=83,GY1=565,COLS=9,ROWS=5; // сетка едет вме�
 var CW=(GX1-GX0)/COLS,CH=(GY1-GY0)/ROWS;
 var PANELX=0,PANELW=133; // панель из дизайна ui: 1413×6561 → 133×619 на весь рост экрана
 /* --- баланс: игра бесконечная, зомби ползут бесконечно --- */
-var Z_HP=141,Z_BITE=141,Z_SPEED=10.5,SPAWN_EVERY=15; // зомби на 5% быстрее
-var U_MOPSO={hp:422,dmg:24,rate:1.5,cost:100,cd:7};
+var Z_HP=141,Z_BITE=141,Z_SPEED=11.025,SPAWN_EVERY=15; // зомби ещё на 5% быстрее (было 10.5)
+var U_MOPSO={hp:422,dmg:15,rate:1.5,cost:100,cd:7};
 var U_SUN={hp:300,cost:50,cd:7,respEvery:12,respVal:25};
 var U_BOMB={hp:300,cost:150,cd:20,fuse:1.2};
 var SKY_RESP_EVERY=18,SKY_RESP_VAL=25,START_RESP=50; // старт с 50 рэспэков
@@ -146,14 +146,14 @@ function spawnResp(x,y){
   G.resps.push({x:x,y:y,ty:(y<0?GY0+30+Math.random()*(GY1-GY0-60):y),v:SKY_RESP_VAL,t:RESP_LIFE,ph:Math.random()*6});
 }
 /* --- спавн --- */
-/* --- броня зомби: конус +1141 (с 90с, 20%), ведро +1941 (со 180с, 10%), таймер скрыт --- */
-var ARM_T1=90,ARM_T2=180,ARM_CONE_HP=1141,ARM_BUCKET_HP=1941;
+/* --- броня зомби: конус 252 (с 90с, 20%), ведро 441 (со 180с, 10%), таймер скрыт --- */
+var ARM_T1=90,ARM_T2=180,ARM_CONE_HP=252,ARM_BUCKET_HP=441;
 function spawnZom(){
   var r=Math.floor(Math.random()*ROWS);
   var arm=null,ahp=0,roll=Math.random();
   if(roll<0.10){if(G.t>=ARM_T2){arm='bucket';ahp=ARM_BUCKET_HP;}}
   else if(roll<0.30){if(G.t>=ARM_T1){arm='cone';ahp=ARM_CONE_HP;}}
-  G.zoms.push({r:r,x:1135,hp:Z_HP,armor:arm,armorHp:ahp,eatT:0,ph:Math.random()*6}); // выползает из-за правого края экрана
+  G.zoms.push({r:r,x:1135,hp:Z_HP,armor:arm,armorHp:ahp,sp:0.97+Math.random()*0.06,eatT:0,ph:Math.random()*6}); // выползает из-за правого края экрана; темп ±3% как питч у звуков
   G.spawned++;
 }
 function popArmor(w,ak){ /* броня слетает куском с физикой, голова отлетит только после смерти */
@@ -227,7 +227,7 @@ function update(dt){
     var hit=false;
     for(var b=0;b<G.zoms.length;b++){var w=G.zoms[b];
       if(!w.dying&&w.r===s.r&&Math.abs(w.x-s.x)<34){
-        if(w.armor){w.armorHp-=U_MOPSO.dmg; /* сначала сносим броню */
+        if(w.armor){w.armorHp-=U_MOPSO.dmg;w.armorHits=(w.armorHits||0)+1; /* сначала сносим броню */
           if(w.armorHp<=0){var ak=w.armor;w.armor=null;popArmor(w,ak);}else sfx('hit');}
         else{w.hp-=U_MOPSO.dmg;sfx('hit');}
         hit=true;
@@ -253,7 +253,7 @@ function update(dt){
       n.eatT+=dt;
       if(n.eatT>=1){n.eatT=0;meal.hp-=Z_BITE;beep(160,0.15,'sawtooth');
         if(meal.hp<=0){for(var d=0;d<G.units.length;d++)if(G.units[d]===meal)G.units.splice(d,1);}}
-    }else{n.eatT=0;n.x-=Z_SPEED*dt;}
+    }else{n.eatT=0;n.x-=Z_SPEED*(n.sp||1)*dt;}
     if(n.x<GX0-12){return lose();}
   }
   /* эффекты */
@@ -309,9 +309,11 @@ function draw(){
     ctx.globalAlpha=1;
 
   }
-function drawArmor(kind,cx,topY){ /* строго по центру башки + влево 10/вверх 5, кромка на лбу */
-  if(kind==='cone')drawImg(IMG.cone,cx-23-10,topY-18-5,46,46);
-  else drawImg(IMG.bucket,cx-26-10,topY-18-5,52,46);
+function drawArmor(kind,cx,topY,dark){ /* строго по центру башки, кромка на лбу */
+  var ax,ay,aw,ah;
+  if(kind==='cone'){ax=cx-23-10;ay=topY-18-5;aw=46;ah=46;drawImg(IMG.cone,ax,ay,aw,ah);}
+  else{ax=cx-26-15;ay=topY-18;aw=52;ah=46;drawImg(IMG.bucket,ax,ay,aw,ah);} /* ведро: влево 5, вниз 5 */
+  if(dark>0){ctx.fillStyle='rgba(0,0,0,'+Math.min(0.6,0.2*dark)+')';ctx.fillRect(ax,ay,aw,ah);} /* темнеет каждую 5-ю тычку */
 }
   /* враги: у зомби башка — верхние 150px из 373 */
   var ZH_HEAD=150,ZH_FULL=373;
@@ -325,7 +327,7 @@ function drawArmor(kind,cx,topY){ /* строго по центру башки +
       ctx.save();ctx.translate(z.x,zy+30);ctx.rotate(fallK*1.35*(z.fallDir||1));
       try{var bi=IMG.zombie;
         if(bi&&bi.complete&&bi.naturalWidth)ctx.drawImage(bi,0,ZH_HEAD,bi.naturalWidth,bi.naturalHeight-ZH_HEAD,-38,bdt,76,bdh);}catch(e){}
-      if(z.armor)drawArmor(z.armor,0,bdt); // броня уцелела после бомбы — валится вместе с телом
+      if(z.armor)drawArmor(z.armor,0,bdt,Math.floor((z.armorHits||0)/5)); // броня уцелела после бомбы — валится вместе с телом
       ctx.restore();
       var hdh=100*ZH_HEAD/ZH_FULL;
       ctx.save();ctx.translate(z.headX,z.headY);ctx.rotate(z.headRot||0);
@@ -341,7 +343,7 @@ function drawArmor(kind,cx,topY){ /* строго по центру башки +
     var sway=(z.eatT>0?0.02:0.06)*Math.sin(G.t*3.4+z.ph);
     ctx.save();ctx.translate(z.x,zy+30);ctx.rotate(sway);ctx.scale(zsx,zsy);
     drawImg(IMG.zombie,-38,-100+bob,76,100);
-    if(z.armor)drawArmor(z.armor,0,-100+bob);
+    if(z.armor)drawArmor(z.armor,0,-100+bob,Math.floor((z.armorHits||0)/5));
     ctx.restore();
 
   }
