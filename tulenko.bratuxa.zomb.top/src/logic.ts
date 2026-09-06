@@ -125,6 +125,15 @@ export function step(S, input) {
     }
   }
 
+  if (inp.shove) {
+    for (const g of S.guards) {
+      if (g.stun > 0) continue;
+      if (Math.abs(S.seal.x - g.x) <= 1.0 && Math.abs(S.seal.y - g.y) <= 1.0) {
+        g.stun = CFG.stunSec;
+      }
+    }
+  }
+
   for (const g of S.guards) {
     if (g.stun > 0) continue;
     const dx = S.seal.x - g.x;
