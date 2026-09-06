@@ -51,8 +51,15 @@
     <p id="endP"></p>
     <button class="bigbtn" id="btnAgain">НАЧАТЬ ЗАНОВО 🔄</button>
   </div>
+  <div id="pauseov" class="overlay hidden">
+    <h2>ПАУЗА ⏸️</h2>
+    <p>Передохни, братуха. Сасазомби подождут.</p>
+    <button class="bigbtn" id="btnResume">ПРОДОЛЖИТЬ ▶️</button>
+    <button class="bigbtn" id="btnQuitMenu">В ГЛАВНОЕ МЕНЮ 🏠</button>
+    <p style="margin-top:16px">🔊 Громкость: <input type="range" id="volRange" min="0" max="100" value="80" style="width:220px;vertical-align:middle"> <b id="volVal">80%</b></p>
+  </div>
 </div>
-<div id="hint">ЛКМ/палец: перетащи семечко с левой панели на клетку · повторный клик отменяет · солнце падает с неба и растёт на Подсолнухе</div>
+<div id="hint">ЛКМ/палец: перетащи семечко с левой панели на клетку · повторный клик отменяет · ESC — пауза · солнце падает с неба и растёт на Подсолнухе</div>
 <script>
 /* ============ 42 VS SASAZOMBIES — уровень 1 (PvZ-механика, Canvas2D) ============ */
 'use strict';
@@ -91,12 +98,13 @@ function loadAll(next){
 }
 /* --- звук-пищалка --- */
 var MUTED=false;
+var VOL=0.8; // общая громкость игры 0..1, крутилка в паузе
 function beep(f,d,type){try{
   if(MUTED)return;
   var C=beep.ac=beep.ac||new (window.AudioContext||window.webkitAudioContext)();
   if(C.state==='suspended')C.resume();
   var o=C.createOscillator(),g=C.createGain();o.type=type||'square';o.frequency.value=f;
-  g.gain.setValueAtTime(0.06,C.currentTime);g.gain.exponentialRampToValueAtTime(0.001,C.currentTime+(d||0.1));
+  g.gain.setValueAtTime(0.06*VOL,C.currentTime);g.gain.exponentialRampToValueAtTime(0.001,C.currentTime+(d||0.1));
   o.connect(g);g.connect(C.destination);o.start();o.stop(C.currentTime+(d||0.1)+0.02);
 }catch(e){}}
 /* --- настоящие звуки Yarchik: выстрел/попадание/взрыв/смерть/отмена --- */
@@ -113,7 +121,7 @@ function sfx(k){try{
   if(MUTED)return;
   var p=SFX[k];if(!p||!p.length)return;
   p.i=(p.i+1)%p.length;var a=p[p.i];
-  try{a.currentTime=0;}catch(e){}
+  try{a.currentTime=0;a.volume=VOL;}catch(e){}
   var pr=a.play();if(pr&&pr.catch)pr.catch(function(){});
 }catch(e){}}
 sfxLoad();
@@ -349,12 +357,27 @@ cv.addEventListener('pointerup',function(e){
     else tryPlant(G.drag,cell.r,cell.c);
     G.drag=null;}
 });
-document.addEventListener('keydown',function(e){if(e.key==='Escape'&&G&&G.drag){G.drag=null;sfx('cancel');}});
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&G){
+    if(G.drag){G.drag=null;sfx('cancel');}
+    else if(G.state==='play')togglePause();
+  }
+});
+/* --- пауза --- */
+function togglePause(){
+  if(!G||G.state!=='play')return;
+  G.paused=!G.paused;G.drag=null;
+  document.getElementById('pauseov').classList.toggle('hidden',!G.paused);
+  beep(G.paused?330:440,0.08);
+}
+document.addEventListener('visibilitychange',function(){
+  if(document.hidden&&G&&G.state==='play'&&!G.paused)togglePause(); // свернул — игра встала
+});
 /* --- цикл --- */
 var lastT=0;
 function loop(ts){
   var dt=Math.min(0.05,(ts-lastT)/1000||0.016);lastT=ts;
-  if(G&&G.state==='play')update(dt);
+  if(G&&G.state==='play'&&!G.paused)update(dt);
   if(G)draw();
   else{frame2d();drawImg(IMG.bg,0,0,BGW,BGH);} // фон и за меню
   requestAnimationFrame(loop);
@@ -363,6 +386,7 @@ function loop(ts){
 function toMenu(){
   G=null;
   document.getElementById('endov').classList.add('hidden');
+  document.getElementById('pauseov').classList.add('hidden');
   document.getElementById('menu').classList.remove('hidden');
 }
 document.getElementById('btnLevel1').onclick=function(){
@@ -375,9 +399,16 @@ document.getElementById('btnAgain').onclick=function(){
   document.getElementById('endov').classList.add('hidden');
   newGame();
 };
+document.getElementById('btnResume').onclick=function(){togglePause();};
+document.getElementById('btnQuitMenu').onclick=function(){toMenu();};
+document.getElementById('volRange').oninput=function(e){
+  VOL=Math.max(0,Math.min(100,+e.target.value))/100;
+  document.getElementById('volVal').textContent=e.target.value+'%';
+  if(VOL>0)MUTED=false;
+};
 loadAll(function(){});
 requestAnimationFrame(loop);
-window.__z42={newGame:newGame,get G(){return G;},tryPlant:tryPlant,step:function(dt){update(dt);draw();},spawnZom:spawnZom};
+window.__z42={newGame:newGame,get G(){return G;},tryPlant:tryPlant,step:function(dt){update(dt);draw();},spawnZom:spawnZom,togglePause:togglePause,get VOL(){return VOL;}};
 </script>
 </body>
 </html>
