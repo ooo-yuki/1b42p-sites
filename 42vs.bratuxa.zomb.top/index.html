@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>42 VS SASAZOMBIES 🧟</title>
 <style>
+  @font-face{font-family:'Z42B';src:url('tex/fonts/black.ttf') format('truetype');}
+  @font-face{font-family:'Z42M';src:url('tex/fonts/marker.ttf') format('truetype');}
+  @font-face{font-family:'Z42H';src:url('tex/fonts/handel.otf') format('opentype');}
   html,body{margin:0;padding:0;background:#0d0716;min-height:100%;}
   body{font-family:Arial,sans-serif;color:#fff;display:flex;flex-direction:column;align-items:center;}
   #top{padding:10px;text-align:center;}
@@ -19,9 +22,9 @@
   .overlay h2{color:#f5c518;font-size:40px;margin:0 0 10px;}
   .overlay p{max-width:560px;color:#ddd;line-height:1.5;}
   .bigbtn{background:#f5c518;border:none;font-weight:bold;font-size:20px;padding:14px 34px;border-radius:12px;
-    cursor:pointer;margin-top:14px;color:#111;}
+    cursor:pointer;margin-top:14px;color:#111;font-family:'Z42B',Arial,sans-serif;}
   .bigbtn:hover{background:#ffd700;}
-  #hint{color:#888;font-size:13px;padding:8px;text-align:center;max-width:1600px;}
+  #hint{color:#888;font-size:13px;padding:8px;text-align:center;max-width:1600px;font-family:'Z42M',Arial,sans-serif;}
   #wrap:fullscreen{background:#000;display:flex;align-items:center;justify-content:center;}
   #wrap:fullscreen canvas{width:min(100vw,177.8vh);height:auto;}
   @media(max-width:700px){
@@ -41,7 +44,7 @@
     <h2>42 VS SASAZOMBIES</h2>
     <p>Сасазомби идут с дороги! Выставляй юнитов на лужайку 9×5 и держи дом.<br>
     Мопсострел бьёт мопсами по своей линии · Подсолнух роняет рэспэкт — подбирай кликом · Бомба бахает 3×3.<br>
-    Убей 10 зомби — уровень пройден!</p>
+    Зомби ползут с дороги справа · игра бесконечная — держись как можно дольше!</p>
     <button class="bigbtn" id="btnLevel1">ПЕРЕЙТИ НА ПЕРВЫЙ УРОВЕНЬ 🌻</button>
     <button class="bigbtn" id="btnHub">ВЫЙТИ В ХАБ 🌯</button>
   </div>
@@ -69,9 +72,9 @@ var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 var BGW=1243,BGH=600; // фон растянут вправо: 3-й пунктир (x≈865) у правого края
 var GX0=227,GX1=864,GY0=83,GY1=565,COLS=9,ROWS=5; // сетка едет вместе с фоном: X ×1.243, Y ×600/429
 var CW=(GX1-GX0)/COLS,CH=(GY1-GY0)/ROWS;
-var PANELX=0,PANELW=136; // компактная панель слева
-/* --- баланс --- */
-var Z_HP=141,Z_BITE=141,Z_SPEED=10,SPAWN_EVERY=15,KILLS_TO_WIN=10,SPAWN_TOTAL=14;
+var PANELX=0,PANELW=133; // панель из дизайна ui: 1413×6561 → 133×619 на весь рост экрана
+/* --- баланс: игра бесконечная, зомби ползут бесконечно --- */
+var Z_HP=141,Z_BITE=141,Z_SPEED=10,SPAWN_EVERY=15;
 var U_MOPSO={hp:422,dmg:24,rate:1.5,cost:100,cd:7};
 var U_SUN={hp:300,cost:50,cd:7,respEvery:12,respVal:25};
 var U_BOMB={hp:300,cost:150,cd:20,fuse:1.2};
@@ -87,7 +90,7 @@ function cellXY(r,c){return {x:GX0+c*CW,y:GY0+r*CH};}
 function rowY(r){return GY0+(r+0.65)*CH;} // линия точек трафарета: центр X, 65% высоты клетки
 function unitAt(r,c){for(var i=0;i<G.units.length;i++){var u=G.units[i];if(u.r===r&&u.c===c)return u;}return null;}
 /* --- текстуры --- */
-var IMG={},IMGNAMES={bg:'tex/bg1.jpg',zombie:'tex/zombie.png',mopso:'tex/mopso.png',sunflow:'tex/sunflow.png',bomba:'tex/bomba.png',mops:'tex/mops.png',resp:'tex/respect.png'};
+var IMG={},IMGNAMES={bg:'tex/bg1.jpg',zombie:'tex/zombie.png',mopso:'tex/mopso.png',sunflow:'tex/sunflow.png',bomba:'tex/bomba.png',mops:'tex/mops.png',resp:'tex/respect.png',panel:'tex/panel.png'};
 var IMG_OK=0,IMG_NEED=Object.keys(IMGNAMES).length;
 function loadAll(next){
   Object.keys(IMGNAMES).forEach(function(k){
@@ -126,6 +129,13 @@ function sfx(k){try{
   var pr=a.play();if(pr&&pr.catch)pr.catch(function(){});
 }catch(e){}}
 sfxLoad();
+/* --- шрифты Yarchik для canvas: Z42H-счётчик, Z42B-цены/меню, Z42M-названия/текст --- */
+try{
+  var _fH=new FontFace('Z42H','url(tex/fonts/handel.otf)');
+  var _fB=new FontFace('Z42B','url(tex/fonts/black.ttf)');
+  var _fM=new FontFace('Z42M','url(tex/fonts/marker.ttf)');
+  [_fH,_fB,_fM].forEach(function(f){f.load().then(function(l){try{document.fonts.add(l);}catch(e){}});});
+}catch(e){}
 /* --- рэспэкт: падает с неба и с подсолнуха, подбирается кликом --- */
 var RESP_FALL=90,RESP_LIFE=15; // не поднял за 15 сек — растаял
 function spawnResp(x,y){
@@ -135,7 +145,7 @@ function spawnResp(x,y){
 /* --- спавн --- */
 function spawnZom(){
   var r=Math.floor(Math.random()*ROWS);
-  G.zoms.push({r:r,x:GX1+30,hp:Z_HP,eatT:0,ph:Math.random()*6});
+  G.zoms.push({r:r,x:1135,hp:Z_HP,eatT:0,ph:Math.random()*6}); // выползает из-за правого края экрана
   G.spawned++;
 }
 function firePea(u){
@@ -167,8 +177,8 @@ function update(dt){
   for(var k in G.seeds)if(G.seeds[k]>0)G.seeds[k]-=dt;
   if(G.seedFlash){G.seedFlash.t-=dt;if(G.seedFlash.t<=0)G.seedFlash=null;}
   if(G.cellFlash){G.cellFlash.t-=dt;if(G.cellFlash.t<=0)G.cellFlash=null;}
-  /* спавн врагов: хаотично, каждые 5–10 секунд */
-  if(G.spawned<SPAWN_TOTAL){G.spawnT-=dt;if(G.spawnT<=0){G.spawnT=5+Math.random()*5;spawnZom();}}
+  /* спавн врагов: бесконечно, хаотично, каждые 5–10 секунд */
+  {G.spawnT-=dt;if(G.spawnT<=0){G.spawnT=5+Math.random()*5;spawnZom();}}
   /* небо-рэспэкт: падает, подобрать кликом */
   G.skyT-=dt;
   if(G.skyT<=0){G.skyT=SKY_RESP_EVERY;spawnResp();}
@@ -191,7 +201,8 @@ function update(dt){
     if(u.type==='mopso'&&u.cool<=0){
       var tgt=null;
       for(var m=0;m<G.zoms.length;m++){var e=G.zoms[m];
-        if(!e.dying&&e.r===u.r&&e.x>ux-10&&(tgt===null||e.x<tgt.x))tgt=e;}
+        /* бьёт только по своей линии и только когда зомби дошёл до сетки */
+        if(!e.dying&&e.r===u.r&&e.x>ux-10&&e.x<=GX1+5&&(tgt===null||e.x<tgt.x))tgt=e;}
       if(tgt){u.cool=U_MOPSO.rate;firePea(u);}
     }
   }
@@ -241,10 +252,8 @@ function killZom(i){
   z.headX=z.x;z.headY=rowY(z.r)-50;z.headVx=dir*(40+Math.random()*50); // голова отлетает
   z.headVy=-160;z.headRot=0;z.headVr=dir*6;
   sfx('zdie');
-  if(G.kills>=KILLS_TO_WIN)win();
 }
-function win(){G.state='win';showEnd('ПОБЕДА! 🏆','Лужайка удержана! Зомби повержены: '+G.kills+'.<br>Мы уже победили 🏆');beep(660,0.3);}
-function lose(){G.state='lose';showEnd('ЗОМБИ ПРОРВАЛИСЬ 🧟','Сасазомби дошли до дома...<br>Убито: '+G.kills+' из '+KILLS_TO_WIN+'. Попробуй ещё!');beep(110,0.5,'sawtooth');}
+function lose(){G.state='lose';showEnd('ЗОМБИ ПРОРВАЛИСЬ 🧟','Сасазомби дошли до дома...<br>Убито: '+G.kills+'. Держись дольше, братуха!');beep(110,0.5,'sawtooth');}
 function showEnd(t,p){
   document.getElementById('endT').textContent=t;
   document.getElementById('endP').innerHTML=p;
@@ -323,12 +332,12 @@ function draw(){
     ctx.restore();
     ctx.globalAlpha=(rp2.t<4&&Math.floor(G.t*6)%2===0)?0.4:0.7;
     drawImg(IMG.resp,rcx-22,rcy-22,44,44);ctx.globalAlpha=1;}
-  /* долёт в счётчик: иконка по дуге к руке (19,25), сжимается */
+  /* долёт в счётчик: иконка по дуге к руке — зелёная метка трафарета (29,37), сжимается */
   for(var fi2=0;fi2<G.fly.length;fi2++){var fo2=G.fly[fi2];
     var k=fo2.t*fo2.t*(3-2*fo2.t); // smoothstep: старт/финиш мягкие
-    var mx=(fo2.x0+19)/2,my=(fo2.y0+25)/2-80; // контрольная точка дуги
-    var fx2=(1-k)*(1-k)*fo2.x0+2*(1-k)*k*mx+k*k*19;
-    var fy2=(1-k)*(1-k)*fo2.y0+2*(1-k)*k*my+k*k*25;
+    var mx=(fo2.x0+29)/2,my=(fo2.y0+37)/2-80; // контрольная точка дуги
+    var fx2=(1-k)*(1-k)*fo2.x0+2*(1-k)*k*mx+k*k*29;
+    var fy2=(1-k)*(1-k)*fo2.y0+2*(1-k)*k*my+k*k*37;
     var fs=44-28*fo2.t;
     drawImg(IMG.resp,fx2-fs/2,fy2-fs/2,fs,fs);}
   /* красная вспышка: посадка не туда */
@@ -343,46 +352,50 @@ function draw(){
       ctx.strokeRect(GX0+cell.c*CW,GY0+cell.r*CH,CW,CH);}
   }
   drawPanel();
+  drawMenuBtn(); // МЕНЮ в правом верхнем углу
 }
-function seedRect(i){return {x:16,y:108+i*96,w:104,h:88};}
+/* --- панель из дизайна ui: 9 кнопок-пактов в красной рамке трафарета --- */
+var SEED_ORDER=['mopso','sun','bomb','mopso','sun','bomb','mopso','sun','bomb'];
+function seedRect(i){return {x:6,y:77+i*59.7,w:121,h:56};}
 function drawPanel(){
-  ctx.fillStyle='rgba(10,5,20,.88)';ctx.fillRect(0,0,PANELW,486);
-  ctx.strokeStyle='#f5c518';ctx.lineWidth=2;ctx.strokeRect(1,1,PANELW-2,484);
-  ctx.fillStyle='#f5c518';ctx.font='bold 22px Arial';ctx.textAlign='left';
-  drawImg(IMG.resp,6,12,26,26);
-  ctx.fillText(G.resp,38,36);
-  ctx.fillStyle='#fff';ctx.font='bold 15px Arial';
-  ctx.fillText('🧟'+G.kills+'/'+KILLS_TO_WIN,10,60);
-  ctx.fillStyle='#888';ctx.font='12px Arial';
-  ctx.fillText('СЕМЕНА',10,84);
-  var keys=['mopso','sun','bomb'];
-  for(var i=0;i<3;i++){var k=keys[i],d=seedDef(k),R=seedRect(i);
+  drawImg(IMG.panel,0,0,133,619); // фон панели из архива ui
+  /* рука-приёмник: зелёная метка трафарета (306,394)→(29,37) */
+  drawImg(IMG.resp,14,22,30,30);
+  /* счётчик в синей рамке: центр (991,388)→(93.5,36.7), HandelGothic, трёхзнак влезает */
+  var cs=34;ctx.textAlign='center';
+  ctx.font=cs+'px Z42H, Arial';
+  while(ctx.measureText(''+G.resp).width>56&&cs>12){cs-=2;ctx.font=cs+'px Z42H, Arial';}
+  ctx.fillStyle='#ffd94d';ctx.fillText(G.resp,93.5,50);
+  /* 9 кнопок как в примере chrome_sv70Ful6KL: тёмный пакт, светлая рамка, иконка+цена */
+  for(var i=0;i<9;i++){var k=SEED_ORDER[i],d=seedDef(k),R=seedRect(i);
     var avail=G.resp>=d.cost&&G.seeds[k]<=0;
-    ctx.fillStyle=avail?'#2a1a3e':'#151020';
+    ctx.fillStyle=avail?'#3b2b1c':'#151009';
     ctx.fillRect(R.x,R.y,R.w,R.h);
-    ctx.strokeStyle=G.drag===k?'#0f6':'#f5c518';ctx.lineWidth=G.drag===k?4:2;
+    ctx.strokeStyle=G.drag===k?'#0f6':'#e8d9a0';ctx.lineWidth=G.drag===k?3:2;
     ctx.strokeRect(R.x,R.y,R.w,R.h);
-    drawImg(IMG[d.img],R.x+36,R.y+4,48,48);
-    ctx.fillStyle='#fff';ctx.font='bold 11px Arial';ctx.textAlign='center';
-    ctx.fillText(d.name,R.x+R.w/2,R.y+64);
-    ctx.fillStyle='#ffe26b';ctx.font='11px Arial';
-    var pcw=ctx.measureText(d.cost).width;
-    drawImg(IMG.resp,R.x+R.w/2-pcw/2-19,R.y+66,16,16);
-    ctx.fillText(d.cost,R.x+R.w/2+8,R.y+79);
+    drawImg(IMG[d.img],R.x+4,R.y+9,38,38);
+    ctx.fillStyle='#fff';ctx.font='14px Z42M, Arial';ctx.textAlign='left';
+    ctx.fillText(d.name,R.x+46,R.y+22);
+    drawImg(IMG.resp,R.x+46,R.y+30,16,16);
+    ctx.fillStyle='#ffe26b';ctx.font='15px Z42B, Arial';
+    ctx.fillText(d.cost,R.x+66,R.y+43);
     ctx.textAlign='left';
     if(G.seeds[k]>0){ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(R.x,R.y,R.w,R.h);
-      ctx.fillStyle='#fff';ctx.font='bold 22px Arial';ctx.textAlign='center';
+      ctx.fillStyle='#fff';ctx.font='22px Z42B, Arial';ctx.textAlign='center';
       ctx.fillText(Math.ceil(G.seeds[k]),R.x+R.w/2,R.y+R.h/2+8);ctx.textAlign='left';}
-    if(G.seedFlash&&G.seedFlash.k===k){ /* красная вспышка: не хватает солнц */
+    if(G.seedFlash&&G.seedFlash.k===k){ /* красная вспышка: не хватает рэспэкта */
       ctx.fillStyle='rgba(255,40,40,'+(0.3+0.3*Math.abs(Math.sin(G.t*14)))+')';
       ctx.fillRect(R.x,R.y,R.w,R.h);}
   }
-  /* кнопки */
-  ctx.fillStyle='#333';ctx.fillRect(8,398,120,36);ctx.fillStyle='#fff';ctx.font='bold 14px Arial';ctx.textAlign='center';
-  ctx.fillText('МЕНЮ',68,421);
-  ctx.fillStyle='#333';ctx.fillRect(8,442,120,36);ctx.fillStyle='#fff';
-  ctx.fillText(MUTED?'БЕЗ ЗВУКА':'ЗВУК',68,465);
   ctx.textAlign='left';
+}
+var MENUBTN={x:982,y:12,w:106,h:42};
+function drawMenuBtn(){
+  ctx.fillStyle='#1a1410';ctx.fillRect(MENUBTN.x,MENUBTN.y,MENUBTN.w,MENUBTN.h);
+  ctx.strokeStyle='#f5b518';ctx.lineWidth=2;
+  ctx.strokeRect(MENUBTN.x,MENUBTN.y,MENUBTN.w,MENUBTN.h);
+  ctx.fillStyle='#fff';ctx.font='20px Z42B, Arial';ctx.textAlign='center';
+  ctx.fillText('МЕНЮ',MENUBTN.x+MENUBTN.w/2,MENUBTN.y+29);ctx.textAlign='left';
 }
 /* --- ввод: drag&drop + клик-клик --- */
 var mouse={x:0,y:0};
@@ -392,17 +405,15 @@ function cellFromXY(x,y){
   return {r:Math.min(ROWS-1,Math.floor((y-GY0)/CH)),c:Math.min(COLS-1,Math.floor((x-GX0)/CW))};
 }
 function seedAtXY(x,y){
-  var keys=['mopso','sun','bomb'];
-  for(var i=0;i<3;i++){var R=seedRect(i);
-    if(x>=R.x&&x<=R.x+R.w&&y>=R.y&&y<=R.y+R.h)return keys[i];}
+  for(var i=0;i<9;i++){var R=seedRect(i);
+    if(x>=R.x&&x<=R.x+R.w&&y>=R.y&&y<=R.y+R.h)return SEED_ORDER[i];}
   return null;
 }
 cv.addEventListener('pointerdown',function(e){
   var p=evXY(e);mouse=p;
   if(!G||G.state!=='play')return;
-  /* кнопка МЕНЮ = меню паузы */
-  if(p.x>8&&p.x<128&&p.y>398&&p.y<434){togglePause();return;}
-  if(p.x>8&&p.x<128&&p.y>442&&p.y<478){MUTED=!MUTED;return;}
+  /* кнопка МЕНЮ в правом верхнем углу = меню паузы (кнопки ЗВУК больше нет) */
+  if(p.x>MENUBTN.x&&p.x<MENUBTN.x+MENUBTN.w&&p.y>MENUBTN.y&&p.y<MENUBTN.y+MENUBTN.h){togglePause();return;}
   /* подбор рэспэкта кликом */
   for(var ri=G.resps.length-1;ri>=0;ri--){var rpi=G.resps[ri];
     if(Math.hypot(p.x-rpi.x,p.y-rpi.y)<36){
