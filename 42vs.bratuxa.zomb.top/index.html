@@ -181,7 +181,7 @@ function spawnZom(flag){
   G.spawned++;
 }
 /* --- знаменосец: тело и голова из двух текстур собираются как трафареты --- */
-var FLAGZ=null,FZW=76,FZHW=38; /* знаменосец чуть крупнее обычного */
+var FLAGZ=null,FZW=79,FZHW=39.5,FZDY=5; /* знаменосец крупнее и ниже на 5 */
 function buildFlagz(){
   try{
     var bi=IMG.flagz;if(!(bi&&bi.complete&&bi.naturalWidth))return false;
@@ -203,7 +203,7 @@ function buildFlagz(){
 function flagHeadWorld(z){
   var s=FZW/FLAGZ.bw,bh=FLAGZ.bh*s;
   var hw=FZHW,hh=FZHW*FLAGZ.head.height/FLAGZ.head.width;
-  return {x:z.x-FZW/2+FLAGZ.nx*s,y:rowY(z.r)+30-bh+FLAGZ.ny*s,hw:hw,hh:hh};
+  return {x:z.x-FZW/2+FLAGZ.nx*s,y:rowY(z.r)+30-bh+FLAGZ.ny*s+FZDY,hw:hw,hh:hh};
 }
 function popArmor(w,ak){ /* броня слетает куском с физикой, голова отлетит только после смерти */
   G.debris.push({r:w.r,x:w.x,y:rowY(w.r)-70,kind:ak,dark:Math.floor((w.armorHits||0)/5),t:0,
@@ -400,7 +400,7 @@ function drawArmor(kind,cx,topY,dark){ /* строго по центру баш�
       var fadeK=Math.max(0,(z.dying-0.45)/0.5);
       ctx.globalAlpha=1-fadeK;
       var bdh=100*(ZH_FULL-ZH_HEAD)/ZH_FULL,bdt=-100+100*ZH_HEAD/ZH_FULL;
-      ctx.save();ctx.translate(z.x,zy+30);ctx.rotate(fallK*1.35*(z.fallDir||1));
+      ctx.save();ctx.translate(z.x,zy+30+(z.flag?FZDY:0));ctx.rotate(fallK*1.35*(z.fallDir||1));
       if(z.flag&&FLAGZ){var fbs=FZW/FLAGZ.bw; /* тело знаменосца валится без головы */
         try{ctx.drawImage(FLAGZ.body,-FZW/2,-FLAGZ.bh*fbs,FZW,FLAGZ.bh*fbs);}catch(e){}}
       else{try{var bi=IMG.zombie;
@@ -424,9 +424,9 @@ function drawArmor(kind,cx,topY,dark){ /* строго по центру баш�
     if(z.flag){if(!FLAGZ)buildFlagz();}
     if(z.flag&&FLAGZ){ /* знаменосец собран из двух текстур */
       var fws=FZW/FLAGZ.bw,wbh=FLAGZ.bh*fws;
-      try{ctx.drawImage(FLAGZ.body,-FZW/2,-wbh+bob,FZW,wbh);}catch(e){}
+      try{ctx.drawImage(FLAGZ.body,-FZW/2,-wbh+bob+FZDY,FZW,wbh);}catch(e){}
       var fhw=FZHW,fhh=FZHW*FLAGZ.head.height/FLAGZ.head.width;
-      var fhx=FLAGZ.nx*fws-FZW/2,fhy=-wbh+FLAGZ.ny*fws+bob;
+      var fhx=FLAGZ.nx*fws-FZW/2,fhy=-wbh+FLAGZ.ny*fws+bob+FZDY;
       try{ctx.drawImage(FLAGZ.head,fhx-fhw/2,fhy-fhh/2,fhw,fhh);}catch(e){}
     }else{drawImg(IMG.zombie,-38,-100+bob,76,100);}
     if(z.armor)drawArmor(z.armor,0,-100+bob,Math.floor((z.armorHits||0)/5));
