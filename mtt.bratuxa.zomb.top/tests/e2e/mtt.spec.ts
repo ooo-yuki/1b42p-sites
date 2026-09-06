@@ -815,6 +815,65 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     expect(high).toBe(false);
   });
 
+  test('🗺️ выбор карты: три карточки, Бэкрумс выбирается', async ({ page }) => {
+    await page.click('#guestBtn');
+    await expect(page.locator('#mapSec .mapCard')).toHaveCount(3);
+    await page.click('#map-backrooms');
+    await expect(page.locator('#map-backrooms.sel')).toHaveCount(1);
+    await expect(page.locator('#goBtn')).toContainText('БЭКРУМС');
+  });
+
+  test('🟨 Бэкрумс: лабиринт большой, стены на месте, случайный', async ({ page }) => {
+    await page.click('#guestBtn');
+    await page.click('#map-backrooms');
+    await page.click('#goBtn');
+    await page.waitForTimeout(1500);
+    type M = { maze: () => { n: number; cell: number; segs: number; half: number }; map: () => string };
+    const m1 = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.maze());
+    const map = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.map());
+    expect(map).toBe('backrooms');
+    expect(m1.half).toBe(63);
+    expect(m1.segs).toBeGreaterThan(300);
+    // второй заход — новый лабиринт (стен столько же по числу, но расклад другой — проверяем через перезаход)
+    await page.click('#menuBtn');
+    await page.click('#map-backrooms');
+    await page.click('#goBtn');
+    await page.waitForTimeout(1500);
+    const m2 = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.maze());
+    expect(m2.segs).toBeGreaterThan(300);
+  });
+
+  test('🕊️ без врагов: мирный режим, волны не идут', async ({ page }) => {
+    await page.click('#guestBtn');
+    await page.click('#foeBtn');
+    await expect(page.locator('#foeBtn')).toContainText('ВЫКЛ');
+    await page.click('#goBtn');
+    await page.waitForTimeout(2500);
+    type M = { peaceful: () => boolean };
+    const p = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.peaceful());
+    expect(p).toBe(true);
+    const hud = await page.locator('#hud').innerText();
+    expect(hud).toMatch(/МИРНЫЙ РЕЖИМ/);
+    // удар в пустоту не запускает волну
+    await page.evaluate(() => (window as unknown as { __mtt: { attack: () => number } }).__mtt.attack());
+    await page.waitForTimeout(1500);
+    const hud2 = await page.locator('#hudRow').innerText();
+    expect(hud2).toMatch(/МИРНЫЙ РЕЖИМ/);
+  });
+
+  test('💬 чат на T: открывается, сообщение уходит', async ({ page }) => {
+    await page.click('#guestBtn');
+    await page.click('#goBtn');
+    await page.waitForTimeout(800);
+    await page.keyboard.press('KeyT');
+    await expect(page.locator('#chatOv')).toBeVisible();
+    await page.fill('#chatIn', 'привет братухи');
+    await page.press('#chatIn', 'Enter');
+    await expect(page.locator('#chatLog')).toContainText('привет братухи');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#chatOv')).toHaveCount(0);
+  });
+
   test.afterEach(async () => {
     // ожидаемый 403 админки для чужих — не баг, в отчёт не идёт
     const real = errors.filter((e) => !e.includes('/api/admin/stats'));

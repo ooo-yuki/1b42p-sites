@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Game, WEAPONS, CHARS, KEY_ACTIONS, DEFAULT_KEYS, type HudState, type KeyMap, type Quality, type MapId } from './game/engine';
+import { Game, WEAPONS, CHARS, MAPS, KEY_ACTIONS, DEFAULT_KEYS, type HudState, type KeyMap, type Quality, type MapId } from './game/engine';
 import oruzh1Url from './assets/oruzh1.png';
 import oruzh2Url from './assets/oruzh2.png';
 import pistolUrl from './assets/pistol.png';
@@ -55,14 +55,14 @@ function token(): string {
 interface RoomInfo {
   id: string;
   name: string;
-  mode: 'arena' | 'duel';
+  mode: MapId;
   count: number;
   started?: boolean;
 }
 
 interface LobbyInfo {
   name: string;
-  mode: 'arena' | 'duel';
+  mode: MapId;
   started: boolean;
   owner: boolean;
   count: number;
@@ -171,9 +171,9 @@ async function loadStats(): Promise<void> {
   });
   const [roomId, setRoomId] = useState('');
   const [roomName, setRoomName] = useState('');
-  const [roomMode, setRoomMode] = useState<'arena' | 'duel'>('arena');
+  const [roomMode, setRoomMode] = useState<MapId>('arena');
   const [roomDraft, setRoomDraft] = useState('');
-  const [draftMode, setDraftMode] = useState<'arena' | 'duel'>('arena');
+  const [draftMode, setDraftMode] = useState<MapId>('arena');
   const [roomsList, setRoomsList] = useState<RoomInfo[]>([]);
   const [mates, setMates] = useState<RoomMate[]>([]);
   // лобби: владелец/заявки/старт. isOwner — я создал; waiting — моя заявка висит; lobby — свежий состав
@@ -190,6 +190,13 @@ async function loadStats(): Promise<void> {
   const [mapChoice, setMapChoice] = useState<MapId>('arena');
   // экраны меню: main — главная, chars — отдельный выбор бойца
   const [menuScreen, setMenuScreen] = useState<'main' | 'chars'>('main');
+  // мирный режим: врагов нет, можно гулять по карте
+  const [noEnemies, setNoEnemies] = useState(false);
+  // чат комнаты: T — открыть, Enter — отправить
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatLog, setChatLog] = useState<Array<{ nick: string; text: string; t: number }>>([]);
+  const [chatText, setChatText] = useState('');
+  const chatLast = useRef(0);
   const [duel, setDuel] = useState<DuelInfo | null>(null);
   const roomRef = useRef({ id: '', sid: '' });
   const duelRef = useRef<DuelInfo | null>(null);
@@ -286,7 +293,7 @@ async function loadStats(): Promise<void> {
       onHud: (h) => setHud(h),
       onBusted: () => undefined,
       onSwing: () => { swing(); tryDuelHit(); },
-    }, mapChoice);
+    }, mapChoice, { enemies: !noEnemies });
     gameRef.current = game;
     setSound(game.getSound());
     setSens(game.getSens());
@@ -330,6 +337,8 @@ async function loadStats(): Promise<void> {
       spawnKind: (kind: 'walk' | 'fly') => game.debugSpawn(kind),
       flyers: () => game.debugFlyers(),
       remoteList: () => game.debugRemoteList(),
+      maze: () => game.debugMaze(),
+      peaceful: () => !game.enemiesOn,
     };
     const kd = (e: KeyboardEvent) => {
       game.input[e.code] = true;
@@ -347,7 +356,7 @@ async function loadStats(): Promise<void> {
       delete (window as unknown as { __mtt?: object }).__mtt;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapChoice]);
+  }, [mapChoice, noEnemies]);
 
   const go = useCallback(() => {
     try { localStorage.setItem(NICK_KEY, nick); } catch { /* noop */ }
@@ -426,12 +435,12 @@ async function loadStats(): Promise<void> {
         body: JSON.stringify({ nick, name: roomDraft, char: gameRef.current?.getChar() ?? 'mtt', mode: draftMode, token: token() }),
       });
       if (!r.ok) return;
-      const d = (await r.json()) as { id: string; sid: string; mode: 'arena' | 'duel'; spawn: { x: number; z: number; yaw: number } | null };
+      const d = (await r.json()) as { id: string; sid: string; mode: MapId; spawn: { x: number; z: number; yaw: number } | null };
       roomRef.current = { id: d.id, sid: d.sid };
       setRoomId(d.id);
       setRoomName(roomDraft || `Комната ${nick}`);
       setRoomMode(d.mode);
-      setMapChoice(d.mode === 'duel' ? 'duel' : 'arena');
+      setMapChoice(d.mode);
       spawnRef.current = d.spawn;
       prevRound.current = 1;
       setDuel(null);
@@ -453,12 +462,12 @@ async function loadStats(): Promise<void> {
         body: JSON.stringify({ nick, char: gameRef.current?.getChar() ?? 'mtt', token: token() }),
       });
       if (!r.ok) return;
-      const d = (await r.json()) as { sid: string; name: string; mode: 'arena' | 'duel'; pending?: boolean };
+      const d = (await r.json()) as { sid: string; name: string; mode: MapId; pending?: boolean };
       roomRef.current = { id, sid: d.sid };
       setRoomId(id);
       setRoomName(d.name);
       setRoomMode(d.mode);
-      setMapChoice(d.mode === 'duel' ? 'duel' : 'arena');
+      setMapChoice(d.mode);
       spawnRef.current = null;
       prevRound.current = 1;
       setDuel(null);
@@ -541,10 +550,20 @@ async function loadStats(): Promise<void> {
           body: JSON.stringify({ sid, char: g.getChar(), x: p.x, z: p.z, yaw: p.yaw, hp: h.hp, score: h.score, kills: h.kills, wave: h.wave }),
         });
         if (!r.ok) return;
-        const d = (await r.json()) as { players: RoomMate[]; duel?: DuelInfo };
+        const d = (await r.json()) as { players: RoomMate[]; duel?: DuelInfo; chat?: Array<{ nick: string; text: string; t: number }> };
         setMates(d.players ?? []);
         matesRef.current = d.players ?? [];
         g.setRemotes(d.players ?? []);
+        // чат: добираем только новое по метке времени
+        if (d.chat && d.chat.length > 0) {
+          setChatLog((prev) => {
+            const known = prev.length > 0 ? prev[prev.length - 1].t : chatLast.current;
+            const fresh = d.chat!.filter((m) => m.t > known);
+            if (fresh.length === 0) return prev;
+            chatLast.current = fresh[fresh.length - 1].t;
+            return [...prev.slice(-19), ...fresh].slice(-20);
+          });
+        }
         if (d.duel && d.duel.active) {
           const dd = d.duel;
           setDuel(dd);
@@ -615,6 +634,42 @@ async function loadStats(): Promise<void> {
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, []);
+
+  // T — чат комнаты в бою (в полях ввода и в меню не срабатывает)
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (e.code !== 'KeyT') return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+      if (menu) return;
+      e.preventDefault();
+      setChatOpen((o) => !o);
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [menu]);
+
+  // отправка в чат комнаты
+  const sendChat = useCallback(async () => {
+    const text = chatText.trim().slice(0, 200);
+    if (!text) return;
+    const { id, sid } = roomRef.current;
+    setChatText('');
+    if (!id || !sid) {
+      // без комнаты — видно только мне
+      const m = { nick: nick || 'Я', text, t: Date.now() };
+      chatLast.current = m.t;
+      setChatLog((prev) => [...prev.slice(-19), m]);
+      return;
+    }
+    try {
+      await fetch(`/api/rooms/${id}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sid, text }),
+      });
+    } catch { /* noop */ }
+  }, [chatText, nick]);
 
   // захват клавиши для переназначения управления
   useEffect(() => {
@@ -706,9 +761,9 @@ async function loadStats(): Promise<void> {
             <span>❤️ {hud.hp}/{hud.maxhp}</span>
             <div id="hpBar"><div id="hpFill" style={{ width: `${hpFrac * 100}%` }} /></div>
           </div>
-          <div id="hudRow">🌊 Волна {hud.wave} · 👹 {hud.enemies} · 💀 {hud.kills} · 🏆 {hud.score}</div>
+          <div id="hudRow">{noEnemies ? '🕊️ МИРНЫЙ РЕЖИМ · ' : `🌊 Волна ${hud.wave} · 👹 ${hud.enemies} · `}💀 {hud.kills} · 🏆 {hud.score}</div>
           <div id="hudRow2">🎟️ {hud.fantiki} · 💊 {hud.med}/3 · ⭐ {hud.lvl} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}{char === 'krysa' && (hud.kick > 0 ? ` · 🌀 ${hud.kick.toFixed(1)}с` : ' · 🌀 вол-кик готов')}</div>
-          <small id="hint">WASD — идти · Space — прыжок · клик/J — удар · Shift — бег · E — смена ствола · X — аптечка · I — во весь экран{char === 'mtt' ? ' · C — рывок (вверх — полёт)' : ' · стена + прыжок — вол-кик'}</small>
+          <small id="hint">WASD — идти · Space — прыжок · клик/J — удар · Shift — бег · E — смена ствола · X — аптечка · I — во весь экран · T — чат{char === 'mtt' ? ' · C — рывок (вверх — полёт)' : ' · стена + прыжок — вол-кик'}</small>
         </div>
       )}
       {!menu && (
@@ -720,6 +775,34 @@ async function loadStats(): Promise<void> {
             else void document.documentElement.requestFullscreen().catch(() => {});
           }}>⛶</button>
           <button id="menuBtn" onClick={toMenu}>🏠 В МЕНЮ</button>
+          <button id="chatBtn" onClick={() => setChatOpen((o) => !o)}>💬{chatLog.length > 0 && !chatOpen ? ` ${Math.min(chatLog.length, 9)}` : ''}</button>
+          {!chatOpen && chatLog.length > 0 && (
+            <div id="chatToast">{chatLog[chatLog.length - 1].nick}: {chatLog[chatLog.length - 1].text}</div>
+          )}
+          {chatOpen && (
+            <div id="chatOv">
+              <div id="chatLog">
+                {chatLog.length === 0 ? <div className="chatSys">Тихо… напиши первым! (Enter — отправить)</div> : chatLog.map((m, i) => (
+                  <div key={i} className="chatMsg"><b>{m.nick}:</b> {m.text}</div>
+                ))}
+              </div>
+              <div id="chatRow">
+                <input
+                  id="chatIn"
+                  value={chatText}
+                  maxLength={200}
+                  onChange={(e) => setChatText(e.target.value)}
+                  placeholder="Сообщение…"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void sendChat();
+                    else if (e.key === 'Escape') setChatOpen(false);
+                  }}
+                />
+                <button id="chatSend" onClick={() => void sendChat()}>➤</button>
+              </div>
+            </div>
+          )}
           <div id="cross"><i></i><i></i></div>
           <div
             id="joy"
@@ -932,6 +1015,32 @@ async function loadStats(): Promise<void> {
             <img src={oruzh1Url} alt="кулаки" />
             <img src={oruzh2Url} alt="секира" />
           </div>
+          <div className="board" id="mapSec">
+            <h3>🗺️ Карта</h3>
+            <div className="mapRow">
+              {MAPS.map((m) => (
+                <button
+                  key={m.id}
+                  id={`map-${m.id}`}
+                  className={'mapCard' + (mapChoice === m.id ? ' sel' : '')}
+                  onClick={() => setMapChoice(m.id)}
+                >
+                  <div className="mname">{m.name}</div>
+                  <div className="mdesc">{m.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="board" id="foeSec">
+            <h3>👹 Враги</h3>
+            <div className="srow">
+              <button id="foeBtn" className={'wbtn' + (!noEnemies ? ' cur' : '')} onClick={() => setNoEnemies((v) => !v)}>
+                {noEnemies ? '🕊️ ВЫКЛ — просто гуляю' : '👹 ВКЛ — будет махач'}
+              </button>
+            </div>
+          </div>
+          <div className="board" id="goSec">
+            <h3>🚀 В бой</h3>
           <input
             id="nick"
             value={nick}
@@ -945,8 +1054,9 @@ async function loadStats(): Promise<void> {
           {(roomId && !isOwner) || waiting ? (
             <button id="goBtn" disabled title="Ждём старта от создателя">⏳ ЖДУ СТАРТА…</button>
           ) : (
-            <button id="goBtn" onClick={go}>{roomMode === 'duel' ? '⚔️ В ДУЭЛЬ' : '▶️ ПОГНАЛИ'}</button>
+            <button id="goBtn" onClick={go}>{(roomId ? roomMode : mapChoice) === 'duel' ? '⚔️ В ДУЭЛЬ' : (roomId ? roomMode : mapChoice) === 'backrooms' ? '🟨 В БЭКРУМС' : '▶️ ПОГНАЛИ'}</button>
           )}
+          </div>
           {profileOpen && (
             <div className="modal" id="profileOv">
               <div className="sheet">
@@ -1050,12 +1160,13 @@ async function loadStats(): Promise<void> {
                 </div>
                 <div className="srow">
                   <span>Режим</span>
-                  <button className={'wbtn' + (draftMode === 'arena' ? ' cur' : '')} id="mode-arena" onClick={() => setDraftMode('arena')}>🌍 АРЕНА</button>
-                  <button className={'wbtn' + (draftMode === 'duel' ? ' cur' : '')} id="mode-duel" onClick={() => setDraftMode('duel')}>⚔️ 1×1</button>
+                  {MAPS.map((m) => (
+                    <button key={m.id} className={'wbtn' + (draftMode === m.id ? ' cur' : '')} id={`mode-${m.id}`} onClick={() => setDraftMode(m.id)}>{m.name}</button>
+                  ))}
                 </div>
                 {roomsList.length > 0 ? roomsList.map((r) => (
                   <div className="srow" key={r.id}>
-                    <span>{r.mode === 'duel' ? '⚔️' : '🌍'} {r.name} · {r.id} · 👥 {r.count}{r.mode === 'duel' ? '/2' : ''}</span>
+                    <span>{r.mode === 'duel' ? '⚔️' : r.mode === 'backrooms' ? '🟨' : '🌍'} {r.name} · {r.id} · 👥 {r.count}{r.mode === 'duel' ? '/2' : ''}</span>
                     <button className="wbtn" id={`join-${r.id}`} onClick={() => joinRoom(r.id)}>ВОЙТИ</button>
                   </div>
                 )) : <div>Пока пусто — создай первую!</div>}

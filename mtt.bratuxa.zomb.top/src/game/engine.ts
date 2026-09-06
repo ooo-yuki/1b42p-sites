@@ -3,6 +3,13 @@ import vrag1Url from '../assets/vrag1.png';
 import vrag2Url from '../assets/vrag2.png';
 import dom1Url from '../assets/dom1.png';
 import travaUrl from '../assets/trava.jpg';
+import skyUrl from '../assets/sky.jpg';
+import edgeUrl from '../assets/edge.png';
+import house2Url from '../assets/house2.png';
+import brickUrl from '../assets/brick.jpg';
+import brFloorUrl from '../assets/br-floor.jpg';
+import brWallUrl from '../assets/br-wall.jpg';
+import brCeilUrl from '../assets/br-ceil.jpg';
 import charMttUrl from '../assets/char-mtt.png';
 import charKrysaUrl from '../assets/char-krysa.png';
 
@@ -24,7 +31,20 @@ export function charSpec(id: string): CharDef {
 }
 
 export type Quality = 'fast' | 'nice';
-export type MapId = 'arena' | 'duel';
+export type MapId = 'arena' | 'duel' | 'backrooms';
+
+/** Карты для выбора в меню: id, название, описание. */
+export const MAPS: Array<{ id: MapId; name: string; desc: string }> = [
+  { id: 'arena', name: '🌍 Арена', desc: 'Город днём: дома, крыши, мосты, фонтан' },
+  { id: 'duel', name: '⚔️ Дуэль', desc: 'Ночной двор 1×1 для разборок' },
+  { id: 'backrooms', name: '🟨 Бэкрумс', desc: 'Случайный лабиринт — новый каждый раз' },
+];
+
+/** Настройки запуска игры из меню. */
+export interface GameOpts {
+  /** false — мирный режим: врагов нет, можно гулять. */
+  enemies?: boolean;
+}
 
 export interface HudState {
   hp: number;
@@ -193,6 +213,8 @@ export class Game {
   private keyMap: KeyMap = { ...DEFAULT_KEYS };
   private remotes: Remote[] = [];
   private half: number = HALF;
+  /** Мирный режим из меню: врагов нет, волны не идут. */
+  readonly enemiesOn: boolean = true;
   private wallKickCd = 0;
   private charId = 'mtt';
   private charSpd = 1;
@@ -276,7 +298,10 @@ export class Game {
     private mmCanvas: HTMLCanvasElement | null,
     private ev: GameEvents,
     readonly map: MapId = 'arena',
+    opts: GameOpts = {},
   ) {
+    this.enemiesOn = opts.enemies !== false;
+    // Бэкрумс большой: лабиринт ~120м. Размер задаёт сам строитель через halfOverride.
     this.half = map === 'duel' ? 32 : HALF;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
     this.loadQuality();
@@ -292,14 +317,31 @@ export class Game {
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
-    this.camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 400);
+    this.camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 500);
     this.camera.rotation.order = 'YXZ';
-    this.scene.background = new THREE.Color(map === 'duel' ? 0x1a1030 : 0x9ecdf0);
-    this.scene.fog = new THREE.Fog(map === 'duel' ? 0x1a1030 : 0x9ecdf0, map === 'duel' ? 40 : 60, map === 'duel' ? 140 : 200);
+    if (map === 'duel') {
+      this.scene.background = new THREE.Color(0x1a1030);
+      this.scene.fog = new THREE.Fog(0x1a1030, 40, 140);
+    } else if (map === 'backrooms') {
+      // гул жёлтых ламп: тёплый туман, небо не нужно — сверху потолок
+      this.scene.background = new THREE.Color(0x8a7a3a);
+      this.scene.fog = new THREE.Fog(0x8a7a3a, 8, 55);
+    } else {
+      this.scene.background = new THREE.Color(0x9ecdf0);
+      this.scene.fog = new THREE.Fog(0x9ecdf0, 60, 200);
+      // небо с фото МТТ: огромная сфера, туман её не трогает
+      const skyTex = new THREE.TextureLoader().load(skyUrl);
+      skyTex.colorSpace = THREE.SRGBColorSpace;
+      const sky = new THREE.Mesh(
+        new THREE.SphereGeometry(420, 24, 16),
+        new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false }),
+      );
+      this.scene.add(sky);
+    }
     this.loadShop();
     this.loadKeys();
     this.buildWorld();
-    if (map !== 'duel') this.spawnWave();
+    if (map !== 'duel' && this.enemiesOn) this.spawnWave();
     window.addEventListener('resize', this.onResize);
     canvas.addEventListener('pointerdown', this.onPointerDown);
     window.addEventListener('pointermove', this.onPointerMove);
@@ -643,8 +685,114 @@ export class Game {
     }
   }
 
+  /**
+   * БЭКРУМС: большой случайный лабиринт, новый каждый запуск.
+   * Случайный DFS-лабиринт N×N клеток; стены — InstancedMesh (1 draw call),
+   * пол/потолок/стены — с фото МТТ, сверху гул жёлтых ламп.
+   */
+  private buildBackrooms(): void {
+    const scene = this.scene;
+    const N = 21, CELL = 6, WH = 3, TH = 0.7;
+    const S = N * CELL;
+    this.half = S / 2;
+    // свет ламп: тепло и ярко, теней нет — дёшево при сотнях стен
+    scene.add(new THREE.AmbientLight(0xffe9a8, 1.15));
+    const top = new THREE.DirectionalLight(0xfff2cc, 0.55);
+    top.position.set(20, 30, 10);
+    scene.add(top);
+    const floorTex = new THREE.TextureLoader().load(brFloorUrl);
+    floorTex.colorSpace = THREE.SRGBColorSpace;
+    floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
+    floorTex.repeat.set(32, 32);
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(S + 10, S + 10),
+      new THREE.MeshStandardMaterial({ map: floorTex, roughness: 1 }),
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+    const ceilTex = new THREE.TextureLoader().load(brCeilUrl);
+    ceilTex.colorSpace = THREE.SRGBColorSpace;
+    ceilTex.wrapS = ceilTex.wrapT = THREE.RepeatWrapping;
+    ceilTex.repeat.set(42, 42);
+    const ceil = new THREE.Mesh(
+      new THREE.PlaneGeometry(S + 10, S + 10),
+      new THREE.MeshStandardMaterial({ map: ceilTex, roughness: 1 }),
+    );
+    ceil.rotation.x = Math.PI / 2;
+    ceil.position.y = WH;
+    scene.add(ceil);
+    // случайный лабиринт: recursive backtracker
+    const vWall: boolean[][] = Array.from({ length: N + 1 }, () => new Array(N).fill(true));
+    const hWall: boolean[][] = Array.from({ length: N }, () => new Array(N + 1).fill(true));
+    const seen: boolean[][] = Array.from({ length: N }, () => new Array(N).fill(false));
+    const stack: Array<[number, number]> = [[0, 0]];
+    seen[0][0] = true;
+    while (stack.length > 0) {
+      const [cx, cy] = stack[stack.length - 1];
+      const nb: Array<[number, number, number]> = [];
+      if (cx > 0 && !seen[cx - 1][cy]) nb.push([cx - 1, cy, 0]);
+      if (cx < N - 1 && !seen[cx + 1][cy]) nb.push([cx + 1, cy, 1]);
+      if (cy > 0 && !seen[cx][cy - 1]) nb.push([cx, cy - 1, 2]);
+      if (cy < N - 1 && !seen[cx][cy + 1]) nb.push([cx, cy + 1, 3]);
+      if (nb.length === 0) { stack.pop(); continue; }
+      const [nx, ny, dir] = nb[Math.floor(Math.random() * nb.length)];
+      if (dir === 0) vWall[cx][cy] = false;
+      else if (dir === 1) vWall[cx + 1][cy] = false;
+      else if (dir === 2) hWall[cx][cy] = false;
+      else hWall[cx][cy + 1] = false;
+      seen[nx][ny] = true;
+      stack.push([nx, ny]);
+    }
+    // сегменты стен: вертикальные vWall[i][j], горизонтальные hWall[i][j]
+    const segs: Array<{ x: number; z: number; sx: number; sz: number }> = [];
+    for (let i = 0; i <= N; i++) {
+      for (let j = 0; j < N; j++) {
+        if (vWall[i][j]) segs.push({ x: -S / 2 + i * CELL, z: -S / 2 + (j + 0.5) * CELL, sx: TH, sz: CELL + TH });
+      }
+    }
+    for (let i = 0; i < N; i++) {
+      for (let j = 0; j <= N; j++) {
+        if (hWall[i][j]) segs.push({ x: -S / 2 + (i + 0.5) * CELL, z: -S / 2 + j * CELL, sx: CELL + TH, sz: TH });
+      }
+    }
+    const wallTex = new THREE.TextureLoader().load(brWallUrl);
+    wallTex.colorSpace = THREE.SRGBColorSpace;
+    const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.95 });
+    const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), wallMat, segs.length);
+    const m4 = new THREE.Matrix4();
+    const q0 = new THREE.Quaternion();
+    segs.forEach((s, k) => {
+      m4.compose(new THREE.Vector3(s.x, WH / 2, s.z), q0, new THREE.Vector3(s.sx, WH, s.sz));
+      inst.setMatrixAt(k, m4);
+      this.solids.push({ x: s.x, z: s.z, hx: s.sx / 2, hz: s.sz / 2, h: WH });
+    });
+    inst.instanceMatrix.needsUpdate = true;
+    scene.add(inst);
+    // панели ламп на потолке через 3 клетки — просто светлые, без источников
+    const lampMat = new THREE.MeshBasicMaterial({ color: 0xfff6d8 });
+    const lampGeo = new THREE.BoxGeometry(1.4, 0.08, 0.7);
+    for (let i = 1; i < N; i += 3) {
+      for (let j = 1; j < N; j += 3) {
+        const lamp = new THREE.Mesh(lampGeo, lampMat);
+        lamp.position.set(-S / 2 + (i + 0.5) * CELL, WH - 0.05, -S / 2 + (j + 0.5) * CELL);
+        scene.add(lamp);
+      }
+    }
+    // старт — в клетке (0,0), лицо в открытый проход (восток или юг — что прокопано)
+    this.px = -S / 2 + 0.5 * CELL;
+    this.pz = -S / 2 + 0.5 * CELL;
+    this.yaw = !vWall[1][0] ? -Math.PI / 2 : Math.PI;
+  }
+
+  /** Для тестов: параметры сгенерированного лабиринта. */
+  debugMaze(): { n: number; cell: number; segs: number; half: number } {
+    return { n: 21, cell: 6, segs: this.solids.length, half: this.half };
+  }
+
   private buildWorld(): void {
     if (this.map === 'duel') { this.buildDuel(); return; }
+    if (this.map === 'backrooms') { this.buildBackrooms(); return; }
     const scene = this.scene;
     // светло: день вместо ночи
     scene.add(new THREE.AmbientLight(0xffffff, 0.95));
@@ -698,11 +846,11 @@ export class Game {
       r2.rotation.x = -Math.PI / 2; r2.rotation.z = Math.PI / 2; r2.position.set(i, 0.012, 0); r2.receiveShadow = true; scene.add(r2);
     }
 
-    // периметр — дома МТТ (текстура подъезда 16:9: тайл ~11.8×7м держит пропорции, зеркало прячет швы)
-    const wallTex = new THREE.TextureLoader().load(dom1Url);
+    // край карты с фото МТТ: граффити-стена, зеркало прячет швы
+    const wallTex = new THREE.TextureLoader().load(edgeUrl);
     wallTex.colorSpace = THREE.SRGBColorSpace;
     wallTex.wrapS = wallTex.wrapT = THREE.MirroredRepeatWrapping;
-    wallTex.repeat.set(10, 2);
+    wallTex.repeat.set(12, 2);
     const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.85 });
     const wallGeoH = new THREE.BoxGeometry(ARENA + 8, 14, 2);
     const wallGeoV = new THREE.BoxGeometry(2, 14, ARENA + 8);
@@ -720,7 +868,7 @@ export class Game {
     // дома: каждый уникален (размер/цвет/крыша заданы, не рандом).
     // Пары A и B стоят рядом и связаны мостами; на крышу A ведёт лестница.
     const winTex = Game.makeWindowsTex();
-    const bbTex = new THREE.TextureLoader().load(dom1Url);
+    const bbTex = new THREE.TextureLoader().load(house2Url);
     bbTex.colorSpace = THREE.SRGBColorSpace;
     type Roof = 'tank' | 'antenna' | 'garden' | 'parapet' | 'flat';
     const houses: Array<{ x: number; z: number; w: number; d: number; h: number; tint: number; roof: Roof; bb: boolean }> = [
@@ -821,17 +969,19 @@ export class Game {
       this.solids.push({ x: sx, z: -24, hx: 0.8, hz: 1.5, h: top });
     }
 
-    // переулки: два ряда узких высоких домов образуют улочки с фонарями (детерминированно, мимо коробок)
+    // переулки: кирпич с фото МТТ — два ряда узких высоких домов образуют улочки с фонарями
+    const brickTex = new THREE.TextureLoader().load(brickUrl);
+    brickTex.colorSpace = THREE.SRGBColorSpace;
+    brickTex.wrapS = brickTex.wrapT = THREE.MirroredRepeatWrapping;
+    brickTex.repeat.set(3, 2);
+    const brickMat = new THREE.MeshStandardMaterial({ map: brickTex, roughness: 0.9 });
     const alleyMat = new THREE.MeshStandardMaterial({ color: 0x8a6f4d, roughness: 0.9 });
     const lampMat = new THREE.MeshBasicMaterial({ color: 0xffe9a3 });
     const mkAlleyHouse = (hx: number, hz: number, h: number): void => {
-      const at = winTex.clone();
-      at.wrapS = at.wrapT = THREE.MirroredRepeatWrapping;
-      at.repeat.set(1, Math.max(1, Math.round(h / 6)));
-      at.needsUpdate = true;
+      // кирпич с фото: честная кладка вместо процедурных окон
       const m = new THREE.Mesh(
         new THREE.BoxGeometry(5, h, 6),
-        new THREE.MeshStandardMaterial({ map: at, roughness: 0.85, color: 0xd8c0a0 }),
+        brickMat,
       );
       m.position.set(hx, h / 2, hz);
       m.castShadow = true; m.receiveShadow = true;
@@ -1024,7 +1174,8 @@ export class Game {
   }
 
   private spawnEnemy(kind: 'walk' | 'fly'): void {
-    const fly = kind === 'fly';
+    // в Бэкрумс потолок 3м — летуны бы скребли макушкой, только пешие
+    const fly = kind === 'fly' && this.map !== 'backrooms';
     const tex = fly ? this.foeTextureTinted() : this.foeTexture();
     const g = new THREE.Group();
     const body = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, color: fly ? 0xdd99ff : 0xffffff }));
@@ -1145,7 +1296,7 @@ export class Game {
     }
     if (hits > 0) this.blip(440);
     this.pushHud();
-    if (this.map === 'arena' && this.enemies.every((e) => e.dead)) {
+    if ((this.map === 'arena' || this.map === 'backrooms') && this.enemiesOn && this.enemies.length > 0 && this.enemies.every((e) => e.dead)) {
       this.wave++;
       this.hp = Math.min(this.maxhp, this.hp + 25);
       this.fantiki += 25;
@@ -1209,7 +1360,7 @@ export class Game {
     this.afterHit(best, best.g.position.x - cx, best.g.position.z - cz, Math.hypot(best.g.position.x - cx, best.g.position.z - cz), 0.8);
     this.blip(440);
     this.pushHud();
-    if (this.map === 'arena' && this.enemies.every((e) => e.dead)) {
+    if ((this.map === 'arena' || this.map === 'backrooms') && this.enemiesOn && this.enemies.length > 0 && this.enemies.every((e) => e.dead)) {
       this.wave++;
       this.hp = Math.min(this.maxhp, this.hp + 25);
       this.fantiki += 25;

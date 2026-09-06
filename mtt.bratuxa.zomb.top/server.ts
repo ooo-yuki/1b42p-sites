@@ -99,7 +99,8 @@ interface Member {
   spawnIdx: number;
   ts: number;
 }
-interface Room { id: string; name: string; mode: 'arena' | 'duel'; created: number; round: number; lastWinner: string; owner: string; started: boolean; players: Map<string, Member>; pending: Map<string, Member>; }
+interface ChatMsg { nick: string; text: string; t: number }
+interface Room { id: string; name: string; mode: 'arena' | 'duel' | 'backrooms'; created: number; round: number; lastWinner: string; owner: string; started: boolean; players: Map<string, Member>; pending: Map<string, Member>; chat: ChatMsg[]; }
 const rooms = new Map<string, Room>();
 const STALE_MS = 12000;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -255,11 +256,11 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const nick = cleanNick(body.nick);
     const login = loginByToken(body.token);
     const name = String(body.name ?? '').slice(0, 24).trim() || `Комната ${nick}`;
-    const mode = body.mode === 'duel' ? 'duel' : 'arena';
+    const mode = body.mode === 'duel' ? 'duel' : body.mode === 'backrooms' ? 'backrooms' : 'arena';
     const id = newCode();
     const sid = newSid();
     const sp = duelSpawn(0);
-    const room: Room = { id, name, mode, created: Date.now(), round: 1, lastWinner: '', owner: sid, started: false, players: new Map(), pending: new Map() };
+    const room: Room = { id, name, mode, created: Date.now(), round: 1, lastWinner: '', owner: sid, started: false, players: new Map(), pending: new Map(), chat: [] };
     room.players.set(sid, { sid, nick, login, char: cleanChar(body.char), x: mode === 'duel' ? sp.x : 0, z: mode === 'duel' ? sp.z : 22, yaw: mode === 'duel' ? sp.yaw : 0, hp: 100, score: 0, kills: 0, wave: 1, duelHp: 100, wins: 0, spawnIdx: 0, ts: Date.now() });
     rooms.set(id, room);
     return Response.json({ id, sid, mode, spawn: mode === 'duel' ? sp : null });
@@ -363,11 +364,21 @@ async function roomsApi(req: Request): Promise<Response | null> {
     return Response.json({ foeHp: Math.round(foe.duelHp), wins: me.wins, round: room.round, lastWinner: room.lastWinner });
   }
 
-  // пульс: обновить себя, забрать остальных (+ дуэль-блок)
+  // чат комнаты: только свои, текст чистим, храним последние 50
+  if (req.method === 'POST' && action === 'chat') {
+    const text = String(body.text ?? '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, 200);
+    if (!text) return Response.json({ error: 'empty' }, { status: 400 });
+    room.chat.push({ nick: me.nick, text, t: Date.now() });
+    if (room.chat.length > 50) room.chat.splice(0, room.chat.length - 50);
+    me.ts = Date.now();
+    return Response.json({ ok: true });
+  }
+
+  // пульс: обновить себя, забрать остальных (+ дуэль-блок, + чат)
   if (req.method === 'POST' && action === 'beat') {
     me.char = cleanChar(body.char ?? me.char);
-    me.x = num(body.x, -60, 60);
-    me.z = num(body.z, -60, 60);
+    me.x = num(body.x, -70, 70);
+    me.z = num(body.z, -70, 70);
     me.yaw = num(body.yaw, -10, 10);
     me.hp = Math.round(num(body.hp, 0, 10000));
     me.score = Math.round(num(body.score, 0, 100000000));
@@ -395,7 +406,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
         };
       }
     }
-    return Response.json({ players: others, count: room.players.size, duel, started: room.started, owner: sid === room.owner });
+    return Response.json({ players: others, count: room.players.size, duel, started: room.started, owner: sid === room.owner, chat: room.chat.slice(-20) });
   }
 
   // выйти (из игроков и из заявителей; владелец уходит — комната живёт дальше)

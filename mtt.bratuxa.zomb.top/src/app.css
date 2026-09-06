@@ -76,6 +76,28 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
  border:2px solid #ff9f1c;background:rgba(13,20,40,.85);color:#ff9f1c;padding:8px 12px;cursor:pointer}
 #menuBtn{position:fixed;top:166px;right:10px;z-index:6;font-size:13px;font-weight:800;border-radius:10px;
  border:2px solid #ff9f1c;background:rgba(13,20,40,.85);color:#ff9f1c;padding:8px 10px;cursor:pointer}
+#chatBtn{position:fixed;top:218px;right:10px;z-index:6;font-size:15px;font-weight:800;border-radius:10px;
+ border:2px solid #ff9f1c;background:rgba(13,20,40,.85);color:#ff9f1c;padding:8px 12px;cursor:pointer}
+#chatToast{position:fixed;bottom:120px;left:10px;z-index:6;max-width:60vw;font-size:13px;
+ background:rgba(13,20,40,.85);border:1px solid #ff9f1c;border-radius:8px;color:#ffe9a3;
+ padding:6px 10px;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#chatOv{position:fixed;bottom:170px;left:10px;z-index:20;width:min(78vw,340px);
+ background:rgba(10,14,28,.95);border:2px solid #ff9f1c;border-radius:12px;padding:10px;
+ display:flex;flex-direction:column;gap:8px;box-shadow:4px 4px 0 #000}
+#chatLog{max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;font-size:13px;color:#e8edff}
+.chatSys{color:#8a93b2;font-size:12px}
+.chatMsg b{color:#ffd23f}
+#chatRow{display:flex;gap:6px}
+#chatIn{flex:1;background:#0d1428;border:1px solid #ff9f1c;border-radius:8px;color:#fff;padding:8px;font-size:14px}
+#chatSend{background:#ff9f1c;border:none;border-radius:8px;padding:8px 12px;font-size:15px;cursor:pointer}
+/* выбор карты: три карточки в ряд */
+.mapRow{display:flex;gap:8px;flex-wrap:wrap}
+.mapCard{flex:1;min-width:120px;background:#0d1428;border:2px solid #3a4566;border-radius:12px;
+ color:#e8edff;padding:10px;cursor:pointer;text-align:left}
+.mapCard.sel{border-color:#ffd23f;box-shadow:3px 3px 0 #000;background:#1a2340}
+.mapCard .mname{font-size:15px;font-weight:900}
+.mapCard .mdesc{font-size:11px;color:#9aa3c0;margin-top:4px}
+#mapSec h3,#foeSec h3,#goSec h3{margin:0 0 8px}
 /* бейдж комнаты — слева, чтобы не перекрывать ⛶/меню справа */
 #roomBadge{top:170px;left:10px;right:auto}
 /* прицел по центру экрана: белый + difference — виден на любом фоне */
@@ -133,9 +155,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 #reviveBtn{background:#39d353;border:none;border-radius:14px;padding:14px 30px;font-size:19px;font-weight:900;color:#06240f;cursor:pointer}
 #retryBtn{background:transparent;border:2px solid #fff;border-radius:14px;padding:12px 30px;font-size:17px;font-weight:800;color:#fff;cursor:pointer}
 /* пиксель-оформление: рубленый моноширинный шрифт и жёсткие тени */
-#hud,#shopBtn,#setBtn,#fsBtn,#menuBtn,#hitBtn,.sheet,#waveBanner{font-family:'Courier New',Courier,monospace}
+#hud,#shopBtn,#setBtn,#fsBtn,#menuBtn,#chatBtn,#hitBtn,.sheet,#waveBanner{font-family:'Courier New',Courier,monospace}
 #hud{text-shadow:2px 2px 0 #000}
-#shopBtn,#setBtn,#fsBtn,#menuBtn,#hitBtn{box-shadow:4px 4px 0 #000}
+#shopBtn,#setBtn,#fsBtn,#menuBtn,#chatBtn,#hitBtn{box-shadow:4px 4px 0 #000}
 .wbtn,.wclose{box-shadow:3px 3px 0 #000}
 #waveBanner{position:fixed;inset:0;z-index:15;display:flex;align-items:center;justify-content:center;
  pointer-events:none;font-size:min(11vw,72px);font-weight:900;color:#ffd23f;
