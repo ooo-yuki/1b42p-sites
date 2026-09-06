@@ -9,7 +9,9 @@ export type TexKind =
   | 'asphalt'
   | 'sign'
   | 'wood'
-  | 'palm';
+  | 'palm'
+  | 'grassGround'
+  | 'stone';
 
 const cache = new Map<TexKind, THREE.CanvasTexture>();
 
@@ -112,13 +114,39 @@ const painters: Record<TexKind, (ctx: CanvasRenderingContext2D, n: number) => vo
       ctx.stroke();
     }
   },
+  grassGround: (ctx, n) => {
+    noise(ctx, n, '#55702f', '#48642a');
+    const greens = ['#5d7f36', '#425e26', '#68893d'];
+    for (let i = 0; i < 2600; i++) {
+      ctx.fillStyle = greens[(Math.random() * greens.length) | 0];
+      ctx.fillRect(Math.random() * n, Math.random() * n, 2 + Math.random() * 3, 2 + Math.random() * 3);
+    }
+    ctx.fillStyle = 'rgba(107,90,58,0.5)'; // проплешины
+    for (let i = 0; i < 12; i++) {
+      ctx.beginPath();
+      ctx.ellipse(Math.random() * n, Math.random() * n, 10 + Math.random() * 26, 8 + Math.random() * 18, Math.random() * 3, 0, 7);
+      ctx.fill();
+    }
+  },
+  stone: (ctx, n) => {
+    noise(ctx, n, '#8a8f96', '#7a7f87');
+    ctx.strokeStyle = 'rgba(40,42,48,0.55)';
+    ctx.lineWidth = 2;
+    for (let y = 0; y <= n; y += 32) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(n, y); ctx.stroke(); }
+    for (let y = 0; y < n; y += 32) for (let x = ((y / 32) % 2) * 32; x <= n; x += 64) {
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 32); ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(30,32,38,0.35)';
+    for (let i = 0; i < 24; i++) ctx.fillRect(Math.random() * n, Math.random() * n, 2 + Math.random() * 4, 6 + Math.random() * 18);
+  },
 };
 
 export function getTex(kind: TexKind, size = 256): THREE.CanvasTexture {
   const hit = cache.get(kind);
   if (hit) return hit;
-  const [c, ctx] = canvas(size);
-  painters[kind](ctx, size);
+  const n = kind === 'grassGround' ? 512 : size;
+  const [c, ctx] = canvas(n);
+  painters[kind](ctx, n);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.wrapS = t.wrapT = THREE.RepeatWrapping;

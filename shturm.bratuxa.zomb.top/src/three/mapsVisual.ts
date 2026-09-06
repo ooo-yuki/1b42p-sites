@@ -134,7 +134,11 @@ export function buildMapVisual(map: MapId): THREE.Group {
 
   // Земля — отдельный меш (принимает тени).
   const groundMat = new THREE.MeshStandardMaterial({ color: GROUND_COLOR[map], roughness: 1 });
-  if (map === 'island') {
+  if (map === 'yard') {
+    groundMat.map = getTex('grassGround');
+    groundMat.map.repeat.set(14, 14);
+    groundMat.color.set(0xffffff);
+  } else if (map === 'island') {
     const sand = getTex('sand');
     sand.repeat.set(10, 10);
     groundMat.map = sand;
@@ -155,8 +159,8 @@ export function buildMapVisual(map: MapId): THREE.Group {
   ground.receiveShadow = true;
   group.add(ground);
 
-  const matWall = new THREE.MeshStandardMaterial({ color: WALL_COLOR[map], roughness: 0.9 });
-  const matWood = new THREE.MeshStandardMaterial({ map: getTex('wood'), roughness: 0.8 });
+  const matWall = new THREE.MeshStandardMaterial({ map: getTex('stone'), color: WALL_COLOR[map], roughness: 0.9 });
+  const matWood = new THREE.MeshStandardMaterial({ map: getTex('wood'), roughness: 0.65 });
   const matDark = new THREE.MeshStandardMaterial({ color: 0x2a2d33, roughness: 0.7, metalness: 0.3 });
   const matRubber = new THREE.MeshStandardMaterial({ color: 0x1a1a1c, roughness: 0.95 });
   const add = (m: THREE.Mesh | null) => { if (m) group.add(m); };
@@ -239,11 +243,11 @@ export function buildMapVisual(map: MapId): THREE.Group {
     add(mergedMesh(trunks, matWood));
     const crownMat = new THREE.MeshStandardMaterial({
       map: getTex('palm'), side: THREE.DoubleSide, roughness: 0.9,
-      emissive: 0x1d3d1d, emissiveIntensity: 0.55,
+      emissive: 0x1d3d1d, emissiveIntensity: 0.25,
     });
     add(mergedMesh(crowns, crownMat));
     // Камни-додекаэдры.
-    const matStone = new THREE.MeshStandardMaterial({ color: 0x9a938a, roughness: 1 });
+    const matStone = new THREE.MeshStandardMaterial({ map: getTex('stone'), color: 0xcfc9bd, roughness: 1 });
     add(mergedMesh([
       rock(1.2, 8, 4, 1), rock(0.9, -6, -4, 2), rock(1.5, 12, -8, 3),
       rock(1.1, -12, 8, 4), rock(0.8, 4, 18, 5), rock(1.0, -4, -18, 6),
