@@ -26,7 +26,7 @@ function mats() {
       color: 0x0a0a0a, emissive: 0x1a0d05, emissiveIntensity: 0.3,
       roughness: 0.15, metalness: 0.2,
     });
-    legMat = new THREE.MeshStandardMaterial({ color: 0xd86a20, roughness: 0.7 });
+    legMat = new THREE.MeshStandardMaterial({ color: 0xe87e1e, roughness: 0.65 });
     tipMat = new THREE.MeshStandardMaterial({ color: 0x3c4046, roughness: 0.9 });
   }
   return { featherMat: featherMat!, greyMat: greyMat!, beakMat: beakMat!, eyeMat: eyeMat!, legMat: legMat!, tipMat: tipMat! };
@@ -127,43 +127,56 @@ export function makeSeagull(): THREE.Group {
 
   const add = (o: THREE.Object3D, parent: THREE.Object3D) => { parent.add(o); return o; };
 
-  // Тело-капля: капсула вдоль Z (голова смотрит на -Z) + грудь.
-  const torso = mesh(new THREE.CapsuleGeometry(0.24, 0.55, 4, 10), M.featherMat);
+  // Тело-капля: капсула вдоль Z (голова смотрит на -Z) + вытянутая грудь.
+  // Круг 2: тело вытянуто (0.55→0.62), грудь тянется к шее, голова больше.
+  const torso = mesh(new THREE.CapsuleGeometry(0.24, 0.62, 4, 10), M.featherMat);
   torso.rotation.x = Math.PI / 2;
   torso.scale.set(1, 1, 1);
-  torso.position.set(0, 0, 0.1);
+  torso.position.set(0, 0, 0.12);
   add(torso, body);
   const breast = mesh(new THREE.SphereGeometry(0.22, 12, 10), M.featherMat);
-  breast.scale.set(0.9, 1, 0.9);
-  breast.position.set(0, -0.08, -0.18);
+  breast.scale.set(0.95, 1.0, 1.15);
+  breast.position.set(0, -0.08, -0.24);
   add(breast, body);
+  // Шея — наклонный цилиндр от груди к голове (утоплена в обе, чтобы не
+  // давать затенённой складки-«ошейника» спереди).
+  const neck = mesh(new THREE.CylinderGeometry(0.14, 0.18, 0.24, 10), M.featherMat);
+  neck.rotation.x = 0.35;
+  neck.position.set(0, 0.18, -0.4);
+  add(neck, body);
 
   // Голова + клюв-конус (жёлтый) + глаза-бусины.
-  const head = mesh(new THREE.SphereGeometry(0.17, 14, 12), M.featherMat);
-  head.position.set(0, 0.22, -0.42);
+  // Круг 2: голова больше (r 0.19), посажена низко — низ сферы утоплен
+  // в грудь, иначе камера снизу видит тёмную нижнюю полусферу («ошейник»).
+  const head = mesh(new THREE.SphereGeometry(0.19, 14, 12), M.featherMat);
+  head.position.set(0, 0.22, -0.45);
   add(head, body);
-  const cap = mesh(new THREE.SphereGeometry(0.165, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.45), M.greyMat);
-  cap.position.set(0, 0.245, -0.42);
+  const cap = mesh(new THREE.SphereGeometry(0.185, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.45), M.greyMat);
+  cap.position.set(0, 0.245, -0.45);
   add(cap, body);
   const beak = mesh(new THREE.ConeGeometry(0.06, 0.3, 8), M.beakMat);
   beak.rotation.x = -Math.PI / 2;
-  beak.position.set(0, 0.18, -0.68);
+  beak.position.set(0, 0.18, -0.72);
   add(beak, body);
   const beakLow = mesh(new THREE.ConeGeometry(0.032, 0.15, 6), M.beakMat);
   beakLow.rotation.x = -Math.PI / 2 + 0.12;
-  beakLow.position.set(0, 0.145, -0.6);
+  beakLow.position.set(0, 0.145, -0.64);
   add(beakLow, body);
   for (const s of [-1, 1]) {
-    const eye = mesh(new THREE.SphereGeometry(0.032, 8, 6), M.eyeMat);
-    eye.position.set(0.09 * s, 0.27, -0.53);
+    const eye = mesh(new THREE.SphereGeometry(0.034, 8, 6), M.eyeMat);
+    eye.position.set(0.115 * s, 0.28, -0.585);
     add(eye, body);
   }
 
-  // Крылья: по сегменту-плоскости на каждую кость + перья-веер на конце.
-  const segGeoA = new THREE.BoxGeometry(0.7, 0.045, 0.5);
-  const segGeoB = new THREE.BoxGeometry(0.65, 0.04, 0.42);
-  const segGeoC = new THREE.BoxGeometry(0.55, 0.035, 0.34);
-  const featherGeo = new THREE.BoxGeometry(0.14, 0.02, 0.5);
+  // Крылья: ступенчатое сужение хорды A→B→C + веер из 5 маховых перьев.
+  // Круг 2: хорда 0.5→0.38→0.28 (были «доски» 0.5/0.42/0.34), перья — длинные
+  // узкие вдоль размаха X: светлое основание + тёмный кончик, щели-прорези
+  // (шаг 0.095 > ширины 0.088) + внахлёст по Y + веерное расхождение.
+  const segGeoA = new THREE.BoxGeometry(0.7, 0.05, 0.5);
+  const segGeoB = new THREE.BoxGeometry(0.62, 0.045, 0.38);
+  const segGeoC = new THREE.BoxGeometry(0.5, 0.04, 0.28);
+  const primBaseGeo = new THREE.BoxGeometry(0.32, 0.018, 0.088);
+  const primTipGeo = new THREE.BoxGeometry(0.24, 0.016, 0.082);
   const sides: Array<{ bones: THREE.Bone[]; sg: number }> = [
     { bones: wingL, sg: -1 },
     { bones: wingR, sg: 1 },
@@ -177,41 +190,50 @@ export function makeSeagull(): THREE.Group {
     covert.position.set(0.3 * sg, 0.02, -0.05);
     add(covert, a);
     const segB = mesh(segGeoB, M.featherMat);
-    segB.position.set(0.32 * sg, 0, 0.03);
+    segB.position.set(0.31 * sg, 0, 0.02);
     add(segB, b);
     const segC = mesh(segGeoC, M.greyMat);
-    segC.position.set(0.28 * sg, 0, 0);
+    segC.position.set(0.25 * sg, 0, 0);
     add(segC, c);
-    // Веер из 3 маховых перьев на конце крыла.
-    for (let f = -1; f <= 1; f++) {
-      const fe = mesh(featherGeo, f === 0 ? M.greyMat : M.tipMat);
-      fe.position.set(0.62 * sg, 0, 0.02 + 0.12 * f);
-      fe.rotation.y = 0.25 * f * sg;
-      add(fe, c);
+    // Веер из 5 маховых перьев: продолжение размаха, концы уходят назад.
+    for (let i = 0; i < 5; i++) {
+      const f = i - 2; // -2..2
+      const feather = new THREE.Group();
+      feather.position.set(0.48 * sg, 0.004 * i, 0.095 * f);
+      feather.rotation.y = -0.1 * f * sg;
+      const base = mesh(primBaseGeo, i % 2 ? M.featherMat : M.greyMat);
+      base.position.set(0.16 * sg, 0, 0.04);
+      feather.add(base);
+      const tip = mesh(primTipGeo, M.tipMat);
+      tip.position.set(0.42 * sg, 0.001, 0.09);
+      feather.add(tip);
+      add(feather, c);
     }
   }
 
-  // Хвост-веер: 3 плоскости назад.
-  for (let f = -1; f <= 1; f++) {
-    const t = mesh(new THREE.BoxGeometry(0.12, 0.025, 0.45), f === 0 ? M.greyMat : M.featherMat);
-    t.position.set(0.09 * f, 0.02, 0.68);
-    t.rotation.y = 0.3 * f;
+  // Хвост-веер: 5 перьев внахлёст, шире и толще (было 3 тонких — «палочка»).
+  const tailGeo = new THREE.BoxGeometry(0.13, 0.03, 0.5);
+  for (let i = 0; i < 5; i++) {
+    const f = i - 2; // -2..2
+    const t = mesh(tailGeo, i % 2 ? M.featherMat : M.greyMat);
+    t.position.set(0.085 * f, 0.02 + 0.003 * i, 0.72 - 0.02 * Math.abs(f));
+    t.rotation.y = 0.18 * f;
     add(t, body);
   }
 
-  // Лапы-цилиндры + перепонки (прижаты — птица в воздухе).
+  // Лапы: толще (r 0.028→0.042), перепонки шире (прижаты — птица в воздухе).
   for (const s of [-1, 1]) {
-    const leg = mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.32, 6), M.legMat);
+    const leg = mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.34, 8), M.legMat);
     leg.rotation.x = Math.PI / 2 - 0.15;
     leg.position.set(0.11 * s, -0.24, 0.28);
     add(leg, body);
-    const web = mesh(new THREE.BoxGeometry(0.11, 0.02, 0.14), M.legMat);
-    web.position.set(0.11 * s, -0.27, 0.46);
+    const web = mesh(new THREE.BoxGeometry(0.16, 0.03, 0.2), M.legMat);
+    web.position.set(0.11 * s, -0.27, 0.48);
     add(web, body);
     for (let toe = -1; toe <= 1; toe++) {
-      const t = mesh(new THREE.ConeGeometry(0.018, 0.09, 5), M.legMat);
+      const t = mesh(new THREE.ConeGeometry(0.024, 0.12, 5), M.legMat);
       t.rotation.x = Math.PI / 2;
-      t.position.set(0.11 * s + 0.035 * toe, -0.27, 0.55);
+      t.position.set(0.11 * s + 0.05 * toe, -0.27, 0.6);
       add(t, body);
     }
   }
