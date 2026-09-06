@@ -50,8 +50,14 @@ function radialTex(inner: string, outer: string, size = 64): THREE.CanvasTexture
 
 let puffTex: THREE.CanvasTexture | null = null;
 function getPuffTex(): THREE.CanvasTexture {
-  if (!puffTex) puffTex = radialTex('rgba(255,230,160,1)', 'rgba(255,120,20,0)');
+  if (!puffTex) puffTex = radialTex('rgba(255,244,214,1)', 'rgba(255,120,20,0)');
   return puffTex;
+}
+
+let coreTex: THREE.CanvasTexture | null = null;
+function getCoreTex(): THREE.CanvasTexture {
+  if (!coreTex) coreTex = radialTex('rgba(255,255,246,1)', 'rgba(255,190,60,0)');
+  return coreTex;
 }
 
 let smokeTex: THREE.CanvasTexture | null = null;
@@ -60,13 +66,15 @@ function getSmokeTex(): THREE.CanvasTexture {
   return smokeTex;
 }
 
-// ---------- ВЗРЫВ: аддитивный спрайт-пуф + PointLight без теней + 8 осколков ----------
+// ---------- ВЗРЫВ: ядро-спрайт + аддитивный пуф + PointLight без теней + 8 осколков ----------
 export interface BoomOpts { big?: boolean }
 export function makeBoomPool(scene: THREE.Scene, n = 4) {
   interface Slot {
-    sprite: THREE.Sprite; light: THREE.PointLight; shards: THREE.Mesh[];
-    vel: THREE.Vector3[]; t: number; dur: number; big: boolean; active: boolean;
+    sprite: THREE.Sprite; core: THREE.Sprite; light: THREE.PointLight; shards: THREE.Mesh[];
+    vel: THREE.Vector3[]; base: THREE.Vector3[]; rot: THREE.Vector3[];
+    t: number; dur: number; big: boolean; active: boolean;
   }
+  // Осколки-комья: ребро 0.12 (~50% линейно мельче сырных 0.43), форма/размер — разбросом scale на меше.
   const shardGeo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
   const slots: Slot[] = [];
   for (let i = 0; i < n; i++) {
@@ -76,20 +84,33 @@ export function makeBoomPool(scene: THREE.Scene, n = 4) {
     const sprite = new THREE.Sprite(mat);
     sprite.visible = false;
     scene.add(sprite);
-    const light = new THREE.PointLight(0xffa040, 0, 14, 1.8);
+    const coreMat = new THREE.SpriteMaterial({
+      map: getCoreTex(), blending: THREE.AdditiveBlending, transparent: true, opacity: 0, depthWrite: false,
+    });
+    const core = new THREE.Sprite(coreMat);
+    core.visible = false;
+    scene.add(core);
+    const light = new THREE.PointLight(0xffa040, 0, 22, 1.8);
     light.castShadow = false;
     scene.add(light);
     const shards: THREE.Mesh[] = [];
     const vel: THREE.Vector3[] = [];
-    const shardMat = new THREE.MeshBasicMaterial({ color: 0x3a2a1a });
+    const base: THREE.Vector3[] = [];
+    const rot: THREE.Vector3[] = [];
+    // Тёмная база (комья земли/металл) + оранжевый emissive: читается и в тени, и в пересвете ядра.
+    const shardMat = new THREE.MeshStandardMaterial({
+      color: 0x2b1d12, emissive: 0xff5a14, emissiveIntensity: 1.1, roughness: 0.95, metalness: 0.1,
+    });
     for (let s = 0; s < 8; s++) {
       const m = new THREE.Mesh(shardGeo, shardMat);
       m.visible = false;
       scene.add(m);
       shards.push(m);
       vel.push(new THREE.Vector3());
+      base.push(new THREE.Vector3(1, 1, 1));
+      rot.push(new THREE.Vector3());
     }
-    slots.push({ sprite, light, shards, vel, t: 0, dur: 0.5, big: false, active: false });
+    slots.push({ sprite, core, light, shards, vel, base, rot, t: 0, dur: 0.5, big: false, active: false });
   }
   let k = 0;
   return {
@@ -100,9 +121,11 @@ export function makeBoomPool(scene: THREE.Scene, n = 4) {
       s.sprite.position.copy(pos);
       s.sprite.position.y = Math.max(0.6, pos.y);
       s.sprite.visible = true;
+      s.core.position.copy(s.sprite.position);
+      s.core.visible = true;
       s.light.position.copy(s.sprite.position);
       s.light.position.y += 0.5;
-      s.light.intensity = big ? 120 : 60;
+      s.light.intensity = big ? 320 : 180;
       for (let i = 0; i < s.shards.length; i++) {
         const m = s.shards[i];
         m.position.copy(s.sprite.position);
@@ -111,7 +134,15 @@ export function makeBoomPool(scene: THREE.Scene, n = 4) {
         const a = (i / s.shards.length) * Math.PI * 2;
         const sp = (big ? 9 : 6) * (0.7 + 0.3 * ((i * 37) % 10) / 10);
         s.vel[i].set(Math.cos(a) * sp, 4 + ((i * 53) % 5), Math.sin(a) * sp);
-        m.scale.setScalar(1);
+        // Неправильный комок: разброс размера/формы и стартового разворота, детерминирован по индексу.
+        m.rotation.set((i * 1.7) % Math.PI, (i * 2.3) % Math.PI, (i * 0.9) % Math.PI);
+        s.base[i].set(
+          0.55 + (((i * 37) % 10) / 10) * 0.6,
+          0.45 + (((i * 53) % 10) / 10) * 0.6,
+          0.55 + (((i * 71) % 10) / 10) * 0.6,
+        );
+        m.scale.copy(s.base[i]);
+        s.rot[i].set(3 + ((i * 41) % 8), 2 + ((i * 59) % 9), 1 + ((i * 23) % 7));
       }
     },
     update(dt: number) {
@@ -124,18 +155,23 @@ export function makeBoomPool(scene: THREE.Scene, n = 4) {
         const r = 0.5 + (maxR - 0.5) * ease;
         s.sprite.scale.setScalar(r);
         (s.sprite.material as THREE.SpriteMaterial).opacity = 1 - kq;
-        s.light.intensity = (s.big ? 120 : 60) * (1 - kq);
+        // Ядро компактнее пуфа и держит яркость дольше (корень — медленный спад).
+        s.core.scale.setScalar(Math.max(0.01, r * 0.55));
+        (s.core.material as THREE.SpriteMaterial).opacity = Math.pow(1 - kq, 0.6);
+        s.light.intensity = (s.big ? 320 : 180) * (1 - kq);
         for (let i = 0; i < s.shards.length; i++) {
           const m = s.shards[i];
           s.vel[i].y -= 18 * dt;
           m.position.addScaledVector(s.vel[i], dt);
           if (m.position.y < 0.06) { m.position.y = 0.06; s.vel[i].set(0, 0, 0); }
-          m.rotation.x += dt * 7; m.rotation.y += dt * 5;
-          m.scale.setScalar(Math.max(0.01, 1 - kq));
+          m.rotation.x += dt * s.rot[i].x; m.rotation.y += dt * s.rot[i].y; m.rotation.z += dt * s.rot[i].z;
+          const sh = Math.max(0.01, 1 - kq);
+          m.scale.set(s.base[i].x * sh, s.base[i].y * sh, s.base[i].z * sh);
         }
         if (kq >= 1) {
           s.active = false;
           s.sprite.visible = false;
+          s.core.visible = false;
           s.light.intensity = 0;
           for (const m of s.shards) m.visible = false;
         }
