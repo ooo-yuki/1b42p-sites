@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import * as THREE from 'three';
 import { App, inputBus } from './ui/App';
 import { initScene } from './three/scene';
+import { makeSky, SKY_MOODS } from './three/sky';
 import { makeNeonComposer, shouldBloom, NEON_BLOOM, NEON_BLOOM_LOW, type NeonComposer } from './three/post';
 import { loadShuba, type Shuba } from './three/shuba';
 import { makeMob, setMobLightDetail, updateMob, type MobKind } from './three/mobs';
@@ -84,6 +85,9 @@ let lowT = 0;
 
 // ---------- Three ----------
 const { scene, camera, renderer } = initScene(canvas);
+// Небо-купол Task 1: солнце + дрейфующие облака, настроение — через applyMapMood.
+const skyRig = makeSky();
+scene.add(skyRig.mesh);
 renderer.setSize(window.innerWidth, window.innerHeight);
 // Task 8: честные draw calls приёмки — info копим за весь кадр
 // (все проходы композитора + shadow map), сброс вручную в step().
@@ -323,11 +327,16 @@ function applyMapMood(map: MapId) {
     scene.fog.near = mood.fogNear;
     scene.fog.far = mood.fogFar;
   }
+  // Небо-купол Task 1: параметры купола + экспозиция + солнце из SKY_MOODS.
+  skyRig.setMood(SKY_MOODS[map]);
+  renderer.toneMappingExposure = SKY_MOODS[map].exposure;
   scene.traverse((o) => {
     if ((o as THREE.HemisphereLight).isHemisphereLight && !o.userData.isRim) (o as THREE.HemisphereLight).intensity = mood.hemi;
     if ((o as THREE.DirectionalLight).isDirectionalLight && !o.userData.isRim) {
       (o as THREE.DirectionalLight).color.set(mood.sun);
       (o as THREE.DirectionalLight).intensity = mood.sunI;
+      // Солнце встаёт по направлению из настроения неба (купол и свет в согласии).
+      (o as THREE.DirectionalLight).position.copy(SKY_MOODS[map].sunDir).multiplyScalar(120);
     }
   });
 }
@@ -727,6 +736,7 @@ function step(now: number) {
     e.mesh.rotation.y = Math.atan2(p.x - e.x, p.z - e.z);
   }
   tracers.update(dt);
+  skyRig.tick(dt); // Task 1: дрейф облаков на куполе.
   if (medkitGroup) {
     const t = now / 1000;
     medkitGroup.children.forEach((g) => {
