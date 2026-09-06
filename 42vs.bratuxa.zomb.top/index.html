@@ -59,7 +59,7 @@
 var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 /* --- поле 9×5 по лужайке фона (фон 1100×472 сверху, снизу полоса) --- */
 var BGW=1100,BGH=472;
-var GX0=197,GX1=781,GY0=65,GY1=450,COLS=9,ROWS=5; // точная посадка по замеру газона
+var GX0=247,GX1=831,GY0=65,GY1=450,COLS=9,ROWS=5; // поле на 50px правее — виден кусок дома
 var CW=(GX1-GX0)/COLS,CH=(GY1-GY0)/ROWS;
 var PANELX=0,PANELW=136; // компактная панель слева
 /* --- баланс --- */
@@ -287,7 +287,7 @@ function drawPanel(){
 }
 /* --- ввод: drag&drop + клик-клик --- */
 var mouse={x:0,y:0};
-function evXY(e){var r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)*cv.width/r.width,y:(e.clientY-r.top)*cv.height/r.height};}
+function evXY(e){var r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)*cv.width/r.width/SCALE2D,y:(e.clientY-r.top)*cv.height/r.height/SCALE2D};}
 function cellFromXY(x,y){
   if(x<GX0||x>=GX1||y<GY0||y>=GY1)return null;
   return {r:Math.min(ROWS-1,Math.floor((y-GY0)/CH)),c:Math.min(COLS-1,Math.floor((x-GX0)/CW))};
