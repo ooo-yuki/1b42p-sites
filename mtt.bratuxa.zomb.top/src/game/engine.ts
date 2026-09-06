@@ -24,6 +24,7 @@ export function charSpec(id: string): CharDef {
 }
 
 export type Quality = 'fast' | 'nice';
+export type MapId = 'arena' | 'duel';
 
 export interface HudState {
   hp: number;
@@ -107,6 +108,8 @@ interface Remote {
   tex: THREE.CanvasTexture;
   x: number;
   z: number;
+  tx: number;
+  tz: number;
   hp: number;
   char: string;
 }
@@ -133,8 +136,8 @@ interface Enemy {
 const ARENA = 110;
 const HALF = ARENA / 2;
 
-function clampArena(v: number): number {
-  return Math.max(-HALF + 3, Math.min(HALF - 3, v));
+function clampArena(v: number, half: number = HALF): number {
+  return Math.max(-half + 3, Math.min(half - 3, v));
 }
 
 export class Game {
@@ -172,6 +175,7 @@ export class Game {
   private pvy = 0;
   private keyMap: KeyMap = { ...DEFAULT_KEYS };
   private remotes: Remote[] = [];
+  private half: number = HALF;
   private wallKickCd = 0;
   private charId = 'mtt';
   private charSpd = 1;
@@ -182,12 +186,13 @@ export class Game {
   private dashT = 0;
   private dashCd = 0;
   private dashDx = 0;
+  private dashDy = 0;
   private dashDz = 0;
   private quality: Quality = 'fast';
   private foeTexCache: THREE.Texture[] = [];
   private enemies: Enemy[] = [];
-  // коллизия ровно по размеру: коробки как AABB (полуширина/hx, полуглубина/hz)
-  private solids: { x: number; z: number; hx: number; hz: number }[] = [];
+  // хитбокс окружения строго внутри текстуры: коробки — точный AABB, круглые — точный радиус
+  private solids: Array<{ x: number; z: number; hx: number; hz: number } | { x: number; z: number; r: number }> = [];
   private AC: AudioContext | null = null;
   private lookPointer = -1;
   private lookLX = 0;
@@ -235,7 +240,9 @@ export class Game {
     private canvas: HTMLCanvasElement,
     private mmCanvas: HTMLCanvasElement | null,
     private ev: GameEvents,
+    readonly map: MapId = 'arena',
   ) {
+    this.half = map === 'duel' ? 32 : HALF;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
     this.loadQuality();
     this.loadChar();
@@ -252,12 +259,12 @@ export class Game {
     this.renderer.toneMappingExposure = 1.15;
     this.camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 400);
     this.camera.rotation.order = 'YXZ';
-    this.scene.background = new THREE.Color(0x9ecdf0);
-    this.scene.fog = new THREE.Fog(0x9ecdf0, 60, 200);
+    this.scene.background = new THREE.Color(map === 'duel' ? 0x1a1030 : 0x9ecdf0);
+    this.scene.fog = new THREE.Fog(map === 'duel' ? 0x1a1030 : 0x9ecdf0, map === 'duel' ? 40 : 60, map === 'duel' ? 140 : 200);
     this.loadShop();
     this.loadKeys();
     this.buildWorld();
-    this.spawnWave();
+    if (map !== 'duel') this.spawnWave();
     window.addEventListener('resize', this.onResize);
     canvas.addEventListener('pointerdown', this.onPointerDown);
     window.addEventListener('pointermove', this.onPointerMove);
@@ -457,7 +464,91 @@ export class Game {
     this.joy.y = Math.max(-1, Math.min(1, y));
   }
 
+  // Дуэльный двор 1×1: ночь, глина, симметрия. Спавны: (0,20) и (0,-20).
+  private buildDuel(): void {
+    const scene = this.scene;
+    const H = this.half;
+    scene.add(new THREE.AmbientLight(0x8a8ac0, 0.55));
+    const moon = new THREE.DirectionalLight(0xff9f6a, 1.0);
+    moon.position.set(-30, 60, -20);
+    moon.castShadow = true;
+    moon.shadow.mapSize.width = 1024;
+    moon.shadow.mapSize.height = 1024;
+    moon.shadow.camera.left = -50;
+    moon.shadow.camera.right = 50;
+    moon.shadow.camera.top = 50;
+    moon.shadow.camera.bottom = -50;
+    moon.shadow.camera.near = 10;
+    moon.shadow.camera.far = 180;
+    moon.shadow.bias = -0.0004;
+    scene.add(moon);
+    // глина вместо травы
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(H * 2 + 20, H * 2 + 20),
+      new THREE.MeshStandardMaterial({ color: 0x7a5240, roughness: 1 }),
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+    // светящийся круг центра
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(4, 5, 32),
+      new THREE.MeshBasicMaterial({ color: 0xff9f1c, transparent: true, opacity: 0.7, side: THREE.DoubleSide }),
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(0, 0.03, 0);
+    scene.add(ring);
+    // периметр — низкие стены с текстурой дома
+    const wallTex = new THREE.TextureLoader().load(dom1Url);
+    wallTex.colorSpace = THREE.SRGBColorSpace;
+    wallTex.wrapS = wallTex.wrapT = THREE.RepeatWrapping;
+    wallTex.repeat.set(6, 1);
+    const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.85 });
+    const mkWall = (w: number, d: number, x: number, z: number): void => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, 7, d), wallMat);
+      m.position.set(x, 3.5, z);
+      m.castShadow = true;
+      scene.add(m);
+      this.solids.push({ x, z, hx: w / 2, hz: d / 2 });
+    };
+    mkWall(H * 2 + 4, 2, 0, -H - 1);
+    mkWall(H * 2 + 4, 2, 0, H + 1);
+    mkWall(2, H * 2 + 4, -H - 1, 0);
+    mkWall(2, H * 2 + 4, H + 1, 0);
+    // центральный низкий барьер + 4 симметричных ящика
+    const barMat = new THREE.MeshStandardMaterial({ color: 0x5a3a22, roughness: 0.9 });
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(10, 1.4, 1.2), barMat);
+    bar.position.set(0, 0.7, 0);
+    bar.castShadow = true;
+    scene.add(bar);
+    this.solids.push({ x: 0, z: 0, hx: 5, hz: 0.6 });
+    for (const [cx, cz] of [[-12, -12], [12, -12], [-12, 12], [12, 12]] as Array<[number, number]>) {
+      const c = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.4, 2.4), barMat);
+      c.position.set(cx, 1.2, cz);
+      c.castShadow = true;
+      scene.add(c);
+      this.solids.push({ x: cx, z: cz, hx: 1.2, hz: 1.2 });
+    }
+    // факелы по углам (свет без теней — дёшево)
+    for (const [fx, fz] of [[-H + 4, -H + 4], [H - 4, -H + 4], [-H + 4, H - 4], [H - 4, H - 4]] as Array<[number, number]>) {
+      const pole = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.2, 0.2, 4, 8),
+        new THREE.MeshStandardMaterial({ color: 0x2a2018 }),
+      );
+      pole.position.set(fx, 2, fz);
+      scene.add(pole);
+      const flame = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 10), new THREE.MeshBasicMaterial({ color: 0xff7b1c }));
+      flame.position.set(fx, 4.3, fz);
+      scene.add(flame);
+      const tl = new THREE.PointLight(0xff8b2a, 0.8, 30);
+      tl.position.set(fx, 4.3, fz);
+      scene.add(tl);
+      this.solids.push({ x: fx, z: fz, r: 0.2 });
+    }
+  }
+
   private buildWorld(): void {
+    if (this.map === 'duel') { this.buildDuel(); return; }
     const scene = this.scene;
     // светло: день вместо ночи
     scene.add(new THREE.AmbientLight(0xffffff, 0.95));
@@ -488,13 +579,27 @@ export class Game {
     ground.receiveShadow = true;
     scene.add(ground);
 
-    // сетка улиц для ориентации
-    const lineMat = new THREE.MeshBasicMaterial({ color: 0x8fa3c4 });
+    // город: асфальтовые улицы с пунктиром (одна переиспользуемая текстура — дёшево)
+    const roadCv = document.createElement('canvas');
+    roadCv.width = 128; roadCv.height = 64;
+    const rg = roadCv.getContext('2d')!;
+    rg.fillStyle = '#2e3440';
+    rg.fillRect(0, 0, 128, 64);
+    rg.fillStyle = '#3a4150';
+    for (let i = 0; i < 40; i++) rg.fillRect(Math.random() * 128, Math.random() * 64, 3, 3);
+    rg.fillStyle = '#ffd23f';
+    rg.fillRect(8, 30, 44, 4);
+    rg.fillRect(76, 30, 44, 4);
+    const roadTex = new THREE.CanvasTexture(roadCv);
+    roadTex.colorSpace = THREE.SRGBColorSpace;
+    roadTex.wrapS = roadTex.wrapT = THREE.RepeatWrapping;
+    roadTex.repeat.set(16, 1);
+    const roadMat = new THREE.MeshStandardMaterial({ map: roadTex, roughness: 1 });
     for (let i = -HALF; i <= HALF; i += 22) {
-      const l1 = new THREE.Mesh(new THREE.PlaneGeometry(ARENA, 0.4), lineMat);
-      l1.rotation.x = -Math.PI / 2; l1.position.set(0, 0.02, i); scene.add(l1);
-      const l2 = new THREE.Mesh(new THREE.PlaneGeometry(0.4, ARENA), lineMat);
-      l2.rotation.x = -Math.PI / 2; l2.position.set(i, 0.02, 0); scene.add(l2);
+      const r1 = new THREE.Mesh(new THREE.PlaneGeometry(ARENA, 5), roadMat);
+      r1.rotation.x = -Math.PI / 2; r1.position.set(0, 0.012, i); r1.receiveShadow = true; scene.add(r1);
+      const r2 = new THREE.Mesh(new THREE.PlaneGeometry(5, ARENA), roadMat);
+      r2.rotation.x = -Math.PI / 2; r2.rotation.z = Math.PI / 2; r2.position.set(i, 0.012, 0); r2.receiveShadow = true; scene.add(r2);
     }
 
     // периметр — дома МТТ (текстура подъезда)
@@ -523,9 +628,10 @@ export class Game {
     const spots: Array<[number, number]> = [[-30, -20], [28, -28], [-24, 18], [30, 22], [0, -38], [-38, -2], [38, 0], [0, 38]];
     for (const [bx, bz] of spots) {
       const w = 10 + Math.random() * 4, d = 8 + Math.random() * 4, h = 7 + Math.random() * 6;
+      const tint = new THREE.Color().setHSL(0.07 + Math.random() * 0.05, 0.25, 0.8 + Math.random() * 0.2);
       const m = new THREE.Mesh(
         new THREE.BoxGeometry(w, h, d),
-        new THREE.MeshStandardMaterial({ map: winTex, roughness: 0.8 }),
+        new THREE.MeshStandardMaterial({ map: winTex, roughness: 0.8, color: tint }),
       );
       m.position.set(bx, h / 2, bz);
       m.castShadow = true; m.receiveShadow = true;
@@ -554,8 +660,8 @@ export class Game {
       const pl = new THREE.PointLight(0xffd88a, 0.5, 46);
       pl.position.set(fx, 9, fz);
       scene.add(pl);
-      // столб тонкий, но честный: коллизия ровно по нему
-      this.solids.push({ x: fx, z: fz, hx: 0.3, hz: 0.3 });
+      // столб тонкий и круглый: хитбокс ровно по нему
+      this.solids.push({ x: fx, z: fz, r: 0.25 });
     }
 
     // центр — площадь с фонтаном
@@ -581,7 +687,8 @@ export class Game {
     fountainWater.rotation.x = -Math.PI / 2;
     fountainWater.position.set(0, 1.02, 0);
     scene.add(fountainWater);
-    this.solids.push({ x: 0, z: 0, hx: 2, hz: 2 });
+    // чаша круглая: хитбокс ровно по радиусу, не выходит за текстуру
+    this.solids.push({ x: 0, z: 0, r: 2 });
 
     // ящики-укрытия (ровно 2.2×2.2, без поворотов — коллизия честная)
     const crateMat = new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: 0.9 });
@@ -610,7 +717,7 @@ export class Game {
       board.position.set(bx, 8.5, bz);
       board.rotation.y = ry;
       scene.add(board);
-      this.solids.push({ x: bx, z: bz, hx: 0.3, hz: 0.3 });
+      this.solids.push({ x: bx, z: bz, hx: 0.2, hz: 0.2 });
     }
   }
 
@@ -800,7 +907,7 @@ export class Game {
     }
     if (hits > 0) this.blip(440);
     this.pushHud();
-    if (this.enemies.every((e) => e.dead)) {
+    if (this.map === 'arena' && this.enemies.every((e) => e.dead)) {
       this.wave++;
       this.hp = Math.min(this.maxhp, this.hp + 25);
       this.fantiki += 25;
@@ -811,14 +918,17 @@ export class Game {
     return hits;
   }
 
-  // рывок МТТ: строго в сторону взгляда (куда смотрит камера), кд 3с.
+  // рывок МТТ: строго в сторону взгляда, включая вверх/вниз (куда смотрит камера), кд 3с.
   // Союзников (remotes) урон не трогает вовсе: attack() бьёт только enemies.
   dash(): boolean {
     if (!this.started || this.dead || this.dashCd > 0 || this.charId !== 'mtt') return false;
-    this.dashDx = -Math.sin(this.yaw);
-    this.dashDz = -Math.cos(this.yaw);
+    const cp = Math.cos(this.pitch);
+    this.dashDx = -Math.sin(this.yaw) * cp;
+    this.dashDy = Math.sin(this.pitch);
+    this.dashDz = -Math.cos(this.yaw) * cp;
     this.dashT = 0.18;
     this.dashCd = 3;
+    this.pvy = 0;
     this.burst(this.px, 0.4, this.pz, 12);
     this.blip(880);
     this.pushHud();
@@ -829,21 +939,27 @@ export class Game {
   debugKick(): number { return Math.round(this.wallKickCd * 10) / 10; }
   debugWall(): number { return Math.round(this.wallT * 100) / 100; }
   debugTeleport(x: number, z: number, yaw?: number): void {
-    this.px = clampArena(Number(x) || 0);
-    this.pz = clampArena(Number(z) || 0);
+    this.px = this.clamp(Number(x) || 0);
+    this.pz = this.clamp(Number(z) || 0);
     if (typeof yaw === 'number' && Number.isFinite(yaw)) this.yaw = yaw;
   }
   debugRemoteList(): RemotePlayer[] {
     return this.remotes.map((m) => ({ nick: m.nick, char: m.char, x: m.x, z: m.z, hp: m.hp }));
   }
 
-  // круг (игрок/враг радиусом rad) против коробки ровно по её размеру
+  // круг (игрок/враг радиусом rad) против окружения: коробка — точный AABB,
+  // круглое (фонтан/столб) — точный радиус. Хитбокс никогда не выходит за текстуру.
   private hitSolid(x: number, z: number, rad: number): boolean {
     for (const s of this.solids) {
-      const cx = Math.max(s.x - s.hx, Math.min(x, s.x + s.hx));
-      const cz = Math.max(s.z - s.hz, Math.min(z, s.z + s.hz));
-      const dx = x - cx, dz = z - cz;
-      if (dx * dx + dz * dz < rad * rad) return true;
+      if ('r' in s) {
+        const dx = x - s.x, dz = z - s.z;
+        if (dx * dx + dz * dz < (s.r + rad) * (s.r + rad)) return true;
+      } else {
+        const cx = Math.max(s.x - s.hx, Math.min(x, s.x + s.hx));
+        const cz = Math.max(s.z - s.hz, Math.min(z, s.z + s.hz));
+        const dx = x - cx, dz = z - cz;
+        if (dx * dx + dz * dz < rad * rad) return true;
+      }
     }
     return false;
   }
@@ -941,7 +1057,7 @@ export class Game {
         lab.position.set(0, 2.5, 0);
         g.add(lab);
         this.scene.add(g);
-        r = { nick, g, cv, tex: ltex, x: 0, z: 0, hp: 100, char };
+        r = { nick, g, cv, tex: ltex, x: 0, z: 0, tx: 0, tz: 0, hp: 100, char };
         this.remotes.push(r);
       } else if (r.char !== char) {
         r.char = char;
@@ -950,8 +1066,10 @@ export class Game {
         body.material.needsUpdate = true;
       }
       const rr: Remote = r;
-      rr.x = clampArena(Number(p.x) || 0);
-      rr.z = clampArena(Number(p.z) || 0);
+      // цели с сервера; рендер догоняет их плавно каждый кадр (без задержек и рывков)
+      rr.tx = this.clamp(Number(p.x) || 0);
+      rr.tz = this.clamp(Number(p.z) || 0);
+      if (rr.x === 0 && rr.z === 0 && (rr.tx !== 0 || rr.tz !== 0)) { rr.x = rr.tx; rr.z = rr.tz; }
       rr.hp = Math.max(0, Math.min(100, Number(p.hp) || 0));
       this.drawRemote(rr);
     }
@@ -991,6 +1109,19 @@ export class Game {
       yaw: Math.round(this.yaw * 100) / 100,
     };
   }
+  private clamp(v: number): number {
+    return clampArena(v, this.half);
+  }
+
+  debugMap(): MapId { return this.map; }
+
+  // HP дуэли ставит сервер (синхрон обоих бойцов)
+  setDuelHp(hp: number): number {
+    this.hp = Math.max(0, Math.min(this.maxhp, Math.round(hp)));
+    this.pushHud();
+    return this.hp;
+  }
+
   debugAttack(): number { return this.attack(); }
   debugHp(): number { return Math.round(this.hp); }
   debugGive(n: number): number { this.fantiki += n; this.saveShop(); this.pushHud(); return this.fantiki; }
@@ -1021,7 +1152,10 @@ export class Game {
     return this.enemies.filter((e) => !e.dead).map((e) => ({ x: e.g.position.x, z: e.g.position.z }));
   }
   debugSolids(): Array<{ x: number; z: number; hx: number; hz: number; r: number }> {
-    return this.solids.map((s) => ({ ...s, r: Math.hypot(s.hx, s.hz) }));
+    return this.solids.map((s) => {
+      if ('r' in s) return { x: s.x, z: s.z, hx: s.r, hz: s.r, r: s.r };
+      return { ...s, r: Math.hypot(s.hx, s.hz) };
+    });
   }
 
   private loop = (): void => {
@@ -1039,16 +1173,29 @@ export class Game {
         this.input.KeyJ = false;
         this.attack();
       }
-      // прыжок: с земли — вверх; Крыса в полёте у стены — вол-кик от стены (кд 5с)
+      // прыжок: с земли — вверх; Крыса в полёте у стены — вол-кик (кд 5с).
+      // Кик швыряет ПРОТИВ движения (разворот на 180°); если стоишь — толчок от стены.
       if (this.input[km.jump]) {
         if (this.py <= 0) {
           this.pvy = this.jumpVel;
         } else if (this.charId === 'krysa' && this.wallT > 0 && this.wallKickCd <= 0 && this.py > 0.05) {
-          this.pvy = 7.5;
-          const kx = clampArena(this.px + this.wallNx * 1.6);
-          const kz = clampArena(this.pz + this.wallNz * 1.6);
+          let kf = (this.input[km.fwd] || this.input.ArrowUp ? 1 : 0) - (this.input[km.back] || this.input.ArrowDown ? 1 : 0) - this.joy.y;
+          let kr = (this.input[km.right] ? 1 : 0) - (this.input[km.left] ? 1 : 0) + this.joy.x;
+          kf = Math.max(-1, Math.min(1, kf));
+          kr = Math.max(-1, Math.min(1, kr));
+          const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
+          const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
+          // мировое направление движения...
+          let mx = fx * kf + rx * kr, mz = fz * kf + rz * kr;
+          const mlen = Math.hypot(mx, mz);
+          if (mlen < 0.15) { mx = -this.wallNx; mz = -this.wallNz; }
+          else { mx = -mx / mlen; mz = -mz / mlen; }
+          // ...и толчок ровно против него
+          const kx = this.clamp(this.px + mx * 2.2);
+          const kz = this.clamp(this.pz + mz * 2.2);
           if (!this.hitSolid(kx, this.pz, 0.9)) this.px = kx;
           if (!this.hitSolid(this.px, kz, 0.9)) this.pz = kz;
+          this.pvy = 7.5;
           this.wallT = 0;
           this.wallKickCd = 5;
           this.burst(this.px, 1.0, this.pz, 10);
@@ -1056,9 +1203,6 @@ export class Game {
           this.pushHud();
         }
       }
-      this.pvy -= 12 * dt;
-      this.py += this.pvy * dt;
-      if (this.py <= 0) { this.py = 0; this.pvy = 0; }
       if (this.wallT > 0) this.wallT -= dt;
       if (this.wallKickCd > 0) {
         this.wallKickCd -= dt;
@@ -1092,24 +1236,30 @@ export class Game {
           this.wallNz = 0;
           this.wallT = 0.3;
         } else {
-          this.px = clampArena(nx);
+          this.px = this.clamp(nx);
         }
         if (this.hitSolid(this.px, nz, 0.9)) {
           this.wallNx = 0;
           this.wallNz = nz > this.pz ? -1 : 1;
           this.wallT = 0.3;
         } else {
-          this.pz = clampArena(nz);
+          this.pz = this.clamp(nz);
         }
       }
-      // рывок: бросок 22 м/с, стены уважает
+      // рывок: бросок 22 м/с по взгляду (включая вверх), стены уважает, гравитация на паузе
       if (this.dashT > 0) {
         this.dashT -= dt;
         const nx = this.px + this.dashDx * 22 * dt;
         const nz = this.pz + this.dashDz * 22 * dt;
-        if (!this.hitSolid(nx, this.pz, 0.9)) this.px = clampArena(nx);
-        if (!this.hitSolid(this.px, nz, 0.9)) this.pz = clampArena(nz);
+        if (!this.hitSolid(nx, this.pz, 0.9)) this.px = this.clamp(nx);
+        if (!this.hitSolid(this.px, nz, 0.9)) this.pz = this.clamp(nz);
+        this.py = Math.max(0, this.py + this.dashDy * 22 * dt);
+        this.pvy = 0;
         if (!this.moving) this.bobPhase += dt * 11;
+      } else {
+        this.pvy -= 12 * dt;
+        this.py += this.pvy * dt;
+        if (this.py <= 0) { this.py = 0; this.pvy = 0; }
       }
       // враги идут к игроку и бьют в упор
       for (const e of this.enemies) {
@@ -1167,9 +1317,12 @@ export class Game {
       if (this.swingT > 0) this.swingT -= dt;
       if (this.shakeT > 0) this.shakeT -= dt;
       this.updateParts(dt);
-      // сокомнатники стоят на своих позициях и дышат
+      // сокомнатники догоняют серверные цели плавно (интерполяция — без задержек и телепортов)
       const rt = performance.now() / 600;
+      const k = 1 - Math.exp(-10 * dt);
       for (const r of this.remotes) {
+        r.x += (r.tx - r.x) * k;
+        r.z += (r.tz - r.z) * k;
         r.g.position.set(r.x, Math.abs(Math.sin(rt + r.x)) * 0.08, r.z);
       }
       if (Math.floor(performance.now() / 200) !== Math.floor((performance.now() - dt * 1000) / 200)) {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Game, WEAPONS, CHARS, KEY_ACTIONS, DEFAULT_KEYS, type HudState, type KeyMap, type Quality } from './game/engine';
+import { Game, WEAPONS, CHARS, KEY_ACTIONS, DEFAULT_KEYS, type HudState, type KeyMap, type Quality, type MapId } from './game/engine';
 import oruzh1Url from './assets/oruzh1.png';
 import oruzh2Url from './assets/oruzh2.png';
 import charMttUrl from './assets/char-mtt.png';
@@ -15,6 +15,7 @@ interface ScoreRow {
 
 interface RoomMate {
   nick: string;
+  login: string;
   char: string;
   x: number;
   z: number;
@@ -24,9 +25,36 @@ interface RoomMate {
   wave: number;
 }
 
+interface DuelFoe {
+  nick: string;
+  login: string;
+  char: string;
+  x: number;
+  z: number;
+  hp: number;
+}
+
+interface DuelInfo {
+  active: boolean;
+  round: number;
+  lastWinner: string;
+  foe: DuelFoe | null;
+  myHp: number;
+  myWins: number;
+  foeWins: number;
+  spawn: { x: number; z: number; yaw: number } | null;
+}
+
+const TOKEN_KEY = 'mtt_token';
+
+function token(): string {
+  try { return localStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; }
+}
+
 interface RoomInfo {
   id: string;
   name: string;
+  mode: 'arena' | 'duel';
   count: number;
 }
 
@@ -84,7 +112,7 @@ function submitScore(nick: string, score: number, coins: number): void {
     fetch('/api/score', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nick, score, coins }),
+      body: JSON.stringify({ nick, score, coins, token: token() }),
       keepalive: true,
     }).catch(() => undefined);
   } catch { /* noop */ }
@@ -122,17 +150,93 @@ export default function App() {
   });
   const [roomId, setRoomId] = useState('');
   const [roomName, setRoomName] = useState('');
+  const [roomMode, setRoomMode] = useState<'arena' | 'duel'>('arena');
   const [roomDraft, setRoomDraft] = useState('');
+  const [draftMode, setDraftMode] = useState<'arena' | 'duel'>('arena');
   const [roomsList, setRoomsList] = useState<RoomInfo[]>([]);
   const [mates, setMates] = useState<RoomMate[]>([]);
+  const [mapChoice, setMapChoice] = useState<MapId>('arena');
+  const [duel, setDuel] = useState<DuelInfo | null>(null);
   const roomRef = useRef({ id: '', sid: '' });
+  const duelRef = useRef<DuelInfo | null>(null);
+  const matesRef = useRef<RoomMate[]>([]);
+  const prevRound = useRef(0);
+  const spawnRef = useRef<{ x: number; z: number; yaw: number } | null>(null);
+  // аккаунт: '' — неизвестно, 'guest' — гость, иначе логин
+  const [authed, setAuthed] = useState('');
+  const [authLogin, setAuthLogin] = useState('');
+  const [authPass, setAuthPass] = useState('');
+  const [authMsg, setAuthMsg] = useState('');
   const hudRef = useRef(hud);
   hudRef.current = hud;
 
-  // замах: дёргаем ствол + белые полосы (вызывает движок через onSwing при каждом реальном ударе).
+  // замах: дёргаем ствол (вызывает движок через onSwing при каждом реальном ударе).
   // Важно через React-state: прямые classList движок React сносит при каждом апдейте HUD.
   const [swingTick, setSwingTick] = useState(0);
   const swing = useCallback(() => { setSwingTick((t) => t + 1); }, []);
+
+  // удар по дуэлянту: бьём только если противник в радиусе ствола и по курсу; урон ставит сервер
+  const tryDuelHit = useCallback(() => {
+    const d = duelRef.current;
+    const g = gameRef.current;
+    if (!d?.active || !d.foe || !g) return;
+    const { id, sid } = roomRef.current;
+    if (!id || !sid) return;
+    const p = g.debugPos();
+    const dx = d.foe.x - p.x, dz = d.foe.z - p.z;
+    const dist = Math.hypot(dx, dz);
+    const W = WEAPONS.find((w) => w.id === hudRef.current.weapon);
+    if (dist > (W?.range ?? 3.8) + 1.5) return;
+    const cos = (dx * -Math.sin(p.yaw) + dz * -Math.cos(p.yaw)) / (dist || 1);
+    if (cos < 0.25) return;
+    fetch(`/api/rooms/${id}/hit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sid, dmg: W?.dmg ?? 30 }),
+    }).then((r) => r.json()).then((dd: { wins: number; round: number; lastWinner: string }) => {
+      setDuel((prev) => (prev ? { ...prev, myWins: dd.wins, round: dd.round, lastWinner: dd.lastWinner } : prev));
+    }).catch(() => undefined);
+  }, []);
+
+  // вход/рега: токен в сейф, ник = логин
+  const doAuth = useCallback(async (kind: 'login' | 'register') => {
+    setAuthMsg('');
+    try {
+      const r = await fetch(`/api/${kind}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login: authLogin, pass: authPass }),
+      });
+      const d = (await r.json()) as { token?: string; login?: string; error?: string };
+      if (!r.ok || !d.token || !d.login) {
+        setAuthMsg(d.error === 'taken' ? 'Логин занят' : d.error === 'badpass' || d.error === 'nouser' ? 'Неверный логин/пароль' : d.error === 'badlogin' ? 'Логин: 3–16, буквы/цифры/_' : 'Пароль: от 4 символов');
+        return;
+      }
+      try {
+        localStorage.setItem(TOKEN_KEY, d.token);
+        localStorage.setItem(NICK_KEY, d.login);
+      } catch { /* noop */ }
+      setNick(d.login);
+      setAuthed(d.login);
+    } catch {
+      setAuthMsg('Нет связи');
+    }
+  }, [authLogin, authPass]);
+
+  const guestIn = useCallback(() => { setAuthed('guest'); }, []);
+  const authOut = useCallback(() => {
+    try { localStorage.removeItem(TOKEN_KEY); } catch { /* noop */ }
+    setAuthed('');
+  }, []);
+
+  useEffect(() => {
+    const t = token();
+    if (!t) return;
+    fetch(`/api/me?token=${encodeURIComponent(t)}`)
+      .then((r) => r.json())
+      .then((d: { login?: string }) => { if (d.login) { setAuthed(d.login); setNick(d.login); } })
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     beacon();
@@ -142,12 +246,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!menu || !canvasRef.current || gameRef.current) return;
+    if (!menu || !canvasRef.current) return;
+    if (gameRef.current) { gameRef.current.destroy(); gameRef.current = null; }
     const game = new Game(canvasRef.current, null, {
       onHud: (h) => setHud(h),
       onBusted: () => undefined,
-      onSwing: () => swing(),
-    });
+      onSwing: () => { swing(); tryDuelHit(); },
+    }, mapChoice);
     gameRef.current = game;
     setSound(game.getSound());
     setSens(game.getSens());
@@ -177,6 +282,8 @@ export default function App() {
       doDash: () => game.dash(),
       wall: () => game.debugWall(),
       kick: () => game.debugKick(),
+      map: () => game.debugMap(),
+      duelHp: (hp: number) => game.setDuelHp(hp),
       teleport: (x: number, z: number, yaw?: number) => game.debugTeleport(x, z, yaw),
       charaSet: (id: string) => game.setChar(id),
       spawnKind: (kind: 'walk' | 'fly') => game.debugSpawn(kind),
@@ -199,14 +306,20 @@ export default function App() {
       delete (window as unknown as { __mtt?: object }).__mtt;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [mapChoice]);
 
   const go = useCallback(() => {
     try { localStorage.setItem(NICK_KEY, nick); } catch { /* noop */ }
     setMenu(false);
-    window.setTimeout(() => gameRef.current?.start(), 50);
+    window.setTimeout(() => {
+      const g = gameRef.current;
+      if (!g) return;
+      const sp = spawnRef.current;
+      if (sp && roomMode === 'duel') g.debugTeleport(sp.x, sp.z, sp.yaw);
+      g.start();
+    }, 50);
     loadScores().then(setScores);
-  }, [nick]);
+  }, [nick, roomMode]);
 
   // ---- комнаты ----
   const refreshRooms = useCallback(() => { loadRooms().then(setRoomsList); }, []);
@@ -217,31 +330,45 @@ export default function App() {
       const r = await fetch('/api/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nick, name: roomDraft, char: gameRef.current?.getChar() ?? 'mtt' }),
+        body: JSON.stringify({ nick, name: roomDraft, char: gameRef.current?.getChar() ?? 'mtt', mode: draftMode, token: token() }),
       });
       if (!r.ok) return;
-      const d = (await r.json()) as { id: string; sid: string };
+      const d = (await r.json()) as { id: string; sid: string; mode: 'arena' | 'duel'; spawn: { x: number; z: number; yaw: number } | null };
       roomRef.current = { id: d.id, sid: d.sid };
       setRoomId(d.id);
       setRoomName(roomDraft || `Комната ${nick}`);
+      setRoomMode(d.mode);
+      setMapChoice(d.mode === 'duel' ? 'duel' : 'arena');
+      spawnRef.current = d.spawn;
+      prevRound.current = 1;
+      setDuel(null);
+      duelRef.current = null;
       setMates([]);
+      matesRef.current = [];
       refreshRooms();
     } catch { /* noop */ }
-  }, [nick, roomDraft, refreshRooms]);
+  }, [nick, roomDraft, draftMode, refreshRooms]);
 
   const joinRoom = useCallback(async (id: string) => {
     try {
       const r = await fetch(`/api/rooms/${id}/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nick, char: gameRef.current?.getChar() ?? 'mtt' }),
+        body: JSON.stringify({ nick, char: gameRef.current?.getChar() ?? 'mtt', token: token() }),
       });
       if (!r.ok) return;
-      const d = (await r.json()) as { sid: string; name: string };
+      const d = (await r.json()) as { sid: string; name: string; mode: 'arena' | 'duel'; spawn: { x: number; z: number; yaw: number } | null };
       roomRef.current = { id, sid: d.sid };
       setRoomId(id);
       setRoomName(d.name);
+      setRoomMode(d.mode);
+      setMapChoice(d.mode === 'duel' ? 'duel' : 'arena');
+      spawnRef.current = d.spawn;
+      prevRound.current = 1;
+      setDuel(null);
+      duelRef.current = null;
       setMates([]);
+      matesRef.current = [];
       refreshRooms();
     } catch { /* noop */ }
   }, [nick, refreshRooms]);
@@ -251,7 +378,14 @@ export default function App() {
     roomRef.current = { id: '', sid: '' };
     setRoomId('');
     setRoomName('');
+    setRoomMode('arena');
+    setMapChoice('arena');
+    spawnRef.current = null;
+    prevRound.current = 0;
+    setDuel(null);
+    duelRef.current = null;
     setMates([]);
+    matesRef.current = [];
     gameRef.current?.setRemotes([]);
     if (id && sid) {
       try {
@@ -265,7 +399,7 @@ export default function App() {
     refreshRooms();
   }, [refreshRooms]);
 
-  // пульс комнаты: шлём себя, забираем сокомнатников
+  // пульс комнаты 2 раза в секунду: шлём себя, забираем сокомнатников (без задержек) + дуэль
   useEffect(() => {
     const t = window.setInterval(async () => {
       const g = gameRef.current;
@@ -280,11 +414,26 @@ export default function App() {
           body: JSON.stringify({ sid, char: g.getChar(), x: p.x, z: p.z, yaw: p.yaw, hp: h.hp, score: h.score, kills: h.kills, wave: h.wave }),
         });
         if (!r.ok) return;
-        const d = (await r.json()) as { players: RoomMate[] };
+        const d = (await r.json()) as { players: RoomMate[]; duel?: DuelInfo };
         setMates(d.players ?? []);
+        matesRef.current = d.players ?? [];
         g.setRemotes(d.players ?? []);
+        if (d.duel && d.duel.active) {
+          const dd = d.duel;
+          setDuel(dd);
+          duelRef.current = dd;
+          g.setDuelHp(dd.myHp);
+          if (dd.spawn && dd.round !== prevRound.current) {
+            prevRound.current = dd.round;
+            g.debugTeleport(dd.spawn.x, dd.spawn.z, dd.spawn.yaw);
+          }
+        } else {
+          setDuel(null);
+          duelRef.current = null;
+          prevRound.current = 0;
+        }
       } catch { /* noop */ }
-    }, 1500);
+    }, 500);
     return () => window.clearInterval(t);
   }, []);
 
@@ -389,7 +538,7 @@ export default function App() {
           </div>
           <div id="hudRow">🌊 Волна {hud.wave} · 👹 {hud.enemies} · 💀 {hud.kills} · 🏆 {hud.score}</div>
           <div id="hudRow2">🎟️ {hud.fantiki} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}{char === 'krysa' && (hud.kick > 0 ? ` · 🌀 ${hud.kick.toFixed(1)}с` : ' · 🌀 вол-кик готов')}</div>
-          <small id="hint">WASD — идти · Space — прыжок · клик/J — удар · Shift — бег{char === 'mtt' ? ' · C — рывок' : ' · стена + прыжок — вол-кик'}</small>
+          <small id="hint">WASD — идти · Space — прыжок · клик/J — удар · Shift — бег{char === 'mtt' ? ' · C — рывок (вверх — полёт)' : ' · стена + прыжок — вол-кик'}</small>
         </div>
       )}
       {!menu && (
@@ -420,8 +569,17 @@ export default function App() {
               🌐 {roomId} · {mates.length + 1}
               <button id="roomLeave" onClick={leaveRoom}>✕</button>
               {mates.length > 0 && (
-                <div id="roomMates">{mates.map((m) => `${m.nick} ${m.score}🏆`).join(' · ')}</div>
+                <div id="roomMates">{mates.map((m) => `${m.nick}${m.login ? `(@${m.login})` : ''} ${m.score}🏆`).join(' · ')}</div>
               )}
+            </div>
+          )}
+          {duel && duel.active && (
+            <div id="duelBar">
+              <div>⚔️ РАУНД {duel.round} · ТЫ {duel.myWins} : {duel.foeWins} {duel.foe?.nick}</div>
+              <div id="duelHp"><div id="duelHpFill" style={{ width: `${Math.max(0, duel.myHp)}%` }} /></div>
+              <div id="duelFoe">👹 {duel.foe?.nick}: {duel.foe?.hp} ❤️</div>
+              {duel.myHp <= 0 && <div id="duelDown">💀 РАУНД ПРОИГРАН — ждём следующий...</div>}
+              {duel.lastWinner && <div id="duelLast">🏆 Раунд взял: {duel.lastWinner}</div>}
             </div>
           )}
           {waveBanner > 0 && (
@@ -522,6 +680,40 @@ export default function App() {
             Джойстик слева — движение, кнопка справа — удар. Фантики с врагов трать в 🛒 оружейке,
             завал — жми 💚 возродиться!
             <br /><a id="hubLink" href="https://hub.bratuxa.zomb.top">← Хаб 1Б42П</a></p>
+          {!authed ? (
+            <div className="board" id="authBox">
+              <h3>🔐 Вход</h3>
+              <input
+                id="authLogin"
+                value={authLogin}
+                maxLength={16}
+                onChange={(e) => setAuthLogin(e.target.value)}
+                placeholder="Логин"
+                autoComplete="username"
+              />
+              <input
+                id="authPass"
+                type="password"
+                value={authPass}
+                maxLength={64}
+                onChange={(e) => setAuthPass(e.target.value)}
+                placeholder="Пароль"
+                autoComplete="current-password"
+              />
+              {authMsg && <div id="authMsg">{authMsg}</div>}
+              <div className="srow">
+                <button className="wbtn" id="loginBtn" onClick={() => doAuth('login')}>ВОЙТИ</button>
+                <button className="wbtn" id="regBtn" onClick={() => doAuth('register')}>СОЗДАТЬ</button>
+              </div>
+              <button className="wclose" id="guestBtn" onClick={guestIn}>ИГРАТЬ ГОСТЕМ</button>
+            </div>
+          ) : (
+            <>
+              <div id="authWho">
+                {authed === 'guest' ? '👤 Гость' : `🔐 ${authed}`}
+                {' · '}
+                <button id="authOut" onClick={authOut}>{authed === 'guest' ? 'войти' : 'выйти'}</button>
+              </div>
           <div className="menuArt">
             <img src={oruzh1Url} alt="кулаки" />
             <img src={oruzh2Url} alt="секира" />
@@ -551,11 +743,14 @@ export default function App() {
               ))}
             </div>
           </div>
-          <button id="goBtn" onClick={go}>▶️ ПОГНАЛИ</button>
+          <button id="goBtn" onClick={go}>{roomMode === 'duel' ? '⚔️ В ДУЭЛЬ' : '▶️ ПОГНАЛИ'}</button>
           <div className="board" id="roomSec">
             <h3>🌐 Комнаты</h3>
             {roomId ? (
-              <div>Сидишь в <b>{roomName || roomId}</b> ({roomId}) — сокомнатники появятся на арене синими призраками.</div>
+              <>
+                <div>Сидишь в <b>{roomName || roomId}</b> ({roomId}) {roomMode === 'duel' ? '⚔️ ДУЭЛЬ 1×1' : '🌍 Арена'} — сокомнатники появятся на карте призраками.</div>
+                <button className="wclose" onClick={leaveRoom}>ПОКИНУТЬ</button>
+              </>
             ) : (
               <>
                 <div className="srow">
@@ -568,9 +763,14 @@ export default function App() {
                   />
                   <button className="wbtn" id="roomCreate" onClick={createRoom}>СОЗДАТЬ</button>
                 </div>
+                <div className="srow">
+                  <span>Режим</span>
+                  <button className={'wbtn' + (draftMode === 'arena' ? ' cur' : '')} id="mode-arena" onClick={() => setDraftMode('arena')}>🌍 АРЕНА</button>
+                  <button className={'wbtn' + (draftMode === 'duel' ? ' cur' : '')} id="mode-duel" onClick={() => setDraftMode('duel')}>⚔️ 1×1</button>
+                </div>
                 {roomsList.length > 0 ? roomsList.map((r) => (
                   <div className="srow" key={r.id}>
-                    <span>{r.name} · {r.id} · 👥 {r.count}</span>
+                    <span>{r.mode === 'duel' ? '⚔️' : '🌍'} {r.name} · {r.id} · 👥 {r.count}{r.mode === 'duel' ? '/2' : ''}</span>
                     <button className="wbtn" id={`join-${r.id}`} onClick={() => joinRoom(r.id)}>ВОЙТИ</button>
                   </div>
                 )) : <div>Пока пусто — создай первую!</div>}
@@ -585,6 +785,8 @@ export default function App() {
                 <li key={i}>{s.nick} — {s.score} 🏆</li>
               ))}</ol>
             </div>
+          )}
+            </>
           )}
         </div>
       )}

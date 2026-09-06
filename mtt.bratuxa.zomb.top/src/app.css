@@ -100,6 +100,22 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 #roomLeave{margin-left:8px;background:transparent;border:1px solid #66ccff;color:#66ccff;
  border-radius:6px;cursor:pointer;font-weight:900}
 #roomMates{font-size:12px;margin-top:4px;color:#e8edff;word-break:break-word}
+#authBox input{background:#141d33;color:#fff;border:1px solid #334155;border-radius:10px;
+ padding:10px 12px;font-size:15px;width:100%;box-sizing:border-box;margin:4px 0;text-align:center}
+#authMsg{color:#ff6b6b;font-size:13px;margin:4px 0}
+#authWho{margin:6px 0;color:#ffd23f;font-weight:800}
+#authOut{background:transparent;border:1px solid #ffd23f;color:#ffd23f;border-radius:8px;
+ padding:4px 12px;cursor:pointer;font-weight:800}
+#duelBar{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:6;text-align:center;
+ font-size:16px;font-weight:900;color:#ffd23f;background:rgba(13,20,40,.85);
+ border:2px solid #ff3b3b;border-radius:12px;padding:8px 16px;
+ font-family:'Courier New',Courier,monospace;box-shadow:0 0 22px rgba(255,59,59,.45),4px 4px 0 #000}
+#duelHp{width:220px;height:12px;background:rgba(0,0,0,.65);border:1px solid #ffd23f;border-radius:6px;
+ overflow:hidden;margin:4px auto}
+#duelHpFill{height:100%;background:linear-gradient(90deg,#39d353,#ffd23f)}
+#duelFoe{font-size:13px;color:#e8edff}
+#duelDown{color:#ff6b6b;font-size:15px;margin-top:2px}
+#duelLast{font-size:12px;color:#39d353}
 #deadPanel{display:flex;flex-direction:column;gap:12px;font-size:min(9vw,44px);align-items:center}
 #deadScore{font-size:22px}
 #reviveBtn{background:#39d353;border:none;border-radius:14px;padding:14px 30px;font-size:19px;font-weight:900;color:#06240f;cursor:pointer}

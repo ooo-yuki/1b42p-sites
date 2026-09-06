@@ -13,6 +13,8 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test('меню грузится, GO стартует игру', async ({ page }) => {
+    await expect(page.locator('#authBox')).toBeVisible();
+    await page.click('#guestBtn');
     await expect(page.locator('#goBtn')).toBeVisible();
     await page.click('#goBtn');
     await expect(page.locator('#menu')).toHaveCount(0);
@@ -22,16 +24,23 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test('W идёт: позиция меняется (баг Саши)', async ({ page }) => {
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     const p0 = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => object } }).__mtt.pos());
     await page.keyboard.down('w');
-    await page.waitForTimeout(2500);
+    // держим до сдвига (под нагрузкой кадры редкие)
+    let moved = false;
+    for (let i = 0; i < 30 && !moved; i++) {
+      await page.waitForTimeout(300);
+      const p = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => object } }).__mtt.pos());
+      moved = JSON.stringify(p) !== JSON.stringify(p0);
+    }
     await page.keyboard.up('w');
-    const p1 = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { x: number; z: number } } }).__mtt.pos());
-    expect(p1).not.toEqual(p0);
+    expect(moved).toBe(true);
   });
 
   test('джойстик слева двигает, кнопка справа бьёт', async ({ page }) => {
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     const p0 = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => object } }).__mtt.pos());
     await page.evaluate(() => (window as unknown as { __mtt: { joy: (x: number, y: number) => void } }).__mtt.joy(0, -1));
@@ -46,6 +55,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test('HP игрока и враги на месте', async ({ page }) => {
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.waitForTimeout(1500);
     const st = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { hp: number; enemies: number } } }).__mtt.pos());
@@ -55,6 +65,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test('без копов и тачки: нет звёзд/нитро', async ({ page }) => {
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     const hud = await page.locator('#hud').innerText();
     expect(hud).not.toMatch(/★/);
@@ -63,6 +74,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test('враги не в стенах, оружие на экране', async ({ page }) => {
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.waitForTimeout(1000);
     const st = await page.evaluate(() => {
@@ -88,6 +100,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test('магазин: покупка биты и выбор оружия', async ({ page }) => {
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.evaluate(() => (window as unknown as { __mtt: { give: (n: number) => number } }).__mtt.give(1000));
     await page.evaluate(() => (window as unknown as { __mtt: { setWave: (n: number) => number } }).__mtt.setWave(2));
@@ -101,6 +114,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test('возрождение поднимает после завала', async ({ page }) => {
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.waitForTimeout(800);
     await page.evaluate(() => (window as unknown as { __mtt: { hurt: (n: number) => number } }).__mtt.hurt(500));
@@ -112,6 +126,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test('настройки: звук и чувствительность', async ({ page }) => {
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.click('#setBtn');
     await expect(page.locator('.sheet')).toContainText('Настройки');
@@ -122,6 +137,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test('бита закрыта на 1-й волне', async ({ page }) => {
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.evaluate(() => (window as unknown as { __mtt: { give: (n: number) => number } }).__mtt.give(1000));
     await page.click('#shopBtn');
@@ -131,12 +147,14 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test('плашка нового раунда всплывает', async ({ page }) => {
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     await expect(page.locator('#waveBanner')).toBeVisible();
     await expect(page.locator('#waveBanner')).toContainText('ВОЛНА 1');
   });
 
   test('управление переназначается и сохраняется', async ({ page }) => {
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.click('#setBtn');
     await expect(page.locator('#keysSec')).toBeVisible();
@@ -145,6 +163,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await expect(page.locator('#key-hit')).toContainText('K');
     // сейв переживает перезагрузку
     await page.reload();
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.click('#setBtn');
     await expect(page.locator('#key-hit')).toContainText('K');
@@ -154,6 +173,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test('прыжок поднимает игрока', async ({ page }) => {
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.waitForTimeout(800);
     await page.keyboard.down('Space');
@@ -168,6 +188,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test('враги прыгают', async ({ page }) => {
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.waitForTimeout(800);
     let seen = false;
@@ -180,46 +201,54 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test('ствол огромный, белых полос нет, замах живёт', async ({ page }) => {
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.waitForTimeout(800);
     await expect(page.locator('#swingFx')).toHaveCount(0);
     const box = await page.locator('#weapon').boundingBox();
     expect(box?.width ?? 0).toBeGreaterThan(500);
-    // держим удар (press слишком короткий для редких headless-кадров)
+    // держим удар до результата (под нагрузкой кадры редкие)
     await page.keyboard.down('j');
-    await page.waitForTimeout(500);
+    await expect(page.locator('#weapon.swing')).toHaveCount(1, { timeout: 8000 });
     await page.keyboard.up('j');
-    await expect(page.locator('#weapon.swing')).toHaveCount(1);
   });
 
   test('выбор персонажа сохраняется', async ({ page }) => {
+    await page.click('#guestBtn');
     await expect(page.locator('#charSec .charCard')).toHaveCount(2);
     await page.click('#char-krysa');
     await expect(page.locator('#char-krysa.sel')).toHaveCount(1);
     expect(await page.evaluate(() => (window as unknown as { __mtt: { chara: () => string } }).__mtt.chara())).toBe('krysa');
     await page.reload();
+    await page.click('#guestBtn');
     await expect(page.locator('#char-krysa.sel')).toHaveCount(1);
     await page.click('#char-mtt');
     await expect(page.locator('#char-mtt.sel')).toHaveCount(1);
   });
 
   test('рывок строго по взгляду, не вбок', async ({ page }) => {
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.waitForTimeout(800);
     const p0 = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { x: number; z: number } } }).__mtt.pos());
-    // стрейф вправо + рывок: рывок должен унести вперёд (по взгляду, -z), а не вбок
+    // стрейф вправо + рывок: рывок должен унести вперёд (по взгляду, -z), а не вбок.
+    // держим до результата: под нагрузкой кадры редкие
     await page.keyboard.down('d');
     await page.keyboard.down('c');
-    await page.waitForTimeout(600);
+    let dz = 0;
+    for (let i = 0; i < 20 && dz <= 2; i++) {
+      await page.waitForTimeout(200);
+      const p = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { x: number; z: number } } }).__mtt.pos());
+      dz = p0.z - p.z;
+    }
     await page.keyboard.up('c');
-    await page.waitForTimeout(400);
     await page.keyboard.up('d');
-    const p1 = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { x: number; z: number } } }).__mtt.pos());
-    expect(p0.z - p1.z).toBeGreaterThan(2);
+    expect(dz).toBeGreaterThan(2);
   });
 
   test('крыса прыгает в 3 раза выше', async ({ page }) => {
     await page.evaluate(() => (window as unknown as { __mtt: { charaSet: (id: string) => string } }).__mtt.charaSet('krysa'));
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.waitForTimeout(800);
     await page.keyboard.down('Space');
@@ -237,6 +266,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
 
   test('крыса отпрыгивает от стены', async ({ page }) => {
     await page.evaluate(() => (window as unknown as { __mtt: { charaSet: (id: string) => string } }).__mtt.charaSet('krysa'));
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.waitForTimeout(800);
     // телепорт к коробке (0,-38), смотрим на неё (yaw 0 = взгляд на -z)
@@ -247,7 +277,9 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     let maxPy = 0;
     let wallSeen = false;
     let kickSeen = false;
-    for (let i = 0; i < 120 && !(wallSeen && kickSeen && maxPy > 3.2); i++) {
+    let prevZ = -28;
+    let backSeen = false;
+    for (let i = 0; i < 120 && !(wallSeen && kickSeen && backSeen && maxPy > 3.2); i++) {
       await page.waitForTimeout(200);
       const py = await page.evaluate(() => (window as unknown as { __mtt: { py: () => number } }).__mtt.py());
       if (py > maxPy) maxPy = py;
@@ -255,17 +287,24 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
       if (w > 0) wallSeen = true;
       const k = await page.evaluate(() => (window as unknown as { __mtt: { kick: () => number } }).__mtt.kick());
       if (k > 0) kickSeen = true;
+      const pz = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { z: number } } }).__mtt.pos());
+      // бежим вперёд (-z): рост z после кика = швырнуло назад, против движения
+      if (kickSeen && pz.z - prevZ > 0.3) backSeen = true;
+      prevZ = pz.z;
     }
     await page.keyboard.up('Space');
     await page.keyboard.up('w');
     expect(wallSeen).toBe(true);
     // вол-кик сработал — кд 5с взведено
     expect(kickSeen).toBe(true);
+    // кик швыряет против движения (назад)
+    expect(backSeen).toBe(true);
     // чистый прыжок Крысы ~2.9м, с вол-киком обязано быть выше
     expect(maxPy).toBeGreaterThan(3.2);
   });
 
   test('летуны парят и бьются', async ({ page }) => {
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.waitForTimeout(800);
     const n = await page.evaluate(() => (window as unknown as { __mtt: { spawnKind: (k: string) => number } }).__mtt.spawnKind('fly'));
@@ -275,14 +314,18 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test('рывок МТТ на C: бросок и кд', async ({ page }) => {
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.waitForTimeout(800);
     const p0 = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { x: number; z: number } } }).__mtt.pos());
-    // держим C (headless-кадры редкие — короткое нажатие может потеряться)
+    // держим C до срабатывания (под нагрузкой кадры редкие)
     await page.keyboard.down('c');
-    await page.waitForTimeout(700);
+    let dash = 0;
+    for (let i = 0; i < 40 && dash <= 0; i++) {
+      await page.waitForTimeout(200);
+      dash = await page.evaluate(() => (window as unknown as { __mtt: { dash: () => number } }).__mtt.dash());
+    }
     await page.keyboard.up('c');
-    const dash = await page.evaluate(() => (window as unknown as { __mtt: { dash: () => number } }).__mtt.dash());
     const p1 = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { x: number; z: number } } }).__mtt.pos());
     const dist = Math.hypot(p1.x - p0.x, p1.z - p0.z);
     expect(dash).toBeGreaterThan(0);
@@ -294,6 +337,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('по союзникам урона нет и ошибок нет', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.waitForTimeout(800);
     // ставим союзника прямо перед носом (смотрим на -z) и лупим ударами
@@ -310,12 +354,14 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test('качество графики переключается и сохраняется', async ({ page }) => {
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.click('#setBtn');
     await expect(page.locator('#qualityBtn')).toContainText('БЫСТРО');
     await page.click('#qualityBtn');
     await expect(page.locator('#qualityBtn')).toContainText('КРАСИВО');
     await page.reload();
+    await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.click('#setBtn');
     await expect(page.locator('#qualityBtn')).toContainText('КРАСИВО');
@@ -343,6 +389,102 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     const list = await request.get('/api/rooms');
     const rooms = (await list.json()) as Array<{ id: string }>;
     expect(rooms.some((r) => r.id === id)).toBe(false);
+  });
+
+  test('рывок вверх: смотришь в небо — летишь', async ({ page }) => {
+    await page.click('#guestBtn');
+    await page.click('#goBtn');
+    await page.waitForTimeout(800);
+    // взгляд вверх: pitch+ (addLook: yaw -= dx*.., pitch -= dy*..)
+    await page.evaluate(() => (window as unknown as { __mtt: { look: (x: number, y: number) => void } }).__mtt.look(0, -300));
+    const ok = await page.evaluate(() => (window as unknown as { __mtt: { doDash: () => boolean } }).__mtt.doDash());
+    expect(ok).toBe(true);
+    let maxPy = 0;
+    for (let i = 0; i < 20 && maxPy <= 0.5; i++) {
+      await page.waitForTimeout(200);
+      maxPy = Math.max(maxPy, await page.evaluate(() => (window as unknown as { __mtt: { py: () => number } }).__mtt.py()));
+    }
+    expect(maxPy).toBeGreaterThan(0.5);
+  });
+
+  test('рега и вход: логин+пароль', async ({ request }) => {
+    const login = `pw${Date.now() % 100000}`;
+    const reg = await request.post('/api/register', { data: { login, pass: 'test1234' } });
+    expect(reg.ok()).toBe(true);
+    const { token } = await reg.json();
+    expect(typeof token).toBe('string');
+    const dup = await request.post('/api/register', { data: { login, pass: 'test1234' } });
+    expect(dup.status()).toBe(409);
+    const bad = await request.post('/api/login', { data: { login, pass: 'wrong' } });
+    expect(bad.status()).toBe(401);
+    const li = await request.post('/api/login', { data: { login, pass: 'test1234' } });
+    expect(li.ok()).toBe(true);
+    const me = await request.get(`/api/me?token=${encodeURIComponent(((await li.json()) as { token: string }).token)}`);
+    expect(me.ok()).toBe(true);
+    expect((await me.json()).login).toBe(login);
+  });
+
+  test('окно входа в меню', async ({ page }) => {
+    await expect(page.locator('#authBox')).toBeVisible();
+    await expect(page.locator('#goBtn')).toHaveCount(0);
+    const login = `ui${Date.now() % 100000}`;
+    await page.fill('#authLogin', login);
+    await page.fill('#authPass', 'test1234');
+    await page.click('#regBtn');
+    await expect(page.locator('#authWho')).toContainText(login);
+    await expect(page.locator('#goBtn')).toBeVisible();
+    await page.reload();
+    await expect(page.locator('#authWho')).toContainText(login);
+    await page.click('#authOut');
+    await expect(page.locator('#authBox')).toBeVisible();
+  });
+
+  test('дуэль 1×1: раунды и победа на сервере', async ({ request }) => {
+    const c = await request.post('/api/rooms', { data: { nick: 'D1', name: 'DUEL', mode: 'duel' } });
+    expect(c.ok()).toBe(true);
+    const { id, sid: s1 } = await c.json();
+    const j = await request.post(`/api/rooms/${id}/join`, { data: { nick: 'D2' } });
+    expect(j.ok()).toBe(true);
+    const { sid: s2 } = await j.json();
+    // третий — мимо, дуэль строго 1 на 1
+    const j3 = await request.post(`/api/rooms/${id}/join`, { data: { nick: 'D3' } });
+    expect(j3.status()).toBe(403);
+    await request.post(`/api/rooms/${id}/beat`, { data: { sid: s1, x: 0, z: 20, hp: 100 } });
+    const b2 = await request.post(`/api/rooms/${id}/beat`, { data: { sid: s2, x: 0, z: -20, hp: 100 } });
+    const d = await b2.json();
+    expect(d.duel.active).toBe(true);
+    expect(d.duel.foe.nick).toBe('D1');
+    expect(d.duel.myHp).toBe(100);
+    // добиваем: 70hp за 1 удар не убить, бьём дважды
+    await request.post(`/api/rooms/${id}/hit`, { data: { sid: s2, dmg: 70 } });
+    const kill = await request.post(`/api/rooms/${id}/hit`, { data: { sid: s2, dmg: 70 } });
+    const kd = await kill.json();
+    expect(kd.wins).toBe(1);
+    expect(kd.round).toBe(2);
+    const b1 = await request.post(`/api/rooms/${id}/beat`, { data: { sid: s1, x: 0, z: -20, hp: 100 } });
+    const d1 = await b1.json();
+    expect(d1.duel.myHp).toBe(100);
+    expect(d1.duel.round).toBe(2);
+    await request.post(`/api/rooms/${id}/leave`, { data: { sid: s1 } });
+    await request.post(`/api/rooms/${id}/leave`, { data: { sid: s2 } });
+  });
+
+  test('дуэль в клиенте: вход на новую карту', async ({ page, request }) => {
+    const c = await request.post('/api/rooms', { data: { nick: 'D1', name: 'DROOM', mode: 'duel' } });
+    const { id } = await c.json();
+    await page.click('#guestBtn');
+    await page.fill('#nick', 'D2');
+    await page.click('button:has-text("ОБНОВИТЬ")');
+    await page.click(`#join-${id}`);
+    await expect(page.locator('#goBtn')).toContainText('ДУЭЛЬ');
+    await page.click('#goBtn');
+    await page.waitForTimeout(1000);
+    const map = await page.evaluate(() => (window as unknown as { __mtt: { map: () => string } }).__mtt.map());
+    expect(map).toBe('duel');
+    const p = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { x: number; z: number } } }).__mtt.pos());
+    expect(Math.abs(p.x)).toBeLessThan(2);
+    expect(Math.abs(p.z - -20)).toBeLessThan(2);
+    await page.click('#roomLeave');
   });
 
   test('API: валидация и топ без мусора', async ({ request }) => {
