@@ -189,7 +189,7 @@ function update(dt){
     if(u.type==='mopso'&&u.cool<=0){
       var tgt=null;
       for(var m=0;m<G.zoms.length;m++){var e=G.zoms[m];
-        if(e.r===u.r&&e.x>ux-10&&(tgt===null||e.x<tgt.x))tgt=e;}
+        if(!e.dying&&e.r===u.r&&e.x>ux-10&&(tgt===null||e.x<tgt.x))tgt=e;}
       if(tgt){u.cool=U_MOPSO.rate;firePea(u);}
     }
   }
@@ -197,7 +197,7 @@ function update(dt){
   for(var a=G.peas.length-1;a>=0;a--){var s=G.peas[a];s.x+=220*dt;s.rot=(s.rot||0)+11*dt;
     var hit=false;
     for(var b=0;b<G.zoms.length;b++){var w=G.zoms[b];
-      if(w.r===s.r&&Math.abs(w.x-s.x)<34){w.hp-=U_MOPSO.dmg;hit=true;sfx('hit');
+      if(!w.dying&&w.r===s.r&&Math.abs(w.x-s.x)<34){w.hp-=U_MOPSO.dmg;hit=true;sfx('hit');
         G.fx.push({x:s.x,y:s.y,t:0.2,r:6});break;}}
     if(hit||s.x>GX1+60)G.peas.splice(a,1);
   }
@@ -206,7 +206,15 @@ function update(dt){
     if(rp.y<rp.ty)rp.y=Math.min(rp.ty,rp.y+RESP_FALL*dt);
     else{rp.t-=dt;if(rp.t<=0)G.resps.splice(qi,1);}}
   for(var c=G.zoms.length-1;c>=0;c--){var n=G.zoms[c];
-    if(n.hp<=0){killZom(c);continue;}
+    if(n.hp<=0&&n.dying===undefined)killZom(c);
+    if(n.dying!==undefined){ /* смерть: тело валится, голова катится, всё тает */
+      n.dying+=dt;
+      n.headVy+=700*dt;n.headX+=n.headVx*dt;n.headY+=n.headVy*dt;n.headRot+=n.headVr*dt;
+      var hfloor=rowY(n.r)+12;
+      if(n.headY>hfloor){n.headY=hfloor;
+        if(Math.abs(n.headVy)>90)n.headVy*=-0.35;else{n.headVy=0;n.headVr*=0.5;}}
+      if(n.dying>=1.2)G.zoms.splice(c,1);
+      continue;}
     var col=Math.floor((n.x-GX0)/CW),meal=(col>=0&&col<COLS)?unitAt(n.r,col):null;
     if(meal&&Math.abs(n.x-(GX0+col*CW+CW/2))<CW*0.55){
       n.eatT+=dt;
@@ -220,8 +228,14 @@ function update(dt){
   for(var g=G.floats.length-1;g>=0;g--){var fl=G.floats[g];fl.t-=dt;fl.y-=20*dt;if(fl.t<=0)G.floats.splice(g,1);}
 }
 function killZom(i){
-  var z=G.zoms[i];G.zoms.splice(i,1);G.kills++;
-  G.fx.push({x:z.x,y:rowY(z.r)-30,t:0.4,r:10});sfx('zdie');
+  var z=G.zoms[i];
+  if(z.dying!==undefined)return; // уже падает
+  z.dying=0;G.kills++;
+  var dir=Math.random()<0.5?-1:1;
+  z.fallDir=dir; // тело валится набок
+  z.headX=z.x;z.headY=rowY(z.r)-50;z.headVx=dir*(40+Math.random()*50); // голова отлетает
+  z.headVy=-160;z.headRot=0;z.headVr=dir*6;
+  sfx('zdie');
   if(G.kills>=KILLS_TO_WIN)win();
 }
 function win(){G.state='win';showEnd('ПОБЕДА! 🏆','Лужайка удержана! Зомби повержены: '+G.kills+'.<br>Мы уже победили 🏆');beep(660,0.3);}
@@ -254,9 +268,25 @@ function draw(){
     ctx.globalAlpha=1;
 
   }
-  /* враги */
+  /* враги: у зомби башка — верхние 150px из 373 */
+  var ZH_HEAD=150,ZH_FULL=373;
   for(var j=0;j<G.zoms.length;j++){var z=G.zoms[j],zy=rowY(z.r);
     var bob=Math.sin(G.t*4+z.ph)*3;
+    if(z.dying!==undefined){ /* падение: безголовое тело валится, голова катится, всё тает */
+      var dk=Math.min(1,z.dying/1.2);
+      ctx.globalAlpha=1-dk;
+      var bdh=100*(ZH_FULL-ZH_HEAD)/ZH_FULL,bdt=-100+100*ZH_HEAD/ZH_FULL;
+      ctx.save();ctx.translate(z.x,zy+30);ctx.rotate(dk*1.35*(z.fallDir||1));
+      try{var bi=IMG.zombie;
+        if(bi&&bi.complete&&bi.naturalWidth)ctx.drawImage(bi,0,ZH_HEAD,bi.naturalWidth,bi.naturalHeight-ZH_HEAD,-38,bdt,76,bdh);}catch(e){}
+      ctx.restore();
+      var hdh=100*ZH_HEAD/ZH_FULL;
+      ctx.save();ctx.translate(z.headX,z.headY);ctx.rotate(z.headRot||0);
+      try{var hi=IMG.zombie;
+        if(hi&&hi.complete&&hi.naturalWidth)ctx.drawImage(hi,0,0,hi.naturalWidth,ZH_HEAD,-38,-hdh/2,76,hdh);}catch(e){}
+      ctx.restore();
+      ctx.globalAlpha=1;
+      continue;}
     ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();
     ctx.ellipse(z.x,zy+28,30,10,0,0,7);ctx.fill();
     /* зомби: медленное вплющивание + покачивание походкой */
@@ -307,8 +337,8 @@ function draw(){
 }
 function seedRect(i){return {x:8,y:108+i*96,w:120,h:88};}
 function drawPanel(){
-  ctx.fillStyle='rgba(10,5,20,.88)';ctx.fillRect(0,0,PANELW,cv.height);
-  ctx.strokeStyle='#f5c518';ctx.lineWidth=2;ctx.strokeRect(1,1,PANELW-2,cv.height-2);
+  ctx.fillStyle='rgba(10,5,20,.88)';ctx.fillRect(0,0,PANELW,486);
+  ctx.strokeStyle='#f5c518';ctx.lineWidth=2;ctx.strokeRect(1,1,PANELW-2,484);
   ctx.fillStyle='#f5c518';ctx.font='bold 22px Arial';ctx.textAlign='left';
   drawImg(IMG.resp,6,12,26,26);
   ctx.fillText(G.resp,38,36);
@@ -339,10 +369,10 @@ function drawPanel(){
       ctx.fillRect(R.x,R.y,R.w,R.h);}
   }
   /* кнопки */
-  ctx.fillStyle='#333';ctx.fillRect(8,470,120,44);ctx.fillStyle='#fff';ctx.font='bold 14px Arial';ctx.textAlign='center';
-  ctx.fillText('МЕНЮ',68,497);
-  ctx.fillStyle='#333';ctx.fillRect(8,522,120,44);ctx.fillStyle='#fff';
-  ctx.fillText(MUTED?'БЕЗ ЗВУКА':'ЗВУК',68,549);
+  ctx.fillStyle='#333';ctx.fillRect(8,398,120,36);ctx.fillStyle='#fff';ctx.font='bold 14px Arial';ctx.textAlign='center';
+  ctx.fillText('МЕНЮ',68,421);
+  ctx.fillStyle='#333';ctx.fillRect(8,442,120,36);ctx.fillStyle='#fff';
+  ctx.fillText(MUTED?'БЕЗ ЗВУКА':'ЗВУК',68,465);
   ctx.textAlign='left';
 }
 /* --- ввод: drag&drop + клик-клик --- */
@@ -362,8 +392,8 @@ cv.addEventListener('pointerdown',function(e){
   var p=evXY(e);mouse=p;
   if(!G||G.state!=='play')return;
   /* кнопка МЕНЮ = меню паузы */
-  if(p.x>8&&p.x<128&&p.y>470&&p.y<514){togglePause();return;}
-  if(p.x>8&&p.x<128&&p.y>522&&p.y<566){MUTED=!MUTED;return;}
+  if(p.x>8&&p.x<128&&p.y>398&&p.y<434){togglePause();return;}
+  if(p.x>8&&p.x<128&&p.y>442&&p.y<478){MUTED=!MUTED;return;}
   /* подбор рэспэкта кликом */
   for(var ri=G.resps.length-1;ri>=0;ri--){var rpi=G.resps[ri];
     if(Math.hypot(p.x-rpi.x,p.y-rpi.y)<36){
