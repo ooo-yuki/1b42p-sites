@@ -23,7 +23,7 @@ function mats() {
     greyMat = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.85 });
     beakMat = new THREE.MeshStandardMaterial({ color: 0xf0a818, roughness: 0.45 });
     eyeMat = new THREE.MeshStandardMaterial({
-      color: 0x0a0a0a, emissive: 0x331100, emissiveIntensity: 0.8,
+      color: 0x0a0a0a, emissive: 0x1a0d05, emissiveIntensity: 0.3,
       roughness: 0.15, metalness: 0.2,
     });
     legMat = new THREE.MeshStandardMaterial({ color: 0xd86a20, roughness: 0.7 });
@@ -149,9 +149,9 @@ export function makeSeagull(): THREE.Group {
   beak.rotation.x = -Math.PI / 2;
   beak.position.set(0, 0.18, -0.68);
   add(beak, body);
-  const beakLow = mesh(new THREE.ConeGeometry(0.04, 0.2, 6), M.beakMat);
-  beakLow.rotation.x = -Math.PI / 2 + 0.15;
-  beakLow.position.set(0, 0.13, -0.62);
+  const beakLow = mesh(new THREE.ConeGeometry(0.032, 0.15, 6), M.beakMat);
+  beakLow.rotation.x = -Math.PI / 2 + 0.12;
+  beakLow.position.set(0, 0.145, -0.6);
   add(beakLow, body);
   for (const s of [-1, 1]) {
     const eye = mesh(new THREE.SphereGeometry(0.032, 8, 6), M.eyeMat);
