@@ -82,7 +82,7 @@ export function makeRunner(): THREE.Group {
 
   // Тощий гуманоид: узкий торс, длинные конечности.
   skin(0.34, 0.75, 0.22, bones.spine, bones.hips, 1.15); // торс
-  skin(0.26, 0.38, 0.28, bones.head, bones.spine, 1.8); // голова+шея
+  skin(0.26, 0.46, 0.28, bones.head, bones.spine, 1.76); // голова+шея (внахлёст торса)
   for (const s of ['L', 'R'] as const) {
     const sg = s === 'L' ? -1 : 1;
     skin(0.09, 0.35, 0.09, (bones as any)[`shoulder${s}`], (bones as any)[`elbow${s}`], 1.575, 0.28 * sg);
@@ -112,7 +112,7 @@ export function makeRunner(): THREE.Group {
   // Глаза: emissive, на голове, смотрят вперёд (-Z).
   for (const s of [-1, 1]) {
     const e = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 10), M.eyeMat);
-    e.position.set(0.07 * s, 0.1, -0.15);
+    e.position.set(0.07 * s, 0.02, -0.15);
     add(e, bones.head);
   }
   // Пасть: тёмный провал + нижняя челюсть + клыки.
@@ -123,6 +123,12 @@ export function makeRunner(): THREE.Group {
     const f = box(0.025, 0.05, 0.025, M.teethMat);
     f.position.set(0.05 * s, -0.08, -0.17);
     add(f, bones.head);
+  }
+  // Трапеция: мост от торса к плечевым костям (иначе руки висят в воздухе).
+  for (const s of [-1, 1]) {
+    const trap = box(0.18, 0.1, 0.13, furMat);
+    trap.position.set(0.2 * s, 0.28, 0);
+    add(trap, bones.spine);
   }
   // Гребень-шипы вдоль спины.
   for (let i = 0; i < 3; i++) {
@@ -149,8 +155,8 @@ export function makeRunner(): THREE.Group {
   }
   // Хвост-хлыст назад.
   const tail = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.55, 7), furMat);
-  tail.position.set(0, -0.05, 0.3);
-  tail.rotation.x = Math.PI / 2 + 0.35;
+  tail.position.set(0, 0.08, 0.32);
+  tail.rotation.x = Math.PI / 2 - 0.5;
   tail.castShadow = true;
   add(tail, bones.hips);
 
