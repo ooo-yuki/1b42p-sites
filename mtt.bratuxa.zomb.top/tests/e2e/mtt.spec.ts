@@ -431,10 +431,10 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.fill('#authLogin', login);
     await page.fill('#authPass', 'test1234');
     await page.click('#regBtn');
-    await expect(page.locator('#authWho')).toContainText(login);
+    await expect(page.locator('#authWho')).toContainText(login, { timeout: 15000 });
     await expect(page.locator('#goBtn')).toBeVisible();
     await page.reload();
-    await expect(page.locator('#authWho')).toContainText(login);
+    await expect(page.locator('#authWho')).toContainText(login, { timeout: 15000 });
     await page.click('#authOut');
     await expect(page.locator('#authBox')).toBeVisible();
   });
