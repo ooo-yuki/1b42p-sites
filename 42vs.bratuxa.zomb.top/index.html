@@ -22,6 +22,14 @@
     cursor:pointer;margin-top:14px;color:#111;}
   .bigbtn:hover{background:#ffd700;}
   #hint{color:#888;font-size:13px;padding:8px;text-align:center;max-width:1100px;}
+  @media(max-width:700px){
+    #top h1{font-size:22px;}
+    #top .sub{font-size:12px;}
+    .overlay h2{font-size:26px;}
+    .overlay p{font-size:13px;}
+    .bigbtn{font-size:16px;padding:12px 24px;}
+    #hint{font-size:11px;}
+  }
 </style>
 </head>
 <body>
@@ -44,16 +52,16 @@
     <button class="bigbtn" id="btnAgain">НАЧАТЬ ЗАНОВО 🔄</button>
   </div>
 </div>
-<div id="hint">ЛКМ/палец: перетащи семечко с правой панели на клетку · повторный клик отменяет · солнце падает с неба и растёт на Подсолнухе</div>
+<div id="hint">ЛКМ/палец: перетащи семечко с левой панели на клетку · повторный клик отменяет · солнце падает с неба и растёт на Подсолнухе</div>
 <script>
 /* ============ 42 VS SASAZOMBIES — уровень 1 (PvZ-механика, Canvas2D) ============ */
 'use strict';
 var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 /* --- поле 9×5 по лужайке фона (фон 1100×472 сверху, снизу полоса) --- */
 var BGW=1100,BGH=472;
-var GX0=150,GX1=795,GY0=45,GY1=472,COLS=9,ROWS=5;
+var GX0=140,GX1=785,GY0=45,GY1=472,COLS=9,ROWS=5; // сетка на 10px левее
 var CW=(GX1-GX0)/COLS,CH=(GY1-GY0)/ROWS;
-var PANELX=810; // правая панель поверх дороги
+var PANELX=0,PANELW=136; // компактная панель слева
 /* --- баланс --- */
 var Z_HP=141,Z_BITE=141,Z_SPEED=10,SPAWN_EVERY=15,KILLS_TO_WIN=10,SPAWN_TOTAL=14;
 var U_MOPSO={hp:422,dmg:24,rate:1.5,cost:100,cd:7};
@@ -229,14 +237,16 @@ function draw(){
   }
   drawPanel();
 }
-function seedRect(i){return {x:PANELX+40,y:120+i*130,w:220,h:110};}
+function seedRect(i){return {x:8,y:112+i*112,w:120,h:100};}
 function drawPanel(){
-  ctx.fillStyle='rgba(10,5,20,.88)';ctx.fillRect(PANELX,0,cv.width-PANELX,cv.height);
-  ctx.strokeStyle='#f5c518';ctx.lineWidth=2;ctx.strokeRect(PANELX,0,cv.width-PANELX,cv.height);
-  ctx.fillStyle='#f5c518';ctx.font='bold 26px Arial';ctx.textAlign='left';
-  ctx.fillText('☀️ '+G.sun,PANELX+30,50);
-  ctx.fillStyle='#fff';ctx.font='bold 18px Arial';
-  ctx.fillText('🧟 '+G.kills+'/'+KILLS_TO_WIN,PANELX+30,80);
+  ctx.fillStyle='rgba(10,5,20,.88)';ctx.fillRect(0,0,PANELW,cv.height);
+  ctx.strokeStyle='#f5c518';ctx.lineWidth=2;ctx.strokeRect(1,1,PANELW-2,cv.height-2);
+  ctx.fillStyle='#f5c518';ctx.font='bold 22px Arial';ctx.textAlign='left';
+  ctx.fillText('☀️'+G.sun,10,36);
+  ctx.fillStyle='#fff';ctx.font='bold 15px Arial';
+  ctx.fillText('🧟'+G.kills+'/'+KILLS_TO_WIN,10,60);
+  ctx.fillStyle='#888';ctx.font='12px Arial';
+  ctx.fillText('СЕМЕНА',10,84);
   var keys=['mopso','sun','bomb'];
   for(var i=0;i<3;i++){var k=keys[i],d=seedDef(k),R=seedRect(i);
     var avail=G.sun>=d.cost&&G.seeds[k]<=0;
@@ -244,20 +254,22 @@ function drawPanel(){
     ctx.fillRect(R.x,R.y,R.w,R.h);
     ctx.strokeStyle=G.drag===k?'#0f6':'#f5c518';ctx.lineWidth=G.drag===k?4:2;
     ctx.strokeRect(R.x,R.y,R.w,R.h);
-    drawImg(IMG[d.img],R.x+8,R.y+15,70,70);
-    ctx.fillStyle='#fff';ctx.font='bold 15px Arial';
-    ctx.fillText(d.name,R.x+88,R.y+32);
-    ctx.fillStyle='#ffe26b';ctx.font='14px Arial';
-    ctx.fillText('☀️'+d.cost,R.x+88,R.y+54);
+    drawImg(IMG[d.img],R.x+33,R.y+6,54,54);
+    ctx.fillStyle='#fff';ctx.font='bold 12px Arial';ctx.textAlign='center';
+    ctx.fillText(d.name,R.x+R.w/2,R.y+74);
+    ctx.fillStyle='#ffe26b';ctx.font='12px Arial';
+    ctx.fillText('☀️'+d.cost,R.x+R.w/2,R.y+90);
+    ctx.textAlign='left';
     if(G.seeds[k]>0){ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(R.x,R.y,R.w,R.h);
       ctx.fillStyle='#fff';ctx.font='bold 22px Arial';ctx.textAlign='center';
       ctx.fillText(Math.ceil(G.seeds[k]),R.x+R.w/2,R.y+R.h/2+8);ctx.textAlign='left';}
   }
   /* кнопки */
-  ctx.fillStyle='#333';ctx.fillRect(PANELX+40,520,100,50);ctx.fillStyle='#fff';ctx.font='bold 15px Arial';
-  ctx.fillText('МЕНЮ',PANELX+62,550);
-  ctx.fillStyle='#333';ctx.fillRect(PANELX+160,520,100,50);
-  ctx.fillText(MUTED?'ЗВУК ВЫКЛ':'ЗВУК ВКЛ',PANELX+168,550);
+  ctx.fillStyle='#333';ctx.fillRect(8,470,120,44);ctx.fillStyle='#fff';ctx.font='bold 14px Arial';ctx.textAlign='center';
+  ctx.fillText('МЕНЮ',68,497);
+  ctx.fillStyle='#333';ctx.fillRect(8,522,120,44);
+  ctx.fillText(MUTED?'БЕЗ ЗВУКА':'ЗВУК',68,549);
+  ctx.textAlign='left';
 }
 /* --- ввод: drag&drop + клик-клик --- */
 var mouse={x:0,y:0};
@@ -276,8 +288,8 @@ cv.addEventListener('pointerdown',function(e){
   var p=evXY(e);mouse=p;
   if(!G||G.state!=='play')return;
   /* кнопки панели */
-  if(p.x>PANELX+40&&p.x<PANELX+140&&p.y>520&&p.y<570){toMenu();return;}
-  if(p.x>PANELX+160&&p.x<PANELX+260&&p.y>520&&p.y<570){MUTED=!MUTED;return;}
+  if(p.x>8&&p.x<128&&p.y>470&&p.y<514){toMenu();return;}
+  if(p.x>8&&p.x<128&&p.y>522&&p.y<566){MUTED=!MUTED;return;}
   var s=seedAtXY(p.x,p.y);
   if(s){var d=seedDef(s);
     if(G.sun>=d.cost&&G.seeds[s]<=0){G.drag=(G.drag===s?null:s);beep(440,0.06);}
