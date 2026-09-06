@@ -150,6 +150,8 @@ export function buildMapVisual(map: MapId): THREE.Group {
   }
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(def.size, def.size), groundMat);
   ground.rotation.x = -Math.PI / 2;
+  // Базовый грунт scene.ts (90×90 на y=0) перекрывал бы землю карты — поднимаем чуть выше.
+  ground.position.y = 0.05;
   ground.receiveShadow = true;
   group.add(ground);
 
@@ -207,7 +209,7 @@ export function buildMapVisual(map: MapId): THREE.Group {
       color: 0x9fc4d8, roughness: 0.1, metalness: 0.1,
       envMapIntensity: 1.5, transparent: true, opacity: 0.85,
     });
-    add(mergedMesh([flat(2.2, -5, -8), flat(1.6, 10, -12), flat(1.8, -12, 6)], puddleMat, false));
+    add(mergedMesh([flat(2.2, -5, -8, 0.07), flat(1.6, 10, -12, 0.07), flat(1.8, -12, 6, 0.07)], puddleMat, false));
     add(mergedMesh(obstacleGeos, matWood));
   } else if (map === 'island') {
     add(mergedMesh([
@@ -237,6 +239,7 @@ export function buildMapVisual(map: MapId): THREE.Group {
     add(mergedMesh(trunks, matWood));
     const crownMat = new THREE.MeshStandardMaterial({
       map: getTex('palm'), side: THREE.DoubleSide, roughness: 0.9,
+      emissive: 0x1d3d1d, emissiveIntensity: 0.55,
     });
     add(mergedMesh(crowns, crownMat));
     // Камни-додекаэдры.
@@ -253,7 +256,7 @@ export function buildMapVisual(map: MapId): THREE.Group {
     const ring = new THREE.RingGeometry(half - 4, half + 16, 48, 1);
     ring.rotateX(-Math.PI / 2);
     const water = new THREE.Mesh(ring, waterMat);
-    water.position.y = 0.05;
+    water.position.y = 0.09;
     water.onBeforeRender = () => { wtex.offset.x = (performance.now() / 12000) % 1; };
     group.add(water);
   } else {
