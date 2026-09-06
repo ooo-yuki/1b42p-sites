@@ -81,8 +81,8 @@ export function makeRunner(): THREE.Group {
   };
 
   // Тощий гуманоид: узкий торс, длинные конечности.
-  skin(0.3, 0.75, 0.2, bones.spine, bones.hips, 1.15); // торс
-  skin(0.24, 0.3, 0.26, bones.head, bones.spine, 1.9); // голова
+  skin(0.34, 0.75, 0.22, bones.spine, bones.hips, 1.15); // торс
+  skin(0.26, 0.38, 0.28, bones.head, bones.spine, 1.8); // голова+шея
   for (const s of ['L', 'R'] as const) {
     const sg = s === 'L' ? -1 : 1;
     skin(0.09, 0.35, 0.09, (bones as any)[`shoulder${s}`], (bones as any)[`elbow${s}`], 1.575, 0.28 * sg);
@@ -94,7 +94,9 @@ export function makeRunner(): THREE.Group {
   g.updateMatrixWorld(true);
   const skeleton = new THREE.Skeleton(order);
   for (const m of skinned) {
-    m.add(root); // риг целиком в граф меша (ruling)
+    // Риг целиком один раз в граф (g.add(root) выше); общий скелет на все меши.
+    // m.add(root) на каждый меш невозможен: root один, переподвешивание 10 раз
+    // смещает весь риг на позицию последнего меша (наблюдалось как «парящие глаза»).
     m.bind(skeleton);
     m.normalizeSkinWeights();
   }
@@ -109,13 +111,13 @@ export function makeRunner(): THREE.Group {
 
   // Глаза: emissive, на голове, смотрят вперёд (-Z).
   for (const s of [-1, 1]) {
-    const e = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 10), M.eyeMat);
-    e.position.set(0.07 * s, 0.06, -0.14);
+    const e = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 10), M.eyeMat);
+    e.position.set(0.07 * s, 0.1, -0.15);
     add(e, bones.head);
   }
   // Пасть: тёмный провал + нижняя челюсть + клыки.
   const jaw = box(0.18, 0.05, 0.1, M.darkMat);
-  jaw.position.set(0, -0.12, -0.13);
+  jaw.position.set(0, -0.06, -0.14);
   add(jaw, bones.head);
   for (const s of [-1, 0, 1]) {
     const f = box(0.025, 0.05, 0.025, M.teethMat);
