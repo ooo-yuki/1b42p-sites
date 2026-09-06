@@ -10,23 +10,23 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 #menu{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;
  justify-content:center;text-align:center;padding:20px;overflow-y:auto;
  background:radial-gradient(ellipse at 50% 30%,#1a1440 0%,#0a0824 55%,#04060f 100%)}
-#menu.twd{background-size:cover;background-position:center;background-color:#0a0805}
-#menu.twd::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
- background:linear-gradient(90deg,rgba(5,4,2,.92) 0%,rgba(5,4,2,.78) 34%,rgba(5,4,2,.25) 62%,rgba(5,4,2,.45) 100%)}
-#menuNav{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;max-width:1060px;
+#menu.twd{background:#100d0a}
+#menu.twd::before{display:none}
+#menuNav{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:300px;flex:none;
  padding:0 8px;position:relative;z-index:1}
-#menuBody{width:100%;max-width:1060px;display:flex;justify-content:flex-end;position:relative;z-index:1}
-#menuBody .mtab{display:none;width:min(92vw,470px);text-align:left;max-height:62vh;overflow-y:auto;
- background:rgba(8,6,4,.72);border:1px solid rgba(216,197,106,.25);border-radius:6px;padding:14px 16px}
+#menuBody{flex:1;max-width:600px;min-width:0;display:flex;position:relative;z-index:1}
+#menu{align-items:flex-start;justify-content:center;flex-direction:row;gap:26px}
+#menuBody .mtab{display:none;width:100%;text-align:left;max-height:72vh;overflow-y:auto;
+ background:rgba(12,8,7,.9);border:1px solid rgba(232,72,63,.3);border-radius:6px;padding:14px 16px}
 #menuBody .mtab.show{display:block}
 #menu h1{margin:0 0 10px;font-size:min(11vw,58px);font-weight:900;letter-spacing:3px;text-align:left;
- font-family:'Courier New',Courier,monospace;color:#e8c33a;
- text-shadow:0 0 22px rgba(255,160,40,.35),3px 3px 0 #000}
+ font-family:'Courier New',Courier,monospace;color:#e8483f;
+ text-shadow:0 0 22px rgba(232,72,63,.35),3px 3px 0 #000}
 .tnav{display:block;background:transparent;border:none;cursor:pointer;text-align:left;
  font-family:'Courier New',Courier,monospace;font-weight:900;letter-spacing:3px;
- font-size:min(6.4vw,27px);color:#d8a91f;text-shadow:2px 2px 0 #000;padding:7px 26px 7px 18px;margin:1px 0}
-.tnav.active{color:#1a1408;text-shadow:none;
- background:linear-gradient(100deg,#cfb95c 0%,#ddd08a 12%,#c9b45e 26%,#d6c47a 40%,#c4ae58 55%,#d9cb84 70%,#c9b45e 85%,#cfb95c 100%);
+ font-size:min(6.4vw,27px);color:#e8483f;text-shadow:2px 2px 0 #000;padding:7px 26px 7px 18px;margin:1px 0}
+.tnav.active{color:#160a08;text-shadow:none;
+ background:linear-gradient(100deg,#b03028 0%,#e8483f 12%,#c03329 26%,#e0503f 40%,#b03028 55%,#e8483f 70%,#c03329 85%,#b03028 100%);
  clip-path:polygon(0 12%,3% 0,97% 4%,100% 22%,98.5% 45%,100% 68%,97% 92%,94% 100%,2% 96%,0 78%,1.5% 55%,0 32%)}
 #hubLink{color:#9aa3c0;font-size:13px;margin:10px 0 0 18px}
 #menu .board{background:transparent;border:none;box-shadow:none;padding:6px 0}
@@ -40,8 +40,10 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 #menu .mapCard.sel{border-color:#e8c33a;background:rgba(50,38,14,.9)}
 #menu .mapCard .mdesc{color:#9a8a6a}
 @media (max-width:700px){
- #menuNav{align-items:flex-start}
- #menuBody{justify-content:flex-start;flex-direction:column}
+ #menu{flex-direction:column;align-items:stretch}
+ #menuNav{width:100%}
+ #menuNav .tnav{display:inline-block;font-size:16px;padding:6px 12px}
+ #menuBody{justify-content:flex-start;flex-direction:column;max-width:none}
  #menuBody .mtab{width:100%;max-height:52vh}
 }
 /* старый градиентный заголовок заменён TWD-стилем выше */

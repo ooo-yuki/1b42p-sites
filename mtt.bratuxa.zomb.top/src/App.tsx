@@ -4,7 +4,6 @@ import oruzh1Url from './assets/oruzh1.png';
 import oruzh2Url from './assets/oruzh2.png';
 import pistolUrl from './assets/pistol.png';
 import batUrl from './assets/bat.jpg';
-import menuBgUrl from './assets/menu-bg.jpg';
 import charMttUrl from './assets/char-mtt.png';
 import charKrysaUrl from './assets/char-krysa.png';
 
@@ -1122,7 +1121,7 @@ async function loadStats(): Promise<void> {
         </div>
       )}
       {menu && (
-        <div id="menu" className="twd" style={{ backgroundImage: `url(${menuBgUrl})` }}>
+        <div id="menu" className="twd">
           <div id="menuNav">
             <h1>👊 42 LIVE 💥</h1>
             {([['play', '▶ ИГРАТЬ'], ['fighter', '🎭 БОЕЦ'], ['maps', '🗺️ КАРТЫ'], ['editor', '🧩 РЕДАКТОР'], ['rooms', '🌐 КОМНАТЫ'], ['settings', '⚙️ НАСТРОЙКИ'], ['tops', '🏆 ТОПЫ']] as Array<[TabId, string]>).map(([id, label]) => (
@@ -1191,10 +1190,14 @@ async function loadStats(): Promise<void> {
           {authed !== '' && (
               <div id="authWho">
                 {authed === 'guest' ? '👤 Гость' : `🔐 ${authed}`}
-                {' · '}
-                {authed !== 'guest' && <button id="profileBtn" onClick={openProfile}>👤 ПРОФИЛЬ</button>}
-                {' · '}
-                {authed !== 'guest' && <button id="adminBtn" onClick={async () => { if (await loadAdmin()) setAdminOpen(true); }}>📊 ОНЛАЙН</button>}
+                {authed !== 'guest' && (
+                  <>
+                    {' · '}
+                    <button id="profileBtn" onClick={openProfile}>👤 ПРОФИЛЬ</button>
+                    {' · '}
+                    <button id="adminBtn" onClick={async () => { if (await loadAdmin()) setAdminOpen(true); }}>📊 ОНЛАЙН</button>
+                  </>
+                )}
                 {' · '}
                 <button id="authOut" onClick={authOut}>{authed === 'guest' ? 'войти' : 'выйти'}</button>
               </div>
