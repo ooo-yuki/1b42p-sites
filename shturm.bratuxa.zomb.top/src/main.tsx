@@ -6,7 +6,7 @@ import { initScene } from './three/scene';
 import { loadShuba, type Shuba } from './three/shuba';
 import { makeMob, setMobLightDetail, updateMob, type MobKind } from './three/mobs';
 import { makeGun } from './three/guns';
-import { makeTracerPool } from './three/effects';
+import { makeTracerPool, makeBoomPool, makeBloodPool, makeSparkPool, makeRocketTrail } from './three/effects';
 import { buildMapVisual, disposeMapVisual } from './three/mapsVisual';
 import { setView, getView, updateCamera } from './three/cameraRig';
 import { createPlayer, movePlayer, type PlayerState } from './sim/player';
@@ -104,6 +104,11 @@ loadShuba(scene)
 const gunMesh = makeGun(sim.slot);
 scene.add(gunMesh);
 const tracers = makeTracerPool(scene);
+// Task 7: пулы эффектов — кровь/взрывы/искры/дым (update в кадровом цикле рядом с tracers).
+const boomPool = makeBoomPool(scene);
+const bloodPool = makeBloodPool(scene);
+const sparkPool = makeSparkPool(scene);
+const trailPool = makeRocketTrail(scene);
 const flash = new THREE.PointLight(0xffd27f, 0, 9, 1.6);
 scene.add(flash);
 let flashT = 0;
@@ -335,6 +340,18 @@ function pushHud(message?: string) {
     if (best) p.yaw = Math.atan2(-(best.x - p.x), -(best.z - p.z));
     return bestD;
   },
+  /** Task 7: детерминированный триггер эффектов для браузер-приёмки (точка — перед игроком). */
+  fx: (kind: 'boom' | 'big' | 'blood' | 'spark' | 'trail') => {
+    const p = sim.player;
+    const dir = new THREE.Vector3(-Math.sin(p.yaw), 0, -Math.cos(p.yaw));
+    const at = new THREE.Vector3(p.x, 1, p.z).addScaledVector(dir, 5);
+    if (kind === 'boom') boomPool.fire(at);
+    else if (kind === 'big') boomPool.fire(at, { big: true });
+    else if (kind === 'blood') bloodPool.fire(at);
+    else if (kind === 'spark') sparkPool.fire(at);
+    else trailPool.fire(at);
+    return [at.x, at.y, at.z];
+  },
 };
 
 // App сообщает смену карты/слота/вида через кастомные события.
@@ -427,11 +444,21 @@ function tick(dt: number) {
         sim.hits += 1;
         const fall = sim.slot === 'shotgun' && bestD > 15 ? 0.5 : 1;
         best.hp -= res.pellets.length * (sim.slot === 'shotgun' ? 12 * fall : w.dmg);
+        // Task 7: попадание — кровь из груди; по броне танка — жёлтые искры рикошета.
+        const chest = new THREE.Vector3(best.x, 1.2, best.z);
+        bloodPool.fire(chest);
+        if (best.type === 'tank') sparkPool.fire(chest);
         if (best.hp <= 0 && !best.anim.dying) {
           // Task 4: смерть с задержкой — death-клип 0.8с, remove в кадровом цикле.
           best.anim.dying = true;
           best.anim.dieT = 0.8;
           sim.kills += 1;
+          // Task 7: смерть — кровь + взрыв (босс — большой + дымный шлейф салюта).
+          const ground = new THREE.Vector3(best.x, 0.8, best.z);
+          bloodPool.fire(ground);
+          const big = best.type === 'boss';
+          boomPool.fire(ground, { big });
+          if (big) trailPool.fire(ground);
           // Дроп 42%: патроны или аптечка.
           if (Math.random() < 0.42) {
             if (Math.random() < 0.5) {
@@ -632,6 +659,10 @@ function step(now: number) {
     e.mesh.rotation.y = Math.atan2(p.x - e.x, p.z - e.z);
   }
   tracers.update(dt);
+  boomPool.update(dt);
+  bloodPool.update(dt);
+  sparkPool.update(dt);
+  trailPool.update(dt);
   // Task 6: пружина отдачи, вспышка, гильзы, дым ствола.
   (gunMesh.userData.update as ((dt: number) => void) | undefined)?.(dt);
   if (flashT > 0) {
