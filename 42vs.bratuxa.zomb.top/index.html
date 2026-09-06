@@ -111,7 +111,7 @@ function cellXY(r,c){return {x:GX0+c*CW,y:GY0+r*CH};}
 function rowY(r){return GY0+(r+0.65)*CH;} // линия точек трафарета: центр X, 65% высоты клетки
 function unitAt(r,c){for(var i=0;i<G.units.length;i++){var u=G.units[i];if(u.r===r&&u.c===c)return u;}return null;}
 /* --- текстуры --- */
-var IMG={},IMGNAMES={bg:'tex/bg1.jpg',zombie:'tex/zombie.png',mopso:'tex/mopso.png',sunflow:'tex/sunflow.png',bomba:'tex/bomba.png',mops:'tex/mops.png',resp:'tex/respect.png',panel:'tex/panel.png',cone:'tex/Enemies/cone.png',bucket:'tex/Enemies/bucket.png',flagz:'tex/Enemies/flagz.png',flaghead:'tex/Enemies/flaghead.png',flagtex:'tex/Enemies/flagtex.png',wbar:'tex/Enemies/wbar.png'};
+var IMG={},IMGNAMES={bg:'tex/bg1.jpg',zombie:'tex/zombie.png',mopso:'tex/mopso.png',sunflow:'tex/sunflow.png',bomba:'tex/bomba.png',mops:'tex/mops.png',resp:'tex/respect.png',panel:'tex/panel.png',cone:'tex/Enemies/cone.png',bucket:'tex/Enemies/bucket.png',flagz:'tex/Enemies/flagz.png',flaghead:'tex/Enemies/flaghead.png',flagtex:'tex/Enemies/flagtex.png'};
 var IMG_OK=0,IMG_NEED=Object.keys(IMGNAMES).length;
 function loadAll(next){
   Object.keys(IMGNAMES).forEach(function(k){
@@ -487,19 +487,21 @@ function drawArmor(kind,cx,topY,dark){ /* строго по центру баш�
   drawMenuBtn(); // МЕНЮ в правом верхнем углу
   drawWaveBar(); // шкала волн как на фото
 }
-/* --- шкала волн: текстура бара, заливка прогресса, флаги 141, башка-маркер --- */
+/* --- шкала волн своя, в стиле игры: тёмная плашка, золотая рамка, флаги 141, башка-маркер --- */
 function drawWaveBar(){
   var W=G.wv;if(!W||!W.plan)return;
-  var bx=806,by=530,bw=280,bh=80;
-  drawImg(IMG.wbar,bx,by,bw,bh);
-  var sc=bw/197;
-  var tx=bx+52*sc,ty=by+12*sc,tw=(162-52)*sc,th=20*sc;
+  var bx=812,by=552,bw=274,bh=56;
+  ctx.fillStyle='#1a1410';ctx.fillRect(bx,by,bw,bh);
+  ctx.strokeStyle='#f5b518';ctx.lineWidth=2;ctx.strokeRect(bx,by,bw,bh);
+  var tx=bx+16,tw=bw-32,ty=by+bh/2-8,th=16;
+  ctx.fillStyle='#0e131e';ctx.fillRect(tx,ty,tw,th);
   var pr=W.total?Math.min(1,G.kills/W.total):0;
-  ctx.fillStyle='#6abe30';ctx.fillRect(tx,ty,Math.max(0,tw*pr-2),th);
-  drawImg(IMG.flagtex,tx+tw*W.plan.f1-13,ty-16,26,26); /* флаги волн 141 */
-  drawImg(IMG.flagtex,tx+tw*W.plan.f2-13,ty-16,26,26);
+  ctx.fillStyle='#6abe30';ctx.fillRect(tx+1,ty+1,Math.max(0,(tw-2)*pr),th-2);
+  ctx.strokeStyle='#e8d9a0';ctx.lineWidth=1;ctx.strokeRect(tx,ty,tw,th);
+  drawImg(IMG.flagtex,tx+tw*W.plan.f1-11,ty-22,26,26); /* флаги волн 141 */
+  drawImg(IMG.flagtex,tx+tw*W.plan.f2-11,ty-22,26,26);
   if(FLAGZ||buildFlagz()){ /* башка-маркер едет по шкале */
-    try{ctx.drawImage(FLAGZ.head,tx+tw*pr-11,ty+th/2-11,22,22);}catch(e){}}
+    try{ctx.drawImage(FLAGZ.head,tx+tw*pr-12,ty+th/2-12,24,24);}catch(e){}}
 }
 /* --- панель из дизайна ui: 3 кнопки-пакта в красной рамке трафарета, ниже пусто --- */
 var SEED_ORDER=['mopso','sun','bomb'];
