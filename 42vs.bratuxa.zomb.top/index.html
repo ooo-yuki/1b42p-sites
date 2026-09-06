@@ -202,7 +202,7 @@ function buildFlagz(){
 /* геометрия головы знаменосца в мировых координатах */
 function flagHeadWorld(z){
   var s=64/FLAGZ.bw,bh=FLAGZ.bh*s;
-  var hw=24,hh=24*FLAGZ.head.height/FLAGZ.head.width;
+  var hw=32,hh=32*FLAGZ.head.height/FLAGZ.head.width;
   return {x:z.x-32+FLAGZ.nx*s,y:rowY(z.r)+30-bh+FLAGZ.ny*s,hw:hw,hh:hh};
 }
 function popArmor(w,ak){ /* броня слетает куском с физикой, голова отлетит только после смерти */
@@ -425,7 +425,7 @@ function drawArmor(kind,cx,topY,dark){ /* строго по центру баш�
     if(z.flag&&FLAGZ){ /* знаменосец собран из двух текстур */
       var fws=64/FLAGZ.bw,wbh=FLAGZ.bh*fws;
       try{ctx.drawImage(FLAGZ.body,-32,-wbh+bob,64,wbh);}catch(e){}
-      var fhw=24,fhh=24*FLAGZ.head.height/FLAGZ.head.width;
+      var fhw=32,fhh=32*FLAGZ.head.height/FLAGZ.head.width;
       var fhx=FLAGZ.nx*fws-32,fhy=-wbh+FLAGZ.ny*fws+bob;
       try{ctx.drawImage(FLAGZ.head,fhx-fhw/2,fhy-fhh/2,fhw,fhh);}catch(e){}
     }else{drawImg(IMG.zombie,-38,-100+bob,76,100);}
