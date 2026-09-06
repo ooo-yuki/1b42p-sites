@@ -1,0 +1,7 @@
+# Caddyfile.container
+:80 {
+	root * /srv
+	file_server
+	try_files {path} /index.html
+	header /*.html Cache-Control no-cache
+}
