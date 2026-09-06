@@ -36,7 +36,7 @@
 </head>
 <body>
 <div id="wrap">
-  <canvas id="cv" width="1600" height="900"></canvas>
+  <canvas id="cv" width="3840" height="2160"></canvas>
   <div id="menu" class="overlay">
     <h2>42 VS SASAZOMBIES</h2>
     <p>Сасазомби идут с дороги! Выставляй юнитов на лужайку 9×5 и держи дом.<br>
@@ -140,7 +140,7 @@ function spawnZom(){
 }
 function firePea(u){
   var p=cellXY(u.r,u.c);
-  G.peas.push({r:u.r,x:p.x+CW*0.6,y:rowY(u.r)-38,rot:0});
+  G.peas.push({r:u.r,x:p.x+CW/2+7,y:rowY(u.r)-27,rot:0}); // ровно из тёмной пасти
   sfx('shoot');
 }
 /* --- посадка --- */
@@ -207,13 +207,13 @@ function update(dt){
     else{rp.t-=dt;if(rp.t<=0)G.resps.splice(qi,1);}}
   for(var c=G.zoms.length-1;c>=0;c--){var n=G.zoms[c];
     if(n.hp<=0&&n.dying===undefined)killZom(c);
-    if(n.dying!==undefined){ /* смерть: тело валится, голова катится, всё тает */
+    if(n.dying!==undefined){ /* смерть: быстрое падение, таяние только после падения */
       n.dying+=dt;
       n.headVy+=700*dt;n.headX+=n.headVx*dt;n.headY+=n.headVy*dt;n.headRot+=n.headVr*dt;
       var hfloor=rowY(n.r)+12;
       if(n.headY>hfloor){n.headY=hfloor;
         if(Math.abs(n.headVy)>90)n.headVy*=-0.35;else{n.headVy=0;n.headVr*=0.5;}}
-      if(n.dying>=1.2)G.zoms.splice(c,1);
+      if(n.dying>=0.95)G.zoms.splice(c,1);
       continue;}
     var col=Math.floor((n.x-GX0)/CW),meal=(col>=0&&col<COLS)?unitAt(n.r,col):null;
     if(meal&&Math.abs(n.x-(GX0+col*CW+CW/2))<CW*0.55){
@@ -246,7 +246,7 @@ function showEnd(t,p){
   document.getElementById('endov').classList.remove('hidden');
 }
 /* --- отрисовка --- */
-var SCALE2D=1600/1100; // бэкинг 1600×900 = ровно 16:9, логика в тех же координатах
+var SCALE2D=3840/1100; // бэкинг 4К 3840×2160, логика в тех же координатах
 function frame2d(){ctx.setTransform(SCALE2D,0,0,SCALE2D,0,0);ctx.clearRect(0,0,cv.width,cv.height);}
 function drawImg(im,x,y,w,h){try{if(im&&im.complete&&im.naturalWidth)ctx.drawImage(im,x,y,w,h);}catch(e){}}
 function draw(){
@@ -272,11 +272,12 @@ function draw(){
   var ZH_HEAD=150,ZH_FULL=373;
   for(var j=0;j<G.zoms.length;j++){var z=G.zoms[j],zy=rowY(z.r);
     var bob=Math.sin(G.t*4+z.ph)*3;
-    if(z.dying!==undefined){ /* падение: безголовое тело валится, голова катится, всё тает */
-      var dk=Math.min(1,z.dying/1.2);
-      ctx.globalAlpha=1-dk;
+    if(z.dying!==undefined){ /* падение за 0.45с, таяние только когда тело упало */
+      var fallK=Math.min(1,z.dying/0.45);
+      var fadeK=Math.max(0,(z.dying-0.45)/0.5);
+      ctx.globalAlpha=1-fadeK;
       var bdh=100*(ZH_FULL-ZH_HEAD)/ZH_FULL,bdt=-100+100*ZH_HEAD/ZH_FULL;
-      ctx.save();ctx.translate(z.x,zy+30);ctx.rotate(dk*1.35*(z.fallDir||1));
+      ctx.save();ctx.translate(z.x,zy+30);ctx.rotate(fallK*1.35*(z.fallDir||1));
       try{var bi=IMG.zombie;
         if(bi&&bi.complete&&bi.naturalWidth)ctx.drawImage(bi,0,ZH_HEAD,bi.naturalWidth,bi.naturalHeight-ZH_HEAD,-38,bdt,76,bdh);}catch(e){}
       ctx.restore();
@@ -335,7 +336,7 @@ function draw(){
   }
   drawPanel();
 }
-function seedRect(i){return {x:8,y:108+i*96,w:120,h:88};}
+function seedRect(i){return {x:16,y:108+i*96,w:104,h:88};}
 function drawPanel(){
   ctx.fillStyle='rgba(10,5,20,.88)';ctx.fillRect(0,0,PANELW,486);
   ctx.strokeStyle='#f5c518';ctx.lineWidth=2;ctx.strokeRect(1,1,PANELW-2,484);
