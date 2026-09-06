@@ -190,20 +190,20 @@ function buildFlagz(){
     var body=document.createElement('canvas');body.width=bw;body.height=bh;
     var g=body.getContext('2d');g.drawImage(bi,0,0);
     var sx=bw/400,sy=bh/635;
-    g.clearRect(115*sx,145*sy,100*sx,125*sy); // вырезаем голову (115,145)-(215,270)
+    g.clearRect(120*sx,150*sy,90*sx,110*sy); // вырезаем голову (120,150)-(210,260)
     var hsx=hi.naturalWidth/300,hsy=hi.naturalHeight/476;
     var hw=(207-78)*hsx,hh=(225-69)*hsy;
     var head=document.createElement('canvas');head.width=hw;head.height=hh;
     head.getContext('2d').drawImage(hi,78*hsx,69*hsy,hw,hh,0,0,hw,hh);
-    FLAGZ={body:body,head:head,nx:165*sx,ny:258*sy,bw:bw,bh:bh};
+    FLAGZ={body:body,head:head,nx:165*sx,ny:205*sy,bw:bw,bh:bh};
     return true;
   }catch(e){return false;}
 }
 /* геометрия головы знаменосца в мировых координатах */
 function flagHeadWorld(z){
   var s=64/FLAGZ.bw,bh=FLAGZ.bh*s;
-  var hw=36,hh=36*FLAGZ.head.height/FLAGZ.head.width;
-  return {x:z.x-32+FLAGZ.nx*s,y:rowY(z.r)+30-bh+FLAGZ.ny*s-hh/2+10,hw:hw,hh:hh};
+  var hw=24,hh=24*FLAGZ.head.height/FLAGZ.head.width;
+  return {x:z.x-32+FLAGZ.nx*s,y:rowY(z.r)+30-bh+FLAGZ.ny*s,hw:hw,hh:hh};
 }
 function popArmor(w,ak){ /* броня слетает куском с физикой, голова отлетит только после смерти */
   G.debris.push({r:w.r,x:w.x,y:rowY(w.r)-70,kind:ak,dark:Math.floor((w.armorHits||0)/5),t:0,
@@ -425,8 +425,8 @@ function drawArmor(kind,cx,topY,dark){ /* строго по центру баш�
     if(z.flag&&FLAGZ){ /* знаменосец собран из двух текстур */
       var fws=64/FLAGZ.bw,wbh=FLAGZ.bh*fws;
       try{ctx.drawImage(FLAGZ.body,-32,-wbh+bob,64,wbh);}catch(e){}
-      var fhw=36,fhh=36*FLAGZ.head.height/FLAGZ.head.width;
-      var fhx=FLAGZ.nx*fws-32,fhy=-wbh+FLAGZ.ny*fws-fhh/2+10+bob;
+      var fhw=24,fhh=24*FLAGZ.head.height/FLAGZ.head.width;
+      var fhx=FLAGZ.nx*fws-32,fhy=-wbh+FLAGZ.ny*fws+bob;
       try{ctx.drawImage(FLAGZ.head,fhx-fhw/2,fhy-fhh/2,fhw,fhh);}catch(e){}
     }else{drawImg(IMG.zombie,-38,-100+bob,76,100);}
     if(z.armor)drawArmor(z.armor,0,-100+bob,Math.floor((z.armorHits||0)/5));
