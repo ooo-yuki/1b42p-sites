@@ -10,6 +10,7 @@ import { makeMob, setMobLightDetail, updateMob, type MobKind } from './three/mob
 import { makeGun } from './three/guns';
 import { makeTracerPool, makeBoomPool, makeBloodPool, makeSparkPool, makeRocketTrail } from './three/effects';
 import { buildMapVisual, disposeMapVisual } from './three/mapsVisual';
+import { buildGrass, type GrassRig } from './three/grass';
 import { setView, getView, updateCamera, snapCamera } from './three/cameraRig';
 import { createPlayer, movePlayer, MAX_HP, type PlayerState } from './sim/player';
 import { WEAPONS, fireShot, type Slot } from './sim/weapons';
@@ -75,6 +76,8 @@ const sim = {
   balanceMult: 1,
   /** Приёмка камеры: мобы бьют и толкают, но не убивают (замер без смерти). */
   god: false,
+  /** Task 2: локальный сид травы — обновляется в startGame, мир не трогает. */
+  seed: 0,
 };
 
 let mapId: MapId = 'yard';
@@ -94,6 +97,9 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.info.autoReset = false;
 let mapGroup = buildMapVisual(mapId);
 scene.add(mapGroup);
+// Task 2: трава инстансингом с ветром в шейдере (сид обновляется в startGame).
+let grassRig: GrassRig = buildGrass(mapId, 42);
+scene.add(grassRig.mesh);
 
 // Банки-аптечки: зелёный ящик с белым крестом, видно издалека.
 // Геометрия/материалы общие на все банки — без аллокаций на штуку.
@@ -283,6 +289,11 @@ function startGame(map: MapId, diff: Difficulty) {
   scene.add(mapGroup);
   sim.pickups = spawnPickups(mapId);
   rebuildMedkitVisuals();
+  // Task 2: трава заново под карту со свежим сидом (старый меш — со сцены).
+  sim.seed = Date.now() % 2147483647;
+  scene.remove(grassRig.mesh);
+  grassRig = buildGrass(mapId, sim.seed);
+  scene.add(grassRig.mesh);
   applyMapMood(mapId);
   sim.player = createPlayer() as PlayerState & { pitch?: number };
   // Спавн вдали от препятствий, лицом к центру карты.
@@ -689,6 +700,7 @@ function step(now: number) {
     lowT += dt;
     if (lowT > 2 && !lowDetail) {
       lowDetail = true;
+      grassRig.setLow(true); // Task 2: трава вполовину дешевле на просадке.
       scene.traverse((o) => {
         if ((o as THREE.SpotLight).isSpotLight) o.visible = false;
       });
@@ -736,6 +748,7 @@ function step(now: number) {
     e.mesh.rotation.y = Math.atan2(p.x - e.x, p.z - e.z);
   }
   tracers.update(dt);
+  grassRig.tick(dt); // Task 2: ветер по траве.
   skyRig.tick(dt); // Task 1: дрейф облаков на куполе.
   if (medkitGroup) {
     const t = now / 1000;
