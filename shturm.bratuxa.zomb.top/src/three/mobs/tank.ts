@@ -7,25 +7,27 @@ let darkMat: THREE.MeshStandardMaterial | null = null;
 let plateMat: THREE.MeshStandardMaterial | null = null;
 let visorMat: THREE.MeshStandardMaterial | null = null;
 let underMat: THREE.MeshStandardMaterial | null = null;
+let trimMat: THREE.MeshStandardMaterial | null = null;
 
 function mats() {
   if (!rustMat) {
     const rustTex = getTex('rust').clone();
-    rustTex.repeat.set(2, 2);
+    rustTex.repeat.set(1, 1);
     rustTex.needsUpdate = true;
     rustMat = new THREE.MeshStandardMaterial({
-      map: rustTex, bumpMap: rustTex, bumpScale: 0.5,
-      color: 0xc8a070, roughness: 0.75, metalness: 0.45,
+      map: rustTex, bumpMap: rustTex, bumpScale: 0.6,
+      color: 0xd8b088, roughness: 0.75, metalness: 0.45,
     });
     plateMat = new THREE.MeshStandardMaterial({ color: 0x4a4038, roughness: 0.45, metalness: 0.85 });
     darkMat = new THREE.MeshStandardMaterial({ color: 0x1e1c1a, roughness: 0.9 });
     underMat = new THREE.MeshStandardMaterial({ color: 0x3a2c20, roughness: 0.95 });
+    trimMat = new THREE.MeshStandardMaterial({ color: 0x77664a, roughness: 0.55, metalness: 0.8 });
     visorMat = new THREE.MeshStandardMaterial({
       color: 0x140800, emissive: 0xff6600, emissiveIntensity: 2.8,
       roughness: 0.25, metalness: 0.3,
     });
   }
-  return { rustMat: rustMat!, plateMat: plateMat!, darkMat: darkMat!, visorMat: visorMat!, underMat: underMat! };
+  return { rustMat: rustMat!, plateMat: plateMat!, darkMat: darkMat!, visorMat: visorMat!, underMat: underMat!, trimMat: trimMat! };
 }
 
 function qx(deg: number): number[] {
@@ -97,7 +99,9 @@ export function makeTank(): THREE.Group {
   const bi = new Map<THREE.Bone, number>(order.map((b, i) => [b, i]));
 
   const skinned: THREE.SkinnedMesh[] = [];
-  const skinGeo = (geo: THREE.BufferGeometry, mat: THREE.Material, a: THREE.Bone, b: THREE.Bone, y: number, x = 0, z = 0) => {
+  // rigid: жёсткая привязка всех вершин к одной кости (для мелких деталей
+  // вдали от сустава — иначе вершины на «чужой» кости уносит движением).
+  const skinGeo = (geo: THREE.BufferGeometry, mat: THREE.Material, a: THREE.Bone, b: THREE.Bone, y: number, x = 0, z = 0, rigid?: THREE.Bone) => {
     geo.computeBoundingBox();
     const bb = geo.boundingBox!;
     const h = Math.max(1e-5, bb.max.y - bb.min.y);
@@ -106,7 +110,13 @@ export function makeTank(): THREE.Group {
     const wgt = new THREE.BufferAttribute(new Float32Array(pos.count * 4), 4);
     const ia = bi.get(a)!;
     const ib = bi.get(b)!;
+    const ir = rigid ? bi.get(rigid)! : -1;
     for (let i = 0; i < pos.count; i++) {
+      if (ir >= 0) {
+        idx.setXYZW(i, ir, 0, 0, 0);
+        wgt.setXYZW(i, 1, 0, 0, 0);
+        continue;
+      }
       const t = THREE.MathUtils.clamp((bb.max.y - pos.getY(i)) / h, 0, 1);
       idx.setXYZW(i, ia, ib, 0, 0);
       wgt.setXYZW(i, 1 - t, t, 0, 0);
@@ -120,21 +130,34 @@ export function makeTank(): THREE.Group {
     g.add(m);
     return m;
   };
-  const cap = (r: number, len: number) => new THREE.CapsuleGeometry(r, len, 4, 10);
+  const cap = (r: number, len: number) => new THREE.CapsuleGeometry(r, len, 3, 8);
 
   // Громила: торс-бочка в ржавой броне, в 1.4 раза шире.
   const torso = skinGeo(cap(0.26, 0.42), M.rustMat, bones.spine, bones.hips, 1.12);
   torso.scale.set(1.45, 1, 1.0);
-  // Нагрудная плита + пластина живота.
-  skinGeo(new THREE.BoxGeometry(0.52, 0.34, 0.1), M.plateMat, bones.spine, bones.hips, 1.28, 0, -0.26);
-  skinGeo(new THREE.BoxGeometry(0.44, 0.22, 0.08), M.plateMat, bones.spine, bones.hips, 1.0, 0, -0.24);
-  // Спина-пластина + заклёпки.
-  skinGeo(new THREE.BoxGeometry(0.5, 0.4, 0.08), M.plateMat, bones.spine, bones.hips, 1.2, 0, 0.26);
+  // Нагрудная плита + пластина живота (посажены вплотную, z −0.225/−0.21).
+  skinGeo(new THREE.BoxGeometry(0.52, 0.34, 0.1), M.plateMat, bones.spine, bones.hips, 1.28, 0, -0.225);
+  skinGeo(new THREE.BoxGeometry(0.44, 0.22, 0.08), M.plateMat, bones.spine, bones.hips, 1.0, 0, -0.21);
+  // Спина-пластина вплотную (z 0.225, грань утоплена в торс).
+  skinGeo(new THREE.BoxGeometry(0.5, 0.4, 0.08), M.plateMat, bones.spine, bones.hips, 1.2, 0, 0.225);
+  // Светлый рант по краю нагрудной и спинной плит + заклёпки по углам.
+  const rivetGeo = new THREE.SphereGeometry(0.022, 5, 4);
+  const edge = (w: number, h: number, d: number, y: number, z: number) =>
+    skinGeo(new THREE.BoxGeometry(w, h, d), M.trimMat, bones.spine, bones.hips, y, 0, z);
+  edge(0.54, 0.035, 0.1, 1.465, -0.225);
+  edge(0.54, 0.035, 0.1, 1.095, -0.225);
+  edge(0.52, 0.035, 0.08, 1.415, 0.225);
+  edge(0.52, 0.035, 0.08, 0.985, 0.225);
+  for (const [ry, rz] of [[1.4, -0.28], [1.16, -0.28], [1.32, 0.28], [1.08, 0.28]] as const) {
+    for (const rx of [-0.22, 0.22]) {
+      skinGeo(rivetGeo, M.trimMat, bones.spine, bones.hips, ry, rx, rz, bones.spine);
+    }
+  }
   // Шея-столб + воротник закрывают стык.
   skinGeo(cap(0.1, 0.06), M.underMat, bones.head, bones.spine, 1.58);
-  skinGeo(new THREE.CylinderGeometry(0.16, 0.22, 0.16, 10), M.plateMat, bones.head, bones.spine, 1.52);
+  skinGeo(new THREE.CylinderGeometry(0.16, 0.22, 0.16, 8), M.plateMat, bones.head, bones.spine, 1.52);
   // Голова-шар + шлем.
-  skinGeo(new THREE.SphereGeometry(0.15, 12, 10), M.underMat, bones.head, bones.spine, 1.78);
+  skinGeo(new THREE.SphereGeometry(0.15, 10, 7), M.underMat, bones.head, bones.spine, 1.78);
 
   // Руки-брёвна, ноги-столбы.
   for (const s of ['L', 'R'] as const) {
@@ -147,11 +170,18 @@ export function makeTank(): THREE.Group {
     const foot = s === 'L' ? bones.footL : bones.footR;
     skinGeo(cap(0.12, 0.2), M.rustMat, shoulder, elbow, 1.55, 0.34 * sg);
     skinGeo(cap(0.105, 0.2), M.underMat, elbow, hand, 1.22, 0.34 * sg);
-    skinGeo(cap(0.15, 0.26), M.rustMat, hip, knee, 0.75, 0.15 * sg);
-    skinGeo(cap(0.13, 0.26), M.darkMat, knee, foot, 0.32, 0.15 * sg);
-    // Набедренник + наколенник.
-    skinGeo(new THREE.BoxGeometry(0.26, 0.24, 0.3), M.plateMat, hip, knee, 0.95, 0.15 * sg);
-    skinGeo(new THREE.BoxGeometry(0.2, 0.16, 0.1), M.plateMat, knee, foot, 0.55, 0.15 * sg, -0.12);
+    // Ноги-столбы: бедро +43%, голень +42% к черновику — держат массивный верх.
+    skinGeo(cap(0.215, 0.26), M.rustMat, hip, knee, 0.75, 0.15 * sg);
+    skinGeo(cap(0.185, 0.26), M.darkMat, knee, foot, 0.32, 0.15 * sg);
+    // Набедренник + наколенник (шире, под новые объёмы).
+    skinGeo(new THREE.BoxGeometry(0.36, 0.26, 0.36), M.plateMat, hip, knee, 0.95, 0.15 * sg);
+    skinGeo(new THREE.BoxGeometry(0.28, 0.2, 0.14), M.plateMat, knee, foot, 0.55, 0.15 * sg, -0.14);
+    // Рант набедренника спереди + заклёпки (жёстко на hip: у сустава бедра,
+    // градиент hip→knee растягивал бы их сгибом колена в клинки).
+    skinGeo(new THREE.BoxGeometry(0.37, 0.05, 0.05), M.trimMat, hip, knee, 1.04, 0.15 * sg, -0.18, hip);
+    const hipRivetGeo = new THREE.SphereGeometry(0.022, 5, 4);
+    skinGeo(hipRivetGeo, M.trimMat, hip, knee, 0.88, 0.15 * sg - 0.14, -0.19, hip);
+    skinGeo(hipRivetGeo, M.trimMat, hip, knee, 0.88, 0.15 * sg + 0.14, -0.19, hip);
   }
 
   g.updateMatrixWorld(true);
@@ -172,7 +202,7 @@ export function makeTank(): THREE.Group {
   };
 
   // Шлем: купол + козырёк-надбровник + прорезь-визор (emissive).
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.19, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.62), M.plateMat);
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.19, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.62), M.plateMat);
   dome.position.set(0, 0.05, 0.01);
   dome.castShadow = true;
   add(dome, bones.head);
@@ -187,29 +217,34 @@ export function makeTank(): THREE.Group {
   jawPlate.position.set(0, -0.13, -0.12);
   add(jawPlate, bones.head);
   for (const bs of [-1, 1]) {
-    const bolt = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 5), M.darkMat);
+    const bolt = new THREE.Mesh(new THREE.SphereGeometry(0.02, 5, 4), M.darkMat);
     bolt.position.set(0.12 * bs, -0.13, -0.16);
     add(bolt, bones.head);
   }
 
-  // Наплечники-плиты: большие полусферы + окантовка + шип.
+  // Наплечники — скошенные плиты, не блины: купол выше и уже + наружная
+  // скошенная плита + рант по нижней кромке + шип.
   for (const s of ['L', 'R'] as const) {
     const sg = s === 'L' ? -1 : 1;
     const shoulder = s === 'L' ? bones.shoulderL : bones.shoulderR;
-    const pad = new THREE.Mesh(new THREE.SphereGeometry(0.19, 10, 7, 0, Math.PI * 2, 0, Math.PI * 0.6), M.rustMat);
-    pad.scale.set(1.3, 0.75, 1.3);
+    const pad = new THREE.Mesh(new THREE.SphereGeometry(0.19, 8, 5, 0, Math.PI * 2, 0, Math.PI * 0.6), M.rustMat);
+    pad.scale.set(1.15, 1.0, 1.15);
     pad.position.set(-0.03 * sg, 0.02, 0);
     pad.castShadow = true;
     add(pad, shoulder);
-    const trim = box(0.3, 0.04, 0.3, M.plateMat);
+    const slope = box(0.2, 0.13, 0.26, M.plateMat);
+    slope.position.set(-0.09 * sg, 0.09, 0);
+    slope.rotation.z = 0.32 * sg;
+    add(slope, shoulder);
+    const trim = box(0.24, 0.04, 0.24, M.trimMat);
     trim.position.set(-0.03 * sg, -0.05, 0);
     add(trim, shoulder);
-    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 8), M.plateMat);
-    spike.position.set(-0.03 * sg, 0.18, 0);
+    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 6), M.plateMat);
+    spike.position.set(-0.03 * sg, 0.2, 0);
     spike.castShadow = true;
     add(spike, shoulder);
     for (const rs of [-1, 1]) {
-      const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 5), M.darkMat);
+      const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.022, 5, 4), M.darkMat);
       rivet.position.set(-0.03 * sg + 0.1 * rs, -0.02, -0.13);
       add(rivet, shoulder);
     }
@@ -225,27 +260,30 @@ export function makeTank(): THREE.Group {
     add(skirt, bones.hips);
   }
 
-  // Кулаки-цилиндры + костяные шипы.
+  // Кулаки-тараны: цилиндры крупнее, вынесены вперёд + костяные шипы.
   for (const s of ['L', 'R'] as const) {
     const hand = s === 'L' ? bones.handL : bones.handR;
-    const fist = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.12, 0.18, 10), M.plateMat);
-    fist.position.set(0, -0.1, 0);
+    const fist = new THREE.Mesh(new THREE.CylinderGeometry(0.145, 0.155, 0.22, 8), M.plateMat);
+    fist.position.set(0, -0.12, -0.06);
     fist.castShadow = true;
     add(fist, hand);
     for (let k = -1; k <= 1; k++) {
-      const stud = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.06, 6), M.darkMat);
-      stud.position.set(0.06 * k, -0.19, -0.03);
+      const stud = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.07, 5), M.darkMat);
+      stud.position.set(0.08 * k, -0.24, -0.06);
       stud.rotation.x = Math.PI;
       stud.castShadow = true;
       add(stud, hand);
     }
   }
-  // Ботинки-блоки.
+  // Ботинки-блоки: шире и длиннее, под новые голени.
   for (const s of ['L', 'R'] as const) {
     const foot = s === 'L' ? bones.footL : bones.footR;
-    const boot = box(0.2, 0.12, 0.3, M.plateMat);
-    boot.position.set(0, -0.04, -0.05);
+    const boot = box(0.28, 0.14, 0.42, M.plateMat);
+    boot.position.set(0, -0.04, -0.09);
     add(boot, foot);
+    const toe = box(0.28, 0.06, 0.1, M.trimMat);
+    toe.position.set(0, -0.01, -0.28);
+    add(toe, foot);
   }
 
   // Миксер + экшены. Attack — удар сверху вниз обеими руками.
