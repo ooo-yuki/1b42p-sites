@@ -71,7 +71,8 @@ a.pill{text-decoration:none;display:inline-block}
   gap:14px;width:100%}
 .mg-card{text-align:left}
 .mg-badges{display:flex;gap:6px;flex-wrap:wrap}
-#pv-col{max-height:100%;overflow-y:auto;pointer-events:auto;animation:pv-rise .5s ease}
+#pv-col{max-height:100%;overflow-y:auto;pointer-events:auto;animation:pv-rise .5s ease;scrollbar-width:none}
+#pv-col::-webkit-scrollbar{display:none}
 @keyframes pv-rise{from{opacity:0;transform:translateY(14px)}}
 @media (prefers-reduced-motion:reduce){#pv-col{animation:none}}
 #pv-hud{display:flex;flex-wrap:wrap;gap:8px;position:sticky;top:0;padding:12px 0;z-index:5}
