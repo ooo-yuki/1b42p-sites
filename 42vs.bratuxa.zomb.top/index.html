@@ -43,8 +43,8 @@
   <div id="menu" class="overlay">
     <h2>42 VS SASAZOMBIES</h2>
     <p>Сасазомби идут с дороги! Выставляй юнитов на лужайку 9×5 и держи дом.<br>
-    Мопсострел бьёт мопсами по своей линии · Подсолнух роняет рэспэкт — подбирай кликом · Бомба бахает 3×3.<br>
-    Зомби ползут с дороги справа · игра бесконечная — держись как можно дольше!</p>
+    Мопсострел бьёт мопсами по своей линии · Рэспэктолнух роняет рэспэкт — подбирай кликом · Бомба Хайпа бахает 3×3.<br>
+    Две волны сасазомби · выстои до конца!</p>
     <button class="bigbtn" id="btnLevel1">ПЕРЕЙТИ НА ПЕРВЫЙ УРОВЕНЬ 🌻</button>
     <button class="bigbtn" id="btnHub">ВЫЙТИ В ХАБ 🌯</button>
   </div>
@@ -83,14 +83,35 @@ var SKY_RESP_EVERY=18,SKY_RESP_VAL=25,START_RESP=50; // старт с 50 рэс�
 var G=null;
 function newGame(){
   G={state:'play',t:0,resp:START_RESP,units:[],zoms:[],peas:[],fx:[],floats:[],resps:[],fly:[],debris:[],
-    speed:1,kills:0,spawned:0,spawnT:3,skyT:6,seeds:{mopso:0,sun:0,bomb:0},drag:null,over:null,
+    speed:1,kills:0,spawned:0,skyT:6,seeds:{mopso:0,sun:0,bomb:0},drag:null,over:null,
     seedFlash:null,cellFlash:null};
+  G.wv={ph:0,pt:8,g:0,q:0,first:false,plan:buildPlan()}; /* волны: редко → волна → чаще → волна → победа */
+  G.wv.total=G.wv.plan.total;
+}
+/* --- план уровня вперёд: 3 группы 1-2 → волна 7-10 → 3 группы 2-3 → волна 7-10 --- */
+function buildPlan(){
+  var t1=[],t2=[],i;
+  for(i=0;i<3;i++)t1.push(1+Math.floor(Math.random()*2));
+  for(i=0;i<3;i++)t2.push(2+Math.floor(Math.random()*2));
+  var w1=7+Math.floor(Math.random()*4),w2=7+Math.floor(Math.random()*4);
+  var s1=t1[0]+t1[1]+t1[2];
+  var total=s1+w1+t2[0]+t2[1]+t2[2]+w2;
+  return {t1:t1,w1:w1,t2:t2,w2:w2,total:total,
+    f1:s1/total,f2:(s1+w1+t2[0]+t2[1]+t2[2])/total};
+}
+function startWave(n){
+  var W=G.wv;W.ph=(n===1?1:3);W.q=(n===1?W.plan.w1:W.plan.w2);W.first=true;W.pt=0.5;
+  sfx('zdie');
+}
+function winLevel(){
+  G.wv.ph=4;G.state='win';
+  showEnd('УРОВЕНЬ ПРОЙДЕН! 🏆','Все волны отбиты! Убито: '+G.kills+'.<br>Мы уже победили 🏆');beep(660,0.3);
 }
 function cellXY(r,c){return {x:GX0+c*CW,y:GY0+r*CH};}
 function rowY(r){return GY0+(r+0.65)*CH;} // линия точек трафарета: центр X, 65% высоты клетки
 function unitAt(r,c){for(var i=0;i<G.units.length;i++){var u=G.units[i];if(u.r===r&&u.c===c)return u;}return null;}
 /* --- текстуры --- */
-var IMG={},IMGNAMES={bg:'tex/bg1.jpg',zombie:'tex/zombie.png',mopso:'tex/mopso.png',sunflow:'tex/sunflow.png',bomba:'tex/bomba.png',mops:'tex/mops.png',resp:'tex/respect.png',panel:'tex/panel.png',cone:'tex/Enemies/cone.png',bucket:'tex/Enemies/bucket.png'};
+var IMG={},IMGNAMES={bg:'tex/bg1.jpg',zombie:'tex/zombie.png',mopso:'tex/mopso.png',sunflow:'tex/sunflow.png',bomba:'tex/bomba.png',mops:'tex/mops.png',resp:'tex/respect.png',panel:'tex/panel.png',cone:'tex/Enemies/cone.png',bucket:'tex/Enemies/bucket.png',flagz:'tex/Enemies/flagz.png',flaghead:'tex/Enemies/flaghead.png',flagtex:'tex/Enemies/flagtex.png',wbar:'tex/Enemies/wbar.png'};
 var IMG_OK=0,IMG_NEED=Object.keys(IMGNAMES).length;
 function loadAll(next){
   Object.keys(IMGNAMES).forEach(function(k){
@@ -148,13 +169,41 @@ function spawnResp(x,y){
 /* --- спавн --- */
 /* --- броня зомби: конус 252 (с 90с, 20%), ведро 441 (со 180с, 10%), таймер скрыт --- */
 var ARM_T1=90,ARM_T2=180,ARM_CONE_HP=252,ARM_BUCKET_HP=441;
-function spawnZom(){
+function spawnZom(flag){
   var r=Math.floor(Math.random()*ROWS);
-  var arm=null,ahp=0,roll=Math.random();
-  if(roll<0.10){if(G.t>=ARM_T2){arm='bucket';ahp=ARM_BUCKET_HP;}}
-  else if(roll<0.30){if(G.t>=ARM_T1){arm='cone';ahp=ARM_CONE_HP;}}
-  G.zoms.push({r:r,x:1135,hp:Z_HP,armor:arm,armorHp:ahp,sp:0.97+Math.random()*0.06,eatT:0,ph:Math.random()*6}); // выползает из-за правого края экрана; темп ±3% как питч у звуков
+  var arm=null,ahp=0;
+  if(!flag){var roll=Math.random();
+    if(roll<0.10){if(G.t>=ARM_T2){arm='bucket';ahp=ARM_BUCKET_HP;}}
+    else if(roll<0.30){if(G.t>=ARM_T1){arm='cone';ahp=ARM_CONE_HP;}}}
+  var spf=0.97+Math.random()*0.06;
+  if(flag)spf*=1.1; // знаменосец на 10% быстрее
+  G.zoms.push({r:r,x:1135,hp:Z_HP,armor:arm,armorHp:ahp,flag:!!flag,sp:spf,eatT:0,ph:Math.random()*6}); // выползает из-за правого края экрана; темп ±3% как питч у звуков
   G.spawned++;
+}
+/* --- знаменосец: тело и голова из двух текстур собираются как трафареты --- */
+var FLAGZ=null;
+function buildFlagz(){
+  try{
+    var bi=IMG.flagz;if(!(bi&&bi.complete&&bi.naturalWidth))return false;
+    var hi=IMG.flaghead;if(!(hi&&hi.complete&&hi.naturalWidth))return false;
+    var bw=bi.naturalWidth,bh=bi.naturalHeight;
+    var body=document.createElement('canvas');body.width=bw;body.height=bh;
+    var g=body.getContext('2d');g.drawImage(bi,0,0);
+    var sx=bw/400,sy=bh/635;
+    g.clearRect(115*sx,145*sy,100*sx,125*sy); // вырезаем голову (115,145)-(215,270)
+    var hsx=hi.naturalWidth/300,hsy=hi.naturalHeight/476;
+    var hw=(207-78)*hsx,hh=(225-69)*hsy;
+    var head=document.createElement('canvas');head.width=hw;head.height=hh;
+    head.getContext('2d').drawImage(hi,78*hsx,69*hsy,hw,hh,0,0,hw,hh);
+    FLAGZ={body:body,head:head,nx:165*sx,ny:258*sy,bw:bw,bh:bh};
+    return true;
+  }catch(e){return false;}
+}
+/* геометрия головы знаменосца в мировых координатах */
+function flagHeadWorld(z){
+  var s=64/FLAGZ.bw,bh=FLAGZ.bh*s;
+  var hw=36,hh=36*FLAGZ.head.height/FLAGZ.head.width;
+  return {x:z.x-32+FLAGZ.nx*s,y:rowY(z.r)+30-bh+FLAGZ.ny*s-hh/2+10,hw:hw,hh:hh};
 }
 function popArmor(w,ak){ /* броня слетает куском с физикой, голова отлетит только после смерти */
   G.debris.push({r:w.r,x:w.x,y:rowY(w.r)-70,kind:ak,dark:Math.floor((w.armorHits||0)/5),t:0,
@@ -170,8 +219,8 @@ function firePea(u){
 /* --- посадка --- */
 function seedDef(k){
   if(k==='mopso')return {cost:U_MOPSO.cost,cd:U_MOPSO.cd,img:'mopso',name:'Мопсострел'};
-  if(k==='sun')return {cost:U_SUN.cost,cd:U_SUN.cd,img:'sunflow',name:'Подсолнух'};
-  return {cost:U_BOMB.cost,cd:U_BOMB.cd,img:'bomba',name:'Бомба'};
+  if(k==='sun')return {cost:U_SUN.cost,cd:U_SUN.cd,img:'sunflow',name:'Рэспэктолнух'};
+  return {cost:U_BOMB.cost,cd:U_BOMB.cd,img:'bomba',name:'Бомба Хайпа'};
 }
 function tryPlant(k,r,c){
   var d=seedDef(k);
@@ -190,11 +239,19 @@ function update(dt){
   for(var k in G.seeds)if(G.seeds[k]>0)G.seeds[k]-=dt;
   if(G.seedFlash){G.seedFlash.t-=dt;if(G.seedFlash.t<=0)G.seedFlash=null;}
   if(G.cellFlash){G.cellFlash.t-=dt;if(G.cellFlash.t<=0)G.cellFlash=null;}
-  /* спавн: 1-я минута редко (15–20с), дальше 5–10с и с каждой минутой чаще до +50% (6 минут) */
-  {G.spawnT-=dt;if(G.spawnT<=0){
-    if(G.t<60)G.spawnT=15+Math.random()*5;
-    else{var sm=1+0.5*Math.min(G.t/360,1);G.spawnT=(5+Math.random()*5)/sm;}
-    spawnZom();}}
+  /* волны: до большой по 1-2 раз в 20с, волна 7-10, потом по 2-3 раз в 18с, волна, победа */
+  var W=G.wv;
+  if(W.ph===0){W.pt-=dt;
+    if(W.pt<=0){W.pt=20;var n0=W.plan.t1[W.g]||1;for(var s0=0;s0<n0;s0++)spawnZom();W.g++;}
+    if(G.t>=60)startWave(1);}
+  else if(W.ph===1||W.ph===3){
+    if(W.q>0){W.pt-=dt;
+      if(W.pt<=0){W.pt=2;spawnZom(W.first);W.first=false;W.q--;}}
+    else if(G.zoms.length===0){ /* всех одолели — волна пройдена, на экране пусто */
+      if(W.ph===3)winLevel();else{W.ph=2;W.pt=18;W.g=0;}}}
+  else if(W.ph===2){W.pt-=dt;
+    if(W.pt<=0){W.pt=18;var n2=W.plan.t2[W.g]||2;for(var s2=0;s2<n2;s2++)spawnZom();W.g++;}
+    if(W.g>=3)startWave(2);}
   /* небо-рэспэкт: падает, подобрать кликом */
   G.skyT-=dt;
   if(G.skyT<=0){G.skyT=SKY_RESP_EVERY;spawnResp();}
@@ -232,7 +289,7 @@ function update(dt){
         else{w.hp-=U_MOPSO.dmg;sfx('hit');}
         hit=true;
         G.fx.push({x:s.x,y:s.y,t:0.2,r:6});break;}}
-    if(hit||s.x>GX1+60)G.peas.splice(a,1);
+    if(hit||s.x>1200)G.peas.splice(a,1); /* мопсы летят за сетку до упора */
   }
   /* рэспэкт падает и тает */
   for(var qi=G.resps.length-1;qi>=0;qi--){var rp=G.resps[qi];
@@ -278,6 +335,8 @@ function killZom(i){
   z.fallDir=dir; // тело валится набок
   z.headX=z.x;z.headY=rowY(z.r)-50;z.headVx=dir*(40+Math.random()*50); // голова отлетает
   z.headVy=-160;z.headRot=0;z.headVr=dir*6;
+  if(z.flag){if(!FLAGZ)buildFlagz(); /* голова и тело знаменосца — отдельно */
+    if(FLAGZ){var fh=flagHeadWorld(z);z.headX=fh.x;z.headY=fh.y;z.fhw=fh.hw;z.fhh=fh.hh;}}
   sfx('zdie');
 }
 function lose(){G.state='lose';showEnd('ЗОМБИ ПРОРВАЛИСЬ 🧟','Сасазомби дошли до дома...<br>Убито: '+G.kills+'. Держись дольше, братуха!');beep(110,0.5,'sawtooth');}
@@ -342,14 +401,17 @@ function drawArmor(kind,cx,topY,dark){ /* строго по центру баш�
       ctx.globalAlpha=1-fadeK;
       var bdh=100*(ZH_FULL-ZH_HEAD)/ZH_FULL,bdt=-100+100*ZH_HEAD/ZH_FULL;
       ctx.save();ctx.translate(z.x,zy+30);ctx.rotate(fallK*1.35*(z.fallDir||1));
-      try{var bi=IMG.zombie;
-        if(bi&&bi.complete&&bi.naturalWidth)ctx.drawImage(bi,0,ZH_HEAD,bi.naturalWidth,bi.naturalHeight-ZH_HEAD,-38,bdt,76,bdh);}catch(e){}
+      if(z.flag&&FLAGZ){var fbs=64/FLAGZ.bw; /* тело знаменосца валится без головы */
+        try{ctx.drawImage(FLAGZ.body,-32,-FLAGZ.bh*fbs,64,FLAGZ.bh*fbs);}catch(e){}}
+      else{try{var bi=IMG.zombie;
+        if(bi&&bi.complete&&bi.naturalWidth)ctx.drawImage(bi,0,ZH_HEAD,bi.naturalWidth,bi.naturalHeight-ZH_HEAD,-38,bdt,76,bdh);}catch(e){}}
       if(z.armor)drawArmor(z.armor,0,bdt,Math.floor((z.armorHits||0)/5)); // броня уцелела после бомбы — валится вместе с телом
       ctx.restore();
       var hdh=100*ZH_HEAD/ZH_FULL;
       ctx.save();ctx.translate(z.headX,z.headY);ctx.rotate(z.headRot||0);
-      try{var hi=IMG.zombie;
-        if(hi&&hi.complete&&hi.naturalWidth)ctx.drawImage(hi,0,0,hi.naturalWidth,ZH_HEAD,-38,-hdh/2,76,hdh);}catch(e){}
+      if(z.flag&&FLAGZ){try{ctx.drawImage(FLAGZ.head,-z.fhw/2,-z.fhh/2,z.fhw,z.fhh);}catch(e){}} /* голова знаменосца отлетает */
+      else{try{var hi=IMG.zombie;
+        if(hi&&hi.complete&&hi.naturalWidth)ctx.drawImage(hi,0,0,hi.naturalWidth,ZH_HEAD,-38,-hdh/2,76,hdh);}catch(e){}}
       ctx.restore();
       ctx.globalAlpha=1;
       continue;}
@@ -359,7 +421,14 @@ function drawArmor(kind,cx,topY,dark){ /* строго по центру баш�
     var zsq=Math.sin(G.t*1.6+z.ph),zsx=1-0.04*zsq,zsy=1+0.05*zsq;
     var sway=(z.eatT>0?0.02:0.06)*Math.sin(G.t*3.4+z.ph);
     ctx.save();ctx.translate(z.x,zy+30);ctx.rotate(sway);ctx.scale(zsx,zsy);
-    drawImg(IMG.zombie,-38,-100+bob,76,100);
+    if(z.flag){if(!FLAGZ)buildFlagz();}
+    if(z.flag&&FLAGZ){ /* знаменосец собран из двух текстур */
+      var fws=64/FLAGZ.bw,wbh=FLAGZ.bh*fws;
+      try{ctx.drawImage(FLAGZ.body,-32,-wbh+bob,64,wbh);}catch(e){}
+      var fhw=36,fhh=36*FLAGZ.head.height/FLAGZ.head.width;
+      var fhx=FLAGZ.nx*fws-32,fhy=-wbh+FLAGZ.ny*fws-fhh/2+10+bob;
+      try{ctx.drawImage(FLAGZ.head,fhx-fhw/2,fhy-fhh/2,fhw,fhh);}catch(e){}
+    }else{drawImg(IMG.zombie,-38,-100+bob,76,100);}
     if(z.armor)drawArmor(z.armor,0,-100+bob,Math.floor((z.armorHits||0)/5));
     ctx.restore();
 
@@ -416,6 +485,21 @@ function drawArmor(kind,cx,topY,dark){ /* строго по центру баш�
   }
   drawPanel();
   drawMenuBtn(); // МЕНЮ в правом верхнем углу
+  drawWaveBar(); // шкала волн как на фото
+}
+/* --- шкала волн: текстура бара, заливка прогресса, флаги 141, башка-маркер --- */
+function drawWaveBar(){
+  var W=G.wv;if(!W||!W.plan)return;
+  var bx=806,by=530,bw=280,bh=80;
+  drawImg(IMG.wbar,bx,by,bw,bh);
+  var sc=bw/197;
+  var tx=bx+52*sc,ty=by+12*sc,tw=(162-52)*sc,th=20*sc;
+  var pr=W.total?Math.min(1,G.kills/W.total):0;
+  ctx.fillStyle='#6abe30';ctx.fillRect(tx,ty,Math.max(0,tw*pr-2),th);
+  drawImg(IMG.flagtex,tx+tw*W.plan.f1-13,ty-16,26,26); /* флаги волн 141 */
+  drawImg(IMG.flagtex,tx+tw*W.plan.f2-13,ty-16,26,26);
+  if(FLAGZ||buildFlagz()){ /* башка-маркер едет по шкале */
+    try{ctx.drawImage(FLAGZ.head,tx+tw*pr-11,ty+th/2-11,22,22);}catch(e){}}
 }
 /* --- панель из дизайна ui: 3 кнопки-пакта в красной рамке трафарета, ниже пусто --- */
 var SEED_ORDER=['mopso','sun','bomb'];
@@ -435,7 +519,9 @@ function drawPanel(){
     ctx.strokeStyle=G.drag===k?'#0f6':'#e8d9a0';ctx.lineWidth=G.drag===k?3:2;
     ctx.strokeRect(R.x,R.y,R.w,R.h);
     drawImg(IMG[d.img],R.x+4,R.y+9,38,38);
-    ctx.fillStyle='#fff';ctx.font='14px Z42M, Arial';ctx.textAlign='left';
+    ctx.fillStyle='#fff';ctx.textAlign='left';
+    var nfs=14;ctx.font=nfs+'px Z42M, Arial'; /* длинное имя ужимаем в пакт */
+    while(ctx.measureText(d.name).width>70&&nfs>9){nfs--;ctx.font=nfs+'px Z42M, Arial';}
     ctx.fillText(d.name,R.x+46,R.y+22);
     drawImg(IMG.resp,R.x+46,R.y+30,16,16);
     ctx.fillStyle='#ffe26b';ctx.font='15px Z42B, Arial';
@@ -584,5 +670,6 @@ loadAll(function(){});
 requestAnimationFrame(loop);
 window.__z42={newGame:newGame,get G(){return G;},tryPlant:tryPlant,step:function(dt){update(dt);draw();},spawnZom:spawnZom,spawnResp:spawnResp,togglePause:togglePause,get VOL(){return VOL;}};
 </script>
+<script>/* 42-трекер онлайна */(function(){var SITE='42vs';try{var s=null;try{s=localStorage.getItem('t42_sid');}catch(e){}if(!s||!/^[0-9a-f]{32}$/.test(s)){s='';var h='0123456789abcdef';for(var i=0;i<32;i++)s+=h[Math.floor(Math.random()*16)];try{localStorage.setItem('t42_sid',s);}catch(e){}}function b(){try{fetch('https://hub.bratuxa.zomb.top/api/track',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({site:SITE,sid:s}),keepalive:true}).catch(function(){});}catch(e){}}b();setInterval(b,30000);}catch(e){}})();</script>
 </body>
 </html>

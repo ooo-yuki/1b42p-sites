@@ -1,4 +1,4 @@
-/* Сборщик метрик кода батальона: проходит 15 сайтов трекера,
+/* Сборщик метрик кода батальона: проходит 20 сайтов трекера,
    считает analyze.ts, кладёт dist/metrics.json для страницы статы.
    Шаг сборки sasha (после bun build): bun ./metrics/collect.mjs */
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -21,6 +21,11 @@ const SITES = {
   '1b42p': '1b42p.bratuxa.zomb.top',
   mtt: 'mtt.bratuxa.zomb.top',
   laiv42: '42laiv.bratuxa.zomb.top',
+  '42vs': '42vs.bratuxa.zomb.top',
+  'ai-714ef0': 'ai-714ef0.bratuxa.zomb.top',
+  pampers: 'pampers.bratuxa.zomb.top',
+  shturm: 'shturm.bratuxa.zomb.top',
+  skitons: 'skitons.bratuxa.zomb.top',
 };
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', '__pycache__', '.tmp-test', '.hermes']);
 const SKIP_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'mp3', 'm4a', 'wav', 'mp4', 'woff', 'woff2', 'ttf', 'map', 'pyc']);
