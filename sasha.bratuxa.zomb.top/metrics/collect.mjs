@@ -20,7 +20,6 @@ const SITES = {
   brohacho: 'brohacho.bratuxa.zomb.top',
   '1b42p': '1b42p.bratuxa.zomb.top',
   mtt: 'mtt.bratuxa.zomb.top',
-  laiv42: '42laiv.bratuxa.zomb.top',
   '42vs': '42vs.bratuxa.zomb.top',
   'ai-714ef0': 'ai-714ef0.bratuxa.zomb.top',
   pampers: 'pampers.bratuxa.zomb.top',
