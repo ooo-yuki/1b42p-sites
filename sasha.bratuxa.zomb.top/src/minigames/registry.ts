@@ -39,6 +39,14 @@ const GAMES: MiniGame[] = [
     mode: 'offline',
     test: false,
   },
+  {
+    id: 'terminal',
+    title: 'Терминал 42',
+    desc: 'Чёрная консоль связиста: scan, inject, decrypt — вскрой узлы и распутай заговор БРОТОВОД-Х.',
+    href: 'terminal.html',
+    mode: 'offline',
+    test: false,
+  },
 ];
 
 /** Все записи витрины по порядку завоза. */

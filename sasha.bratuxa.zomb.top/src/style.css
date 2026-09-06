@@ -100,6 +100,17 @@ a.pill{text-decoration:none;display:inline-block}
 #pv-win{background:#0d1428;border:1px solid #0060AA;border-radius:18px;padding:22px;margin-top:16px;box-shadow:0 0 40px rgba(0,96,170,.55)}
 #pv-win h2{margin:0 0 6px}
 #pvHome{margin-top:16px}
+/* терминал 42: чёрная консоль связиста (поверхность terminal) */
+#term-wrap{width:min(760px,94vw);height:100%;display:flex;flex-direction:column;pointer-events:auto}
+#term{flex:1;overflow-y:auto;background:rgba(4,6,14,.88);border:1px solid #1d2c52;border-radius:16px;padding:16px;text-align:left;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;line-height:1.6;scrollbar-width:thin;scrollbar-color:#0060AA transparent}
+.trow{white-space:pre-wrap;word-break:break-word;color:#6bff9e}
+.trow.in{color:#ffffff}
+.trow.sys{color:#7db9e8}
+.trow.alarm{color:#ff6b6b}
+.tline{display:flex;gap:8px;align-items:center;margin-top:4px}
+.tprompt{color:#7db9e8;white-space:nowrap}
+#term-input{flex:1;min-width:0;background:transparent;border:none;outline:none;color:#6bff9e;font:inherit;caret-color:#6bff9e}
+#termHome{margin:12px auto 0}
 .mg-note{color:var(--dim);font-size:13px;margin:0}
 #homeBtn svg,#depBtn svg{width:1.1em;height:1.1em;vertical-align:-0.18em}
 #secret p svg{width:1.1em;height:1.1em;vertical-align:-0.15em;color:#ffffff}

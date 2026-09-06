@@ -39,4 +39,11 @@ describe('minigames registry', () => {
     expect(g?.mode).toBe('offline');
     expect(g?.test).toBe(false);
   });
+  test('терминал зарегистрирован как боевая офлайн-игра', () => {
+    const g = getGame('terminal');
+    expect(g).toBeDefined();
+    expect(g?.href).toBe('terminal.html');
+    expect(g?.mode).toBe('offline');
+    expect(g?.test).toBe(false);
+  });
 });
