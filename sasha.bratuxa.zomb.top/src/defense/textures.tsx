@@ -220,5 +220,19 @@ const hq: Pix = {
   colors: { k: K, R: '#E31E25', W: '#808080', B: '#9fd0ff', D: '#f0f0f0' },
 };
 
-export const TEX = { flood, cobalt, scarlet, zevaka, zanuda, sprinter, director, pug, hq } as const;
+const sale: Pix = {
+  grid: [
+    '....kkkk....',
+    '..kkBBBBkk..',
+    '.kBBBBBBBBk.',
+    '.kBBBWWBBBk.',
+    '.kBBBWWBBBk.',
+    '.kBBBBBBBBk.',
+    '..kkBBBBkk..',
+    '....kkkk....',
+  ],
+  colors: { k: K, B: '#0060AA', W: '#f0f0f0' },
+};
+
+export const TEX = { flood, cobalt, scarlet, zevaka, zanuda, sprinter, director, pug, hq, sale } as const;
 export type TexName = keyof typeof TEX;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Coins, Heart, Home, Pause, Play, RotateCcw, Shield, Swords, Trophy, Waves } from 'lucide-react';
+import { Coins, Heart, Home, Pause, Play, RotateCcw, Swords, Trophy, Waves } from 'lucide-react';
 import {
   CARDS, PATH, TURRETS, applyCard, createGame, finishWave, offerCards,
   placeTurret, sellTurret, spawnWave, tick, type GameState,
@@ -15,6 +15,9 @@ const W = 9 * CELL;
 const H = 9 * CELL;
 
 const KIND_LABEL: Record<string, string> = { flood: 'Прожектор', cobalt: 'Кобальт', scarlet: 'Алый' };
+const CARD_ART: Record<string, TexName> = {
+  rate: 'flood', dmg: 'cobalt', pierce: 'scarlet', repair: 'hq', pugs: 'pug', sale: 'sale',
+};
 const UNIT_COLOR: Record<string, string> = {
   zevaka: '#c9c9c9', zanuda: '#f0c040', sprinter: '#6bd5ff', director: '#E31E25',
 };
@@ -336,7 +339,7 @@ export default function Defense(): JSX.Element {
           <div id="df-cards-row">
             {cards.map((id) => (
               <button key={id} type="button" className="pill ghost df-card" onClick={() => pickCard(id)}>
-                <Shield data-icon="inline-start" /> <b>{CARDS[id]?.name ?? id}</b>
+                <DefenseTex art={CARD_ART[id] ?? 'flood'} /> <b>{CARDS[id]?.name ?? id}</b>
                 <span>{CARDS[id]?.desc ?? ''}</span>
               </button>
             ))}

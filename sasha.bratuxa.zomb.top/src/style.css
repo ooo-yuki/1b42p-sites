@@ -141,6 +141,7 @@ a.pill{text-decoration:none;display:inline-block}
 #df-cards-row .df-card{display:flex;flex-direction:column;gap:4px;align-items:center;text-align:center;flex:1;
   white-space:normal;line-height:1.4}
 #df-cards-row .df-card span{font-size:13px;color:#c9c9c9;font-weight:400}
+#df-cards-row .df-card .dtx{width:44px;height:44px}
 #df-end{background:#0d1428;border:1px solid #0060AA;border-radius:18px;padding:22px;margin-top:12px;
   max-width:min(680px,92vw)}
 #df-end[role="alert"]{border-color:#E31E25;box-shadow:0 0 40px rgba(227,30,37,.35)}
