@@ -12,7 +12,7 @@ import { buildMapVisual, disposeMapVisual } from './three/mapsVisual';
 import { setView, getView, updateCamera, snapCamera } from './three/cameraRig';
 import { createPlayer, movePlayer, MAX_HP, type PlayerState } from './sim/player';
 import { WEAPONS, fireShot, type Slot } from './sim/weapons';
-import { ENEMIES } from './sim/enemies';
+import { ENEMIES, ATTACK_RANGE } from './sim/enemies';
 import { makeWave } from './sim/waves';
 import { MAPS, resolveCircle, type MapId } from './sim/maps';
 import { gameStore, DIFF_MULT, type Difficulty } from './game/store';
@@ -551,9 +551,9 @@ function tick(dt: number) {
     resolveCircle(e as { x: number; z: number }, 0.4, mapId);
     // Атаки по дистанции + кулдауну.
     e.cd -= dt;
-    const reach = e.type === 'tank' ? 3 : e.type === 'boss' ? 3.5 : 1.6;
+    const reach = e.type === 'tank' ? ATTACK_RANGE.tank : e.type === 'boss' ? ATTACK_RANGE.boss : ATTACK_RANGE.melee;
     if (e.type === 'shooter') {
-      if (d < 25 && e.cd <= 0) {
+      if (d < ATTACK_RANGE.shooter && e.cd <= 0) {
         e.cd = 1.5;
         if (!sim.god) p.hp -= base.dmg * DIFF_MULT[difficulty] * sim.balanceMult;
         pushHud();

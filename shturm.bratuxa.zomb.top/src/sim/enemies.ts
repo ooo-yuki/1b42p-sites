@@ -4,3 +4,5 @@ export const ENEMIES = {
   tank: { hp: 200, speed: 2.0, dmg: 20, cost: 4 },
   boss: { hp: 1200, speed: 3.0, dmg: 25, cost: 99 },
 };
+// Дальности атак (м): шутер урезан 25→18, мили ужаты на полшага.
+export const ATTACK_RANGE = { shooter: 18, melee: 1.3, tank: 2.5, boss: 3.0 };
