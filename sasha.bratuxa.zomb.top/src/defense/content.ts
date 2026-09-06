@@ -38,9 +38,9 @@ export const ENEMIES: Record<string, EnemyDef> = {
 export interface TurretDef { cost: number; dmg: number; rate: number; range: number }
 
 export const TURRETS: Record<string, TurretDef> = {
-  flood: { cost: 30, dmg: 4, rate: 2, range: 2.2 },
-  cobalt: { cost: 70, dmg: 12, rate: 1, range: 2.8 },
-  scarlet: { cost: 150, dmg: 30, rate: 0.6, range: 3.4 },
+  flood: { cost: 30, dmg: 9, rate: 2.5, range: 3.0 },
+  cobalt: { cost: 70, dmg: 30, rate: 1.4, range: 3.6 },
+  scarlet: { cost: 150, dmg: 60, rate: 0.9, range: 4.0 },
 };
 
 export interface CardDef { name: string; desc: string }
