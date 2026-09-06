@@ -4,6 +4,7 @@
 export interface Sack {
   bag: string[];
   coins?: number;
+  night?: boolean;
 }
 
 export const LOOT: string[] = ['тряпка', 'ложка', 'верёвка', 'мыло'];
@@ -16,7 +17,9 @@ export const RECIPES: Record<string, string[]> = {
 // Запретное для обысков: с ним в суме — карцер.
 export const FORBIDDEN: string[] = ['ложка', 'кляп', 'спуск'];
 
-// Торговец ночью берёт монеты за запретное: цена одна на всё.
+// Торговец ночью (ночь из clock.ts): монеты в запретное.
+// Цены: ложка 2, верёвка 3, мыло 2. Днём торговца нет.
+export const TRADER_PRICES: Record<string, number> = { 'ложка': 2, 'верёвка': 3, 'мыло': 2 };
 export const TRADER_PRICE: number = 2;
 
 export function has(S: Sack, id: string): boolean {
@@ -69,13 +72,15 @@ export function hasForbidden(S: Sack): boolean {
   return false;
 }
 
-// Торговец ночью: монеты в обмен на запретное. Чистое не продаёт.
-export function deal(S: Sack, id: string, night: boolean): boolean {
+// Торговец ночью: монеты в обмен на ложку, верёвку, мыло.
+// Мало монет или день — торга нет.
+export function deal(S: Sack, id: string): boolean {
   if (!S || !S.bag) return false;
-  if (night !== true) return false;
-  if (!isForbidden(id)) return false;
-  if (typeof S.coins !== 'number' || S.coins < TRADER_PRICE) return false;
-  S.coins -= TRADER_PRICE;
+  if (S.night !== true) return false;
+  const price = TRADER_PRICES[id];
+  if (typeof price !== 'number') return false;
+  if (typeof S.coins !== 'number' || S.coins < price) return false;
+  S.coins -= price;
   S.bag.push(id);
   return true;
 }

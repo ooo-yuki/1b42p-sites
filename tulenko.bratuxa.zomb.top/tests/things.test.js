@@ -11,17 +11,17 @@ function strip(src) {
   return src
     .replace(/^import .*$/gm, '')
     .replace(/export interface \w+ \{[^}]*\}/gs, '')
-    .replace(/:\s*Record<string, string\[\]>(\s*[=;{])/g, '$1')
+    .replace(/:\s*Record<string, (string\[\]|number)>(\s*[=;{])/g, '$2')
     .replace(/:\s*(Sack|string\[\]|number\[\]|boolean\[\]|string|number|boolean|void)(\s*[(),=;{])/g, '$2')
     .replace(/export function /g, 'function ')
     .replace(/export const /g, 'const ');
 }
 
 const src = strip(readTS('../src/things.ts'));
-const js = src + '\nmodule.exports = { LOOT, RECIPES, FORBIDDEN, TRADER_PRICE, has, pick, craft, isForbidden, hasForbidden, deal };\n';
+const js = src + '\nmodule.exports = { LOOT, RECIPES, FORBIDDEN, TRADER_PRICE, TRADER_PRICES, has, pick, craft, isForbidden, hasForbidden, deal };\n';
 const m = new Module('things', module);
 m._compile(js, path.join(__dirname, '..', 'src', 'things.js'));
-const { LOOT, RECIPES, FORBIDDEN, TRADER_PRICE, has, pick, craft, isForbidden, hasForbidden, deal } = m.exports;
+const { LOOT, RECIPES, FORBIDDEN, TRADER_PRICE, TRADER_PRICES, has, pick, craft, isForbidden, hasForbidden, deal } = m.exports;
 
 // Шаг 1 брифа дословно (через жгут вместо game-src-things.js, которого нет в деле):
 // import { pick, craft, has } from '../game-src-things.js';
@@ -88,18 +88,52 @@ assert.equal(isForbidden('мыло'), false);
   assert.equal(hasForbidden(s), true);
 }
 
-// Торговец ночью берёт монеты за запретное
+// Шаг 1 брифа Task 3 дословно (импорт через жгут выше):
+// import { deal } from '../game-src-things.js';
+// const s = { coins: 5, bag: [], night: true };
+// assert.equal(deal(s, 'ложка'), true);
+// assert.ok(s.coins < 5);
+// const d = { coins: 0, bag: [], night: true };
+// assert.equal(deal(d, 'ложка'), false);
 {
-  const s = { bag: [], coins: TRADER_PRICE };
-  assert.equal(deal(s, 'мыло', true), false);
-  assert.equal(deal(s, 'кляп', false), false);
-  assert.equal(s.coins, TRADER_PRICE);
-  const poor = { bag: [], coins: 0 };
-  assert.equal(deal(poor, 'кляп', true), false);
-  assert.equal(has(poor, 'кляп'), false);
-  assert.equal(deal(s, 'кляп', true), true);
-  assert.ok(has(s, 'кляп'));
-  assert.equal(s.coins, 0);
+  const s = { coins: 5, bag: [], night: true };
+  assert.equal(deal(s, 'ложка'), true);
+  assert.ok(s.coins < 5);
+  const d = { coins: 0, bag: [], night: true };
+  assert.equal(deal(d, 'ложка'), false);
+}
+
+// Цены торговца: ложка 2, верёвка 3, мыло 2. Мало монет или день — нет торга.
+assert.deepEqual(TRADER_PRICES, { 'ложка': 2, 'верёвка': 3, 'мыло': 2 });
+{
+  const s = { coins: 5, bag: [], night: true };
+  assert.equal(deal(s, 'верёвка'), true);
+  assert.equal(s.coins, 2);
+  assert.ok(has(s, 'верёвка'));
+}
+{
+  const s = { coins: 5, bag: [], night: true };
+  assert.equal(deal(s, 'мыло'), true);
+  assert.equal(s.coins, 3);
+  assert.ok(has(s, 'мыло'));
+}
+{
+  const s = { coins: 2, bag: [], night: true };
+  assert.equal(deal(s, 'верёвка'), false);
+  assert.equal(s.coins, 2);
+  assert.equal(has(s, 'верёвка'), false);
+}
+{
+  const day = { coins: 5, bag: [], night: false };
+  assert.equal(deal(day, 'ложка'), false);
+  assert.equal(day.coins, 5);
+  const day2 = { coins: 5, bag: [] };
+  assert.equal(deal(day2, 'ложка'), false);
+}
+{
+  const s = { coins: 5, bag: [], night: true };
+  assert.equal(deal(s, 'кляп'), false);
+  assert.equal(s.coins, 5);
 }
 
 console.log('things ok');
