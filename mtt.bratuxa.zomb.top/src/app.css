@@ -42,8 +42,19 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
  display:flex;flex-direction:column;align-items:center;justify-content:center;touch-action:none;cursor:pointer}
 #hitBtn span{font-size:13px;letter-spacing:1px}
 #hitBtn:active{background:#ff3b3b}
-#weapon{position:fixed;left:0;right:0;bottom:0;margin:0 auto;z-index:5;width:min(58vmin,520px);pointer-events:none;transform-origin:bottom center;opacity:.95}
+#weapon{position:fixed;left:0;right:0;bottom:0;margin:0 auto;z-index:5;width:min(78vmin,700px);pointer-events:none;transform-origin:bottom center;opacity:.95}
 #weapon img{width:100%;image-rendering:pixelated;filter:drop-shadow(0 0 18px rgba(255,159,28,.8))}
+#swingFx{position:absolute;left:8%;right:8%;top:6%;height:52%;pointer-events:none;opacity:0}
+#swingFx i{position:absolute;left:-6%;right:-6%;height:9px;background:linear-gradient(90deg,transparent,#fff 18%,#fff 82%,transparent);
+ box-shadow:0 0 14px #fff,0 0 34px rgba(255,255,255,.75);transform:skewX(-24deg);border-radius:5px}
+#swingFx i:nth-child(1){top:6%}
+#swingFx i:nth-child(2){top:42%;transform:skewX(18deg)}
+#swingFx i:nth-child(3){top:78%}
+#weapon.swing #swingFx{opacity:1}
+#weapon.swing #swingFx i{animation:slash .25s steps(4) ease-out}
+#weapon.swing #swingFx i:nth-child(2){animation-delay:.03s}
+#weapon.swing #swingFx i:nth-child(3){animation-delay:.06s}
+@keyframes slash{0%{transform:translateX(-46%) scaleX(.25) skewX(-24deg);opacity:0}25%{opacity:1}100%{transform:translateX(46%) scaleX(1.15) skewX(-24deg);opacity:0}}
 #weapon.walk img{animation:wbob .38s steps(2) infinite}
 @keyframes wbob{0%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-10px) rotate(2deg)}100%{transform:translateY(0) rotate(-2deg)}}
 #weapon.swing{animation:wswing .25s ease-out}
@@ -72,6 +83,15 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 .srow{display:flex;justify-content:space-between;align-items:center;margin:10px 0;color:#e8edff}
 .srow .wbtn{width:auto;padding:8px 18px}
 #sensRange{width:100%;accent-color:#ff9f1c}
+#roomSec{max-width:340px}
+#roomDraft{background:#141d33;color:#fff;border:1px solid #334155;border-radius:10px;
+ padding:10px 12px;font-size:15px;width:55%}
+#roomBadge{position:fixed;top:108px;right:10px;z-index:6;font-size:15px;font-weight:800;
+ border-radius:10px;border:2px solid #66ccff;background:rgba(13,20,40,.85);color:#66ccff;
+ padding:8px 12px;font-family:'Courier New',Courier,monospace;box-shadow:4px 4px 0 #000;max-width:44vw}
+#roomLeave{margin-left:8px;background:transparent;border:1px solid #66ccff;color:#66ccff;
+ border-radius:6px;cursor:pointer;font-weight:900}
+#roomMates{font-size:12px;margin-top:4px;color:#e8edff;word-break:break-word}
 #deadPanel{display:flex;flex-direction:column;gap:12px;font-size:min(9vw,44px);align-items:center}
 #deadScore{font-size:22px}
 #reviveBtn{background:#39d353;border:none;border-radius:14px;padding:14px 30px;font-size:19px;font-weight:900;color:#06240f;cursor:pointer}

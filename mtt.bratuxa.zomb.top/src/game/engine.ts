@@ -64,6 +64,24 @@ export const DEFAULT_KEYS: KeyMap = {
 export interface GameEvents {
   onHud(h: HudState): void;
   onBusted(s: { score: number; coins: number }): void;
+  onSwing(): void;
+}
+
+export interface RemotePlayer {
+  nick: string;
+  x: number;
+  z: number;
+  hp: number;
+}
+
+interface Remote {
+  nick: string;
+  g: THREE.Group;
+  cv: HTMLCanvasElement;
+  tex: THREE.CanvasTexture;
+  x: number;
+  z: number;
+  hp: number;
 }
 
 interface Enemy {
@@ -125,6 +143,7 @@ export class Game {
   private py = 0;
   private pvy = 0;
   private keyMap: KeyMap = { ...DEFAULT_KEYS };
+  private remotes: Remote[] = [];
   private enemies: Enemy[] = [];
   private solids: { x: number; z: number; r: number }[] = [];
   private AC: AudioContext | null = null;
@@ -535,6 +554,8 @@ export class Game {
   destroy(): void {
     this.destroyed = true;
     cancelAnimationFrame(this.raf);
+    for (const r of this.remotes) this.scene.remove(r.g);
+    this.remotes = [];
     window.removeEventListener('resize', this.onResize);
     this.canvas.removeEventListener('pointerdown', this.onPointerDown);
     window.removeEventListener('pointermove', this.onPointerMove);
@@ -549,6 +570,7 @@ export class Game {
     const W = Game.weapon(this.weaponId);
     this.atkCd = W.cd;
     this.swingT = 0.22;
+    this.ev.onSwing();
     this.blip(220);
     const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
     let hits = 0;
@@ -656,8 +678,63 @@ export class Game {
     }
   }
 
+  // сокомнатники: синие призраки с никами (позиции прилетают с сервера комнаты)
+  setRemotes(list: RemotePlayer[]): void {
+    const seen = new Set<string>();
+    for (const p of list.slice(0, 8)) {
+      const nick = String(p.nick ?? '').slice(0, 20) || 'Братуха';
+      seen.add(nick);
+      let r = this.remotes.find((q) => q.nick === nick);
+      if (!r) {
+        const g = new THREE.Group();
+        const tex = new THREE.TextureLoader().load(vrag1Url);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        const body = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, color: 0x66ccff }));
+        body.scale.set(1.4, 2.0, 1);
+        body.position.set(0, 1.0, 0);
+        g.add(body);
+        const cv = document.createElement('canvas');
+        cv.width = 128; cv.height = 48;
+        const ltex = new THREE.CanvasTexture(cv);
+        const lab = new THREE.Sprite(new THREE.SpriteMaterial({ map: ltex, depthTest: false, transparent: true }));
+        lab.scale.set(1.9, 0.72, 1);
+        lab.position.set(0, 2.5, 0);
+        g.add(lab);
+        this.scene.add(g);
+        r = { nick, g, cv, tex: ltex, x: 0, z: 0, hp: 100 };
+        this.remotes.push(r);
+      }
+      r.x = clampArena(Number(p.x) || 0);
+      r.z = clampArena(Number(p.z) || 0);
+      r.hp = Math.max(0, Math.min(100, Number(p.hp) || 0));
+      this.drawRemote(r);
+    }
+    this.remotes = this.remotes.filter((r) => {
+      if (!seen.has(r.nick)) { this.scene.remove(r.g); return false; }
+      return true;
+    });
+  }
+
+  private drawRemote(r: Remote): void {
+    const g = r.cv.getContext('2d')!;
+    g.fillStyle = '#101018';
+    g.fillRect(0, 0, 128, 48);
+    g.font = 'bold 17px monospace';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillStyle = '#66ccff';
+    g.fillText(r.nick.slice(0, 12), 64, 13);
+    g.fillStyle = '#000';
+    g.fillRect(14, 26, 100, 14);
+    g.fillStyle = '#39d353';
+    g.fillRect(16, 28, 96 * (r.hp / 100), 10);
+    r.tex.needsUpdate = true;
+  }
+
+  debugRemotes(): number { return this.remotes.length; }
+
   // хуки для тестов
-  debugPos(): { x: number; z: number; hp: number; enemies: number; kills: number; wave: number } {
+  debugPos(): { x: number; z: number; hp: number; enemies: number; kills: number; wave: number; yaw: number } {
     return {
       x: Math.round(this.px * 10) / 10,
       z: Math.round(this.pz * 10) / 10,
@@ -665,6 +742,7 @@ export class Game {
       enemies: this.enemies.filter((e) => !e.dead).length,
       kills: this.kills,
       wave: this.wave,
+      yaw: Math.round(this.yaw * 100) / 100,
     };
   }
   debugAttack(): number { return this.attack(); }
@@ -791,6 +869,11 @@ export class Game {
       if (this.swingT > 0) this.swingT -= dt;
       if (this.shakeT > 0) this.shakeT -= dt;
       this.updateParts(dt);
+      // сокомнатники стоят на своих позициях и дышат
+      const rt = performance.now() / 600;
+      for (const r of this.remotes) {
+        r.g.position.set(r.x, Math.abs(Math.sin(rt + r.x)) * 0.08, r.z);
+      }
       if (Math.floor(performance.now() / 200) !== Math.floor((performance.now() - dt * 1000) / 200)) {
         this.pushHud();
         this.drawMM();

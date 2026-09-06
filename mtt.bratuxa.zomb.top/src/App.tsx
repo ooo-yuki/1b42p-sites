@@ -9,6 +9,32 @@ interface ScoreRow {
   coins: number;
 }
 
+interface RoomMate {
+  nick: string;
+  x: number;
+  z: number;
+  hp: number;
+  score: number;
+  kills: number;
+  wave: number;
+}
+
+interface RoomInfo {
+  id: string;
+  name: string;
+  count: number;
+}
+
+async function loadRooms(): Promise<RoomInfo[]> {
+  try {
+    const r = await fetch('/api/rooms');
+    if (!r.ok) return [];
+    return (await r.json()) as RoomInfo[];
+  } catch {
+    return [];
+  }
+}
+
 const WIMG: Record<string, string> = { fists: oruzh1Url, bat: oruzh1Url, axe: oruzh2Url };
 
 const SID_KEY = 't42_sid';
@@ -87,8 +113,19 @@ export default function App() {
   const [nick, setNick] = useState(() => {
     try { return localStorage.getItem(NICK_KEY) || 'Братуха'; } catch { return 'Братуха'; }
   });
+  const [roomId, setRoomId] = useState('');
+  const [roomName, setRoomName] = useState('');
+  const [roomDraft, setRoomDraft] = useState('');
+  const [roomsList, setRoomsList] = useState<RoomInfo[]>([]);
+  const [mates, setMates] = useState<RoomMate[]>([]);
+  const roomRef = useRef({ id: '', sid: '' });
   const hudRef = useRef(hud);
   hudRef.current = hud;
+
+  // замах: дёргаем ствол + белые полосы (вызывает движок через onSwing при каждом реальном ударе).
+  // Важно через React-state: прямые classList движок React сносит при каждом апдейте HUD.
+  const [swingTick, setSwingTick] = useState(0);
+  const swing = useCallback(() => { setSwingTick((t) => t + 1); }, []);
 
   useEffect(() => {
     beacon();
@@ -102,6 +139,7 @@ export default function App() {
     const game = new Game(canvasRef.current, null, {
       onHud: (h) => setHud(h),
       onBusted: () => undefined,
+      onSwing: () => swing(),
     });
     gameRef.current = game;
     setSound(game.getSound());
@@ -122,30 +160,20 @@ export default function App() {
       setWave: (n: number) => game.debugSetWave(n),
       joy: (x: number, y: number) => game.setJoy(x, y),
       look: (dx: number, dy: number) => game.addLook(dx, dy),
-    };
-    const swing = () => {
-      const w = weaponRef.current;
-      if (!w) return;
-      w.classList.remove('swing');
-      void w.offsetWidth;
-      w.classList.add('swing');
+      remotes: () => game.debugRemotes(),
+      setRemotes: (list: RoomMate[]) => game.setRemotes(list),
     };
     const kd = (e: KeyboardEvent) => {
       game.input[e.code] = true;
       const hk = game.getKeys().hit;
-      if (e.code === hk || e.code === 'KeyJ') { e.preventDefault(); swing(); }
+      if (e.code === hk || e.code === 'KeyJ') e.preventDefault();
     };
     const ku = (e: KeyboardEvent) => { game.input[e.code] = false; };
-    const md = () => {
-      if (document.pointerLockElement === canvasRef.current) swing();
-    };
     window.addEventListener('keydown', kd);
     window.addEventListener('keyup', ku);
-    canvasRef.current.addEventListener('mousedown', md);
     return () => {
       window.removeEventListener('keydown', kd);
       window.removeEventListener('keyup', ku);
-      canvasRef.current?.removeEventListener('mousedown', md);
       game.destroy();
       gameRef.current = null;
       delete (window as unknown as { __mtt?: object }).__mtt;
@@ -159,6 +187,86 @@ export default function App() {
     window.setTimeout(() => gameRef.current?.start(), 50);
     loadScores().then(setScores);
   }, [nick]);
+
+  // ---- комнаты ----
+  const refreshRooms = useCallback(() => { loadRooms().then(setRoomsList); }, []);
+  useEffect(() => { refreshRooms(); }, [refreshRooms]);
+
+  const createRoom = useCallback(async () => {
+    try {
+      const r = await fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nick, name: roomDraft }),
+      });
+      if (!r.ok) return;
+      const d = (await r.json()) as { id: string; sid: string };
+      roomRef.current = { id: d.id, sid: d.sid };
+      setRoomId(d.id);
+      setRoomName(roomDraft || `Комната ${nick}`);
+      setMates([]);
+      refreshRooms();
+    } catch { /* noop */ }
+  }, [nick, roomDraft, refreshRooms]);
+
+  const joinRoom = useCallback(async (id: string) => {
+    try {
+      const r = await fetch(`/api/rooms/${id}/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nick }),
+      });
+      if (!r.ok) return;
+      const d = (await r.json()) as { sid: string; name: string };
+      roomRef.current = { id, sid: d.sid };
+      setRoomId(id);
+      setRoomName(d.name);
+      setMates([]);
+      refreshRooms();
+    } catch { /* noop */ }
+  }, [nick, refreshRooms]);
+
+  const leaveRoom = useCallback(async () => {
+    const { id, sid } = roomRef.current;
+    roomRef.current = { id: '', sid: '' };
+    setRoomId('');
+    setRoomName('');
+    setMates([]);
+    gameRef.current?.setRemotes([]);
+    if (id && sid) {
+      try {
+        await fetch(`/api/rooms/${id}/leave`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sid }),
+        });
+      } catch { /* noop */ }
+    }
+    refreshRooms();
+  }, [refreshRooms]);
+
+  // пульс комнаты: шлём себя, забираем сокомнатников
+  useEffect(() => {
+    const t = window.setInterval(async () => {
+      const g = gameRef.current;
+      const { id, sid } = roomRef.current;
+      if (!g || !id || !sid) return;
+      try {
+        const p = g.debugPos();
+        const h = hudRef.current;
+        const r = await fetch(`/api/rooms/${id}/beat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sid, x: p.x, z: p.z, yaw: p.yaw, hp: h.hp, score: h.score, kills: h.kills, wave: h.wave }),
+        });
+        if (!r.ok) return;
+        const d = (await r.json()) as { players: RoomMate[] };
+        setMates(d.players ?? []);
+        g.setRemotes(d.players ?? []);
+      } catch { /* noop */ }
+    }, 1500);
+    return () => window.clearInterval(t);
+  }, []);
 
   const onBustedShown = useRef(false);
   // плашка нового раунда: всплывает на каждую смену волны
@@ -269,17 +377,25 @@ export default function App() {
           </div>
           <button
             id="hitBtn"
-            onPointerDown={() => {
-              gameRef.current?.attack();
-              const w = weaponRef.current;
-              if (w) { w.classList.remove('swing'); void w.offsetWidth; w.classList.add('swing'); }
-            }}
+            onPointerDown={() => { gameRef.current?.attack(); }}
           >
             👊<span>УДАР</span>
           </button>
-          <div id="weapon" ref={weaponRef} className={hud.moving ? 'walk' : ''}><img src={WIMG[hud.weapon] ?? oruzh1Url} alt="оружие" /></div>
+          <div id="weapon" key={`weapon-${swingTick}`} ref={weaponRef} className={(hud.moving ? 'walk' : '') + (swingTick > 0 ? ' swing' : '')}>
+            <img src={WIMG[hud.weapon] ?? oruzh1Url} alt="оружие" />
+            <div id="swingFx"><i /><i /><i /></div>
+          </div>
+          {roomId && (
+            <div id="roomBadge">
+              🌐 {roomId} · {mates.length + 1}
+              <button id="roomLeave" onClick={leaveRoom}>✕</button>
+              {mates.length > 0 && (
+                <div id="roomMates">{mates.map((m) => `${m.nick} ${m.score}🏆`).join(' · ')}</div>
+              )}
+            </div>
+          )}
           {waveBanner > 0 && (
-            <div id="waveBanner" key={waveBanner}>🌊 ВОЛНА {waveBanner}</div>
+            <div id="waveBanner" key={`wave-${waveBanner}`}>🌊 ВОЛНА {waveBanner}</div>
           )}
         </>
       )}
@@ -381,6 +497,32 @@ export default function App() {
             placeholder="Твой ник"
           />
           <button id="goBtn" onClick={go}>▶️ ПОГНАЛИ</button>
+          <div className="board" id="roomSec">
+            <h3>🌐 Комнаты</h3>
+            {roomId ? (
+              <div>Сидишь в <b>{roomName || roomId}</b> ({roomId}) — сокомнатники появятся на арене синими призраками.</div>
+            ) : (
+              <>
+                <div className="srow">
+                  <input
+                    id="roomDraft"
+                    value={roomDraft}
+                    maxLength={24}
+                    onChange={(e) => setRoomDraft(e.target.value)}
+                    placeholder="Название комнаты"
+                  />
+                  <button className="wbtn" id="roomCreate" onClick={createRoom}>СОЗДАТЬ</button>
+                </div>
+                {roomsList.length > 0 ? roomsList.map((r) => (
+                  <div className="srow" key={r.id}>
+                    <span>{r.name} · {r.id} · 👥 {r.count}</span>
+                    <button className="wbtn" id={`join-${r.id}`} onClick={() => joinRoom(r.id)}>ВОЙТИ</button>
+                  </div>
+                )) : <div>Пока пусто — создай первую!</div>}
+                <button className="wclose" onClick={refreshRooms}>🔄 ОБНОВИТЬ</button>
+              </>
+            )}
+          </div>
           {scores.length > 0 && (
             <div className="board">
               <h3>🏆 Топ братух</h3>

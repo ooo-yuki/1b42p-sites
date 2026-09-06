@@ -153,8 +153,12 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#goBtn');
     await page.waitForTimeout(800);
     await page.keyboard.down('Space');
-    await page.waitForTimeout(400);
-    const py = await page.evaluate(() => (window as unknown as { __mtt: { py: () => number } }).__mtt.py());
+    // опрашиваем: под нагрузкой headless-кадры редкие, одного замера мало
+    let py = 0;
+    for (let i = 0; i < 20 && py <= 0; i++) {
+      await page.waitForTimeout(200);
+      py = await page.evaluate(() => (window as unknown as { __mtt: { py: () => number } }).__mtt.py());
+    }
     await page.keyboard.up('Space');
     expect(py).toBeGreaterThan(0);
   });
@@ -169,6 +173,40 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
       seen = hops.some((h) => h > 0.05);
     }
     expect(seen).toBe(true);
+  });
+
+  test('ствол огромный, белые полосы на замахе', async ({ page }) => {
+    await page.click('#goBtn');
+    await page.waitForTimeout(800);
+    await expect(page.locator('#swingFx i')).toHaveCount(3);
+    const box = await page.locator('#weapon').boundingBox();
+    expect(box?.width ?? 0).toBeGreaterThan(500);
+    // держим удар (press слишком короткий для редких headless-кадров)
+    await page.keyboard.down('j');
+    await page.waitForTimeout(500);
+    await page.keyboard.up('j');
+    await expect(page.locator('#weapon.swing')).toHaveCount(1);
+  });
+
+  test('комнаты: создать/войти/пульс/выйти', async ({ request }) => {
+    const c = await request.post('/api/rooms', { data: { nick: 'PW1', name: 'PWROOM' } });
+    expect(c.ok()).toBe(true);
+    const { id, sid: sid1 } = await c.json();
+    expect(id).toMatch(/^[A-Z0-9]{6}$/);
+    const j = await request.post(`/api/rooms/${id}/join`, { data: { nick: 'PW2' } });
+    expect(j.ok()).toBe(true);
+    const { sid: sid2 } = await j.json();
+    const b1 = await request.post(`/api/rooms/${id}/beat`, { data: { sid: sid1, x: 1, z: 2, yaw: 0, hp: 100, score: 10, kills: 1, wave: 1 } });
+    expect(b1.ok()).toBe(true);
+    const b2 = await request.post(`/api/rooms/${id}/beat`, { data: { sid: sid2, x: 5, z: 6, yaw: 1, hp: 90, score: 20, kills: 2, wave: 1 } });
+    const d2 = await b2.json();
+    expect(d2.players.some((p: { nick: string }) => p.nick === 'PW1')).toBe(true);
+    expect(d2.players[0].x).toBe(1);
+    await request.post(`/api/rooms/${id}/leave`, { data: { sid: sid1 } });
+    await request.post(`/api/rooms/${id}/leave`, { data: { sid: sid2 } });
+    const list = await request.get('/api/rooms');
+    const rooms = (await list.json()) as Array<{ id: string }>;
+    expect(rooms.some((r) => r.id === id)).toBe(false);
   });
 
   test('API: валидация и топ без мусора', async ({ request }) => {
