@@ -268,6 +268,7 @@ export default function App() {
       keys: () => game.getKeys(),
       spots: () => game.debugSpots(),
       solids: () => game.debugSolids(),
+      solidAt: (x: number, z: number, y: number) => game.debugSolidAt(x, z, y),
       give: (n: number) => game.debugGive(n),
       hurt: (n: number) => game.debugHurt(n),
       revive: () => game.debugRevive(),

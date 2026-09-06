@@ -496,6 +496,18 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     expect(Array.isArray(rows)).toBeTruthy();
   });
 
+  test('хитбоксы не до неба: выше крыши — проход', async ({ page }) => {
+    await page.click('#guestBtn');
+    await page.click('#goBtn');
+    await page.waitForTimeout(800);
+    type M = { solidAt: (x: number, z: number, y: number) => boolean };
+    // фонтан в центре (0,0): у земли стена есть, на высоте 5 — нет
+    const low = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solidAt(0, 0, 0));
+    const high = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solidAt(0, 0, 5));
+    expect(low).toBe(true);
+    expect(high).toBe(false);
+  });
+
   test.afterEach(async () => {
     expect(errors, 'ошибки браузера: ' + errors.join(' | ').slice(0, 500)).toEqual([]);
   });

@@ -183,6 +183,9 @@ export class Game {
   private wallT = 0;
   private wallNx = 0;
   private wallNz = 0;
+  private kickTurnT = 0;
+  private kickTurnFrom = 0;
+  private kickTurnDelta = 0;
   private dashT = 0;
   private dashCd = 0;
   private dashDx = 0;
@@ -191,8 +194,9 @@ export class Game {
   private quality: Quality = 'fast';
   private foeTexCache: THREE.Texture[] = [];
   private enemies: Enemy[] = [];
-  // хитбокс окружения строго внутри текстуры: коробки — точный AABB, круглые — точный радиус
-  private solids: Array<{ x: number; z: number; hx: number; hz: number } | { x: number; z: number; r: number }> = [];
+  // хитбокс окружения строго внутри текстуры и только до своей высоты h:
+  // коробки — точный AABB, круглые — точный радиус. Пролететь/перепрыгнуть можно.
+  private solids: Array<{ x: number; z: number; hx: number; hz: number; h: number } | { x: number; z: number; r: number; h: number }> = [];
   private AC: AudioContext | null = null;
   private lookPointer = -1;
   private lookLX = 0;
@@ -509,7 +513,7 @@ export class Game {
       m.position.set(x, 3.5, z);
       m.castShadow = true;
       scene.add(m);
-      this.solids.push({ x, z, hx: w / 2, hz: d / 2 });
+      this.solids.push({ x, z, hx: w / 2, hz: d / 2, h: 7 });
     };
     mkWall(H * 2 + 4, 2, 0, -H - 1);
     mkWall(H * 2 + 4, 2, 0, H + 1);
@@ -521,13 +525,13 @@ export class Game {
     bar.position.set(0, 0.7, 0);
     bar.castShadow = true;
     scene.add(bar);
-    this.solids.push({ x: 0, z: 0, hx: 5, hz: 0.6 });
+    this.solids.push({ x: 0, z: 0, hx: 5, hz: 0.6, h: 1.4 });
     for (const [cx, cz] of [[-12, -12], [12, -12], [-12, 12], [12, 12]] as Array<[number, number]>) {
       const c = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.4, 2.4), barMat);
       c.position.set(cx, 1.2, cz);
       c.castShadow = true;
       scene.add(c);
-      this.solids.push({ x: cx, z: cz, hx: 1.2, hz: 1.2 });
+      this.solids.push({ x: cx, z: cz, hx: 1.2, hz: 1.2, h: 2.4 });
     }
     // факелы по углам (свет без теней — дёшево)
     for (const [fx, fz] of [[-H + 4, -H + 4], [H - 4, -H + 4], [-H + 4, H - 4], [H - 4, H - 4]] as Array<[number, number]>) {
@@ -543,7 +547,7 @@ export class Game {
       const tl = new THREE.PointLight(0xff8b2a, 0.8, 30);
       tl.position.set(fx, 4.3, fz);
       scene.add(tl);
-      this.solids.push({ x: fx, z: fz, r: 0.2 });
+      this.solids.push({ x: fx, z: fz, r: 0.2, h: 4.5 });
     }
   }
 
@@ -636,7 +640,7 @@ export class Game {
       m.position.set(bx, h / 2, bz);
       m.castShadow = true; m.receiveShadow = true;
       scene.add(m);
-      this.solids.push({ x: bx, z: bz, hx: w / 2, hz: d / 2 });
+      this.solids.push({ x: bx, z: bz, hx: w / 2, hz: d / 2, h });
       if (Math.random() < 0.6) {
         const bb = new THREE.Mesh(new THREE.PlaneGeometry(8, 4.5), new THREE.MeshBasicMaterial({ map: bbTex }));
         bb.position.set(bx, h + 2.6, bz);
@@ -661,7 +665,7 @@ export class Game {
       pl.position.set(fx, 9, fz);
       scene.add(pl);
       // столб тонкий и круглый: хитбокс ровно по нему
-      this.solids.push({ x: fx, z: fz, r: 0.25 });
+      this.solids.push({ x: fx, z: fz, r: 0.25, h: 9 });
     }
 
     // центр — площадь с фонтаном
@@ -688,7 +692,7 @@ export class Game {
     fountainWater.position.set(0, 1.02, 0);
     scene.add(fountainWater);
     // чаша круглая: хитбокс ровно по радиусу, не выходит за текстуру
-    this.solids.push({ x: 0, z: 0, r: 2 });
+    this.solids.push({ x: 0, z: 0, r: 2, h: 1 });
 
     // ящики-укрытия (ровно 2.2×2.2, без поворотов — коллизия честная)
     const crateMat = new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: 0.9 });
@@ -702,7 +706,7 @@ export class Game {
       c.position.set(cx, 1.1, cz);
       c.castShadow = true; c.receiveShadow = true;
       scene.add(c);
-      this.solids.push({ x: cx, z: cz, hx: 1.1, hz: 1.1 });
+      this.solids.push({ x: cx, z: cz, hx: 1.1, hz: 1.1, h: 2.2 });
     }
 
     // два больших билборда у площади
@@ -717,7 +721,7 @@ export class Game {
       board.position.set(bx, 8.5, bz);
       board.rotation.y = ry;
       scene.add(board);
-      this.solids.push({ x: bx, z: bz, hx: 0.2, hz: 0.2 });
+      this.solids.push({ x: bx, z: bz, hx: 0.2, hz: 0.2, h: 6 });
     }
   }
 
@@ -947,10 +951,12 @@ export class Game {
     return this.remotes.map((m) => ({ nick: m.nick, char: m.char, x: m.x, z: m.z, hp: m.hp }));
   }
 
-  // круг (игрок/враг радиусом rad) против окружения: коробка — точный AABB,
-  // круглое (фонтан/столб) — точный радиус. Хитбокс никогда не выходит за текстуру.
-  private hitSolid(x: number, z: number, rad: number): boolean {
+  // круг (игрок/враг радиусом rad на высоте y) против окружения: коробка — точный AABB,
+  // круглое — точный радиус, и только если сущность НИЖЕ верха (y <= h+0.4).
+  // Хитбокс не выходит за текстуру и не тянется до неба: перепрыгнуть/перелететь можно.
+  private hitSolid(x: number, z: number, rad: number, y = 0): boolean {
     for (const s of this.solids) {
+      if (y > s.h + 0.4) continue;
       if ('r' in s) {
         const dx = x - s.x, dz = z - s.z;
         if (dx * dx + dz * dz < (s.r + rad) * (s.r + rad)) return true;
@@ -1151,11 +1157,14 @@ export class Game {
   debugSpots(): Array<{ x: number; z: number }> {
     return this.enemies.filter((e) => !e.dead).map((e) => ({ x: e.g.position.x, z: e.g.position.z }));
   }
-  debugSolids(): Array<{ x: number; z: number; hx: number; hz: number; r: number }> {
+  debugSolids(): Array<{ x: number; z: number; hx: number; hz: number; r: number; h: number }> {
     return this.solids.map((s) => {
-      if ('r' in s) return { x: s.x, z: s.z, hx: s.r, hz: s.r, r: s.r };
+      if ('r' in s) return { x: s.x, z: s.z, hx: s.r, hz: s.r, r: s.r, h: s.h };
       return { ...s, r: Math.hypot(s.hx, s.hz) };
     });
+  }
+  debugSolidAt(x: number, z: number, y: number): boolean {
+    return this.hitSolid(Number(x) || 0, Number(z) || 0, 0.9, Number(y) || 0);
   }
 
   private loop = (): void => {
@@ -1193,9 +1202,16 @@ export class Game {
           // ...и толчок ровно против него
           const kx = this.clamp(this.px + mx * 2.2);
           const kz = this.clamp(this.pz + mz * 2.2);
-          if (!this.hitSolid(kx, this.pz, 0.9)) this.px = kx;
-          if (!this.hitSolid(this.px, kz, 0.9)) this.pz = kz;
+          if (!this.hitSolid(kx, this.pz, 0.9, this.py)) this.px = kx;
+          if (!this.hitSolid(this.px, kz, 0.9, this.py)) this.pz = kz;
           this.pvy = 7.5;
+          // камера доворачивается туда же, куда отскок (плавно, 0.3с)
+          this.kickTurnFrom = this.yaw;
+          let dyaw = Math.atan2(-mx, -mz) - this.yaw;
+          while (dyaw > Math.PI) dyaw -= Math.PI * 2;
+          while (dyaw < -Math.PI) dyaw += Math.PI * 2;
+          this.kickTurnDelta = dyaw;
+          this.kickTurnT = 0.3;
           this.wallT = 0;
           this.wallKickCd = 5;
           this.burst(this.px, 1.0, this.pz, 10);
@@ -1207,6 +1223,13 @@ export class Game {
       if (this.wallKickCd > 0) {
         this.wallKickCd -= dt;
         if (Math.floor(this.wallKickCd * 5) !== Math.floor((this.wallKickCd + dt) * 5)) this.pushHud();
+      }
+      // доворот камеры за вол-киком: быстро и плавно
+      if (this.kickTurnT > 0) {
+        this.kickTurnT -= dt;
+        const t = Math.max(0, this.kickTurnT / 0.3);
+        const e = 1 - t * t;
+        this.yaw = this.kickTurnFrom + this.kickTurnDelta * e;
       }
       // рывок МТТ на назначенной клавише (по умолчанию C)
       if (this.input[km.ability]) {
@@ -1231,14 +1254,14 @@ export class Game {
         const nx = this.px + (fx * nf + rx * nr) * sp * dt;
         const nz = this.pz + (fz * nf + rz * nr) * sp * dt;
         // стена: запоминаем нормаль (толчок от стены для вол-кика Крысы)
-        if (this.hitSolid(nx, this.pz, 0.9)) {
+        if (this.hitSolid(nx, this.pz, 0.9, this.py)) {
           this.wallNx = nx > this.px ? -1 : 1;
           this.wallNz = 0;
           this.wallT = 0.3;
         } else {
-          this.px = this.clamp(nx);
+          if (!this.hitSolid(nx, this.pz, 0.9, this.py)) this.px = this.clamp(nx);
         }
-        if (this.hitSolid(this.px, nz, 0.9)) {
+        if (this.hitSolid(this.px, nz, 0.9, this.py)) {
           this.wallNx = 0;
           this.wallNz = nz > this.pz ? -1 : 1;
           this.wallT = 0.3;
@@ -1251,8 +1274,8 @@ export class Game {
         this.dashT -= dt;
         const nx = this.px + this.dashDx * 22 * dt;
         const nz = this.pz + this.dashDz * 22 * dt;
-        if (!this.hitSolid(nx, this.pz, 0.9)) this.px = this.clamp(nx);
-        if (!this.hitSolid(this.px, nz, 0.9)) this.pz = this.clamp(nz);
+        if (!this.hitSolid(nx, this.pz, 0.9, this.py)) this.px = this.clamp(nx);
+        if (!this.hitSolid(this.px, nz, 0.9, this.py)) this.pz = this.clamp(nz);
         this.py = Math.max(0, this.py + this.dashDy * 22 * dt);
         this.pvy = 0;
         if (!this.moving) this.bobPhase += dt * 11;
@@ -1270,8 +1293,9 @@ export class Game {
         if (d > 2.1) {
           const nx = e.g.position.x + (dx / d) * e.speed * dt;
           const nz = e.g.position.z + (dz / d) * e.speed * dt;
-          if (!this.hitSolid(nx, e.g.position.z, 0.8)) e.g.position.x = clampArena(nx);
-          if (!this.hitSolid(e.g.position.x, nz, 0.8)) e.g.position.z = clampArena(nz);
+          const eyH = e.kind === 'fly' ? 3.2 : e.ey;
+          if (!this.hitSolid(nx, e.g.position.z, 0.8, eyH)) e.g.position.x = clampArena(nx);
+          if (!this.hitSolid(e.g.position.x, nz, 0.8, eyH)) e.g.position.z = clampArena(nz);
         } else if (e.hitCd <= 0) {
           e.hitCd = 0.95;
           this.hp -= 6 + Math.random() * 5;
