@@ -24,8 +24,9 @@
   .overlay p{max-width:560px;color:#ddd;line-height:1.5;text-shadow:0 2px 8px rgba(0,0,0,.9);}
   /* каменные кнопки Yarchik: left+middle+right склеены в tex/ui/button.png (117×46) */
   .bigbtn{border-style:solid;border-width:12px 24px;border-image-source:url('tex/ui/button.png');
-    border-image-slice:12 35 12 36 fill;border-image-repeat:stretch;background-color:#5b5b78;
-    font-weight:bold;font-size:20px;padding:6px 14px;cursor:pointer;margin-top:14px;color:#ffe26b;
+    border-image-slice:12 35 12 36 fill;border-image-repeat:stretch;background-color:transparent;
+    font-weight:bold;font-size:20px;padding:8px 14px 10px;cursor:pointer;margin-top:14px;color:#ffe26b;
+    display:inline-flex;align-items:center;justify-content:center;line-height:1.2;
     font-family:'Z42B',Arial,sans-serif;text-shadow:2px 2px 0 rgba(0,0,0,.8),0 0 12px rgba(0,0,0,.8);}
   .bigbtn:hover{filter:brightness(1.15);}
   .bigbtn:active{border-image-source:url('tex/ui/button_down.png');}
@@ -598,10 +599,12 @@ function drawMenuBtn(){
   var sp=G&&G.speed===1.5;
   drawBtn3(SPEEDBTN.x,SPEEDBTN.y,SPEEDBTN.w,SPEEDBTN.h,sp);
   ctx.fillStyle=sp?'#111':'#ffe26b';ctx.font='20px Z42B, Arial';ctx.textAlign='center';
-  txt('X1.5',SPEEDBTN.x+SPEEDBTN.w/2,SPEEDBTN.y+29,6);
+  ctx.textBaseline='middle'; /* надпись строго по центру кнопки */
+  txt('X1.5',SPEEDBTN.x+SPEEDBTN.w/2,SPEEDBTN.y+SPEEDBTN.h/2+1,6);
   drawBtn3(MENUBTN.x,MENUBTN.y,MENUBTN.w,MENUBTN.h,false);
-  ctx.fillStyle='#ffe26b';ctx.font='20px Z42B, Arial';ctx.textAlign='center';
-  txt('МЕНЮ',MENUBTN.x+MENUBTN.w/2,MENUBTN.y+29,6);ctx.textAlign='left';
+  ctx.fillStyle='#ffe26b';
+  txt('МЕНЮ',MENUBTN.x+MENUBTN.w/2,MENUBTN.y+MENUBTN.h/2+1,6);
+  ctx.textBaseline='alphabetic';ctx.textAlign='left';
 }
 /* --- ввод: drag&drop + клик-клик --- */
 var mouse={x:0,y:0};
