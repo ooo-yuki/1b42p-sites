@@ -73,6 +73,29 @@ function drawImg(src: string, x: number, y: number, w: number, h: number, fallba
   g.restore();
 }
 
+// Тень-овал под ногами: рисуется раньше ног.
+function shadow(cx: number, foot: number, rx: number): void {
+  g.fillStyle = 'rgba(0,0,0,0.35)';
+  g.beginPath();
+  g.ellipse(cx, foot - 2, rx, 6, 0, 0, Math.PI * 2);
+  g.fill();
+}
+
+// Глаза точкой со сдвигом в сторону хода и взгляда.
+function eyes(cx: number, ey: number, dir: number, gap: number): void {
+  for (const s of [-1, 1]) {
+    const ex = cx + s * gap + dir * 4;
+    g.fillStyle = '#fff';
+    g.beginPath();
+    g.arc(ex, ey, 4, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#111';
+    g.beginPath();
+    g.arc(ex + dir * 2, ey, 2, 0, Math.PI * 2);
+    g.fill();
+  }
+}
+
 function startGame(): void {
   S = newRun(0);
   runTime = 0;
@@ -164,16 +187,20 @@ function render(): void {
   for (const gd of S.guards) {
     const src = FRAMES.guard[Math.floor(animT * 6) % FRAMES.guard.length];
     const b = wy(gd.y, mapH);
+    shadow(wx(gd.x), b, 18);
     if (gd.stun > 0) g.globalAlpha = 0.5;
     drawImg(src, wx(gd.x) - 21, b - 54, 42, 54, '#c0392b', gd.dir < 0);
     g.globalAlpha = 1;
+    eyes(wx(gd.x), b - 38, gd.dir, 6);
   }
   const moving = input.left || input.right;
   const frames = moving && S.seal.onGround ? FRAMES.waddle : FRAMES.idle;
   const rate = moving && S.seal.onGround ? 8 : 2;
   const sealSrc = frames[Math.floor(animT * rate) % frames.length];
   const sb = wy(S.seal.y, mapH);
+  shadow(wx(S.seal.x), sb, 18);
   drawImg(sealSrc, wx(S.seal.x) - 21, sb - 57, 42, 57, '#eeeeee', facing < 0);
+  eyes(wx(S.seal.x), sb - 40, facing, 7);
 
   let hs = '';
   for (let i = 0; i < CFG.hearts; i++) hs += i < S.hearts ? '♥' : '♡';
