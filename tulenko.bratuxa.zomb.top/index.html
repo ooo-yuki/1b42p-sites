@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Побег тюленьки</title>
+<link rel="icon" href="data:,">
+<style>
+body { background: #0b1620; color: #fff; font-family: sans-serif; text-align: center; margin: 0; padding: 12px; }
+a.back { color: #7fd4ff; }
+canvas { width: min(960px, 100%); height: auto; background: #0e2233; touch-action: none; display: block; margin: 12px auto; }
+.pad { display: flex; gap: 12px; justify-content: center; margin: 8px 0 16px; }
+.pad button { font-size: 28px; width: 72px; height: 64px; border-radius: 12px; border: 1px solid #555; background: #1d2f3d; color: #fff; touch-action: none; }
+.pad button:active { background: #2e4a5f; }
+p.hint { color: #9fb3c0; font-size: 14px; }
+</style>
+</head>
+<body>
+<h1>Побег тюленьки</h1>
+<a class="back" href="https://hub.bratuxa.zomb.top">← назад в общий дом</a>
+<canvas id="game" width="960" height="540"></canvas>
+<div class="pad">
+<button id="btn-left" aria-label="влево">◀</button>
+<button id="btn-right" aria-label="вправо">▶</button>
+<button id="btn-jump" aria-label="прыжок">▲</button>
+<button id="btn-shove" aria-label="толкнуть">✋</button>
+</div>
+<p class="hint">Стрелки — идти, пробел — прыжок, X — толкнуть. Собери ключ и рыбу, дойди до выхода.</p>
+<script src="game.js"></script>
+<script>
+(function () {
+  function track() {
+    try {
+      var url = 'https://hub.bratuxa.zomb.top/api/track?SITE=tulenko';
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(url, 'SITE=tulenko');
+      } else {
+        fetch(url + '&_=' + Date.now(), { mode: 'no-cors', keepalive: true }).catch(function () {});
+      }
+    } catch (e) {}
+  }
+  track();
+  setInterval(track, 30000);
+})();
+</script>
+</body>
+</html>
