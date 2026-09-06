@@ -79,7 +79,7 @@ var SKY_RESP_EVERY=18,SKY_RESP_VAL=25,START_RESP=150; // небо-рэспэкт
 /* --- состояние --- */
 var G=null;
 function newGame(){
-  G={state:'play',t:0,resp:START_RESP,units:[],zoms:[],peas:[],fx:[],floats:[],resps:[],
+  G={state:'play',t:0,resp:START_RESP,units:[],zoms:[],peas:[],fx:[],floats:[],resps:[],fly:[],
     kills:0,spawned:0,spawnT:3,skyT:6,seeds:{mopso:0,sun:0,bomb:0},drag:null,over:null,
     seedFlash:null,cellFlash:null};
 }
@@ -228,6 +228,9 @@ function update(dt){
   /* эффекты */
   for(var f=G.fx.length-1;f>=0;f--){G.fx[f].t-=dt;if(G.fx[f].t<=0)G.fx.splice(f,1);}
   for(var g=G.floats.length-1;g>=0;g--){var fl=G.floats[g];fl.t-=dt;fl.y-=20*dt;if(fl.t<=0)G.floats.splice(g,1);}
+  /* долёт рэспэкта до счётчика: 0.6с, по прибытии +v к балансу */
+  for(var fi=G.fly.length-1;fi>=0;fi--){var fo=G.fly[fi];fo.t+=dt/0.6;
+    if(fo.t>=1){G.resp+=fo.v;G.fly.splice(fi,1);}}
 }
 function killZom(i){
   var z=G.zoms[i];
@@ -320,11 +323,14 @@ function draw(){
     ctx.restore();
     ctx.globalAlpha=(rp2.t<4&&Math.floor(G.t*6)%2===0)?0.4:0.7;
     drawImg(IMG.resp,rcx-22,rcy-22,44,44);ctx.globalAlpha=1;}
-  /* всплывашки */
-  ctx.font='bold 18px Arial';ctx.textAlign='center';
-  for(var g=0;g<G.floats.length;g++){var fl=G.floats[g];
-    ctx.globalAlpha=Math.min(1,fl.t);ctx.fillStyle='#ffe26b';ctx.fillText(fl.txt,fl.x,fl.y);
-    var fw=ctx.measureText(fl.txt).width;drawImg(IMG.resp,fl.x+fw/2+4,fl.y-18,18,18);ctx.globalAlpha=1;}
+  /* долёт в счётчик: иконка по дуге к руке (19,25), сжимается */
+  for(var fi2=0;fi2<G.fly.length;fi2++){var fo2=G.fly[fi2];
+    var k=fo2.t*fo2.t*(3-2*fo2.t); // smoothstep: старт/финиш мягкие
+    var mx=(fo2.x0+19)/2,my=(fo2.y0+25)/2-80; // контрольная точка дуги
+    var fx2=(1-k)*(1-k)*fo2.x0+2*(1-k)*k*mx+k*k*19;
+    var fy2=(1-k)*(1-k)*fo2.y0+2*(1-k)*k*my+k*k*25;
+    var fs=44-28*fo2.t;
+    drawImg(IMG.resp,fx2-fs/2,fy2-fs/2,fs,fs);}
   /* красная вспышка: посадка не туда */
   if(G.cellFlash){var cf=G.cellFlash;
     ctx.fillStyle='rgba(255,40,40,'+(0.3+0.3*Math.abs(Math.sin(G.t*14)))+')';
@@ -401,8 +407,8 @@ cv.addEventListener('pointerdown',function(e){
   for(var ri=G.resps.length-1;ri>=0;ri--){var rpi=G.resps[ri];
     if(Math.hypot(p.x-rpi.x,p.y-rpi.y)<36){
       if(G.drag)G.drag=null;
-      G.resps.splice(ri,1);G.resp+=rpi.v;
-      G.floats.push({x:rpi.x,y:rpi.y-20,t:1.2,txt:'+'+rpi.v});beep(880,0.08);return;}}
+      G.resps.splice(ri,1);
+      G.fly.push({x0:rpi.x,y0:rpi.y,v:rpi.v,t:0});beep(880,0.08);return;}}
   var s=seedAtXY(p.x,p.y);
   if(s){var d=seedDef(s);
     if(G.resp<d.cost){G.seedFlash={k:s,t:0.7};sfx('cancel');}
@@ -494,7 +500,7 @@ document.getElementById('volRange').oninput=function(e){
 };
 loadAll(function(){});
 requestAnimationFrame(loop);
-window.__z42={newGame:newGame,get G(){return G;},tryPlant:tryPlant,step:function(dt){update(dt);draw();},spawnZom:spawnZom,togglePause:togglePause,get VOL(){return VOL;}};
+window.__z42={newGame:newGame,get G(){return G;},tryPlant:tryPlant,step:function(dt){update(dt);draw();},spawnZom:spawnZom,spawnResp:spawnResp,togglePause:togglePause,get VOL(){return VOL;}};
 </script>
 </body>
 </html>
