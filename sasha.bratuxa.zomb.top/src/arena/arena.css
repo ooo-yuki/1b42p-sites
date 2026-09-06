@@ -294,6 +294,12 @@ button.dcard:disabled{cursor:default}
   border-radius:999px; padding:6px 14px; font-size:13px;
   box-shadow:0 0 18px rgba(227,30,37,.7)}
 .ch-full{color:#808080; font-size:12.5px}
+/* часы партии: пилюли обоих, активные с золотым ободом, <10с — алые */
+.ch-clocks{display:flex; gap:8px; flex-wrap:wrap; justify-content:center}
+.ch-clock{background:#0d1428; border:1px solid #3d3d3d; border-radius:999px;
+  padding:6px 14px; font-size:13.5px; color:#cfcfcf}
+.ch-clock.on{border-color:#0060AA; color:#fff; box-shadow:0 0 14px rgba(0,96,170,.55)}
+.ch-clock.low{border-color:#E31E25; color:#ff9a9a}
 .ch-board{display:grid; grid-template-columns:repeat(8,minmax(0,1fr));
   width:min(100%,480px); aspect-ratio:1; border-radius:12px; overflow:hidden;
   border:2px solid rgba(0,96,170,.45); box-shadow:0 0 30px rgba(0,96,170,.25)}

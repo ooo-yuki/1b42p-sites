@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { arenaClick } from '../sound';
@@ -16,6 +16,10 @@ const GLYPH: Record<string, string> = {
 };
 const FILES = 'abcdefgh';
 const sqName = (i: number): string => `${FILES[i % 8]}${8 - Math.floor(i / 8)}`;
+const fmtClock = (ms: number): string => {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+};
 const PROMOS = [
   { k: 'q', g: '♕', label: 'Ферзь' },
   { k: 'r', g: '♖', label: 'Ладья' },
@@ -23,10 +27,22 @@ const PROMOS = [
   { k: 'n', g: '♘', label: 'Конь' },
 ];
 
-export default function ChessBoard({ me, room, secsLeft, onMove }: GameViewProps): JSX.Element {
+export default function ChessBoard({ me, room, onMove }: GameViewProps): JSX.Element {
   const [sel, setSel] = useState<number | null>(null);
   const [promo, setPromo] = useState<{ from: number; to: number } | null>(null);
   const g = room.gdata as unknown as ChessPublic;
+  // живой тик часов: перерендер дважды в секунду, пока бой идёт
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (room.phase !== 'play') return;
+    const id = window.setInterval(() => setTick(t => t + 1), 500);
+    return () => window.clearInterval(id);
+  }, [room.phase, room.code]);
+  const liveClock = (c: 'w' | 'b'): number => {
+    const base = g?.clock?.[c] ?? (g?.tcMin ?? 5) * 60000;
+    if (room.phase !== 'play' || g?.turn !== c || typeof g?.stamp !== 'number') return base;
+    return Math.max(0, base - (Date.now() - g.stamp));
+  };
   const board: ChessPiece[] = Array.isArray(g?.board) ? g.board : new Array(64).fill(null);
   const myColor = g?.white === me ? 'w' : g?.black === me ? 'b' : null;
   const myTurn = room.phase === 'play' && myColor !== null && g?.turn === myColor;
@@ -44,6 +60,9 @@ export default function ChessBoard({ me, room, secsLeft, onMove }: GameViewProps
       white: g.white ?? '', black: g.black ?? '',
       phase: 'play', winner: null, reason: null,
       last: null, check: !!g.check, drawOffer: null, posCounts: {}, history: [],
+      tc: (g.tcMin ?? 5) * 60000,
+      clock: { w: g.clock?.w ?? (g.tcMin ?? 5) * 60000, b: g.clock?.b ?? (g.tcMin ?? 5) * 60000 },
+      stamp: null,
     };
   };
   // цели выбранной фигуры — легальные ходы движка
@@ -99,11 +118,22 @@ export default function ChessBoard({ me, room, secsLeft, onMove }: GameViewProps
       <div className="ch-top" aria-label="Чей ход">
         <span className={cn('ch-turn', g?.turn === 'w' && 'ww', g?.turn === 'b' && 'bb')}>
           {room.phase === 'play'
-            ? (myTurn ? `Твой ход${secsLeft !== null ? ` · ${secsLeft}с` : ''}` : `Ходит: ${nameOf(g?.turn === 'w' ? g?.white ?? '' : g?.black ?? '')}`)
+            ? (myTurn ? 'Твой ход' : `Ходит: ${nameOf(g?.turn === 'w' ? g?.white ?? '' : g?.black ?? '')}`)
             : 'Бой окончен'}
         </span>
         {g?.check && room.phase === 'play' && <em className="ch-check">шах!</em>}
         <span className="ch-full tnum" title="Ход партии">ход {g?.full ?? 1}</span>
+      </div>
+      <div className="ch-clocks tnum" aria-label={`Контроль ${g?.tcMin ?? 5} минут на партию`}>
+        {(['w', 'b'] as const).map(c => {
+          const live = liveClock(c);
+          const active = room.phase === 'play' && g?.turn === c;
+          return (
+            <span key={c} className={cn('ch-clock', active && 'on', room.phase === 'play' && live <= 10000 && 'low')}>
+              {c === 'w' ? '○' : '●'} {nameOf(c === 'w' ? g?.white ?? '' : g?.black ?? '')} · {fmtClock(live)}
+            </span>
+          );
+        })}
       </div>
 
       <div className="ch-board" role="grid" aria-label="Шахматная доска">

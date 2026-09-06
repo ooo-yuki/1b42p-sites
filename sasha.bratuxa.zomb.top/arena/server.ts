@@ -61,6 +61,7 @@ type Room = {
   kstate: KState | null; // шашки — вся правда здесь; позиция открыта, в gdata — полный срез
   mstate: MState | null; // монополия — вся правда здесь; деньги открыты, в gdata — полный срез
   bstate: BState | null; // блэкджек — вся правда здесь; руки открыты, в gdata — публичный срез
+  tcMin: number; // контроль шахмат в минутах на партию (10/5/3/1), выбирает хост
 };
 
 type Pool = {
@@ -82,6 +83,7 @@ import {
 } from './durak';
 import {
   applyMove as chessApply, createChess, removePlayer as chessRemove,
+  sanitizeTc, sideOf as chessSide, spendClock, startClockT,
   type ChessState,
 } from './chess';
 import {
@@ -174,6 +176,7 @@ function chessPublic(r: Room): Record<string, unknown> {
     history: [...st.history],
     phase: st.phase, winner: st.winner, reason: st.reason,
     castling: { ...st.castling }, ep: st.ep,
+    clock: { ...st.clock }, tcMin: Math.round(st.tc / 60000), stamp: st.stamp,
   };
 }
 
@@ -194,7 +197,7 @@ function durakPublic(r: Room): Record<string, unknown> {
 function roomState(r: Room): Record<string, unknown> {
   return {
     t: 'room', code: r.code, phase: r.phase, game: r.game,
-    gameLabel: GAMES[r.game]?.label ?? r.game,
+    gameLabel: GAMES[r.game]?.label ?? r.game, tcMin: r.tcMin,
     players: memberViews(r), host: r.host,
     private: r.private,
     round: r.round, alive: [...r.alive], contenders: [...r.contenders],
@@ -351,7 +354,7 @@ function formRoom(ids: string[]): void {
   const r: Room = {
     code, players: [], host: fitted[0], private: false, game,
     phase: 'lobby', alive: [], contenders: [], rolls: {}, round: 0,
-    timer: null, createdAt: now(), winner: null, gdata: {}, dstate: null, cstate: null, kstate: null, mstate: null, bstate: null,
+    timer: null, createdAt: now(), winner: null, gdata: {}, dstate: null, cstate: null, kstate: null, mstate: null, bstate: null, tcMin: 5,
   };
   rooms.set(code, r);
   for (const id of fitted) {
@@ -476,7 +479,7 @@ function onCreate(c: Client, game: unknown): void {
   const r: Room = {
     code, players: [c.id], host: c.id, private: true, game: sanitizeGame(game),
     phase: 'lobby', alive: [], contenders: [], rolls: {}, round: 0,
-    timer: null, createdAt: now(), winner: null, gdata: {}, dstate: null, cstate: null, kstate: null, mstate: null, bstate: null,
+    timer: null, createdAt: now(), winner: null, gdata: {}, dstate: null, cstate: null, kstate: null, mstate: null, bstate: null, tcMin: 5,
   };
   rooms.set(code, r);
   c.roomId = code;
@@ -490,6 +493,15 @@ function onPickGame(c: Client, game: unknown): void {
   if (!r || !r.private || r.phase !== 'lobby') return;
   if (r.host !== c.id) return send(c.ws, { t: 'err', msg: 'игру выбирает хост' });
   r.game = sanitizeGame(game);
+  broadcast(r, roomState(r));
+}
+
+/** Хост выбирает контроль шахмат 10/5/3/1 до старта. */
+function onPickTc(c: Client, min: unknown): void {
+  const r = c.roomId ? rooms.get(c.roomId) : undefined;
+  if (!r || !r.private || r.phase !== 'lobby') return;
+  if (r.host !== c.id) return send(c.ws, { t: 'err', msg: 'контроль выбирает хост' });
+  r.tcMin = sanitizeTc(min);
   broadcast(r, roomState(r));
 }
 
@@ -674,30 +686,34 @@ function startChess(r: Room): void {
   const whiteFirst = Math.random() < 0.5;
   const white = whiteFirst ? r.players[0] : r.players[1];
   const black = whiteFirst ? r.players[1] : r.players[0];
-  r.cstate = createChess(white, black);
+  r.cstate = createChess(white, black, r.tcMin);
   r.phase = 'play';
   r.alive = [...r.players];
   r.round = 1;
   broadcast(r, {
     t: 'log',
-    text: `Бой начался! Игра — Шахматы. Белые — ${clients.get(white)?.name ?? '???'}.`,
+    text: `Бой начался! Игра — Шахматы ${r.tcMin}+0. Белые — ${clients.get(white)?.name ?? '???'}.`,
   });
+  startClockT(r.cstate, now());
   broadcast(r, roomState(r));
   chessTick(r);
 }
 
 function chessTick(r: Room): void {
   if (r.phase !== 'play' || !r.cstate) return;
-  const secs = GAMES.chess.turnSecs;
   const st = r.cstate;
+  // флаг падает по остатку стороны на ходу, не по ходу: запас + люфт на сеть
+  const rest = st.turn === 'w' ? st.clock.w : st.clock.b;
+  const secs = Math.max(1, Math.ceil(rest / 1000));
   broadcast(r, roomState(r));
   broadcast(r, {
     t: 'cturn',
     white: st.white, black: st.black,
     color: st.turn, secs,
+    clock: { ...st.clock }, tcMin: r.tcMin, stamp: st.stamp,
   });
   killTimer(r);
-  r.timer = setTimeout(() => chessTimeout(r), secs * 1000);
+  r.timer = setTimeout(() => chessTimeout(r), rest + 1500);
 }
 
 function chessAfter(r: Room): void {
@@ -714,6 +730,9 @@ function onChessMove(c: Client, mv: Record<string, unknown>): void {
   const r = c.roomId ? rooms.get(c.roomId) : undefined;
   const st = r?.cstate;
   if (!r || !st || r.phase !== 'play') return;
+  // часы тикают на партию: сначала списываем думанье с ходившего
+  const side = chessSide(st, c.id);
+  if (side && spendClock(st, side, now())) return chessFlagFinish(r);
   const kind = String(mv.kind ?? 'chess');
   if (kind === 'resign' || kind === 'draw' || kind === 'accept') {
     const res = chessApply(st, c.id,
@@ -736,6 +755,7 @@ function onChessMove(c: Client, mv: Record<string, unknown>): void {
   }
   const res = chessApply(st, c.id, { from, to, promote: parsePromo(mv.promote) });
   if (!res.ok) return send(c.ws, { t: 'err', msg: res.err ?? 'так нельзя' });
+  startClockT(st, now());
   broadcast(r, {
     t: 'cmove', id: c.id, name: c.name, kind: 'chess',
     from, to, promote: parsePromo(mv.promote) ?? null,
@@ -743,19 +763,23 @@ function onChessMove(c: Client, mv: Record<string, unknown>): void {
   chessAfter(r);
 }
 
-/** Флаг: сторона на ходу молчала — поражение по времени. */
-function chessTimeout(r: Room): void {
+/** Флаг по часам партии: движок уже назначил победителя, объявляем. */
+function chessFlagFinish(r: Room): void {
   const st = r.cstate;
-  if (r.phase !== 'play' || !st) return;
-  const loser = st.turn === 'w' ? st.white : st.black;
+  if (!st || r.phase !== 'play') return;
+  const loser = st.winner === st.white ? st.black : st.white;
   const who = clients.get(loser)?.name ?? '???';
-  st.phase = 'over';
-  st.winner = loser === st.white ? st.black : st.white;
-  st.reason = 'timeout';
-  st.history.push('флаг');
   broadcast(r, { t: 'log', text: `${who} прошляпил флаг — время вышло.` });
   broadcast(r, { t: 'cmove', id: loser, name: who, kind: 'flag', from: null, to: null, promote: null, auto: true });
   finishChess(r);
+}
+
+/** Таймер флага: дотянул до остатка стороны на ходу — списываем. */
+function chessTimeout(r: Room): void {
+  const st = r.cstate;
+  if (r.phase !== 'play' || !st) return;
+  if (!spendClock(st, st.turn, now())) return chessTick(r); // гонка: ход успел — перевооружить
+  chessFlagFinish(r);
 }
 
 /** Уход посреди шахмат: оставшийся забирает бой. */
@@ -1218,6 +1242,7 @@ function onMessage(c: Client, raw: string): void {
     case 'voteWait': return onVoteWait(c, m.yes);
     case 'create': return onCreate(c, m.game);
     case 'pickGame': return onPickGame(c, m.game);
+    case 'pickTc': return onPickTc(c, m.min);
     case 'join': return onJoin(c, m.code);
     case 'leave': return leaveRoom(c);
     case 'start': return onStart(c);

@@ -29,11 +29,12 @@ type Props = {
   onStart: () => void;
   onRematch: () => void;
   onPickGame: (g: string) => void;
+  onPickTc: (min: number) => void;
   onChat: (t: string) => void;
 };
 
 export default function Room({ me, room, games, hand, feed, chat, myRolled, secsLeft,
-  onRoll, onMove, onLeave, onStart, onRematch, onPickGame, onChat }: Props): JSX.Element {
+  onRoll, onMove, onLeave, onStart, onRematch, onPickGame, onPickTc, onChat }: Props): JSX.Element {
   const [draft, setDraft] = useState('');
   const feedRef = useRef<HTMLDivElement | null>(null);
   const chatRef = useRef<HTMLDivElement | null>(null);
@@ -88,6 +89,20 @@ export default function Room({ me, room, games, hand, feed, chat, myRolled, secs
         </div>
       )}
 
+      {room.private && room.phase === 'lobby' && amHost && room.game === 'chess' && (
+        <div className="apick" aria-label="Контроль времени">
+          <span>Минут на партию:</span>
+          <ToggleGroup type="single" value={String(room.tcMin ?? 5)}
+            onValueChange={v => { if (v) { arenaClick(); onPickTc(Number(v)); } }}
+            className="apick-group" aria-label="Выбор контроля времени">
+            {[10, 5, 3, 1].map(m => (
+              <ToggleGroupItem key={m} value={String(m)} className="apick-item">
+                {m}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </div>
+      )}
       {room.phase === 'lobby' && (
         <div className="ar-table">
           <div className="ar-lounge">

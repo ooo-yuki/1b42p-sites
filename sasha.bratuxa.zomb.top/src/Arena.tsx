@@ -96,7 +96,7 @@ export default function Arena(): JSX.Element {
           code: m.code, phase: m.phase, game: m.game, gameLabel: m.gameLabel,
           players: m.players, host: m.host, private: m.private,
           round: m.round, alive: m.alive, contenders: m.contenders,
-          rolls: m.rolls, winner: m.winner,
+          rolls: m.rolls, winner: m.winner, tcMin: m.tcMin ?? 5,
           gdata: (m.gdata ?? {}) as Record<string, unknown>,
         });
         setErr('');
@@ -381,6 +381,7 @@ export default function Arena(): JSX.Element {
                 onStart={() => send({ t: 'start' })}
                 onRematch={() => send({ t: 'rematch' })}
                 onPickGame={g => send({ t: 'pickGame', game: g })}
+                onPickTc={min => send({ t: 'pickTc', min })}
                 onChat={t => send({ t: 'chat', text: t })} />
             )}
             {err && room && <p className="aerr" role="alert">{err}</p>}

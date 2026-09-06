@@ -2,7 +2,10 @@
    Чистые правила ФИДЕ-базы: ходы, шах, мат, пат, рокировки,
    взятие на проходе, превращение, ничьи (50 ходов, троекрат, материал). */
 import { describe, expect, test } from 'bun:test';
-import { applyMove, createChess, fromRows, legalFrom, legalMoves, removePlayer, timeoutMove } from './chess';
+import {
+  applyMove, createChess, fromRows, legalFrom, legalMoves, removePlayer,
+  sanitizeTc, spendClock, startClockT, TC_OPTIONS, timeoutMove,
+} from './chess';
 
 const W = 'pW1';
 const B = 'pB1';
@@ -218,5 +221,44 @@ describe('chess king safety (ФИДЕ 1.4.1)', () => {
       '....K...',
     ], 'b', { w: W, b: B });
     expect(st.check).toBe(true);
+  });
+});
+
+describe('chess clock (время на партию)', () => {
+  test('контроли на выбор: 10/5/3/1, по умолчанию 5', () => {
+    expect(TC_OPTIONS).toEqual([10, 5, 3, 1]);
+    expect(sanitizeTc(10)).toBe(10);
+    expect(sanitizeTc(1)).toBe(1);
+    expect(sanitizeTc(7)).toBe(5);
+    expect(sanitizeTc(0)).toBe(5);
+    expect(sanitizeTc(Number.NaN)).toBe(5);
+  });
+  test('старт: у каждого полный контроль', () => {
+    const st = createChess(W, B, 3);
+    expect(st.tc).toBe(3 * 60000);
+    expect(st.clock).toEqual({ w: 3 * 60000, b: 3 * 60000 });
+    expect(st.phase).toBe('play');
+  });
+  test('ход списывает думанье с часов ходившего', () => {
+    const st = createChess(W, B, 10);
+    startClockT(st, 1000);
+    expect(spendClock(st, 'w', 61000)).toBe(false); // думал 60с
+    expect(st.clock.w).toBe(10 * 60000 - 60000);
+    expect(st.clock.b).toBe(10 * 60000); // чужие не трогаем
+    expect(st.phase).toBe('play');
+  });
+  test('просрочка — флаг: победа соперника', () => {
+    const st = createChess(W, B, 1);
+    startClockT(st, 0);
+    expect(spendClock(st, 'w', 61000)).toBe(true); // 61с при минуте
+    expect(st.clock.w).toBe(0);
+    expect(st.phase).toBe('over');
+    expect(st.winner).toBe(B);
+    expect(st.reason).toBe('timeout');
+  });
+  test('без стартовой метки списания нет', () => {
+    const st = createChess(W, B, 5);
+    expect(spendClock(st, 'w', 999999)).toBe(false);
+    expect(st.clock.w).toBe(5 * 60000);
   });
 });

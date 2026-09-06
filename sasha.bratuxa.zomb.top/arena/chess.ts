@@ -36,7 +36,22 @@ export type ChessState = {
   drawOffer: Color | null;
   posCounts: Record<string, number>;
   history: string[];
+  /** Контроль времени: стартовый запас каждого в мс. */
+  tc: number;
+  /** Остатки на часах в мс. */
+  clock: { w: number; b: number };
+  /** Метка начала думанья стороны на ходу (эпоха мс) — ставит сервер. */
+  stamp: number | null;
 };
+
+/** Контроли на выбор: минуты на партию каждому. */
+export const TC_OPTIONS = [10, 5, 3, 1];
+
+/** Чистим контроль из сокета: только 10/5/3/1, иначе 5. */
+export function sanitizeTc(v: unknown): number {
+  const n = typeof v === 'number' ? v : Number.NaN;
+  return TC_OPTIONS.includes(n) ? n : 5;
+}
 
 const file = (i: number): number => i % 8;
 const rank = (i: number): number => Math.floor(i / 8);
@@ -348,20 +363,22 @@ function settle(st: ChessState): void {
   }
 }
 
-export function createChess(white: string, black: string): ChessState {
+export function createChess(white: string, black: string, tcMin = 5): ChessState {
+  const tc = sanitizeTc(tcMin) * 60000;
   const st: ChessState = {
     board: initialBoard(), turn: 'w',
     castling: { wk: true, wq: true, bk: true, bq: true },
     ep: null, half: 0, full: 1,
     white, black, phase: 'play', winner: null, reason: null,
     last: null, check: false, drawOffer: null, posCounts: {}, history: [],
+    tc, clock: { w: tc, b: tc }, stamp: null,
   };
   st.posCounts[posKey(st)] = 1;
   return st;
 }
 
 /** Позиция из строк для тестов: 'KQRBNP' белые, 'kqrbnp' чёрные, '.' пусто. */
-export function fromRows(rows: string[], turn: Color, ids: { w: string; b: string }): ChessState {
+export function fromRows(rows: string[], turn: Color, ids: { w: string; b: string }, tcMin = 5): ChessState {
   const glyph: Record<string, Kind> = {
     P: 'p', N: 'n', B: 'b', R: 'r', Q: 'q', K: 'k',
     p: 'p', n: 'n', b: 'b', r: 'r', q: 'q', k: 'k',
@@ -379,6 +396,9 @@ export function fromRows(rows: string[], turn: Color, ids: { w: string; b: strin
     ep: null, half: 0, full: 1,
     white: ids.w, black: ids.b, phase: 'play', winner: null, reason: null,
     last: null, check: false, drawOffer: null, posCounts: {}, history: [],
+    tc: sanitizeTc(tcMin) * 60000,
+    clock: { w: sanitizeTc(tcMin) * 60000, b: sanitizeTc(tcMin) * 60000 },
+    stamp: null,
   };
   const ksq = findKing(board, turn);
   st.check = ksq >= 0 && attacked(board, ksq, opp(turn));
@@ -391,6 +411,26 @@ export function fromRows(rows: string[], turn: Color, ids: { w: string; b: strin
   }
   st.posCounts[posKey(st)] = 1;
   return st;
+}
+
+/** Старт думанья стороны: сервер зовёт в начале партии и после каждого хода. */
+export function startClockT(st: ChessState, nowMs: number): void {
+  st.stamp = nowMs;
+}
+
+/** Списать думанье с часов цвета. true — флаг, партия окончена. */
+export function spendClock(st: ChessState, color: Color, nowMs: number): boolean {
+  if (st.phase !== 'play') return true;
+  const spent = st.stamp === null ? 0 : Math.max(0, nowMs - st.stamp);
+  st.clock[color] = Math.max(0, st.clock[color] - spent);
+  if (st.clock[color] <= 0) {
+    st.phase = 'over';
+    st.winner = color === 'w' ? st.black : st.white;
+    st.reason = 'timeout';
+    st.history.push('флаг');
+    return true;
+  }
+  return false;
 }
 
 export function applyMove(st: ChessState, pid: string, mv: MoveInput): { ok: boolean; err?: string } {

@@ -16,6 +16,7 @@ export type RoomView = {
   rolls: Record<string, number>;
   winner: string | null;
   gdata: Record<string, unknown>;
+  tcMin: number;
 };
 
 export type PoolMember = { id: string; name: string; vote: string; enter: boolean };
@@ -50,6 +51,9 @@ export type ChessPublic = {
   phase: string; winner: string | null; reason: string | null;
   castling: { wk: boolean; wq: boolean; bk: boolean; bq: boolean };
   ep: number | null;
+  clock: { w: number; b: number };
+  tcMin: number;
+  stamp: number | null;
 };
 
 /** Игрок монополии: всё открыто. */
@@ -96,7 +100,7 @@ export type SMsg =
   | { t: 'hand'; cards: DCard[] }
   | { t: 'dturn'; attacker: string; defender: string; secs: number }
   | { t: 'dmove'; id: string; name: string; kind: string; card: DCard | null; target: DCard | null; auto?: boolean }
-  | { t: 'cturn'; white: string; black: string; color: string; secs: number }
+  | { t: 'cturn'; white: string; black: string; color: string; secs: number; clock: { w: number; b: number }; tcMin: number; stamp: number | null }
   | { t: 'cmove'; id: string; name: string; kind: string; from: number | null; to: number | null; promote: string | null; auto?: boolean }
   | { t: 'hturn'; white: string; black: string; color: string; secs: number }
   | { t: 'hmove'; id: string; name: string; kind: string; path: number[] | null; auto?: boolean }
@@ -121,6 +125,7 @@ export type CMsg =
   | { t: 'voteWait'; yes: boolean }
   | { t: 'create'; game?: string }
   | { t: 'pickGame'; game: string }
+  | { t: 'pickTc'; min: number }
   | { t: 'join'; code: string }
   | { t: 'leave' }
   | { t: 'start' }
