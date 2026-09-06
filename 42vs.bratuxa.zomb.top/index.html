@@ -416,7 +416,7 @@ function drawArmor(kind,cx,topY,dark){ /* строго по центру баш�
       ctx.globalAlpha=1;
       continue;}
     ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();
-    ctx.ellipse(z.x,zy+28,30,10,0,0,7);ctx.fill();
+    ctx.ellipse(z.x+6,zy+25,30,10,0,0,7);ctx.fill();
     /* зомби: медленное вплющивание + покачивание походкой */
     var zsq=Math.sin(G.t*1.6+z.ph),zsx=1-0.04*zsq,zsy=1+0.05*zsq;
     var sway=(z.eatT>0?0.02:0.06)*Math.sin(G.t*3.4+z.ph);
