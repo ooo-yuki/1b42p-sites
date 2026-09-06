@@ -13,6 +13,13 @@ const OY = 30;
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const g = canvas.getContext('2d') as CanvasRenderingContext2D;
 
+export function fitCanvas(cv: HTMLCanvasElement): number {
+  const s = Math.min(window.innerWidth / 960, window.innerHeight / 540);
+  cv.style.width = Math.floor(960 * s) + 'px';
+  cv.style.height = Math.floor(540 * s) + 'px';
+  return s;
+}
+
 const input = { left: false, right: false, jump: false, shove: false };
 let mode: string = 'start';
 let S: any = newRun(0);
@@ -289,6 +296,9 @@ loadSprites(undefined as any).then(function (m: Record<string, any>) {
 });
 
 requestAnimationFrame(frame);
+
+window.addEventListener('resize', () => fitCanvas(canvas));
+fitCanvas(canvas);
 
 // Крючок для внешней проверки: те же правила плюс текущее состояние.
 (window as any).__hook = {
