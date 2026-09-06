@@ -1,0 +1,99 @@
+diff --git a/shturm.bratuxa.zomb.top/package.json b/shturm.bratuxa.zomb.top/package.json
+index d778f9e..7d27a5a 100644
+--- a/shturm.bratuxa.zomb.top/package.json
++++ b/shturm.bratuxa.zomb.top/package.json
+@@ -1,9 +1,25 @@
+ {
+   "name": "shturm-43",
+   "version": "1.0.0",
+   "private": true,
+   "type": "module",
+-  "scripts": { "dev": "vite", "build": "vite build", "test": "bun test", "typecheck": "tsc --noEmit" },
+-  "dependencies": { "react": "^18.3.1", "react-dom": "^18.3.1", "three": "^0.170.0" },
+-  "devDependencies": { "@types/react": "^18.3.0", "@types/react-dom": "^18.3.0", "@vitejs/plugin-react": "^4.3.0", "typescript": "^5.5.0", "vite": "^5.4.0" }
++  "scripts": {
++    "dev": "vite",
++    "build": "vite build",
++    "test": "bun test",
++    "typecheck": "tsc --noEmit"
++  },
++  "dependencies": {
++    "react": "^18.3.1",
++    "react-dom": "^18.3.1",
++    "three": "^0.170.0"
++  },
++  "devDependencies": {
++    "@types/react": "^18.3.0",
++    "@types/react-dom": "^18.3.0",
++    "@types/three": "^0.185.4",
++    "@vitejs/plugin-react": "^4.3.0",
++    "typescript": "^5.5.0",
++    "vite": "^5.4.0"
++  }
+ }
+diff --git a/shturm.bratuxa.zomb.top/src/three/cameraRig.ts b/shturm.bratuxa.zomb.top/src/three/cameraRig.ts
+new file mode 100644
+index 0000000..dbc4f1b
+--- /dev/null
++++ b/shturm.bratuxa.zomb.top/src/three/cameraRig.ts
+@@ -0,0 +1,23 @@
++import * as THREE from 'three';
++
++let view: 'first' | 'third' = 'third';
++
++export function setView(v: 'first' | 'third') {
++  view = v;
++}
++
++export function getView(): 'first' | 'third' {
++  return view;
++}
++
++export function updateCamera(camera: THREE.PerspectiveCamera, p: { x: number; z: number; yaw: number }) {
++  if (view === 'first') camera.position.set(p.x, 1.62, p.z);
++  else camera.position.set(p.x + Math.sin(p.yaw) * 2.2 + 0.8, 2.4, p.z + Math.cos(p.yaw) * 2.2);
++  camera.rotation.set(0, p.yaw, 0);
++}
++
++if (typeof window !== 'undefined') {
++  window.addEventListener('keydown', (e) => {
++    if (e.code === 'KeyV') setView(view === 'first' ? 'third' : 'first');
++  });
++}
+diff --git a/shturm.bratuxa.zomb.top/src/three/scene.ts b/shturm.bratuxa.zomb.top/src/three/scene.ts
+new file mode 100644
+index 0000000..1a1e657
+--- /dev/null
++++ b/shturm.bratuxa.zomb.top/src/three/scene.ts
+@@ -0,0 +1,31 @@
++import * as THREE from 'three';
++
++export function initScene(canvas: HTMLCanvasElement) {
++  const scene = new THREE.Scene();
++  scene.background = new THREE.Color(0x87ceeb);
++  scene.fog = new THREE.Fog(0x87ceeb, 20, 90);
++  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
++  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
++  renderer.shadowMap.enabled = true;
++  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
++  renderer.toneMapping = THREE.ACESFilmicToneMapping;
++  const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 300);
++  scene.add(new THREE.HemisphereLight(0x87ceeb, 0x8b4513, 0.6));
++  const sun = new THREE.DirectionalLight(0xffffcc, 1.5);
++  sun.position.set(20, 30, 10);
++  sun.castShadow = true;
++  sun.shadow.mapSize.set(2048, 2048);
++  sun.shadow.camera.left = -25;
++  sun.shadow.camera.right = 25;
++  sun.shadow.camera.top = 25;
++  sun.shadow.camera.bottom = -25;
++  scene.add(sun);
++  const ground = new THREE.Mesh(
++    new THREE.PlaneGeometry(90, 90),
++    new THREE.MeshStandardMaterial({ color: 0x6a8f5f, roughness: 1 }),
++  );
++  ground.rotation.x = -Math.PI / 2;
++  ground.receiveShadow = true;
++  scene.add(ground);
++  return { scene, camera, renderer };
++}

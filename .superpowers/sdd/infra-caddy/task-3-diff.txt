@@ -1,0 +1,68 @@
+diff --git a/infra/Caddyfile b/infra/Caddyfile
+index c20cbef..fb0fc27 100644
+--- a/infra/Caddyfile
++++ b/infra/Caddyfile
+@@ -1,11 +1,28 @@
+ {
+ 	email admin@bratuxa.zomb.top
+ 	log {
+ 		output file /var/log/caddy/access.log {
+ 			roll_size 50MiB
+ 			roll_keep 10
+ 		}
+ 		format json
+ 	}
+ }
+-# Хосты добавит Task 3. До ночи X этот файл НЕ активен.
++
++(common) {
++	header /*.html Cache-Control no-cache
++	header -Server
++	encode gzip
++}
++
++shturm.bratuxa.zomb.top {
++	import common
++	reverse_proxy 127.0.0.1:8081
++}
++
++1b42p.bratuxa.zomb.top, 42laiv.bratuxa.zomb.top, 42vs.bratuxa.zomb.top, ai-714ef0.bratuxa.zomb.top, brohacho.bratuxa.zomb.top, chaev.bratuxa.zomb.top, denis.bratuxa.zomb.top, doom.bratuxa.zomb.top, evaelph.bratuxa.zomb.top, gtaevv.bratuxa.zomb.top, hub.bratuxa.zomb.top, miqqil.bratuxa.zomb.top, mtt.bratuxa.zomb.top, pampers.bratuxa.zomb.top, sasha.bratuxa.zomb.top, setden.bratuxa.zomb.top, skitons.bratuxa.zomb.top, smolgrad.bratuxa.zomb.top, svyatoslav.bratuxa.zomb.top {
++	import common
++	reverse_proxy 127.0.0.1:8080
++}
++# /api/* каждого хоста — до миграции держит роутер в тылу; при миграции хоста
++# добавляется блок: reverse_proxy /api/* 127.0.0.1:809X
+diff --git a/router.py b/router.py
+index 4e2e670..c067d9a 100644
+--- a/router.py
++++ b/router.py
+@@ -168,27 +168,27 @@ class VHostHandler(SimpleHTTPRequestHandler):
+         try:
+             if isinstance(self.connection, ssl.SSLSocket):
+                 self.send_header('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
+         except Exception:
+             pass
+         self.send_header('X-Content-Type-Options', 'nosniff')
+         self.send_header('Referrer-Policy', 'strict-origin-when-cross-origin')
+         super().end_headers()
+ 
+ def serve_http():
+-    srv = ThreadingHTTPServer(("0.0.0.0", 80), VHostHandler)
++    srv = ThreadingHTTPServer(("127.0.0.1", 8080), VHostHandler)
+     srv.request_queue_size = 128
+     srv.timeout = 30
+     srv.serve_forever()
+ 
+ def serve_https():
+-    srv = ThreadingHTTPServer(("0.0.0.0", 443), VHostHandler)
++    srv = ThreadingHTTPServer(("127.0.0.1", 8443), VHostHandler)
+     srv.request_queue_size = 128
+     srv.timeout = 30
+     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+     # Безопасный TLS 1Б42П: минимум 1.2, слабое — вон, сжатие — вон.
+     ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+     ctx.options |= getattr(ssl, "OP_NO_COMPRESSION", 0)
+     try:
+         ctx.set_ciphers("ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:"
+                         "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:"
+                         "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:"

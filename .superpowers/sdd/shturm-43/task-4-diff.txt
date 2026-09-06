@@ -1,0 +1,52 @@
+diff --git a/shturm.bratuxa.zomb.top/src/sim/autobalance.ts b/shturm.bratuxa.zomb.top/src/sim/autobalance.ts
+new file mode 100644
+index 0000000..c503ec2
+--- /dev/null
++++ b/shturm.bratuxa.zomb.top/src/sim/autobalance.ts
+@@ -0,0 +1,5 @@
++export function autobalance(deaths: number, accuracy: number): number {
++  if (deaths >= 2) return 0.85;
++  if (deaths === 0 && accuracy > 0.4) return 1.15;
++  return 1.0;
++}
+diff --git a/shturm.bratuxa.zomb.top/src/sim/enemies.ts b/shturm.bratuxa.zomb.top/src/sim/enemies.ts
+new file mode 100644
+index 0000000..e697f01
+--- /dev/null
++++ b/shturm.bratuxa.zomb.top/src/sim/enemies.ts
+@@ -0,0 +1,6 @@
++export const ENEMIES = {
++  runner: { hp: 40, speed: 5.0, dmg: 10, cost: 1 },
++  shooter: { hp: 50, speed: 3.2, dmg: 8, cost: 2 },
++  tank: { hp: 200, speed: 2.0, dmg: 20, cost: 4 },
++  boss: { hp: 1200, speed: 3.0, dmg: 25, cost: 99 },
++};
+diff --git a/shturm.bratuxa.zomb.top/src/sim/waves.ts b/shturm.bratuxa.zomb.top/src/sim/waves.ts
+new file mode 100644
+index 0000000..c3c321b
+--- /dev/null
++++ b/shturm.bratuxa.zomb.top/src/sim/waves.ts
+@@ -0,0 +1,11 @@
++import { ENEMIES } from './enemies';
++export interface Spawn { type: keyof typeof ENEMIES; }
++const BUDGET = [0, 10, 14, 18, 24, 30, 36];
++export function makeWave(n: number): Spawn[] {
++  if (n >= 7) return [{ type: 'boss' }, { type: 'runner' }, { type: 'runner' }, { type: 'shooter' }];
++  let b = BUDGET[n] ?? 10; const out: Spawn[] = [];
++  while (b >= 4 && out.length < 20) { out.push({ type: 'tank' }); b -= 4; }
++  while (b >= 2) { out.push({ type: 'shooter' }); b -= 2; }
++  while (b >= 1) { out.push({ type: 'runner' }); b -= 1; }
++  return out;
++}
+diff --git a/shturm.bratuxa.zomb.top/tests/waves.test.ts b/shturm.bratuxa.zomb.top/tests/waves.test.ts
+new file mode 100644
+index 0000000..20d8417
+--- /dev/null
++++ b/shturm.bratuxa.zomb.top/tests/waves.test.ts
+@@ -0,0 +1,6 @@
++import { describe, expect, test } from 'bun:test';
++import { makeWave } from '../src/sim/waves';
++describe('waves', () => {
++  test('7-я волна содержит босса', () => { expect(makeWave(7).some(s => s.type === 'boss')).toBe(true); });
++  test('1-я волна дешёвая', () => { expect(makeWave(1).length).toBeLessThan(12); });
++});

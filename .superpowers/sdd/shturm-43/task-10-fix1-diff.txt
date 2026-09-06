@@ -1,0 +1,78 @@
+diff --git a/shturm.bratuxa.zomb.top/src/main.tsx b/shturm.bratuxa.zomb.top/src/main.tsx
+index a49c910..cbb2196 100644
+--- a/shturm.bratuxa.zomb.top/src/main.tsx
++++ b/shturm.bratuxa.zomb.top/src/main.tsx
+@@ -48,20 +48,21 @@ const sim = {
+   player: createPlayer() as PlayerState & { pitch?: number },
+   slot: 'auto' as Slot,
+   mag: { ...MAG } as Record<Slot, number>,
+   reserve: { pistol: 120, auto: 210, shotgun: 42 } as Record<Slot, number>,
+   fireCd: 0,
+   reloadT: 0,
+   wave: 1,
+   enemies: [] as Enemy[],
+   spawnQueue: [] as { type: keyof typeof ENEMIES }[],
+   spawnT: 0,
++  summonCd: 12,
+   intermission: 0,
+   kills: 0,
+   shots: 0,
+   hits: 0,
+   timeSec: 0,
+   deaths: 0,
+   lowHpStreak: 0,
+   balanceMult: 1,
+ };
+ 
+@@ -162,20 +163,21 @@ function switchSlot(s: Slot) {
+   gunMesh.clear();
+   fresh.children.slice().forEach((c) => gunMesh.add(c));
+   pushHud();
+ }
+ 
+ // ---------- Волны ----------
+ function startWave(n: number) {
+   sim.wave = n;
+   sim.spawnQueue = makeWave(n).map((s) => ({ type: s.type as keyof typeof ENEMIES }));
+   sim.spawnT = 0;
++  sim.summonCd = 12;
+   pushHud(`Волна ${n}/7${n === 7 ? ' — БОСС Чайка Рукрасии � чайка' : ''}`);
+ }
+ 
+ function spawnOne() {
+   const q = sim.spawnQueue.shift();
+   if (!q) return;
+   const def = MAPS[mapId];
+   const half = def.size / 2;
+   // Спавн ≥15м от игрока, вне фрустума — кольцо + точки карты.
+   let x = 0;
+@@ -475,22 +477,27 @@ function tick(dt: number) {
+       e.cd = e.type === 'tank' ? 2.5 : e.type === 'boss' ? 1.2 : 0.8;
+       p.hp -= base.dmg * DIFF_MULT[difficulty] * sim.balanceMult;
+       // Отброс танка/босса.
+       if (e.type === 'tank' || e.type === 'boss') {
+         p.x += (dx / d) * -1.5;
+         p.z += (dz / d) * -1.5;
+         resolveCircle(p, 0.4, mapId);
+       }
+       pushHud();
+     }
+-    // Босс: крик-спавн каждые 12с.
+-    if (e.type === 'boss' && Math.floor(sim.timeSec) % 12 === 0 && e.cd <= -0.4) {
++  }
++  // Босс: крик-спавн свиты — 2 раннера раз в 12с (кулдаун, один пуш).
++  // Было: floor(timeSec)%12==0 && cd<=-0.4 пушил каждый тик целую секунду (~120 пушей).
++  if (sim.wave >= 7 && sim.enemies.some((x) => x.type === 'boss')) {
++    sim.summonCd -= dt;
++    if (sim.summonCd <= 0) {
++      sim.summonCd = 12;
+       for (let i = 0; i < 2; i++) sim.spawnQueue.push({ type: 'runner' });
+     }
+   }
+ 
+   // Автобаланс (урон мобам уже масштабирован при спавне; смерть → −15%, мин ×0.6).
+   if (p.hp <= 0) {
+     p.hp = 0;
+     sim.deaths += 1;
+     sim.balanceMult = Math.max(0.6, sim.balanceMult * 0.85);
+     gameStore.set({ phase: 'lost' });

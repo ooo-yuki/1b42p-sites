@@ -1,0 +1,32 @@
+diff --git a/shturm.bratuxa.zomb.top/src/sim/weapons.ts b/shturm.bratuxa.zomb.top/src/sim/weapons.ts
+new file mode 100644
+index 0000000..0768d65
+--- /dev/null
++++ b/shturm.bratuxa.zomb.top/src/sim/weapons.ts
+@@ -0,0 +1,11 @@
++export type Slot = 'pistol' | 'auto' | 'shotgun';
++export const WEAPONS = {
++  pistol: { dmg: 25, mag: 12, reserve: 120, interval: 0.35, spread: 0.5, reload: 1.1, pellets: 1, range: 60 },
++  auto: { dmg: 16, mag: 30, reserve: 210, interval: 0.11, spread: 1.8, reload: 1.8, pellets: 1, range: 80 },
++  shotgun: { dmg: 12, mag: 6, reserve: 42, interval: 0.9, spread: 5, reload: 2.4, pellets: 6, range: 25 },
++};
++export function fireShot(slot: Slot, dist: number, seed: number) {
++  const w = WEAPONS[slot];
++  const pellets = Array.from({ length: w.pellets }, (_, i) => ({ dmg: dist > 15 && slot === 'shotgun' ? w.dmg * 0.5 : w.dmg, idx: i }));
++  return { pellets };
++}
+diff --git a/shturm.bratuxa.zomb.top/tests/weapons.test.ts b/shturm.bratuxa.zomb.top/tests/weapons.test.ts
+new file mode 100644
+index 0000000..d77c34a
+--- /dev/null
++++ b/shturm.bratuxa.zomb.top/tests/weapons.test.ts
+@@ -0,0 +1,9 @@
++import { describe, expect, test } from 'bun:test';
++import { WEAPONS, fireShot } from '../src/sim/weapons';
++describe('weapons', () => {
++  test('дробовик даёт 6 дробин', () => {
++    expect(WEAPONS.shotgun.pellets).toBe(6);
++    const r = fireShot('shotgun', 10, 0);
++    expect(r.pellets.length).toBe(6);
++  });
++});

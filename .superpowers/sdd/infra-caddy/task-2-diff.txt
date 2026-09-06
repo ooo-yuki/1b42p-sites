@@ -1,0 +1,43 @@
+diff --git a/shturm.bratuxa.zomb.top/Caddyfile.container b/shturm.bratuxa.zomb.top/Caddyfile.container
+new file mode 100644
+index 0000000..0fde242
+--- /dev/null
++++ b/shturm.bratuxa.zomb.top/Caddyfile.container
+@@ -0,0 +1,7 @@
++# Caddyfile.container
++:80 {
++	root * /srv
++	file_server
++	try_files {path} /index.html
++	header /*.html Cache-Control no-cache
++}
+diff --git a/shturm.bratuxa.zomb.top/Dockerfile b/shturm.bratuxa.zomb.top/Dockerfile
+new file mode 100644
+index 0000000..c6d1f2d
+--- /dev/null
++++ b/shturm.bratuxa.zomb.top/Dockerfile
+@@ -0,0 +1,4 @@
++# Dockerfile
++FROM caddy:alpine
++COPY dist /srv
++COPY Caddyfile.container /etc/caddy/Caddyfile
+diff --git a/shturm.bratuxa.zomb.top/compose.yml b/shturm.bratuxa.zomb.top/compose.yml
+new file mode 100644
+index 0000000..b6690c3
+--- /dev/null
++++ b/shturm.bratuxa.zomb.top/compose.yml
+@@ -0,0 +1,14 @@
++# compose.yml
++services:
++  shturm:
++    build: .
++    image: shturm-43:latest
++    container_name: shturm
++    restart: unless-stopped
++    ports:
++      - "127.0.0.1:8081:80"
++    logging:
++      driver: json-file
++      options:
++        max-size: "10m"
++        max-file: "3"
