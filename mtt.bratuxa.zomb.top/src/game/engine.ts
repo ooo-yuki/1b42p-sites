@@ -4,6 +4,12 @@ import vrag2Url from '../assets/vrag2.png';
 import dom1Url from '../assets/dom1.png';
 import travaUrl from '../assets/trava.jpg';
 import facadeUrl from '../assets/facade.jpg';
+import panelUrl from '../assets/city-panel.jpg';
+import shopUrl from '../assets/city-shop.jpg';
+import roofUrl from '../assets/city-roof.jpg';
+import roadUrl from '../assets/city-road.jpg';
+import walkUrl from '../assets/city-walk.jpg';
+import plazaUrl from '../assets/city-plaza.jpg';
 import skyUrl from '../assets/sky.jpg';
 import edgeUrl from '../assets/edge.png';
 import house2Url from '../assets/house2.png';
@@ -37,7 +43,7 @@ export type MapId = 'arena' | 'duel' | 'backrooms' | 'custom';
 
 /** Карты для выбора в меню: id, название, описание. */
 export const MAPS: Array<{ id: MapId; name: string; desc: string }> = [
-  { id: 'arena', name: '🌍 Арена', desc: 'Город днём: дома, крыши, мосты, фонтан' },
+  { id: 'arena', name: '🌍 Арена', desc: 'Новый город: витрины, площадь с фонтаном, парк, парковка' },
   { id: 'duel', name: '⚔️ Дуэль', desc: 'Ночной двор 1×1 для разборок' },
   { id: 'backrooms', name: '🟨 Бэкрумс', desc: 'Случайный лабиринт — новый каждый раз' },
 ];
@@ -877,10 +883,407 @@ export class Game {
     return { walls: this.solids.length, half: this.half };
   }
 
+  /** НОВЫЙ ГОРОД 2026-09-06: у каждого объекта своя сгенерированная текстура. */
+  private buildCity(): void {
+    const scene = this.scene;
+    scene.add(new THREE.AmbientLight(0xffffff, 0.95));
+    scene.add(new THREE.HemisphereLight(0xbfd9ff, 0x6a7a5a, 0.55));
+    const sun = new THREE.DirectionalLight(0xfff3d6, 1.5);
+    sun.position.set(-40, 80, -30);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 1024;
+    sun.shadow.mapSize.height = 1024;
+    sun.shadow.camera.left = -70; sun.shadow.camera.right = 70;
+    sun.shadow.camera.top = 70; sun.shadow.camera.bottom = -70;
+    sun.shadow.camera.near = 10; sun.shadow.camera.far = 220;
+    sun.shadow.bias = -0.0004;
+    scene.add(sun);
+
+    const tex = (url: string, rx: number, ry: number): THREE.Texture => {
+      const t = new THREE.TextureLoader().load(url);
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.wrapS = t.wrapT = THREE.MirroredRepeatWrapping;
+      t.repeat.set(rx, ry);
+      t.anisotropy = 4;
+      return t;
+    };
+    // СВОИ ТЕКСТУРЫ: тротуар — база всего города
+    const walkT = tex(walkUrl, 30, 30);
+    const base = new THREE.Mesh(
+      new THREE.PlaneGeometry(ARENA + 20, ARENA + 20),
+      new THREE.MeshStandardMaterial({ map: walkT, roughness: 0.95 }),
+    );
+    base.rotation.x = -Math.PI / 2;
+    base.receiveShadow = true;
+    scene.add(base);
+
+    // парк: живая трава с фото МТТ (СЗ-квартал)
+    const grassT = tex(travaUrl, 10, 10);
+    const park = new THREE.Mesh(
+      new THREE.PlaneGeometry(36, 36),
+      new THREE.MeshStandardMaterial({ map: grassT, roughness: 1 }),
+    );
+    park.rotation.x = -Math.PI / 2;
+    park.position.set(-30, 0.01, -30);
+    park.receiveShadow = true;
+    scene.add(park);
+
+    // ДОРОГИ: асфальт со своей текстурой + жёлтая разметка по центру
+    const roadT = tex(roadUrl, 55, 4);
+    const roadMat = new THREE.MeshStandardMaterial({ map: roadT, roughness: 1 });
+    for (const [w, d, x, z] of [[ARENA, 7, 0, 0], [7, ARENA, 0, 0]] as Array<[number, number, number, number]>) {
+      const r = new THREE.Mesh(new THREE.PlaneGeometry(w, d), roadMat);
+      r.rotation.x = -Math.PI / 2;
+      r.position.set(x, 0.02, z);
+      r.receiveShadow = true;
+      scene.add(r);
+    }
+    const dashMat = new THREE.MeshBasicMaterial({ color: 0xffd23f });
+    for (let i = -HALF + 6; i < HALF - 4; i += 6) {
+      if (Math.abs(i) < 12) continue; // круг у площади не закрашиваем
+      for (const [x, z, w, d] of [[i, 0, 2.4, 0.35], [0, i, 0.35, 2.4]] as Array<[number, number, number, number]>) {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), dashMat);
+        m.rotation.x = -Math.PI / 2;
+        m.position.set(x, 0.035, z);
+        scene.add(m);
+      }
+    }
+    // переходы-зебры у центра
+    const zebraMat = new THREE.MeshBasicMaterial({ color: 0xf2f5f7 });
+    for (const [x, z, vert] of [[8, 0, false], [-8, 0, false], [0, 8, true], [0, -8, true]] as Array<[number, number, boolean]>) {
+      for (let k = -2; k <= 2; k++) {
+        const s = new THREE.Mesh(new THREE.PlaneGeometry(vert ? 0.6 : 2.6, vert ? 2.6 : 0.6), zebraMat);
+        s.rotation.x = -Math.PI / 2;
+        s.position.set(x + (vert ? k * 1.1 : 0), 0.035, z + (vert ? 0 : k * 1.1));
+        scene.add(s);
+      }
+    }
+
+    // ДОМА: первый этаж — витрины магазинов, выше — панелька, сверху — рулонная крыша
+    const shopT0 = tex(shopUrl, 3, 1);
+    const panelT0 = tex(panelUrl, 2, 2);
+    const roofT0 = tex(roofUrl, 2, 2);
+    const roofMat0 = new THREE.MeshStandardMaterial({ map: roofT0, roughness: 0.95 });
+    const parapMat = new THREE.MeshStandardMaterial({ color: 0x7a6a58, roughness: 0.9 });
+    const acMat = new THREE.MeshStandardMaterial({ color: 0xb9c2cc, roughness: 0.6, metalness: 0.3 });
+    type B = { x: number; z: number; w: number; d: number; up: number; tint: number; top: 'tank' | 'antenna' | 'garden' | 'ac' };
+    const homes: B[] = [
+      { x: 20, z: -19, w: 12, d: 10, up: 9, tint: 0xf2e2c4, top: 'ac' },
+      { x: 39, z: -21, w: 8, d: 8, up: 7, tint: 0xe8d4b0, top: 'tank' },
+      { x: 22, z: -39, w: 10, d: 8, up: 11, tint: 0xdfc9a2, top: 'garden' },
+      { x: -20, z: 19, w: 12, d: 10, up: 8, tint: 0xf5e6cc, top: 'garden' },
+      { x: -39, z: 23, w: 9, d: 9, up: 12, tint: 0xe3cda4, top: 'antenna' },
+      { x: 18, z: 41, w: 11, d: 9, up: 9, tint: 0xefdcba, top: 'ac' },
+      { x: 41, z: 33, w: 8, d: 8, up: 6, tint: 0xe8d0a8, top: 'tank' },
+    ];
+    for (const b of homes) {
+      const shopT = shopT0.clone();
+      shopT.repeat.set(Math.max(2, Math.round(b.w / 4)), 1);
+      shopT.needsUpdate = true;
+      const gnd = new THREE.Mesh(
+        new THREE.BoxGeometry(b.w, 3.5, b.d),
+        new THREE.MeshStandardMaterial({ map: shopT, roughness: 0.7 }),
+      );
+      gnd.position.set(b.x, 1.75, b.z);
+      gnd.castShadow = true; gnd.receiveShadow = true;
+      scene.add(gnd);
+      const panelT = panelT0.clone();
+      panelT.repeat.set(Math.max(1, Math.round(b.w / 8)), Math.max(1, Math.round(b.up / 8)));
+      panelT.needsUpdate = true;
+      const up = new THREE.Mesh(
+        new THREE.BoxGeometry(b.w, b.up, b.d),
+        new THREE.MeshStandardMaterial({ map: panelT, roughness: 0.85, color: b.tint }),
+      );
+      up.position.set(b.x, 3.5 + b.up / 2, b.z);
+      up.castShadow = true; up.receiveShadow = true;
+      scene.add(up);
+      const H = 3.5 + b.up;
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(b.w + 0.4, 0.35, b.d + 0.4), roofMat0);
+      slab.position.set(b.x, H + 0.17, b.z);
+      slab.castShadow = true;
+      scene.add(slab);
+      // парапет по краю крыши
+      const ph = 0.55, pt = 0.28;
+      for (const [w, d, ox, oz] of [[b.w + 0.4, pt, 0, -(b.d + 0.4) / 2], [b.w + 0.4, pt, 0, (b.d + 0.4) / 2], [pt, b.d + 0.4, -(b.w + 0.4) / 2, 0], [pt, b.d + 0.4, (b.w + 0.4) / 2, 0]] as Array<[number, number, number, number]>) {
+        const p = new THREE.Mesh(new THREE.BoxGeometry(w, ph, d), parapMat);
+        p.position.set(b.x + ox, H + 0.35 + ph / 2, b.z + oz);
+        scene.add(p);
+      }
+      if (b.top === 'tank') {
+        const t = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 2, 10), parapMat);
+        t.position.set(b.x + b.w / 4, H + 1.3, b.z);
+        t.castShadow = true;
+        scene.add(t);
+      } else if (b.top === 'antenna') {
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 5, 6), parapMat);
+        pole.position.set(b.x, H + 2.8, b.z);
+        scene.add(pole);
+        const tip = new THREE.Mesh(new THREE.SphereGeometry(0.26, 8, 8), new THREE.MeshBasicMaterial({ color: 0xff3b3b }));
+        tip.position.set(b.x, H + 5.3, b.z);
+        scene.add(tip);
+      } else if (b.top === 'garden') {
+        const gr = new THREE.Mesh(new THREE.CircleGeometry(Math.min(b.w, b.d) / 2 - 0.7, 18), new THREE.MeshStandardMaterial({ map: grassT, roughness: 1 }));
+        gr.rotation.x = -Math.PI / 2;
+        gr.position.set(b.x, H + 0.37, b.z);
+        scene.add(gr);
+      } else {
+        for (let k = -1; k <= 1; k++) {
+          const ac = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.8, 0.9), acMat);
+          ac.position.set(b.x + k * 2.4, H + 0.75, b.z + b.d / 4);
+          ac.castShadow = true;
+          scene.add(ac);
+        }
+      }
+      // козырьки подъездов с двух сторон
+      for (const s of [-1, 1]) {
+        const cn = new THREE.Mesh(new THREE.BoxGeometry(3, 0.22, 1.4), parapMat);
+        cn.position.set(b.x + s * (b.w / 4), 3.6, b.z + (b.d / 2 + 0.6));
+        scene.add(cn);
+      }
+      this.solids.push({ x: b.x, z: b.z, hx: b.w / 2, hz: b.d / 2, h: H + 0.4 });
+    }
+
+    // ПЛОЩАДЬ с фонтаном (ЮВ): брусчатка со своей текстурой
+    const plazaT = tex(plazaUrl, 6, 6);
+    const plaza = new THREE.Mesh(new THREE.CircleGeometry(10, 30), new THREE.MeshStandardMaterial({ map: plazaT, roughness: 0.9 }));
+    plaza.rotation.x = -Math.PI / 2;
+    plaza.position.set(27, 0.03, 27);
+    plaza.receiveShadow = true;
+    scene.add(plaza);
+    const rim = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.5, 1.1, 16), new THREE.MeshStandardMaterial({ map: plazaT, roughness: 0.8 }));
+    rim.position.set(27, 0.55, 27);
+    rim.castShadow = true;
+    scene.add(rim);
+    const water = new THREE.Mesh(new THREE.CircleGeometry(1.9, 16), new THREE.MeshBasicMaterial({ color: 0x55d4ff }));
+    water.rotation.x = -Math.PI / 2;
+    water.position.set(27, 1.12, 27);
+    scene.add(water);
+    const jet = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.3, 2.2, 8), new THREE.MeshBasicMaterial({ color: 0xbdf1ff }));
+    jet.position.set(27, 2.1, 27);
+    scene.add(jet);
+    this.solids.push({ x: 27, z: 27, r: 2.4, h: 1.2 });
+
+    // киоск + остановка у центра
+    const kioskT = tex(shopUrl, 2, 1);
+    const kiosk = new THREE.Mesh(new THREE.BoxGeometry(3.4, 2.8, 2.6), new THREE.MeshStandardMaterial({ map: kioskT, roughness: 0.7 }));
+    kiosk.position.set(-7.5, 1.4, -11);
+    kiosk.castShadow = true;
+    scene.add(kiosk);
+    const kRoof = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.25, 3), roofMat0);
+    kRoof.position.set(-7.5, 2.9, -11);
+    scene.add(kRoof);
+    this.solids.push({ x: -7.5, z: -11, hx: 1.7, hz: 1.3, h: 3 });
+    const glassMat = new THREE.MeshStandardMaterial({ color: 0x9fd4ff, roughness: 0.1, metalness: 0.4, transparent: true, opacity: 0.55 });
+    const shRoof = new THREE.Mesh(new THREE.BoxGeometry(5, 0.25, 2), roofMat0);
+    shRoof.position.set(7.5, 2.7, 12);
+    scene.add(shRoof);
+    for (const ox of [-2.2, 2.2]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 2.7, 6), parapMat);
+      post.position.set(7.5 + ox, 1.35, 12);
+      scene.add(post);
+    }
+    const glass = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 1.6), glassMat);
+    glass.position.set(7.5, 1.6, 12.9);
+    glass.rotation.y = Math.PI;
+    scene.add(glass);
+    this.solids.push({ x: 7.5, z: 12, hx: 2.5, hz: 0.3, h: 2.7 });
+
+    // деревья: ствол + два яруса кроны (свободные точки, в дома не врём)
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3d22, roughness: 1 });
+    const leafA = new THREE.MeshStandardMaterial({ color: 0x2f7a3d, roughness: 1 });
+    const leafB = new THREE.MeshStandardMaterial({ color: 0x46a04f, roughness: 1 });
+    const trees: Array<[number, number]> = [
+      [-7.5, -24], [-7.5, -36], [7.5, -26], [7.5, -38], [-7.5, 24], [-7.5, 38], [7.5, 26], [7.5, 40],
+      [-24, 7.5], [-36, 7.5], [24, -7.5], [36, -7.5], [14, 24], [-14, -14],
+      [-40, -22], [-22, -40], [-38, -36], [-24, -24], [48, 12], [-48, -8],
+    ];
+    let ti = 0;
+    for (const [tx, tz] of trees) {
+      if (this.hitSolid(tx, tz, 1)) continue;
+      const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.34, 2.4, 7), trunkMat);
+      tr.position.set(tx, 1.2, tz);
+      tr.castShadow = true;
+      scene.add(tr);
+      const lm = ti % 2 === 0 ? leafA : leafB;
+      const c1 = new THREE.Mesh(new THREE.ConeGeometry(1.7, 2.8, 8), lm);
+      c1.position.set(tx, 3.5, tz);
+      c1.castShadow = true;
+      scene.add(c1);
+      const c2 = new THREE.Mesh(new THREE.ConeGeometry(1.15, 1.9, 8), lm);
+      c2.position.set(tx, 5, tz);
+      scene.add(c2);
+      this.solids.push({ x: tx, z: tz, r: 0.3, h: 4 });
+      ti++;
+    }
+    // детская площадка в парке: две стойки + перекладина + качель
+    const playMat = new THREE.MeshStandardMaterial({ color: 0xd84a4a, roughness: 0.7 });
+    for (const ox of [-2, 2]) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 3, 6), playMat);
+      leg.position.set(-22 + ox, 1.5, -38);
+      scene.add(leg);
+    }
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 4.4, 6), playMat);
+    bar.rotation.z = Math.PI / 2;
+    bar.position.set(-22, 3, -38);
+    scene.add(bar);
+
+    // фонари вдоль проспектов
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x2b3444, roughness: 0.7 });
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0xfff2c4 });
+    for (let i = -42; i <= 42; i += 14) {
+      for (const [lx, lz] of [[-5.6, i], [5.6, i + 7], [i, -5.6], [i + 7, 5.6]] as Array<[number, number]>) {
+        if (this.hitSolid(lx, lz, 0.9)) continue;
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.17, 6, 7), poleMat);
+        pole.position.set(lx, 3, lz);
+        pole.castShadow = true;
+        scene.add(pole);
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.12, 0.12), poleMat);
+        arm.position.set(lx + (Math.abs(lx) > 5 ? (lx > 0 ? -0.5 : 0.5) : 0), 5.9, lz);
+        scene.add(arm);
+        const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.26, 8, 8), glowMat);
+        bulb.position.set(lx + (Math.abs(lx) > 5 ? (lx > 0 ? -1 : 1) : 0), 5.75, lz);
+        scene.add(bulb);
+        this.solids.push({ x: lx, z: lz, r: 0.2, h: 6 });
+      }
+    }
+    for (const [fx, fz] of [[-44, -44], [44, -44], [-44, 44], [44, 44]] as Array<[number, number]>) {
+      const pl = new THREE.PointLight(0xffd88a, 0.5, 46);
+      pl.position.set(fx, 9, fz);
+      scene.add(pl);
+    }
+
+    // парковка (ЮЗ): тёмный асфальт + разметка + 6 цветных машин
+    const parkT = tex(roadUrl, 6, 3);
+    const lot = new THREE.Mesh(new THREE.PlaneGeometry(22, 11), new THREE.MeshStandardMaterial({ map: parkT, roughness: 1 }));
+    lot.rotation.x = -Math.PI / 2;
+    lot.position.set(-28, 0.025, 40);
+    lot.receiveShadow = true;
+    scene.add(lot);
+    const lineMat = new THREE.MeshBasicMaterial({ color: 0xe8edf2 });
+    for (let k = 0; k <= 6; k++) {
+      const ln = new THREE.Mesh(new THREE.PlaneGeometry(0.25, 10), lineMat);
+      ln.rotation.x = -Math.PI / 2;
+      ln.position.set(-38 + k * 3.3, 0.04, 40);
+      scene.add(ln);
+    }
+    const carCols = [0xc23b3b, 0x2b6cb0, 0x2f9e44, 0xe8c547, 0x6c5ce7, 0x222831];
+    const winMat = new THREE.MeshStandardMaterial({ color: 0x18242f, roughness: 0.2, metalness: 0.5 });
+    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111318, roughness: 1 });
+    carCols.forEach((cc, i) => {
+      const cx = -36.3 + i * 3.3, cz = 40;
+      if (this.hitSolid(cx, cz, 1.6)) return;
+      const body = new THREE.Mesh(new THREE.BoxGeometry(2, 0.85, 4.2), new THREE.MeshStandardMaterial({ color: cc, roughness: 0.35, metalness: 0.4 }));
+      body.position.set(cx, 0.85, cz);
+      body.castShadow = true;
+      scene.add(body);
+      const cab = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.7, 2), winMat);
+      cab.position.set(cx, 1.55, cz - 0.2);
+      scene.add(cab);
+      for (const [ox, oz] of [[-0.95, 1.4], [0.95, 1.4], [-0.95, -1.4], [0.95, -1.4]] as Array<[number, number]>) {
+        const w = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.3, 10), wheelMat);
+        w.rotation.z = Math.PI / 2;
+        w.position.set(cx + ox, 0.38, cz + oz);
+        scene.add(w);
+      }
+      this.solids.push({ x: cx, z: cz, hx: 1, hz: 2.1, h: 1.9 });
+    });
+
+    // скамейки вокруг площади и в парке
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x8a5a2e, roughness: 0.9 });
+    const benchAt = (bx: number, bz: number, ry: number): void => {
+      if (this.hitSolid(bx, bz, 0.9)) return;
+      const g = new THREE.Group();
+      const seat = new THREE.Mesh(new THREE.BoxGeometry(2, 0.12, 0.6), woodMat);
+      seat.position.y = 0.55;
+      g.add(seat);
+      const back = new THREE.Mesh(new THREE.BoxGeometry(2, 0.5, 0.1), woodMat);
+      back.position.set(0, 0.95, -0.28);
+      g.add(back);
+      for (const ox of [-0.8, 0.8]) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.55, 0.5), poleMat);
+        leg.position.set(ox, 0.27, 0);
+        g.add(leg);
+      }
+      g.position.set(bx, 0, bz);
+      g.rotation.y = ry;
+      scene.add(g);
+      this.solids.push({ x: bx, z: bz, hx: 1, hz: 0.4, h: 1 });
+    };
+    for (let a = 0; a < 6; a++) {
+      const an = (a / 6) * Math.PI * 2;
+      benchAt(27 + Math.cos(an) * 12.5, 27 + Math.sin(an) * 12.5, -an + Math.PI / 2);
+    }
+    benchAt(-24, -22, 0.4);
+    benchAt(-36, -30, -0.5);
+    benchAt(14, 30, 1.2);
+
+    // клумбы-цветники
+    const bedCols = [0xff5d8f, 0xffd23f, 0xff6b35, 0xc77dff];
+    [[16, 16], [-14, -20], [36, 20], [-30, 32]].forEach(([fx, fz], i) => {
+      if (this.hitSolid(fx, fz, 1.8)) return;
+      const bed = new THREE.Mesh(new THREE.CircleGeometry(1.6, 20), new THREE.MeshStandardMaterial({ color: bedCols[i % bedCols.length], roughness: 1 }));
+      bed.rotation.x = -Math.PI / 2;
+      bed.position.set(fx, 0.03, fz);
+      scene.add(bed);
+    });
+
+    // стройка у северного дома: забор + ящики
+    const fenceMat = new THREE.MeshStandardMaterial({ color: 0xe07b39, roughness: 0.9 });
+    for (let k = -2; k <= 2; k++) {
+      const f = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.6, 0.15), fenceMat);
+      f.position.set(22 + k * 2.5, 0.8, -32.5);
+      scene.add(f);
+    }
+    const crateMat = new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: 0.9 });
+    const crateMat2 = new THREE.MeshStandardMaterial({ color: 0x6e4520, roughness: 0.9 });
+    const crates: Array<[number, number, number]> = [
+      [12, 8, 0], [-12, 10, 1], [14, -10, 1], [-14, -12, 0], [8, 32, 0],
+      [-8, -32, 1], [32, 12, 0], [-32, -14, 1], [10, -24, 0], [-10, 26, 1],
+    ];
+    for (const [cx, cz, v] of crates) {
+      const c = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.2, 2.2), v === 0 ? crateMat : crateMat2);
+      c.position.set(cx, 1.1, cz);
+      c.castShadow = true; c.receiveShadow = true;
+      scene.add(c);
+      this.solids.push({ x: cx, z: cz, hx: 1.1, hz: 1.1, h: 2.2 });
+    }
+
+    // билборды у площади
+    const bbT = new THREE.TextureLoader().load(house2Url);
+    bbT.colorSpace = THREE.SRGBColorSpace;
+    for (const [bx, bz, ry] of [[12, 20, Math.PI], [-12, -20, 0]] as Array<[number, number, number]>) {
+      const legs = new THREE.Mesh(new THREE.BoxGeometry(0.4, 6, 0.4), poleMat);
+      legs.position.set(bx, 3, bz);
+      scene.add(legs);
+      const board = new THREE.Mesh(new THREE.PlaneGeometry(9, 5), new THREE.MeshBasicMaterial({ map: bbT }));
+      board.position.set(bx, 8.5, bz);
+      board.rotation.y = ry;
+      scene.add(board);
+      this.solids.push({ x: bx, z: bz, hx: 0.2, hz: 0.2, h: 6 });
+    }
+
+    // край карты: граффити-стена целиком — 5 повторов, ничего не режем
+    const wallT = tex(edgeUrl, 5, 1);
+    const wallMat = new THREE.MeshStandardMaterial({ map: wallT, roughness: 0.85 });
+    const wallGeoH = new THREE.BoxGeometry(ARENA + 8, 14, 2);
+    const wallGeoV = new THREE.BoxGeometry(2, 14, ARENA + 8);
+    for (const [x, z, g] of [[0, -HALF - 1, wallGeoH], [0, HALF + 1, wallGeoH]] as Array<[number, number, THREE.BufferGeometry]>) {
+      const m = new THREE.Mesh(g, wallMat);
+      m.position.set(x, 7, z);
+      scene.add(m);
+    }
+    for (const [x, z, g] of [[-HALF - 1, 0, wallGeoV], [HALF + 1, 0, wallGeoV]] as Array<[number, number, THREE.BufferGeometry]>) {
+      const m = new THREE.Mesh(g, wallMat);
+      m.position.set(x, 7, z);
+      scene.add(m);
+    }
+  }
+
   private buildWorld(): void {
     if (this.map === 'duel') { this.buildDuel(); return; }
     if (this.map === 'backrooms') { this.buildBackrooms(); return; }
     if (this.map === 'custom') { this.buildCustom(); return; }
+    this.buildCity(); return;
     const scene = this.scene;
     // светло: день вместо ночи
     scene.add(new THREE.AmbientLight(0xffffff, 0.95));
