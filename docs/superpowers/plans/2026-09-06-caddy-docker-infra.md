@@ -209,14 +209,18 @@ Expected: `Valid configuration`.
 - Consumes: Caddyfile Task 3, контейнер :8081, роутер-тыл (запустить вручную на 8080 для репетиции, прод-роутер на 80/443 НЕ трогаем).
 - Produces: матрица curl 20/20 через Caddy :8080/:8443 с Host-заголовками.
 
-- [ ] **Step 1: Поднять тыл + Caddy на тестовых портах**
+- [ ] **Step 1: Поднять тыл + Caddy на тестовых портах (проверенный метод, sed ломает апстримы!)**
 
 ```bash
 mkdir -p /tmp/caddy-rehearse
-sed -e 's/:80/:8080/' -e 's/:443/:8443/' /root/sites/infra/Caddyfile > /tmp/caddy-rehearse/Caddyfile.test
-(nohup python3 /root/sites/router.py >/tmp/caddy-rehearse/router.log 2>&1 &) || true
-caddy start --config /tmp/caddy-rehearse/Caddyfile.test
-sleep 2
+cp /root/sites/router.py /tmp/caddy-rehearse/router-rehearse.py
+sed -i -e 's/127.0.0.1", 8080/127.0.0.1", 18080/' -e 's/127.0.0.1", 8443/127.0.0.1", 18443/' /tmp/caddy-rehearse/router-rehearse.py
+python3 -c "import ast; ast.parse(open('/tmp/caddy-rehearse/router-rehearse.py').read()); print('syntax OK')"
+# Тестовый Caddyfile собирается вручную: глобально http_port 8080 + https_port 8443,
+# апстримы не трогать (shturm→127.0.0.1:8081, остальные→127.0.0.1:18080),
+# адреса сайтов продублировать со схемами http:// и https:// (иначе :8080 не биндится),
+# добавить local_certs (иначе Caddy полезет в реальный ACME!).
+# Запуск: nohup caddy run --config ... & (НЕ caddy start — виснет). Прод НЕ трогаем.
 ```
 
 - [ ] **Step 2: Матрица 20 хостов**
@@ -247,17 +251,19 @@ Expected: прод-роутер active (его не трогали), тесто�
 - Consumes: зелёная матрица Task 4, окно 5–10 мин согласовано.
 - Produces: Caddy на 80/443, 20/20 HTTPS 200, браузер чистый.
 
-- [ ] **Step 1: Переключение (секунды)**
+- [ ] **Step 1: Переключение (секунды; restart — НЕ stop: роутер с новыми биндами нужен как тыл :8080!)**
 
 ```bash
+cp /root/sites/router.py /tmp/router.prod-backup.py
 cp /root/sites/infra/Caddyfile /etc/caddy/Caddyfile
-systemctl stop chaev-site
+systemctl restart chaev-site
 systemctl enable --now caddy
 sleep 3
-ss -tlnp | grep -E ':80 |:443 '
+ss -tlnp | grep -E ':80 |:443 |:8080 '
 ```
 
-Expected: 80/443 держит caddy, не python3.
+Expected: 80/443 держит caddy; 8080 — python3 (тыл). Откат (<1 мин):
+`systemctl stop caddy; cp /tmp/router.prod-backup.py /root/sites/router.py; systemctl restart chaev-site`.
 
 - [ ] **Step 2: curl 20/20 по HTTPS**
 
