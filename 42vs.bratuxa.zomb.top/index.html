@@ -60,6 +60,7 @@
     <button class="bigbtn" id="btnQuitMenu">В ГЛАВНОЕ МЕНЮ 🏠</button>
     <button class="bigbtn" id="btnFS">⛶ ПОЛНЫЙ ЭКРАН</button>
     <p style="margin-top:16px">🔊 Громкость: <input type="range" id="volRange" min="0" max="100" value="80" style="width:220px;vertical-align:middle"> <b id="volVal">80%</b></p>
+    <p>🎵 Музыка: <input type="range" id="musRange" min="0" max="100" value="60" style="width:220px;vertical-align:middle"> <b id="musVal">60%</b></p>
     <p><a href="https://hub.bratuxa.zomb.top" style="color:#f5c518">← Хаб 1Б42П</a></p>
   </div>
 </div>
@@ -87,6 +88,7 @@ function newGame(){
     seedFlash:null,cellFlash:null};
   G.wv={ph:0,pt:8,g:0,q:0,first:false,plan:buildPlan()}; /* волны: редко → волна → чаще → волна → победа */
   G.wv.total=G.wv.plan.total;
+  G.growlT=40;G.growlI=0;G.bktI=0;G.biteI=0; /* рычание 1-2-3 раз в 40с, ведро/укус 1-2 вперемешку */
 }
 /* --- план уровня вперёд: 5 одиночек → волна 7-10 → 3 группы 2-3 → волна 7-10 --- */
 function buildPlan(){
@@ -103,7 +105,7 @@ function startWave(n){
   sfx('zdie');
 }
 function winLevel(){
-  G.wv.ph=4;G.state='win';
+  G.wv.ph=4;G.state='win';sfx('win');
   showEnd('УРОВЕНЬ ПРОЙДЕН! 🏆','Все волны отбиты! Убито: '+G.kills+'.<br>Мы уже победили 🏆');beep(660,0.3);
 }
 function cellXY(r,c){return {x:GX0+c*CW,y:GY0+r*CH};}
@@ -134,7 +136,7 @@ function beep(f,d,type){try{
 /* --- настоящие звуки Yarchik: выстрел/попадание/взрыв/смерть/отмена --- */
 var SFX={};
 function sfxLoad(){
-  var files={shoot:'tex/sfx/shoot.mp3',hit:'tex/sfx/hit.mp3',boom:'tex/sfx/boom.mp3',zdie:'tex/sfx/zdie.mp3',cancel:'tex/sfx/cancel.mp3',pickup:'tex/sfx/pickup.mp3'};
+  var files={shoot:'tex/sfx/shoot.mp3',hit:'tex/sfx/hit.mp3',boom:'tex/sfx/boom.mp3',zdie:'tex/sfx/zdie.mp3',cancel:'tex/sfx/cancel.mp3',pickup:'tex/sfx/pickup.mp3',slot:'tex/sfx/slot.mp3',plant:'tex/sfx/plant.mp3',zfall:'tex/sfx/zfall.mp3',win:'tex/sfx/win.mp3',growl1:'tex/sfx/growl1.mp3',growl2:'tex/sfx/growl2.mp3',growl3:'tex/sfx/growl3.mp3',bucket1:'tex/sfx/bucket1.mp3',bucket2:'tex/sfx/bucket2.mp3',bite1:'tex/sfx/bite1.mp3',bite2:'tex/sfx/bite2.mp3'};
   Object.keys(files).forEach(function(k){
     SFX[k]=[];
     for(var i=0;i<4;i++){try{var a=new Audio();a.preload='auto';a.src=files[k];SFX[k].push(a);}catch(e){}}
@@ -152,6 +154,21 @@ function sfx(k){try{
   var pr=a.play();if(pr&&pr.catch)pr.catch(function(){});
 }catch(e){}}
 sfxLoad();
+/* --- музыка Yarchik: меню «Chose your seads», бой «Grasswalk», зациклены, своя громкость --- */
+var MUSVOL=0.6;
+var MUS={};
+function musLoad(){try{
+  MUS.menu=new Audio('tex/music/menu.mp3');MUS.menu.loop=true;MUS.menu.volume=MUSVOL;
+  MUS.grass=new Audio('tex/music/grass.mp3');MUS.grass.loop=true;MUS.grass.volume=MUSVOL;
+}catch(e){}}
+function musPlay(which){try{
+  for(var k in MUS){var a=MUS[k];if(!a)continue;
+    try{
+      if(k===which){a.volume=MUSVOL;var pr=a.play();if(pr&&pr.catch)pr.catch(function(){});}
+      else a.pause();
+    }catch(e){}}
+}catch(e){}}
+musLoad();
 /* --- шрифты Yarchik для canvas: Z42H-счётчик, Z42B-цены/меню, Z42M-названия/текст --- */
 try{
   var _fH=new FontFace('Z42H','url(tex/fonts/handel.otf)');
@@ -227,7 +244,7 @@ function tryPlant(k,r,c){
   G.resp-=d.cost;G.seeds[k]=d.cd;
   var u={type:k,r:r,c:c,cool:0,fuse:k==='bomb'?U_BOMB.fuse:0,respT:k==='sun'?6:0,ph:Math.random()*6};
   u.hp=u.maxhp=(k==='mopso'?U_MOPSO.hp:(k==='sun'?U_SUN.hp:U_BOMB.hp));
-  G.units.push(u);
+  G.units.push(u);sfx('plant'); /* звук посадки растения */
   if(k==='bomb')beep(200,0.2,'sawtooth');
   return true;
 }
@@ -284,7 +301,9 @@ function update(dt){
     for(var b=0;b<G.zoms.length;b++){var w=G.zoms[b];
       if(!w.dying&&w.r===s.r&&Math.abs(w.x-s.x)<34){
         if(w.armor){w.armorHp-=U_MOPSO.dmg;w.armorHits=(w.armorHits||0)+1; /* сначала сносим броню */
-          if(w.armorHp<=0){var ak=w.armor;w.armor=null;popArmor(w,ak);}else sfx('hit');}
+          if(w.armorHp<=0){var ak=w.armor;w.armor=null;popArmor(w,ak);}
+          else if(w.armor==='bucket'){G.bktI=(G.bktI===1?2:1);sfx('bucket'+G.bktI);} /* ведро: 1-2 вперемешку */
+          else sfx('hit');}
         else{w.hp-=U_MOPSO.dmg;sfx('hit');}
         hit=true;
         G.fx.push({x:s.x,y:s.y,t:0.2,r:6});break;}}
@@ -307,7 +326,8 @@ function update(dt){
     var col=Math.floor((n.x-GX0)/CW),meal=(col>=0&&col<COLS)?unitAt(n.r,col):null;
     if(meal&&Math.abs(n.x-(GX0+col*CW+CW/2))<CW*0.55){
       n.eatT+=dt;
-      if(n.eatT>=1){n.eatT=0;meal.hp-=Z_BITE;beep(160,0.15,'sawtooth');
+      if(n.eatT>=1){n.eatT=0;meal.hp-=Z_BITE;
+        G.biteI=(G.biteI===1?2:1);sfx('bite'+G.biteI); /* укус: 1-2 вперемешку */
         if(meal.hp<=0){for(var d=0;d<G.units.length;d++)if(G.units[d]===meal)G.units.splice(d,1);}}
     }else{n.eatT=0;n.x-=Z_SPEED*(n.sp||1)*dt;}
     if(n.x<GX0-12){return lose();}
@@ -318,6 +338,10 @@ function update(dt){
   /* долёт рэспэкта до счётчика: 0.6с, по прибытии +v к балансу */
   for(var fi=G.fly.length-1;fi>=0;fi--){var fo=G.fly[fi];fo.t+=dt/0.6;
     if(fo.t>=1){G.resp+=fo.v;G.fly.splice(fi,1);}}
+  /* рычание 1-2-3 раз в 40с, только если зомби на поле */
+  G.growlT-=dt;
+  if(G.growlT<=0){G.growlT=40;
+    if(G.zoms.length>0){G.growlI=G.growlI>=3?1:G.growlI+1;sfx('growl'+G.growlI);}}
   /* обломки брони: летят, падают, тают за 1.1с */
   for(var bi=G.debris.length-1;bi>=0;bi--){var bd=G.debris[bi];bd.t+=dt;
     bd.vy+=700*dt;bd.x+=bd.vx*dt;bd.y+=bd.vy*dt;bd.rot+=bd.vr*dt;
@@ -336,7 +360,7 @@ function killZom(i){
   z.headVy=-160;z.headRot=0;z.headVr=dir*6;
   if(z.flag){if(!FLAGZ)buildFlagz(); /* голова и тело знаменосца — отдельно */
     if(FLAGZ){var fh=flagHeadWorld(z);z.headX=fh.x;z.headY=fh.y;z.fhw=fh.hw;z.fhh=fh.hh;}}
-  sfx('zdie');
+  sfx('zfall'); /* звук падения зомби */
 }
 function lose(){G.state='lose';showEnd('ЗОМБИ ПРОРВАЛИСЬ 🧟','Сасазомби дошли до дома...<br>Убито: '+G.kills+'. Держись дольше, братуха!');beep(110,0.5,'sawtooth');}
 function showEnd(t,p){
@@ -582,7 +606,7 @@ cv.addEventListener('pointerdown',function(e){
   if(s){var d=seedDef(s);
     if(G.resp<d.cost){G.seedFlash={k:s,t:0.7};sfx('cancel');}
     else if(G.seeds[s]>0)beep(150,0.1);
-    else{G.drag=(G.drag===s?null:s);beep(440,0.06);}
+    else{G.drag=(G.drag===s?null:s);sfx('slot');} /* звук выбора слота */
     return;}
   var cell=cellFromXY(p.x,p.y);
   if(cell&&G.drag){
@@ -630,7 +654,7 @@ function loop(ts){
 }
 /* --- экраны --- */
 function toMenu(){
-  G=null;
+  G=null;musPlay('menu');
   document.getElementById('endov').classList.add('hidden');
   document.getElementById('pauseov').classList.add('hidden');
   document.getElementById('menu').classList.remove('hidden');
@@ -640,13 +664,13 @@ document.getElementById('btnLevel1').onclick=function(){
   document.getElementById('menu').classList.add('hidden');
   document.getElementById('endov').classList.add('hidden');
   autoFS(); // сразу во весь экран как F11
-  newGame();
+  newGame();musPlay('grass'); // игровой процесс — Grasswalk
   try{beep.ac=null;}catch(e){}
 };
 document.getElementById('btnAgain').onclick=function(){
   document.getElementById('endov').classList.add('hidden');
   autoFS();
-  newGame();
+  newGame();musPlay('grass');
 };
 document.getElementById('btnResume').onclick=function(){togglePause();};
 document.getElementById('btnQuitMenu').onclick=function(){toMenu();};
@@ -667,6 +691,14 @@ document.getElementById('volRange').oninput=function(e){
   document.getElementById('volVal').textContent=e.target.value+'%';
   if(VOL>0)MUTED=false;
 };
+document.getElementById('musRange').oninput=function(e){ /* отдельный ползунок музыки */
+  MUSVOL=Math.max(0,Math.min(100,+e.target.value))/100;
+  document.getElementById('musVal').textContent=e.target.value+'%';
+  try{if(MUS.menu)MUS.menu.volume=MUSVOL;if(MUS.grass)MUS.grass.volume=MUSVOL;}catch(err){}
+};
+document.addEventListener('pointerdown',function(){ /* первую музыку — по первому жесту */
+  if(!window.__musStarted){window.__musStarted=true;if(!G||!G.state)musPlay('menu');}
+},{once:true});
 loadAll(function(){});
 requestAnimationFrame(loop);
 window.__z42={newGame:newGame,get G(){return G;},tryPlant:tryPlant,step:function(dt){update(dt);draw();},spawnZom:spawnZom,spawnResp:spawnResp,togglePause:togglePause,get VOL(){return VOL;}};
