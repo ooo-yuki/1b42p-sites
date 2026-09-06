@@ -31,6 +31,14 @@ const GAMES: MiniGame[] = [
     mode: 'offline',
     test: false,
   },
+  {
+    id: 'dvd',
+    title: 'DVD-заставка 42',
+    desc: 'Летит, отскакивает, попадает в угол. Залипай и жди идеального угла.',
+    href: 'dvd.html',
+    mode: 'offline',
+    test: false,
+  },
 ];
 
 /** Все записи витрины по порядку завоза. */

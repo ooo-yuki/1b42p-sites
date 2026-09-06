@@ -32,4 +32,11 @@ describe('minigames registry', () => {
     expect(g?.mode).toBe('offline');
     expect(g?.test).toBe(false);
   });
+  test('dvd-заставка зарегистрирована как боевая офлайн-игра', () => {
+    const g = getGame('dvd');
+    expect(g).toBeDefined();
+    expect(g?.href).toBe('dvd.html');
+    expect(g?.mode).toBe('offline');
+    expect(g?.test).toBe(false);
+  });
 });
