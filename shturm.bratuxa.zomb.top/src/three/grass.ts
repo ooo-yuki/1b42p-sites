@@ -110,6 +110,7 @@ export function buildGrass(map: MapId, seed: number): GrassRig {
     tick: (dt: number) => { uTime.value += dt; },
     // Старый риг снимается со сцены в startGame — без dispose утекает GPU-память.
     dispose: () => {
+      mesh.dispose(); // InstancedMesh: шлёт dispose-ивент, освобождает instanceMatrix/instanceColor GL-буферы.
       mesh.geometry.dispose();
       const m = mesh.material as THREE.MeshLambertMaterial;
       if (m.map) m.map.dispose();
