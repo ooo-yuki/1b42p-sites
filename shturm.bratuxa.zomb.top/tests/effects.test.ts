@@ -6,13 +6,13 @@ function scene() { return new THREE.Scene(); }
 const P = (x = 1, y = 1, z = 2) => new THREE.Vector3(x, y, z);
 
 describe('effects', () => {
-  test('взрыв: fire зажигает свет 60, update гасит в 0 без NaN', () => {
+  test('взрыв: fire зажигает свет 180, update гасит в 0 без NaN', () => {
     const s = scene();
     const boom = makeBoomPool(s);
     boom.fire(P());
     let light!: THREE.PointLight;
     s.traverse((o) => { if ((o as THREE.PointLight).isPointLight && (o as THREE.PointLight).intensity > 0) light = o as THREE.PointLight; });
-    expect(light.intensity).toBe(60);
+    expect(light.intensity).toBe(180);
     expect(light.castShadow).toBe(false);
     for (let i = 0; i < 40; i++) boom.update(0.016);
     expect(light.intensity).toBe(0);
@@ -30,7 +30,7 @@ describe('effects', () => {
     boom.fire(P(), { big: true });
     let light!: THREE.PointLight;
     s.traverse((o) => { if ((o as THREE.PointLight).isPointLight && (o as THREE.PointLight).intensity > 0) light = o as THREE.PointLight; });
-    expect(light.intensity).toBe(120);
+    expect(light.intensity).toBe(320);
     for (let i = 0; i < 30; i++) boom.update(0.016); // 0.48с — малый бы уже погас
     expect(light.intensity).toBeGreaterThan(0);
     for (let i = 0; i < 30; i++) boom.update(0.016);

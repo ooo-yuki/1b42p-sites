@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyEnvironment } from './post';
 
 export function initScene(canvas: HTMLCanvasElement) {
   const scene = new THREE.Scene();
@@ -9,6 +10,8 @@ export function initScene(canvas: HTMLCanvasElement) {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  // Task 8: IBL-окружение чтобы металл читался (пушки, трубы, лужи).
+  applyEnvironment(scene, renderer);
   const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 300);
   scene.add(new THREE.HemisphereLight(0x87ceeb, 0x8b4513, 0.6));
   const sun = new THREE.DirectionalLight(0xffffcc, 1.5);

@@ -33,13 +33,15 @@ let _mats: {
 function mats() {
   if (_mats) return _mats;
   const metal = new THREE.MeshStandardMaterial({
-    color: 0x3a4048, metalness: 0.65, roughness: 0.42,
+    // Task 8: environment заведён — metalness обратно 0.9, воронение читается.
+    color: 0x3a4048, metalness: 0.9, roughness: 0.42,
     roughnessMap: getTex('rust'), // потёртости воронения
+    envMapIntensity: 0.9,
   });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x1d1f24, metalness: 0.6, roughness: 0.38 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x1d1f24, metalness: 0.85, roughness: 0.38, envMapIntensity: 0.9 });
   const wood = new THREE.MeshStandardMaterial({ map: getTex('wood'), roughness: 0.6, metalness: 0.05 });
   const plastic = new THREE.MeshStandardMaterial({ color: 0x2a2c2e, roughness: 0.7, metalness: 0.1 });
-  const brass = new THREE.MeshStandardMaterial({ color: 0xd9b13b, metalness: 0.75, roughness: 0.35 });
+  const brass = new THREE.MeshStandardMaterial({ color: 0xd9b13b, metalness: 0.9, roughness: 0.35, envMapIntensity: 1 });
   const flash = new THREE.MeshBasicMaterial({
     color: 0xffc45e, transparent: true, opacity: 0.95,
     blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,

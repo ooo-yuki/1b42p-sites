@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import * as THREE from 'three';
 import { App, inputBus } from './ui/App';
 import { initScene } from './three/scene';
+import { makeNeonComposer, shouldBloom, NEON_BLOOM, NEON_BLOOM_LOW, type NeonComposer } from './three/post';
 import { loadShuba, type Shuba } from './three/shuba';
 import { makeMob, setMobLightDetail, updateMob, type MobKind } from './three/mobs';
 import { makeGun } from './three/guns';
@@ -124,11 +125,18 @@ under.userData.isRim = true;
 scene.add(under);
 
 // ---------- Resize + pixelRatio (спек §11) ----------
+// Task 8: composer только для neon — лениво при первом старте карты.
+let neonFx: NeonComposer | null = null;
+function ensureNeonFx() {
+  if (!neonFx) neonFx = makeNeonComposer(renderer, scene, camera);
+  return neonFx;
+}
 function applySize() {
   const mobile = window.innerWidth < 768;
   const cap = mobile ? 1.5 : 2;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, lowDetail ? 1 : cap));
   renderer.setSize(window.innerWidth, window.innerHeight);
+  neonFx?.composer.setSize(window.innerWidth, window.innerHeight);
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
 }
@@ -271,7 +279,7 @@ function applyMapMood(map: MapId) {
   const mood = {
     yard: { sky: 0x87ceeb, fogNear: 20, fogFar: 90, hemi: 0.6, sun: 0xffffcc, sunI: 1.5 },
     island: { sky: 0x9fd4ff, fogNear: 25, fogFar: 90, hemi: 0.7, sun: 0xfff2d8, sunI: 1.6 },
-    neon: { sky: 0x1a1033, fogNear: 8, fogFar: 55, hemi: 0.35, sun: 0xff9a5c, sunI: 0.9 },
+    neon: { sky: 0x1a1033, fogNear: 8, fogFar: 55, hemi: 0.5, sun: 0xff9a5c, sunI: 0.9 },
   }[map];
   (scene.background as THREE.Color).set(mood.sky);
   if (scene.fog instanceof THREE.Fog) {
@@ -704,7 +712,14 @@ function step(now: number) {
     const s = gameStore.get();
     if (s.fps !== Math.round(fpsAvg) || s.phase === 'playing') pushHud();
   }
-  renderer.render(scene, camera);
+  // Task 8: bloom только на неоне; просадка <42 FPS — strength вниз, не выключаем.
+  if (shouldBloom(mapId)) {
+    const fx = ensureNeonFx();
+    fx.bloom.strength = fpsAvg < 42 ? NEON_BLOOM_LOW : NEON_BLOOM.strength;
+    fx.composer.render();
+  } else {
+    renderer.render(scene, camera);
+  }
 }
 
 // rAF — основной драйвер; в headless композитор может не тикать —

@@ -269,7 +269,7 @@ export function buildMapVisual(map: MapId): THREE.Group {
       ...obstacleGeos,
     ], matWall));
     // Трубы вдоль стен (rust-металл).
-    const matPipe = new THREE.MeshStandardMaterial({ map: getTex('rust'), metalness: 0.6, roughness: 0.5 });
+    const matPipe = new THREE.MeshStandardMaterial({ map: getTex('rust'), metalness: 0.85, roughness: 0.5, envMapIntensity: 0.9 });
     add(mergedMesh([
       cyl(0.25, 0.25, 40, 0, 1.2, -half + 0.4, 12, 0, Math.PI / 2),
       cyl(0.18, 0.18, 40, 0, 2.0, -half + 0.4, 10, 0, Math.PI / 2),
@@ -302,6 +302,7 @@ export function buildMapVisual(map: MapId): THREE.Group {
       const hm = new THREE.MeshStandardMaterial({
         color: holoCols[i], transparent: true, opacity: 0.25,
         blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false,
+        emissive: holoCols[i], emissiveIntensity: 1.6,
       });
       const h = new THREE.Mesh(new THREE.PlaneGeometry(3, 2), hm);
       h.position.set(hx, hy, hz);
