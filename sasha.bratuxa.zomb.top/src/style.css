@@ -114,3 +114,32 @@ a.pill{text-decoration:none;display:inline-block}
 .mg-note{color:var(--dim);font-size:13px;margin:0}
 #homeBtn svg,#depBtn svg{width:1.1em;height:1.1em;vertical-align:-0.18em}
 #secret p svg{width:1.1em;height:1.1em;vertical-align:-0.15em;color:#ffffff}
+
+/* оборона штаба 42: поле, модалка карт (поверхность defense) */
+#df-col{max-height:100%;overflow-y:auto;pointer-events:auto;scrollbar-width:none;
+  animation:df-rise .5s ease-out backwards}
+@keyframes df-rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){#df-col{animation:none}}
+#df-hud{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:12px 0;position:sticky;top:0;z-index:5}
+#df-hud .pill{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-variant-numeric:tabular-nums}
+#df-hud .pill.risk,#df-hud .pill.solid.risk{background:#E31E25;border-color:#E31E25}
+#df-hud button.pill,#df-shop button.pill,#df-wave{font-family:inherit;border:none}
+#df-hud button.pill:disabled,#df-shop button.pill:disabled{opacity:.6;cursor:default;transform:none;box-shadow:none}
+#df-field{width:min(84vw,52vh,360px);height:auto;aspect-ratio:1;border:1px solid #1d2c52;border-radius:16px;
+  background:#070b18;touch-action:manipulation;cursor:crosshair}
+#df-shop{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:10px 0}
+#df-wave{font-size:17px;padding:14px 28px;margin:8px 0}
+#df-cards{background:#0d1428;border:1px solid #0060AA;border-radius:18px;padding:18px;margin-top:12px;
+  box-shadow:0 0 40px rgba(0,96,170,.55);max-width:min(680px,92vw)}
+#df-cards h2,#df-end h2{margin:0 0 10px;font-size:clamp(1.2rem,5vw,1.6rem)}
+#df-cards-row{display:flex;flex-direction:column;gap:10px}
+@media (min-width:560px){#df-cards-row{flex-direction:row}}
+#df-cards-row .df-card{display:flex;flex-direction:column;gap:4px;align-items:center;text-align:center;flex:1;
+  white-space:normal;line-height:1.4}
+#df-cards-row .df-card span{font-size:13px;color:#c9c9c9;font-weight:400}
+#df-end{background:#0d1428;border:1px solid #0060AA;border-radius:18px;padding:22px;margin-top:12px;
+  max-width:min(680px,92vw)}
+#df-end[role="alert"]{border-color:#E31E25;box-shadow:0 0 40px rgba(227,30,37,.35)}
+#df-end p{color:#c9c9c9}
+#dfHome{margin-top:16px}
+#df-col svg{width:1.1em;height:1.1em;vertical-align:-0.18em}

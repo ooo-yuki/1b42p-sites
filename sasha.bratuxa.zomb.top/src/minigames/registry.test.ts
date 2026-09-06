@@ -46,4 +46,11 @@ describe('minigames registry', () => {
     expect(g?.mode).toBe('offline');
     expect(g?.test).toBe(false);
   });
+  test('оборона зарегистрирована как боевая офлайн-игра', () => {
+    const g = getGame('defense');
+    expect(g).toBeDefined();
+    expect(g?.href).toBe('defense.html');
+    expect(g?.mode).toBe('offline');
+    expect(g?.test).toBe(false);
+  });
 });

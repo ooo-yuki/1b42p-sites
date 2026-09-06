@@ -47,6 +47,14 @@ const GAMES: MiniGame[] = [
     mode: 'offline',
     test: false,
   },
+  {
+    id: 'defense',
+    title: 'Оборона штаба 42',
+    desc: 'Тауэр-дефенс: ставь прожекторы, держи 10 волн скуки и бери карты-баффы. Штаб не сдаём.',
+    href: 'defense.html',
+    mode: 'offline',
+    test: false,
+  },
 ];
 
 /** Все записи витрины по порядку завоза. */
