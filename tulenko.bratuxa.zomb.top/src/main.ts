@@ -4,6 +4,7 @@ import { newRun, step, putSeal, giveAll, killAll } from './logic.js';
 import { FRAMES, TILES, loadSprites } from './sprites.js';
 import { blip } from './audio.js';
 import { teachStep } from './teach.js';
+import { hourCase } from './notes.js';
 import { loadBest, saveBest } from './save.js';
 
 const W = 960;
@@ -35,6 +36,7 @@ let best: number | null = loadBest();
 let newRecord = false;
 let stepSnd = 0;
 let learnt = { moved: false, shoved: false };
+let notesOpen = false;
 
 function wx(x: number): number {
   return x * TILE;
@@ -106,6 +108,7 @@ function startGame(): void {
   newRecord = false;
   stepSnd = 0;
   learnt = { moved: false, shoved: false };
+  notesOpen = false;
   input.left = false;
   input.right = false;
   input.jump = false;
@@ -214,6 +217,36 @@ function render(): void {
   g.fillText('ур. ' + (S.level + 1) + '/' + LEVELS.length, W - 12, 30);
   if (best !== null) g.fillText('лучшее ' + fmt(best), W - 12, 58);
 
+  // Полоса времени вверху.
+  const span = best !== null && best > 0 ? best : 60;
+  const frac = Math.min(runTime / span, 1);
+  g.fillStyle = 'rgba(255,255,255,0.25)';
+  g.fillRect(W / 2 - 110, 12, 220, 10);
+  g.fillStyle = '#ffd34d';
+  g.fillRect(W / 2 - 110, 12, 220 * frac, 10);
+
+  // Тетрадка на пружине: ключ, рыба, выход. Открывается кнопкой N.
+  if (notesOpen) {
+    const nx = W - 300;
+    const ny = 70;
+    g.fillStyle = 'rgba(245,240,220,0.95)';
+    g.fillRect(nx, ny, 280, 150);
+    g.fillStyle = '#8a7a5a';
+    for (let i = 0; i < 5; i++) {
+      g.beginPath();
+      g.arc(nx + 14 + i * 60, ny, 8, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.fillStyle = '#333';
+    g.font = 'bold 20px sans-serif';
+    g.textAlign = 'left';
+    g.fillText('дело часа: ' + hourCase(S), nx + 20, ny + 34);
+    g.font = '20px sans-serif';
+    g.fillText((S.hasKey ? '✓' : '·') + ' ключ', nx + 20, ny + 66);
+    g.fillText((S.hasFish ? '✓' : '·') + ' рыба', nx + 20, ny + 96);
+    g.fillText('→ выход', nx + 20, ny + 126);
+  }
+
   // Учёба с тёткой: только в первом корпусе, дальше молчит.
   if (mode === 'play' && S.level === 0) {
     const tip = teachStep({ moved: learnt.moved, key: S.hasKey, fish: S.hasFish, exit: false, shoved: learnt.shoved });
@@ -293,6 +326,10 @@ function press(code: string, down: boolean): void {
 document.addEventListener('keydown', function (e: KeyboardEvent) {
   if (e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'ArrowUp' || e.code === 'Space') e.preventDefault();
   if (e.repeat) return;
+  if (e.code === 'KeyN') {
+    notesOpen = !notesOpen;
+    return;
+  }
   if (e.code === 'KeyR' || e.code === 'Enter') {
     startGame();
     return;
