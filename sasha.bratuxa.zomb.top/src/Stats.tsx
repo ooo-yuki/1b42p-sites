@@ -14,7 +14,7 @@ const NAMES: Record<string, string> = {
   hub: 'Хаб', chaev: 'Чаев', doom: 'Дум', evaelph: 'Эввград',
   smolgrad: 'Смолград', miqqil: 'Танки', setden: 'Сетден',
   svyatoslav: 'Святослав', denis: 'Денис', sasha: 'Саша', gtaevv: 'GTAEVV',
-  brohacho: 'Фабрика', '1b42p': 'Штурм', mtt: '42 LAIV',
+  brohacho: 'Фабрика', '1b42p': 'Штурм', mtt: '42 LIVE',
   '42vs': '42VS', 'ai-714ef0': 'AI', pampers: 'Памперс', shturm: 'ШТУРМ-43', skitons: 'Skitons',
 };
 const COLORS: Record<string, string> = {
