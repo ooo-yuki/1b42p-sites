@@ -20,9 +20,9 @@ const COLORS: Record<string, string> = {
   hub: '#0060AA', chaev: '#7CFC00', doom: '#ff6b35', evaelph: '#ff7bac',
   smolgrad: '#c9b458', miqqil: '#4fc3f7', setden: '#ba68c8',
   svyatoslav: '#ffee58', denis: '#80deea', sasha: '#E31E25', gtaevv: '#00e5ff',
-  brohacho: '#ff4fd8', '1b42p': '#ff3b3b', mtt: '#ff9f1c',
+  brohacho: '#ff4fd8', '1b42p': '#ff3b3b', mtt: '#ff9f1c', laiv42: '#b388ff',
 };
-const ORDER = ['hub', 'chaev', 'doom', 'evaelph', 'smolgrad', 'miqqil', 'setden', 'svyatoslav', 'denis', 'sasha', 'gtaevv', 'brohacho', '1b42p', 'mtt'];
+const ORDER = ['hub', 'chaev', 'doom', 'evaelph', 'smolgrad', 'miqqil', 'setden', 'svyatoslav', 'denis', 'sasha', 'gtaevv', 'brohacho', '1b42p', 'mtt', 'laiv42'];
 interface HistPoint {
   ts: string;
   per_site: Record<string, number>;
