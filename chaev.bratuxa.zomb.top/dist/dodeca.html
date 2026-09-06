@@ -9,6 +9,7 @@
   html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #070b18; }
   body { font-family: 'Segoe UI', system-ui, sans-serif; color: #fff; }
   #scene { position: fixed; inset: 0; }
+  #scene canvas { display: block; touch-action: none; }
   #sign {
     position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
     background: #0d1428; border: 3px solid #E31E25; border-radius: 14px;
@@ -27,7 +28,7 @@
 <body>
 <div id="scene"></div>
 <div id="sign">ЗЕЛЁНЫМ ГОБЛИНАМ ВХОД ВОСПРЕЩЁН</div>
-<div id="hint">Тащи мышью — крути • <a href="./">← на сайт Чаева</a></div>
+<div id="hint">Крути пальцем / мышью • щипок — зум • <a href="./">← на сайт Чаева</a></div>
 <script>
 var scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0x070b18, 18, 46);
@@ -113,17 +114,54 @@ for (var d = 0; d < 160; d++) {
 dustGeo.setAttribute('position', new THREE.Float32BufferAttribute(dp, 3));
 jewel.add(new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0xffd700, size: 0.07 })));
 
-// Вращение: авто + мышью.
+// Вращение: авто + мышь + палец (тач) + щипок-зум.
 var vyaw = 0, vpitch = 0.15, dragging = false, px = 0, py = 0, auto = true;
+var pinchD = 0, camDist = 9;
 var el = renderer.domElement;
-el.addEventListener('pointerdown', function (e) { dragging = true; px = e.clientX; py = e.clientY; auto = false; });
+el.style.touchAction = 'none';
+el.addEventListener('pointerdown', function (e) { dragging = true; px = e.clientX; py = e.clientY; auto = false; try { el.setPointerCapture(e.pointerId); } catch (_) {} });
 window.addEventListener('pointerup', function () { dragging = false; });
+window.addEventListener('pointercancel', function () { dragging = false; });
 window.addEventListener('pointermove', function (e) {
   if (!dragging) return;
   vyaw += (e.clientX - px) * 0.008;
   vpitch = Math.max(-1.2, Math.min(1.2, vpitch + (e.clientY - py) * 0.005));
   px = e.clientX; py = e.clientY;
 });
+el.addEventListener('touchstart', function (e) {
+  auto = false;
+  if (e.touches.length === 2) {
+    var dx = e.touches[0].clientX - e.touches[1].clientX;
+    var dy = e.touches[0].clientY - e.touches[1].clientY;
+    pinchD = Math.sqrt(dx * dx + dy * dy);
+  }
+}, { passive: true });
+el.addEventListener('touchmove', function (e) {
+  auto = false;
+  if (e.touches.length === 1 && dragging === false) {
+    var t0 = e.touches[0];
+    if (px === 0 && py === 0) { px = t0.clientX; py = t0.clientY; return; }
+    vyaw += (t0.clientX - px) * 0.01;
+    vpitch = Math.max(-1.2, Math.min(1.2, vpitch + (t0.clientY - py) * 0.007));
+    px = t0.clientX; py = t0.clientY;
+  } else if (e.touches.length === 2) {
+    e.preventDefault();
+    var ddx = e.touches[0].clientX - e.touches[1].clientX;
+    var ddy = e.touches[0].clientY - e.touches[1].clientY;
+    var nd = Math.sqrt(ddx * ddx + ddy * ddy);
+    if (pinchD > 0) {
+      camDist = Math.max(5, Math.min(16, camDist - (nd - pinchD) * 0.02));
+      camera.position.setLength(camDist);
+    }
+    pinchD = nd;
+  }
+}, { passive: false });
+el.addEventListener('touchend', function () { px = 0; py = 0; pinchD = 0; }, { passive: true });
+el.addEventListener('wheel', function (e) {
+  e.preventDefault();
+  camDist = Math.max(5, Math.min(16, camDist + e.deltaY * 0.005));
+  camera.position.setLength(camDist);
+}, { passive: false });
 window.addEventListener('resize', function () {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
