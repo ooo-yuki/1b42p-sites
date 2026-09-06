@@ -1,0 +1,18 @@
+global:
+  resolve_timeout: 1m
+
+route:
+  receiver: telegram
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  # Telegram выключен: chat_id Босса НЕ найден в конфигах сервера
+  # (bat42bot/bot.env: ADMINS пуст; news-rewriter — userbot без chat id).
+  # Включение: раскомментить telegram_configs, вписать токен + ID Босса
+  # (секрет — только на сервере, не в git), `docker compose up -d alertmanager`.
+  - name: telegram
+    # telegram_configs:
+    #   - bot_token: __BOSS_BOT_TOKEN__
+    #     chat_id: __BOSS_CHAT_ID__

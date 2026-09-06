@@ -1,0 +1,32 @@
+groups:
+  - name: sites
+    interval: 30s
+    rules:
+      - alert: SiteDown
+        expr: probe_success{job="blackbox-http"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Сайт {{ $labels.instance }} не отвечает (не 200 >2 мин)"
+      - alert: UpstreamDown
+        expr: increase(caddy_http_requests_total{code=~"5.."}[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Апстрим отдаёт 5xx через Caddy (см. instance/code)"
+      - alert: CertExpiringSoon
+        expr: (probe_ssl_earliest_cert_expiry - time()) / 86400 < 14
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Сертификат {{ $labels.instance }} истекает менее чем через 14 дней"
+      - alert: DiskLow
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.15
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Диск / заполнен более чем на 85% (свободно <15%)"

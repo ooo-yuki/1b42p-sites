@@ -1,0 +1,82 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+rule_files:
+  - /etc/prometheus/rules.yml
+
+scrape_configs:
+  # Caddy с метриками (бинарь /usr/local/bin/caddy-metrics, миграция юнита — отдельный шаг).
+  # miekg/caddy-prometheus: директива `prometheus` в Caddyfile, метрики на localhost:9180/metrics.
+  # Пока юнит работает на стоковом caddy — таргет down, это ожидаемо.
+  - job_name: caddy
+    static_configs:
+      - targets: ["host.docker.internal:9180"]
+    metrics_path: /metrics
+    scrape_interval: 15s
+
+  - job_name: blackbox-http
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://1b42p.bratuxa.zomb.top/
+          - https://42laiv.bratuxa.zomb.top/
+          - https://42vs.bratuxa.zomb.top/
+          - https://ai-714ef0.bratuxa.zomb.top/
+          - https://brohacho.bratuxa.zomb.top/
+          - https://chaev.bratuxa.zomb.top/
+          - https://denis.bratuxa.zomb.top/
+          - https://doom.bratuxa.zomb.top/
+          - https://evaelph.bratuxa.zomb.top/
+          - https://gtaevv.bratuxa.zomb.top/
+          - https://hub.bratuxa.zomb.top/
+          - https://miqqil.bratuxa.zomb.top/
+          - https://mtt.bratuxa.zomb.top/
+          - https://pampers.bratuxa.zomb.top/
+          - https://sasha.bratuxa.zomb.top/
+          - https://setden.bratuxa.zomb.top/
+          - https://skitons.bratuxa.zomb.top/
+          - https://smolgrad.bratuxa.zomb.top/
+          - https://svyatoslav.bratuxa.zomb.top/
+          - https://shturm.bratuxa.zomb.top/
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
+
+  # Апстрим-тыл роутера :8080 забинден на 127.0.0.1 — из контейнеров
+  # недоступен (host-gateway → connection refused). Падение тыла видно
+  # как 502 через Caddy: его ловят SiteDown (пробы 20 сайтов) и UpstreamDown
+  # (5xx caddy-metrics, после миграции юнита на /usr/local/bin/caddy-metrics).
+
+  # Срок сертификатов через TLS-пробы.
+  - job_name: blackbox-ssl
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://1b42p.bratuxa.zomb.top/
+          - https://hub.bratuxa.zomb.top/
+          - https://shturm.bratuxa.zomb.top/
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
+
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]
