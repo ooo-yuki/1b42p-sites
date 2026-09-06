@@ -25,4 +25,11 @@ describe('minigames registry', () => {
   test('неизвестная игра — undefined, а не заглушка', () => {
     expect(getGame('nope-42')).toBeUndefined();
   });
+  test('подвал зарегистрирован как боевая офлайн-игра', () => {
+    const g = getGame('podval');
+    expect(g).toBeDefined();
+    expect(g?.href).toBe('podval.html');
+    expect(g?.mode).toBe('offline');
+    expect(g?.test).toBe(false);
+  });
 });

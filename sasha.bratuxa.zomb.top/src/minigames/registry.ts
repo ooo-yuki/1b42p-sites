@@ -23,6 +23,14 @@ const GAMES: MiniGame[] = [
     mode: 'offline',
     test: true,
   },
+  {
+    id: 'podval',
+    title: 'Нейросеть в подвале',
+    desc: 'Айдл-стратегия: размечай датасеты, скупай б/у сервера и вырасти LLM с v0.1 до v4.2.',
+    href: 'podval.html',
+    mode: 'offline',
+    test: false,
+  },
 ];
 
 /** Все записи витрины по порядку завоза. */
