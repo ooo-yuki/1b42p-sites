@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Кальян-мастер 42 для Фугобота! 🫖🏆</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #0d1428; }
+  body {
+    color: #fff; font-family: system-ui, sans-serif; text-align: center;
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; padding: 18px 14px 40px;
+  }
+  h1 { font-size: clamp(24px, 6vw, 40px); margin: 6px 0; }
+  h1 .n42 { color: #ffd700; }
+  .sub { color: #bbb; max-width: 600px; font-size: 15px; }
+  .adult { max-width: 600px; background: #2a0a0a; border: 2px solid #e63946;
+    border-radius: 12px; padding: 8px 14px; font-size: 14px; margin: 8px 0; }
+  #hud { display: flex; gap: 16px; margin: 10px 0; font-size: 18px; font-weight: bold; flex-wrap: wrap; justify-content: center; }
+  .meter { width: min(88vw, 420px); margin: 6px 0; text-align: left; }
+  .meter label { font-size: 14px; }
+  .bar { height: 22px; border-radius: 999px; background: #222; overflow: hidden; position: relative; }
+  .bar > div { height: 100%; width: 0%; transition: width .15s; }
+  #tempFill { background: linear-gradient(90deg, #00d4ff, #58b368 55%, #ffd700 75%, #e63946); }
+  #zone { position: absolute; top: 0; bottom: 0; left: 55%; width: 25%;
+    border-left: 2px dashed #fff; border-right: 2px dashed #fff; }
+  #coalFill { background: linear-gradient(90deg, #ff6b4d, #ffd700); }
+  #smokeFill { background: linear-gradient(90deg, #808080, #fff); }
+  #hookah { font-size: 90px; margin: 4px 0; filter: drop-shadow(0 0 18px rgba(255,255,255,.25)); }
+  #hookah.smoking { animation: puff 1.2s infinite ease-in-out; }
+  @keyframes puff { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-8px) scale(1.04); } }
+  .btns { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin: 10px 0; }
+  button { font-size: 16px; font-weight: bold; border-radius: 12px;
+    padding: 13px 20px; border: 3px solid #2f5d3a; cursor: pointer; }
+  #btnCoal { background: linear-gradient(180deg, #ff6b4d, #a33); color: #fff; border-color: #5c0a0e; }
+  #btnPurge { background: linear-gradient(180deg, #00d4ff, #0060AA); color: #fff; border-color: #004578; }
+  #btnServe { background: linear-gradient(180deg, #ffd700, #c90); border-color: #8a6d00; }
+  button:disabled { opacity: .45; cursor: default; }
+  #guest { font-size: 17px; min-height: 28px; }
+  #msg { max-width: 600px; min-height: 30px; font-size: 16px; margin-top: 6px; }
+  #start { background: #ffd700; font-size: 20px; }
+  a { color: #ffd700; }
+  footer { margin-top: 14px; color: #777; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<h1>КАЛЬЯН-МАСТЕР <span class="n42">× 42</span> 🫖</h1>
+<p class="sub">Личная игра Фугобота! Смена 90 секунд: держи жар в зелёной зоне,
+не давай углям потухнуть и подавай гостям дымный кальян. Чаевые — за качество!</p>
+<div class="adult">Табак — только для взрослых 18+. Игра про ремесло, дым нарисован кодом.</div>
+
+<div id="hud"><span>⏱ <b id="time">90</b>с</span><span>💰 <b id="money">0</b></span><span>Рекорд: <b id="best">0</b></span></div>
+<div id="hookah">🫖</div>
+
+<div class="meter"><label>🔥 Жар (держи в рамке 55–80)</label>
+  <div class="bar"><div id="tempFill"></div><div id="zone"></div></div></div>
+<div class="meter"><label>🪨 Угли</label>
+  <div class="bar"><div id="coalFill"></div></div></div>
+<div class="meter"><label>💨 Дымность (подавай от 70)</label>
+  <div class="bar"><div id="smokeFill"></div></div></div>
+
+<div id="guest">Нажми СТАРТ — придёт первый гость!</div>
+<div class="btns">
+  <button id="start">СТАРТ смены</button>
+  <button id="btnCoal" style="display:none">🪨 + Уголь</button>
+  <button id="btnPurge" style="display:none">💨 Продуть</button>
+  <button id="btnServe" style="display:none">🫖 Подать гостю</button>
+</div>
+<div id="msg"></div>
+
+<p><a href="https://hub.bratuxa.zomb.top">← Хаб 1Б42П</a></p>
+<footer>1Б42П • Мы уже победили 🏆</footer>
+
+<script>
+var KEY = 'fugo_hookah_best';
+var G = null;
+
+function best() { try { return parseInt(localStorage.getItem(KEY)) || 0; } catch (_) { return 0; } }
+function setBest(v) { try { localStorage.setItem(KEY, v); } catch (_) {} }
+document.getElementById('best').textContent = best();
+
+function newGuest() {
+  var names = ['Братуха', 'Гость с дивана', 'Фанат 42', 'Сосед с шахматами'];
+  G.patience = 30;
+  G.guest = names[Math.floor(Math.random() * names.length)];
+  say('Гость: ' + G.guest + ' ждёт кальян! (терпение ' + G.patience + 'с)');
+}
+
+function say(t) { document.getElementById('msg').textContent = t; }
+function guestLine() {
+  document.getElementById('guest').textContent =
+    'Гость: ' + G.guest + ' • терпение: ' + Math.ceil(G.patience) + 'с';
+}
+
+function render() {
+  document.getElementById('time').textContent = Math.ceil(G.time);
+  document.getElementById('money').textContent = G.money;
+  document.getElementById('tempFill').style.width = G.temp + '%';
+  document.getElementById('coalFill').style.width = G.coal + '%';
+  document.getElementById('smokeFill').style.width = G.smoke + '%';
+  document.getElementById('hookah').className = (G.temp >= 55 && G.temp <= 80 && G.coal > 0) ? 'smoking' : '';
+  guestLine();
+}
+
+function tick() {
+  if (!G || G.over) return;
+  var dt = 0.2;
+  G.time -= dt;
+  G.coal = Math.max(0, G.coal - 1.1 * dt * 2);
+  if (G.coal > 0) G.temp = Math.min(100, G.temp + 1.6 * dt * 2);
+  else G.temp = Math.max(0, G.temp - 3 * dt * 2);
+  if (G.temp >= 55 && G.temp <= 80 && G.coal > 0) G.smoke = Math.min(100, G.smoke + 3 * dt * 2);
+  else G.smoke = Math.max(0, G.smoke - 2 * dt * 2);
+  if (G.temp > 92) { G.smoke = Math.max(0, G.smoke - 4); say('Горит табак! Продуй скорее!'); }
+  G.patience -= dt;
+  if (G.patience <= 0) {
+    say(G.guest + ' ушёл злой... Следующий!');
+    G.smoke = Math.max(0, G.smoke - 20);
+    newGuest();
+  }
+  if (G.time <= 0) return finish();
+  render();
+}
+
+function start() {
+  G = { time: 90, money: 0, temp: 50, coal: 60, smoke: 0, over: false };
+  newGuest();
+  document.getElementById('start').style.display = 'none';
+  ['btnCoal', 'btnPurge', 'btnServe'].forEach(function (id) {
+    document.getElementById(id).style.display = '';
+  });
+  say('Смена пошла! Держи жар в рамке!');
+  render();
+  G.timer = setInterval(tick, 200);
+}
+
+function finish() {
+  G.over = true;
+  clearInterval(G.timer);
+  ['btnCoal', 'btnPurge', 'btnServe'].forEach(function (id) {
+    document.getElementById(id).style.display = 'none';
+  });
+  var b = best();
+  if (G.money > b) { setBest(G.money); b = G.money; }
+  document.getElementById('best').textContent = b;
+  document.getElementById('guest').textContent = 'Смена окончена!';
+  say('Выручка: ' + G.money + ' монет! ' +
+    (G.money >= 300 ? '🏆 Легенда кальяна! Фугобот гордится!' :
+     G.money >= 150 ? 'Неплохо! Ещё смену — и будет топ!' : 'Разминка! Следующая смена будет лучше!'));
+  var st = document.getElementById('start');
+  st.style.display = ''; st.textContent = 'Ещё смену!';
+}
+
+document.getElementById('start').onclick = start;
+document.getElementById('btnCoal').onclick = function () {
+  if (!G || G.over) return;
+  G.coal = Math.min(100, G.coal + 25); G.temp = Math.min(100, G.temp + 8);
+  render();
+};
+document.getElementById('btnPurge').onclick = function () {
+  if (!G || G.over) return;
+  G.temp = Math.max(0, G.temp - 15);
+  render();
+};
+document.getElementById('btnServe').onclick = function () {
+  if (!G || G.over) return;
+  if (G.smoke < 70) { say('Мало дыма (' + Math.floor(G.smoke) + '/70) — гость ждёт!'); return; }
+  var tip = (G.temp >= 60 && G.temp <= 75) ? 25 : 10;
+  G.money += 40 + tip;
+  say(G.guest + ' доволен! +40 и чаевые +' + tip + '!');
+  G.smoke = 20;
+  newGuest();
+  render();
+};
+</script>
+
+</body>
+</html>
