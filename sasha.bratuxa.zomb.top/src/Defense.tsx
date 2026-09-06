@@ -4,6 +4,7 @@ import {
   CARDS, PATH, TURRETS, applyCard, createGame, finishWave, offerCards,
   placeTurret, sellTurret, spawnWave, tick, type GameState,
 } from './defense/engine';
+import { TEX, DefenseTex, pixToDataUri, type TexName } from './defense/textures';
 
 /* Оборона штаба 42: canvas tower-defense на 10 волн.
    Вьюха только рисует и шлёт команды движку; симуляция — engine.ts. */
@@ -18,6 +19,25 @@ const UNIT_COLOR: Record<string, string> = {
   zevaka: '#c9c9c9', zanuda: '#f0c040', sprinter: '#6bd5ff', director: '#E31E25',
 };
 const TURRET_COLOR: Record<string, string> = { flood: '#ffd257', cobalt: '#2e8fff', scarlet: '#ff4d4d' };
+
+/* Спрайты из textures.tsx: ленивый кэш Image; пока не загрузилось — fallback-фигуры. */
+const imgCache = new Map<string, HTMLImageElement>();
+function sprite(name: TexName): HTMLImageElement | null {
+  let img = imgCache.get(name);
+  if (!img) {
+    img = new Image();
+    img.src = pixToDataUri(TEX[name]);
+    imgCache.set(name, img);
+  }
+  return img.complete && img.naturalWidth > 0 ? img : null;
+}
+/** Рисует спрайт центром в (cx,cy); вернёт false если картинка ещё не готова (рисуй fallback). */
+function drawSprite(ctx: CanvasRenderingContext2D, name: TexName, cx: number, cy: number, size: number): boolean {
+  const img = sprite(name);
+  if (!img) return false;
+  ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size);
+  return true;
+}
 
 type Best = { stars: number; wave: number };
 
@@ -39,6 +59,7 @@ function cellCenter(seg: number, pos: number): { x: number; y: number } {
 }
 
 function draw(ctx: CanvasRenderingContext2D, g: GameState): void {
+  ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = '#070b18';
   ctx.fillRect(0, 0, W, H);
   const pathSet = new Set(PATH.map((c) => `${c.x},${c.y}`));
@@ -49,39 +70,41 @@ function draw(ctx: CanvasRenderingContext2D, g: GameState): void {
       ctx.fillStyle = hq ? '#12305e' : onPath ? '#16213c' : '#0b1226';
       ctx.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2);
       if (hq) {
-        ctx.fillStyle = '#2e8fff';
-        ctx.font = 'bold 20px system-ui,sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('42', x * CELL + CELL / 2, y * CELL + CELL / 2);
+        drawSprite(ctx, 'hq', x * CELL + CELL / 2, y * CELL + CELL / 2, CELL - 2);
       }
     }
   }
   for (const t of g.turrets) {
+    const cx = t.x * CELL + CELL / 2, cy = t.y * CELL + CELL / 2;
+    if (drawSprite(ctx, (t.kind in TEX ? t.kind : 'flood') as TexName, cx, cy, CELL * 0.95)) continue;
     ctx.fillStyle = TURRET_COLOR[t.kind] ?? '#fff';
     ctx.beginPath();
-    ctx.arc(t.x * CELL + CELL / 2, t.y * CELL + CELL / 2, CELL * 0.32, 0, Math.PI * 2);
+    ctx.arc(cx, cy, CELL * 0.32, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#070b18';
     ctx.font = 'bold 11px system-ui,sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText((KIND_LABEL[t.kind] ?? t.kind).slice(0, 1), t.x * CELL + CELL / 2, t.y * CELL + CELL / 2 + 1);
+    ctx.fillText((KIND_LABEL[t.kind] ?? t.kind).slice(0, 1), cx, cy + 1);
   }
   // Юниты: только живые (!dead) — трупы не рисуем
   for (const u of g.units) {
     if (u.dead) continue;
     const { x, y } = cellCenter(u.seg, Math.max(0, u.pos));
-    ctx.fillStyle = UNIT_COLOR[u.kind] ?? '#fff';
-    const r = u.kind === 'director' ? 10 : u.kind === 'zanuda' ? 7 : 5;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
+    const size = u.kind === 'director' ? CELL * 1.1 : u.kind === 'zanuda' ? CELL * 0.9 : CELL * 0.75;
+    if (!drawSprite(ctx, (u.kind in TEX ? u.kind : 'zevaka') as TexName, x, y, size)) {
+      ctx.fillStyle = UNIT_COLOR[u.kind] ?? '#fff';
+      const r = u.kind === 'director' ? 10 : u.kind === 'zanuda' ? 7 : 5;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
     const frac = Math.max(0, u.hp / u.maxHp);
+    const hr = size / 2;
     ctx.fillStyle = '#3a3a3a';
-    ctx.fillRect(x - 10, y - r - 7, 20, 3);
+    ctx.fillRect(x - 10, y - hr - 7, 20, 3);
     ctx.fillStyle = frac > 0.5 ? '#37e05c' : '#E31E25';
-    ctx.fillRect(x - 10, y - r - 7, 20 * frac, 3);
+    ctx.fillRect(x - 10, y - hr - 7, 20 * frac, 3);
   }
 }
 
@@ -186,10 +209,18 @@ export default function Defense(): JSX.Element {
     return () => document.removeEventListener('visibilitychange', onVis);
   }, []);
 
-  // Первичная отрисовка (вход — CSS, без GSAP)
+  // Первичная отрисовка (вход — CSS, без GSAP) + догрузка спрайтов с перерисовкой
   useEffect(() => {
+    let alive = true;
+    (Object.keys(TEX) as TexName[]).forEach((n) => {
+      const img = new Image();
+      img.onload = () => { if (alive) redraw(); };
+      img.src = pixToDataUri(TEX[n]);
+      imgCache.set(n, img);
+    });
     redraw();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { alive = false; };
   }, []);
 
   const startWave = () => {
@@ -286,7 +317,7 @@ export default function Defense(): JSX.Element {
             onClick={() => setKind(id)}
             disabled={g.coins < t.cost}
           >
-            {KIND_LABEL[id] ?? id} · {t.cost}
+            <DefenseTex art={id as TexName} /> {KIND_LABEL[id] ?? id} · {t.cost}
           </button>
         ))}
       </div>
