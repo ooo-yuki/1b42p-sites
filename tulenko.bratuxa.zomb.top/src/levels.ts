@@ -1,4 +1,4 @@
-export const GLYPHS = '#=-KFE GP';
+export const GLYPHS = '#=-KFE GPcfp';
 export function checkMap(map: string[]): string[] {
   const bad: string[] = [];
   if (map.length === 0) return ['пустая карта'];
@@ -9,37 +9,39 @@ export function checkMap(map: string[]): string[] {
     if (!flat.includes(must)) bad.push('нет знака ' + must);
   }
   for (const ch of flat) {
-    if (!('#=-KFE GP'.includes(ch))) bad.push('чужой знак ' + ch);
+    if (!('#=-KFE GPcfp'.includes(ch))) bad.push('чужой знак ' + ch);
   }
   return [...new Set(bad)];
 }
+// Знаки мебели (густо, проход держат полом): c ящик, f поднос, p плакат.
+// Стоят на полу у стен, стены и коридоры целы, P/E/K/F на месте.
 export const LEVELS: string[][] = [
   [
     '################',
     '#P     K      E#',
     '#   ######     #',
-    '#              #',
+    '#cc           p#',
     '#      G       #',
     '#   F  G       #',
-    '#              #',
+    '#  ff      ff  #',
     '################',
   ],
   [
     '################',
-    '#P            E#',
+    '#P   ff      pE#',
     '#   F    K     #',
     '#   -----      #',
-    '#        G     #',
+    '#cc      G    p#',
     '#  -----    ---#',
     '################',
   ],
   [
     '################',
-    '#P    ==    K E#',
+    '#Pp   ==    K E#',
     '#     ==       #',
     '#  G   ==  F   #',
     '#      ==   G  #',
-    '#              #',
+    '#cc ff    pp   #',
     '################',
   ],
 ];

@@ -86,6 +86,30 @@ const SPOTS: LootSpot[] = [
   { x: 25.5, y: 2.5, id: 'мыло' },
 ];
 
+interface PropSpot {
+  x: number;
+  y: number;
+  kind: string;
+}
+
+// Вещи поверх пола и мебели: ящики у станков, подносы на столах
+// столовой, плакаты в камерах. Проход не закрывают, правил не дают.
+const PROPS: PropSpot[] = [
+  { x: 17.5, y: 1.5, kind: 'crate' },
+  { x: 17.5, y: 3.5, kind: 'crate' },
+  { x: 11.5, y: 11.5, kind: 'crate' },
+  { x: 16.5, y: 10.5, kind: 'crate' },
+  { x: 12.5, y: 1.5, kind: 'food' },
+  { x: 14.5, y: 1.5, kind: 'food' },
+  { x: 13.5, y: 3.5, kind: 'food' },
+  { x: 2.5, y: 10.5, kind: 'food' },
+  { x: 2.5, y: 12.5, kind: 'food' },
+  { x: 1.5, y: 1.5, kind: 'poster' },
+  { x: 2.5, y: 3.5, kind: 'poster' },
+  { x: 8.5, y: 6.5, kind: 'poster' },
+  { x: 15.5, y: 7.5, kind: 'poster' },
+];
+
 const bag: string[] = [];
 const flags: Record<string, boolean> = {};
 const D = newDay();
@@ -110,6 +134,14 @@ for (const gd of guards) {
   (gd as any).map = MAP;
   seen.push(gd);
 }
+// Сокамерники: 4 тихих ходока по камерам и столовой туда-сюда.
+// Правил нет: конуса нет, тень есть, взгляд стражи их не ловит, шума нет.
+const mates = [
+  newGuard(10.5, 7.5, 1),
+  newGuard(14.5, 7.5, -1),
+  newGuard(14.5, 2.5, -1),
+  newGuard(2.5, 11.5, 1),
+];
 
 let mode = 'play';
 let winEnd = '';
@@ -176,6 +208,7 @@ export function simStep(dt: number, input?: { dx: number; dy: number }): void {
   const frames = Math.max(1, Math.min(64, Math.round(dt / CFG.step)));
   for (let i = 0; i < frames; i++) {
     for (const gd of seen) stepGuard(gd, G);
+    for (const md of mates) stepGuard(md, G);
   }
   for (const gd of seen) {
     if (sees(gd, S.seal.x, S.seal.y, gd.dir)) {
@@ -357,13 +390,32 @@ const TOP_FURN: Record<string, string> = {
   J: 'img/top_bench.png',
   R: 'img/top_roof.png',
 };
+// Круг красоты 4: сокамерники в рыжих робах (два кадра шага),
+// полы по комнатам и вещи поверх (ящики, подносы, плакаты).
+const TOP_MATE = ['img/top_mate_0.png', 'img/top_mate_1.png'];
+const TOP_FLOOR_CELL = 'img/top_floor_cell.png';
+const TOP_FLOOR_FOOD = 'img/top_floor_food.png';
+const TOP_FLOOR_WASH = 'img/top_floor_wash.png';
+const TOP_PROP: Record<string, string> = {
+  crate: 'img/top_prop_crate.png',
+  food: 'img/top_prop_food.png',
+  poster: 'img/top_prop_poster.png',
+};
+// Пол по комнате: столовая ест свой, душ свой, камера свой, остальное старый.
+function floorFor(ch: string): string {
+  if (ch === 'T') return TOP_FLOOR_FOOD;
+  if (ch === 'S') return TOP_FLOOR_WASH;
+  if (ch === 'B') return TOP_FLOOR_CELL;
+  return TOP_FLOOR;
+}
 
 function loadPics(): void {
   if (!doc || typeof Image === 'undefined') return;
   const all: string[] = [TOP_SEAL.up, TOP_SEAL.down, TOP_SEAL.left, TOP_SEAL.right,
-    TOP_GUARD[0], TOP_GUARD[1], FACE,
-    TOP_FLOOR, TOP_WALL,
-    TOP_FURN.D, TOP_FURN.B, TOP_FURN.T, TOP_FURN.S, TOP_FURN.J, TOP_FURN.R];
+    TOP_GUARD[0], TOP_GUARD[1], TOP_MATE[0], TOP_MATE[1], FACE,
+    TOP_FLOOR, TOP_FLOOR_CELL, TOP_FLOOR_FOOD, TOP_FLOOR_WASH, TOP_WALL,
+    TOP_FURN.D, TOP_FURN.B, TOP_FURN.T, TOP_FURN.S, TOP_FURN.J, TOP_FURN.R,
+    TOP_PROP.crate, TOP_PROP.food, TOP_PROP.poster];
   for (const src of all) {
     try {
       const im = new Image();
@@ -399,7 +451,7 @@ function paintCells(): void {
         drawImg(TOP_WALL, px0, py0, TILE, TILE, '#ffffff');
         continue;
       }
-      drawImg(TOP_FLOOR, px0, py0, TILE, TILE, roomColor(ch));
+      drawImg(floorFor(ch), px0, py0, TILE, TILE, roomColor(ch));
       const tint = ROOM[ch];
       if (tint) {
         try {
@@ -434,6 +486,12 @@ function render(now: number): void {
     g2d.fillRect(sx(L.x) - ms / 2, sy(L.y) - ms / 2, ms, ms);
   }
 
+  // Вещи: ящики, подносы, плакаты — картинками поверх, проход держат полом.
+  for (const P of PROPS) {
+    const src = TOP_PROP[P.kind] || TOP_PROP.crate;
+    drawImg(src, sx(P.x) - TS / 2, sy(P.y) - TS / 2, TS, TS, '#c9a227');
+  }
+
   // Торговец виден ночью: золотая метка рядом с нашими.
   if (isNight(S)) {
     g2d.fillStyle = '#7CFC00';
@@ -462,11 +520,21 @@ function render(now: number): void {
     g2d.ellipse(sx(gd.x), sy(gd.y) + 6 * SCALE, 7 * SCALE, 2.5 * SCALE, 0, 0, Math.PI * 2);
     g2d.fill();
   }
+  // Сокамерникам тень положена, конуса нет.
+  for (const md of mates) {
+    g2d.beginPath();
+    g2d.ellipse(sx(md.x), sy(md.y) + 6 * SCALE, 7 * SCALE, 2.5 * SCALE, 0, 0, Math.PI * 2);
+    g2d.fill();
+  }
 
   drawImg(TOP_SEAL[face], sx(S.seal.x) - TS / 2, sy(S.seal.y) - TS / 2, TS, TS, '#dfe3e6');
   const frame = Math.floor(now / 300) % 2;
   for (const gd of seen) {
     drawImg(TOP_GUARD[frame], sx(gd.x) - TS / 2, sy(gd.y) - TS / 2, TS, TS, '#3a5bd5');
+  }
+  // Сокамерники идут двумя кадрами, взгляд их не ловит.
+  for (const md of mates) {
+    drawImg(TOP_MATE[frame], sx(md.x) - TS / 2, sy(md.y) - TS / 2, TS, TS, '#b34a12');
   }
 
   if (isNight(S)) {
@@ -598,6 +666,7 @@ ROOT.__hook = {
   S: S,
   G: G,
   MAP: MAP,
+  mates: mates,
   simStep: simStep,
   doTalk: doTalk,
   doPick: doPick,

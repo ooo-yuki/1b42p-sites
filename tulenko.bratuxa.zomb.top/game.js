@@ -4,6 +4,7 @@ const CFG = {
     walk: 3.2, jump: 7.5, gravity: 22.0,
     guardSpeed: 1.6, sight: 4.5, stunSec: 4.0,
 };
+
 // --- grid.js ---
 // Слой 2 (верх): поле клетками. Значки карты — клетки, стены держат.
 const WALL = '#';
@@ -38,6 +39,7 @@ function wallAt(g, x, y) {
 function roomColor(ch) {
     return ROOM[ch] || FLOOR;
 }
+
 // --- actors.js ---
 function newSeal(x, y) {
     return { x: x, y: y, dir: 1, noise: 0 };
@@ -86,6 +88,7 @@ function stepGuard(g, grid) {
     }
     g.x = nx;
 }
+
 // --- vision.js ---
 const SEE_WALL = '#=-';
 function cellWall(map, c, r) {
@@ -166,6 +169,7 @@ function catchSeal(S) {
         }
     }
 }
+
 // --- clock.js ---
 // Часы и распорядок верхнего слоя. Ничего не берёт, отдаёт tick и hourCase.
 // Распорядок: подъём, поверка, еда, работа, душ, поверка, отбой.
@@ -226,6 +230,7 @@ function applyWork(S, present) {
 function isNight(S) {
     return !S.lights;
 }
+
 // --- work.js ---
 // Работа и монеты слоя 2. Берёт часы clock.ts (смена 9–17, там WORK..SHOWER),
 // даёт workAt(S): монеты за смену, усталость, станки J.
@@ -259,6 +264,7 @@ function applyShift(W, S) {
         W.tired += 1;
     }
 }
+
 // --- things.js ---
 // Вещи и сборка слоя 2. Ничего не берёт, даёт pick, craft, has,
 // находки (тряпка, ложка, верёвка, мыло), сборку (кляп, спуск) и торговца.
@@ -344,6 +350,7 @@ function deal(S, id) {
     S.bag.push(id);
     return true;
 }
+
 // --- talk.js ---
 // Разговоры и нить верхнего слоя. Берёт флаги памяти, даёт talkFor и say.
 // Три узла на день: утро, обед, вечер. Концы: крыша (нужен спуск),
@@ -372,6 +379,7 @@ function talkFor(S) {
 function say(S, id) {
     S.flags[id] = true;
 }
+
 // --- search.js ---
 // Обыски и карцер верхнего слоя. Берёт суму из things.ts (bag),
 // часы из clock.ts (heat), отдаёт search и leaveSolitary.
@@ -428,9 +436,9 @@ function leaveSolitary(S) {
         return;
     S.solitary = false;
 }
+
 // --- paint.js ---
 // Слой 2 (верх): вид сверху, начало — пол, стены, тьма.
-
 const DARK = '#000000';
 const WALL_FACE = '#ffffff';
 function paintFloor(ctx, G) {
@@ -453,6 +461,7 @@ function paintFloor(ctx, G) {
         }
     }
 }
+
 // --- audio.js ---
 // Звук гудками: гудок качается кодом через WebAudio, без внешних файлов.
 //
@@ -526,6 +535,7 @@ function blip(kind) {
         // без звука — молча идём дальше
     }
 }
+
 // --- endings.js ---
 // Концовка крыши слоя 3. Берёт things.ts (спуск), clock.ts (ночь). Даёт tryRoof(S).
 // Ночь, клетка крыши, спуск в суме — победа. Нет спуска — предупреждение.
@@ -562,21 +572,11 @@ function tryGate(S) {
         return 'deny';
     return 'win';
 }
+
 // --- main2.js ---
 // Слой 2 (верх): склейка. Вид сверху, день, нить, работа, кара.
 // Берёт grid, actors, vision, clock, work, things, talk, search, paint, audio, endings.
 // Бок (main, logic) сюда не входит.
-
-
-
-
-
-
-
-
-
-
-
 // Фактура клеток 16х16: пол, стена, мебель поверх пола. Цвета комнат держим
 // подкрасом поверх с прозрачностью.
 // Корпус значками из замысла: D дверь, J станок, B кровать,
@@ -640,6 +640,23 @@ const SPOTS = [
     { x: 19.5, y: 2.5, id: 'верёвка' },
     { x: 25.5, y: 2.5, id: 'мыло' },
 ];
+// Вещи поверх пола и мебели: ящики у станков, подносы на столах
+// столовой, плакаты в камерах. Проход не закрывают, правил не дают.
+const PROPS = [
+    { x: 17.5, y: 1.5, kind: 'crate' },
+    { x: 17.5, y: 3.5, kind: 'crate' },
+    { x: 11.5, y: 11.5, kind: 'crate' },
+    { x: 16.5, y: 10.5, kind: 'crate' },
+    { x: 12.5, y: 1.5, kind: 'food' },
+    { x: 14.5, y: 1.5, kind: 'food' },
+    { x: 13.5, y: 3.5, kind: 'food' },
+    { x: 2.5, y: 10.5, kind: 'food' },
+    { x: 2.5, y: 12.5, kind: 'food' },
+    { x: 1.5, y: 1.5, kind: 'poster' },
+    { x: 2.5, y: 3.5, kind: 'poster' },
+    { x: 8.5, y: 6.5, kind: 'poster' },
+    { x: 15.5, y: 7.5, kind: 'poster' },
+];
 const bag = [];
 const flags = {};
 const D = newDay();
@@ -663,6 +680,14 @@ for (const gd of guards) {
     gd.map = MAP;
     seen.push(gd);
 }
+// Сокамерники: 4 тихих ходока по камерам и столовой туда-сюда.
+// Правил нет: конуса нет, тень есть, взгляд стражи их не ловит, шума нет.
+const mates = [
+    newGuard(10.5, 7.5, 1),
+    newGuard(14.5, 7.5, -1),
+    newGuard(14.5, 2.5, -1),
+    newGuard(2.5, 11.5, 1),
+];
 let mode = 'play';
 let winEnd = '';
 let face = 'right';
@@ -733,6 +758,8 @@ function simStep(dt, input) {
     for (let i = 0; i < frames; i++) {
         for (const gd of seen)
             stepGuard(gd, G);
+        for (const md of mates)
+            stepGuard(md, G);
     }
     for (const gd of seen) {
         if (sees(gd, S.seal.x, S.seal.y, gd.dir)) {
@@ -909,13 +936,35 @@ const TOP_FURN = {
     J: 'img/top_bench.png',
     R: 'img/top_roof.png',
 };
+// Круг красоты 4: сокамерники в рыжих робах (два кадра шага),
+// полы по комнатам и вещи поверх (ящики, подносы, плакаты).
+const TOP_MATE = ['img/top_mate_0.png', 'img/top_mate_1.png'];
+const TOP_FLOOR_CELL = 'img/top_floor_cell.png';
+const TOP_FLOOR_FOOD = 'img/top_floor_food.png';
+const TOP_FLOOR_WASH = 'img/top_floor_wash.png';
+const TOP_PROP = {
+    crate: 'img/top_prop_crate.png',
+    food: 'img/top_prop_food.png',
+    poster: 'img/top_prop_poster.png',
+};
+// Пол по комнате: столовая ест свой, душ свой, камера свой, остальное старый.
+function floorFor(ch) {
+    if (ch === 'T')
+        return TOP_FLOOR_FOOD;
+    if (ch === 'S')
+        return TOP_FLOOR_WASH;
+    if (ch === 'B')
+        return TOP_FLOOR_CELL;
+    return TOP_FLOOR;
+}
 function loadPics() {
     if (!doc || typeof Image === 'undefined')
         return;
     const all = [TOP_SEAL.up, TOP_SEAL.down, TOP_SEAL.left, TOP_SEAL.right,
-        TOP_GUARD[0], TOP_GUARD[1], FACE,
-        TOP_FLOOR, TOP_WALL,
-        TOP_FURN.D, TOP_FURN.B, TOP_FURN.T, TOP_FURN.S, TOP_FURN.J, TOP_FURN.R];
+        TOP_GUARD[0], TOP_GUARD[1], TOP_MATE[0], TOP_MATE[1], FACE,
+        TOP_FLOOR, TOP_FLOOR_CELL, TOP_FLOOR_FOOD, TOP_FLOOR_WASH, TOP_WALL,
+        TOP_FURN.D, TOP_FURN.B, TOP_FURN.T, TOP_FURN.S, TOP_FURN.J, TOP_FURN.R,
+        TOP_PROP.crate, TOP_PROP.food, TOP_PROP.poster];
     for (const src of all) {
         try {
             const im = new Image();
@@ -953,7 +1002,7 @@ function paintCells() {
                 drawImg(TOP_WALL, px0, py0, TILE, TILE, '#ffffff');
                 continue;
             }
-            drawImg(TOP_FLOOR, px0, py0, TILE, TILE, roomColor(ch));
+            drawImg(floorFor(ch), px0, py0, TILE, TILE, roomColor(ch));
             const tint = ROOM[ch];
             if (tint) {
                 try {
@@ -993,6 +1042,11 @@ function render(now) {
         const ms = 6 * SCALE;
         g2d.fillRect(sx(L.x) - ms / 2, sy(L.y) - ms / 2, ms, ms);
     }
+    // Вещи: ящики, подносы, плакаты — картинками поверх, проход держат полом.
+    for (const P of PROPS) {
+        const src = TOP_PROP[P.kind] || TOP_PROP.crate;
+        drawImg(src, sx(P.x) - TS / 2, sy(P.y) - TS / 2, TS, TS, '#c9a227');
+    }
     // Торговец виден ночью: золотая метка рядом с нашими.
     if (isNight(S)) {
         g2d.fillStyle = '#7CFC00';
@@ -1021,10 +1075,20 @@ function render(now) {
         g2d.ellipse(sx(gd.x), sy(gd.y) + 6 * SCALE, 7 * SCALE, 2.5 * SCALE, 0, 0, Math.PI * 2);
         g2d.fill();
     }
+    // Сокамерникам тень положена, конуса нет.
+    for (const md of mates) {
+        g2d.beginPath();
+        g2d.ellipse(sx(md.x), sy(md.y) + 6 * SCALE, 7 * SCALE, 2.5 * SCALE, 0, 0, Math.PI * 2);
+        g2d.fill();
+    }
     drawImg(TOP_SEAL[face], sx(S.seal.x) - TS / 2, sy(S.seal.y) - TS / 2, TS, TS, '#dfe3e6');
     const frame = Math.floor(now / 300) % 2;
     for (const gd of seen) {
         drawImg(TOP_GUARD[frame], sx(gd.x) - TS / 2, sy(gd.y) - TS / 2, TS, TS, '#3a5bd5');
+    }
+    // Сокамерники идут двумя кадрами, взгляд их не ловит.
+    for (const md of mates) {
+        drawImg(TOP_MATE[frame], sx(md.x) - TS / 2, sy(md.y) - TS / 2, TS, TS, '#b34a12');
     }
     if (isNight(S)) {
         g2d.fillStyle = 'rgba(0,0,32,0.45)';
@@ -1163,6 +1227,7 @@ ROOT.__hook = {
     S: S,
     G: G,
     MAP: MAP,
+    mates: mates,
     simStep: simStep,
     doTalk: doTalk,
     doPick: doPick,
@@ -1200,3 +1265,4 @@ ROOT.__hook = {
     get mode() { return mode; },
     get winEnd() { return winEnd; },
 };
+
