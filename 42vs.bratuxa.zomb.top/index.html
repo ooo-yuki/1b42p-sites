@@ -355,8 +355,8 @@ function draw(){
   drawMenuBtn(); // МЕНЮ в правом верхнем углу
 }
 /* --- панель из дизайна ui: 9 кнопок-пактов в красной рамке трафарета --- */
-var SEED_ORDER=['mopso','sun','bomb','mopso','sun','bomb','mopso','sun','bomb'];
-function seedRect(i){return {x:6,y:77+i*59.7,w:121,h:56};}
+var SEED_ORDER=['mopso','sun','bomb'];
+function seedRect(i){return {x:6,y:100+i*110,w:121,h:96};}
 function drawPanel(){
   drawImg(IMG.panel,0,0,133,619); // фон панели из архива ui
   /* рука-приёмник: зелёная метка трафарета (306,394)→(29,37) */
@@ -366,19 +366,19 @@ function drawPanel(){
   ctx.font=cs+'px Z42H, Arial';
   while(ctx.measureText(''+G.resp).width>56&&cs>12){cs-=2;ctx.font=cs+'px Z42H, Arial';}
   ctx.fillStyle='#ffd94d';ctx.fillText(G.resp,93.5,50);
-  /* 9 кнопок как в примере chrome_sv70Ful6KL: тёмный пакт, светлая рамка, иконка+цена */
-  for(var i=0;i<9;i++){var k=SEED_ORDER[i],d=seedDef(k),R=seedRect(i);
+  /* 3 кнопки как в примере chrome_sv70Ful6KL: тёмный пакт, светлая рамка, иконка+цена */
+  for(var i=0;i<SEED_ORDER.length;i++){var k=SEED_ORDER[i],d=seedDef(k),R=seedRect(i);
     var avail=G.resp>=d.cost&&G.seeds[k]<=0;
     ctx.fillStyle=avail?'#3b2b1c':'#151009';
     ctx.fillRect(R.x,R.y,R.w,R.h);
     ctx.strokeStyle=G.drag===k?'#0f6':'#e8d9a0';ctx.lineWidth=G.drag===k?3:2;
     ctx.strokeRect(R.x,R.y,R.w,R.h);
-    drawImg(IMG[d.img],R.x+4,R.y+9,38,38);
+    drawImg(IMG[d.img],R.x+6,R.y+26,44,44);
     ctx.fillStyle='#fff';ctx.font='14px Z42M, Arial';ctx.textAlign='left';
-    ctx.fillText(d.name,R.x+46,R.y+22);
-    drawImg(IMG.resp,R.x+46,R.y+30,16,16);
-    ctx.fillStyle='#ffe26b';ctx.font='15px Z42B, Arial';
-    ctx.fillText(d.cost,R.x+66,R.y+43);
+    ctx.fillText(d.name,R.x+56,R.y+38);
+    drawImg(IMG.resp,R.x+56,R.y+50,16,16);
+    ctx.fillStyle='#ffe26b';ctx.font='16px Z42B, Arial';
+    ctx.fillText(d.cost,R.x+76,R.y+63);
     ctx.textAlign='left';
     if(G.seeds[k]>0){ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(R.x,R.y,R.w,R.h);
       ctx.fillStyle='#fff';ctx.font='22px Z42B, Arial';ctx.textAlign='center';
@@ -405,7 +405,7 @@ function cellFromXY(x,y){
   return {r:Math.min(ROWS-1,Math.floor((y-GY0)/CH)),c:Math.min(COLS-1,Math.floor((x-GX0)/CW))};
 }
 function seedAtXY(x,y){
-  for(var i=0;i<9;i++){var R=seedRect(i);
+  for(var i=0;i<SEED_ORDER.length;i++){var R=seedRect(i);
     if(x>=R.x&&x<=R.x+R.w&&y>=R.y&&y<=R.y+R.h)return SEED_ORDER[i];}
   return null;
 }
