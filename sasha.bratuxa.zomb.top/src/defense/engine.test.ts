@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { PATH, WAVES, ENEMIES, createGame, placeTurret, sellTurret, spawnWave, tick, TURRETS } from './engine';
+import { PATH, WAVES, ENEMIES, createGame, placeTurret, sellTurret, spawnWave, tick, TURRETS, applyCard, finishWave } from './engine';
 test('дорожка идёт от левого края к штабу 8,8 без срезов', () => {
   expect(PATH[0].x).toBe(0);
   const last = PATH[PATH.length - 1];
@@ -66,4 +66,18 @@ test('алый бьёт по линии, а не в одну цель', () => {
   for (let i = 0; i < 30; i++) tick(g);
   const hit = g.units.filter((u, k) => u.hp < hp0[k]).length;
   expect(hit).toBeGreaterThan(1);
+});
+test('повтор карты слабее: ×0.7', () => {
+  const g = createGame();
+  applyCard(g, 'dmg');
+  const once = g.dmgMul!;
+  applyCard(g, 'dmg');
+  expect(g.dmgMul).toBeCloseTo(1 + (once - 1) * 1.7, 2);
+});
+test('звёзды: 0 потерь — 3, 4 потери — 1', () => {
+  const g = createGame();
+  finishWave(g, 0);
+  expect(g.stars).toBe(3);
+  finishWave(g, 4);
+  expect(g.stars).toBe(1);
 });

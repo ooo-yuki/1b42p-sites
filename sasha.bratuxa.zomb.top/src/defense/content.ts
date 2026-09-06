@@ -42,3 +42,14 @@ export const TURRETS: Record<string, TurretDef> = {
   cobalt: { cost: 70, dmg: 12, rate: 1, range: 2.8 },
   scarlet: { cost: 150, dmg: 30, rate: 0.6, range: 3.4 },
 };
+
+export interface CardDef { name: string; desc: string }
+
+export const CARDS: Record<string, CardDef> = {
+  rate: { name: 'Двойной прожектор', desc: 'скорострельность +30%' },
+  dmg: { name: 'Кобальтовый кулак', desc: 'урон +40%' },
+  pierce: { name: 'Алый коридор', desc: 'лазер бьёт насквозь' },
+  repair: { name: 'Ремонт штаба', desc: '+3 жизни' },
+  pugs: { name: 'Мопс-подкрепление', desc: 'кусает ближайшего, 5 волн' },
+  sale: { name: 'Скидка прапора', desc: 'турели −25%' },
+};

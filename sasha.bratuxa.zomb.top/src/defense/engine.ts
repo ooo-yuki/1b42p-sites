@@ -1,8 +1,8 @@
-import { PATH, WAVES, ENEMIES, TURRETS } from './content';
-import type { Cell, WaveDef, EnemyDef, TurretDef } from './content';
+import { PATH, WAVES, ENEMIES, TURRETS, CARDS } from './content';
+import type { Cell, WaveDef, EnemyDef, TurretDef, CardDef } from './content';
 
-export { PATH, WAVES, ENEMIES, TURRETS };
-export type { Cell, WaveDef, EnemyDef, TurretDef };
+export { PATH, WAVES, ENEMIES, TURRETS, CARDS };
+export type { Cell, WaveDef, EnemyDef, TurretDef, CardDef };
 
 export interface Unit { kind: string; seg: number; pos: number; hp: number; maxHp: number; speed: number; reward: number; dead?: boolean }
 export interface Turret { x: number; y: number; kind: string; cd: number }
@@ -68,6 +68,31 @@ function damage(g: GameState, u: Unit, dmg: number): void {
     u.dead = true;
     g.coins += u.reward;
   }
+}
+
+export function applyCard(g: GameState, id: string): void {
+  const n = g.buffs.filter((b) => b === id).length;
+  const k = 0.7 ** n;
+  g.buffs.push(id);
+  if (id === 'rate') g.rateMul = (g.rateMul || 1) + 0.3 * k;
+  if (id === 'dmg') g.dmgMul = (g.dmgMul || 1) + 0.4 * k;
+  if (id === 'pierce') g.pierce = true;
+  if (id === 'pugs') g.pugs = 5;
+  if (id === 'sale') g.saleMul = 0.75;
+  if (id === 'repair') g.lives = Math.min(10, g.lives + 3);
+}
+
+export function offerCards(_g: GameState): string[] {
+  const ids = Object.keys(CARDS);
+  for (let i = ids.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+  }
+  return ids.slice(0, 3);
+}
+
+export function finishWave(g: GameState, lost: number): void {
+  g.stars = lost === 0 ? 3 : lost <= 3 ? 2 : 1;
 }
 
 export function tick(g: GameState): void {
