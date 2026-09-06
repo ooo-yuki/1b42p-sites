@@ -157,7 +157,7 @@ function spawnZom(){
   G.spawned++;
 }
 function popArmor(w,ak){ /* броня слетает куском с физикой, голова отлетит только после смерти */
-  G.debris.push({r:w.r,x:w.x,y:rowY(w.r)-70,kind:ak,t:0,
+  G.debris.push({r:w.r,x:w.x,y:rowY(w.r)-70,kind:ak,dark:Math.floor((w.armorHits||0)/5),t:0,
     vx:(Math.random()<0.5?-1:1)*(60+Math.random()*60),vy:-220,rot:0,vr:(Math.random()<0.5?-1:1)*8});
   G.fx.push({x:w.x,y:rowY(w.r)-50,t:0.3,r:10});sfx('hit');
 }
@@ -309,11 +309,28 @@ function draw(){
     ctx.globalAlpha=1;
 
   }
+var armorCache={}; /* затемнённые копии брони: красится только сама броня, не фон */
+function tintedArmor(kind,dark,aw,ah){
+  var key=kind+'_'+dark+'_'+aw+'x'+ah,im=armorCache[key];
+  var src=kind==='cone'?IMG.cone:IMG.bucket;
+  if(!im){
+    if(!(src&&src.complete&&src.naturalWidth))return null;
+    im=document.createElement('canvas');im.width=aw;im.height=ah;
+    var g=im.getContext('2d');
+    g.drawImage(src,0,0,aw,ah);
+    g.globalCompositeOperation='source-atop'; /* только непрозрачные пиксели */
+    g.fillStyle='rgba(0,0,0,'+Math.min(0.6,0.2*dark)+')';g.fillRect(0,0,aw,ah);
+    armorCache[key]=im;
+  }
+  return im;
+}
 function drawArmor(kind,cx,topY,dark){ /* строго по центру башки, кромка на лбу */
-  var ax,ay,aw,ah;
-  if(kind==='cone'){ax=cx-23-10;ay=topY-18-5;aw=46;ah=46;drawImg(IMG.cone,ax,ay,aw,ah);}
-  else{ax=cx-26-15;ay=topY-18;aw=52;ah=46;drawImg(IMG.bucket,ax,ay,aw,ah);} /* ведро: влево 5, вниз 5 */
-  if(dark>0){ctx.fillStyle='rgba(0,0,0,'+Math.min(0.6,0.2*dark)+')';ctx.fillRect(ax,ay,aw,ah);} /* темнеет каждую 5-ю тычку */
+  var src=kind==='cone'?IMG.cone:IMG.bucket,ax,ay,aw,ah;
+  if(kind==='cone'){ax=cx-23-10;ay=topY-18-5;aw=46;ah=46;}
+  else{ax=cx-26-15;ay=topY-18;aw=52;ah=46;} /* ведро: влево 5, вниз 5 */
+  if(dark>0){var tim=tintedArmor(kind,dark,aw,ah); /* темнеет каждую 5-ю тычку */
+    if(tim){try{ctx.drawImage(tim,ax,ay,aw,ah);}catch(e){}return;}}
+  drawImg(src,ax,ay,aw,ah);
 }
   /* враги: у зомби башка — верхние 150px из 373 */
   var ZH_HEAD=150,ZH_FULL=373;
@@ -351,7 +368,10 @@ function drawArmor(kind,cx,topY,dark){ /* строго по центру баш�
   for(var bdi=0;bdi<G.debris.length;bdi++){var dbo=G.debris[bdi];
     ctx.save();ctx.globalAlpha=Math.max(0,1-Math.max(0,dbo.t-0.6)/0.5);
     ctx.translate(dbo.x,dbo.y);ctx.rotate(dbo.rot);
-    if(dbo.kind==='bucket')drawImg(IMG.bucket,-26,-23,52,46);
+    var daw=(dbo.kind==='bucket'?52:46),dah=46;
+    var dtm=(dbo.dark>0)?tintedArmor(dbo.kind,dbo.dark,daw,dah):null;
+    if(dtm){try{ctx.drawImage(dtm,-daw/2,-dah/2,daw,dah);}catch(e){}}
+    else if(dbo.kind==='bucket')drawImg(IMG.bucket,-26,-23,52,46);
     else drawImg(IMG.cone,-23,-23,46,46);
     ctx.restore();ctx.globalAlpha=1;}
   /* снаряды-мопсы с раскруткой */
