@@ -38,7 +38,7 @@
   <div class="sub">оборона лужайки Батальона · <a href="https://hub.bratuxa.zomb.top">← Хаб 1Б42П</a></div>
 </div>
 <div id="wrap">
-  <canvas id="cv" width="1100" height="600"></canvas>
+  <canvas id="cv" width="1650" height="900"></canvas>
   <div id="menu" class="overlay">
     <h2>42 VS SASAZOMBIES</h2>
     <p>Сасазомби идут с дороги! Выставляй юнитов на лужайку 9×5 и держи дом.<br>
@@ -59,7 +59,7 @@
 var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 /* --- поле 9×5 по лужайке фона (фон 1100×472 сверху, снизу полоса) --- */
 var BGW=1100,BGH=472;
-var GX0=140,GX1=785,GY0=45,GY1=472,COLS=9,ROWS=5; // сетка во всю лужайку как в примере: от забора до дорожки
+var GX0=197,GX1=781,GY0=65,GY1=450,COLS=9,ROWS=5; // точная посадка по замеру газона
 var CW=(GX1-GX0)/COLS,CH=(GY1-GY0)/ROWS;
 var PANELX=0,PANELW=136; // компактная панель слева
 /* --- баланс --- */
@@ -72,7 +72,8 @@ var SKY_SUN_EVERY=10,SKY_SUN_VAL=25,START_SUN=150;
 var G=null;
 function newGame(){
   G={state:'play',t:0,sun:START_SUN,units:[],zoms:[],peas:[],fx:[],floats:[],
-    kills:0,spawned:0,spawnT:3,skyT:6,seeds:{mopso:0,sun:0,bomb:0},drag:null,over:null};
+    kills:0,spawned:0,spawnT:3,skyT:6,seeds:{mopso:0,sun:0,bomb:0},drag:null,over:null,
+    seedFlash:null,cellFlash:null};
 }
 function cellXY(r,c){return {x:GX0+c*CW,y:GY0+r*CH};}
 function rowY(r){return GY0+r*CH+CH/2;}
@@ -106,7 +107,7 @@ function spawnZom(){
 }
 function firePea(u){
   var p=cellXY(u.r,u.c);
-  G.peas.push({r:u.r,x:p.x+CW*0.6,y:rowY(u.r)-14});
+  G.peas.push({r:u.r,x:p.x+CW*0.6,y:rowY(u.r)-14,rot:0});
   beep(520,0.07);
 }
 /* --- посадка --- */
@@ -130,6 +131,8 @@ function update(dt){
   if(G.state!=='play')return;
   G.t+=dt;
   for(var k in G.seeds)if(G.seeds[k]>0)G.seeds[k]-=dt;
+  if(G.seedFlash){G.seedFlash.t-=dt;if(G.seedFlash.t<=0)G.seedFlash=null;}
+  if(G.cellFlash){G.cellFlash.t-=dt;if(G.cellFlash.t<=0)G.cellFlash=null;}
   /* спавн врагов */
   if(G.spawned<SPAWN_TOTAL){G.spawnT-=dt;if(G.spawnT<=0){G.spawnT=SPAWN_EVERY;spawnZom();}}
   /* небо-солнце */
@@ -159,7 +162,7 @@ function update(dt){
     }
   }
   /* снаряды строго по горизонтали */
-  for(var a=G.peas.length-1;a>=0;a--){var s=G.peas[a];s.x+=220*dt;
+  for(var a=G.peas.length-1;a>=0;a--){var s=G.peas[a];s.x+=220*dt;s.rot=(s.rot||0)+11*dt;
     var hit=false;
     for(var b=0;b<G.zoms.length;b++){var w=G.zoms[b];
       if(w.r===s.r&&Math.abs(w.x-s.x)<34){w.hp-=U_MOPSO.dmg;hit=true;
@@ -194,9 +197,11 @@ function showEnd(t,p){
   document.getElementById('endov').classList.remove('hidden');
 }
 /* --- отрисовка --- */
+var SCALE2D=1.5; // бэкинг 1650×900 вместо 420p-мыла: логика в тех же координатах
+function frame2d(){ctx.setTransform(SCALE2D,0,0,SCALE2D,0,0);ctx.clearRect(0,0,cv.width,cv.height);}
 function drawImg(im,x,y,w,h){try{if(im&&im.complete&&im.naturalWidth)ctx.drawImage(im,x,y,w,h);}catch(e){}}
 function draw(){
-  ctx.clearRect(0,0,cv.width,cv.height);
+  frame2d();
   drawImg(IMG.bg,0,0,BGW,BGH);
   ctx.fillStyle='#1c102e';ctx.fillRect(0,BGH,cv.width,cv.height-BGH);
   /* юниты */
@@ -216,8 +221,10 @@ function draw(){
     if(z.hp<Z_HP){ctx.fillStyle='#000';ctx.fillRect(z.x-30,zy-62,60,5);
       ctx.fillStyle='#f55';ctx.fillRect(z.x-30,zy-62,60*z.hp/Z_HP,5);}
   }
-  /* снаряды-мопсы */
-  for(var a=0;a<G.peas.length;a++){var q=G.peas[a];drawImg(IMG.mops,q.x-16,q.y-16,32,32);}
+  /* снаряды-мопсы с раскруткой */
+  for(var a=0;a<G.peas.length;a++){var q=G.peas[a];
+    ctx.save();ctx.translate(q.x,q.y);ctx.rotate(q.rot||0);
+    drawImg(IMG.mops,-16,-16,32,32);ctx.restore();}
   /* взрывы/попадания */
   for(var f=0;f<G.fx.length;f++){var e2=G.fx[f];
     var rr=e2.r||(1-e2.t*2)*CW*2.2;
@@ -228,6 +235,10 @@ function draw(){
   ctx.font='bold 18px Arial';ctx.textAlign='center';
   for(var g=0;g<G.floats.length;g++){var fl=G.floats[g];
     ctx.globalAlpha=Math.min(1,fl.t);ctx.fillStyle='#ffe26b';ctx.fillText(fl.txt,fl.x,fl.y);ctx.globalAlpha=1;}
+  /* красная вспышка: посадка не туда */
+  if(G.cellFlash){var cf=G.cellFlash;
+    ctx.fillStyle='rgba(255,40,40,'+(0.3+0.3*Math.abs(Math.sin(G.t*14)))+')';
+    ctx.fillRect(GX0+cf.c*CW,GY0+cf.r*CH,CW,CH);}
   /* призрак перетаскивания */
   if(G.drag){var m=mouse;
     drawImg(IMG[seedDef(G.drag).img],m.x-30,m.y-30,60,60);
@@ -263,11 +274,14 @@ function drawPanel(){
     if(G.seeds[k]>0){ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(R.x,R.y,R.w,R.h);
       ctx.fillStyle='#fff';ctx.font='bold 22px Arial';ctx.textAlign='center';
       ctx.fillText(Math.ceil(G.seeds[k]),R.x+R.w/2,R.y+R.h/2+8);ctx.textAlign='left';}
+    if(G.seedFlash&&G.seedFlash.k===k){ /* красная вспышка: не хватает солнц */
+      ctx.fillStyle='rgba(255,40,40,'+(0.3+0.3*Math.abs(Math.sin(G.t*14)))+')';
+      ctx.fillRect(R.x,R.y,R.w,R.h);}
   }
   /* кнопки */
   ctx.fillStyle='#333';ctx.fillRect(8,470,120,44);ctx.fillStyle='#fff';ctx.font='bold 14px Arial';ctx.textAlign='center';
   ctx.fillText('МЕНЮ',68,497);
-  ctx.fillStyle='#333';ctx.fillRect(8,522,120,44);
+  ctx.fillStyle='#333';ctx.fillRect(8,522,120,44);ctx.fillStyle='#fff';
   ctx.fillText(MUTED?'БЕЗ ЗВУКА':'ЗВУК',68,549);
   ctx.textAlign='left';
 }
@@ -292,18 +306,25 @@ cv.addEventListener('pointerdown',function(e){
   if(p.x>8&&p.x<128&&p.y>522&&p.y<566){MUTED=!MUTED;return;}
   var s=seedAtXY(p.x,p.y);
   if(s){var d=seedDef(s);
-    if(G.sun>=d.cost&&G.seeds[s]<=0){G.drag=(G.drag===s?null:s);beep(440,0.06);}
-    else beep(150,0.1);
+    if(G.sun<d.cost){G.seedFlash={k:s,t:0.7};beep(140,0.15);}
+    else if(G.seeds[s]>0)beep(150,0.1);
+    else{G.drag=(G.drag===s?null:s);beep(440,0.06);}
     return;}
   var cell=cellFromXY(p.x,p.y);
-  if(cell&&G.drag){tryPlant(G.drag,cell.r,cell.c);G.drag=null;}
+  if(cell&&G.drag){
+    if(unitAt(cell.r,cell.c)){G.cellFlash={r:cell.r,c:cell.c,t:0.7};beep(140,0.15);}
+    else tryPlant(G.drag,cell.r,cell.c);
+    G.drag=null;}
 });
 cv.addEventListener('pointermove',function(e){mouse=evXY(e);});
 cv.addEventListener('pointerup',function(e){
   if(!G||G.state!=='play'||!G.drag)return;
   var p=evXY(e);
   var cell=cellFromXY(p.x,p.y);
-  if(cell&&tryPlant(G.drag,cell.r,cell.c))G.drag=null;
+  if(cell){
+    if(unitAt(cell.r,cell.c)){G.cellFlash={r:cell.r,c:cell.c,t:0.7};beep(140,0.15);}
+    else tryPlant(G.drag,cell.r,cell.c);
+    G.drag=null;}
 });
 document.addEventListener('keydown',function(e){if(e.key==='Escape'&&G)G.drag=null;});
 /* --- цикл --- */
@@ -312,7 +333,7 @@ function loop(ts){
   var dt=Math.min(0.05,(ts-lastT)/1000||0.016);lastT=ts;
   if(G&&G.state==='play')update(dt);
   if(G)draw();
-  else{ctx.clearRect(0,0,cv.width,cv.height);drawImg(IMG.bg,0,0,BGW,BGH);} // фон и за меню
+  else{frame2d();drawImg(IMG.bg,0,0,BGW,BGH);} // фон и за меню
   requestAnimationFrame(loop);
 }
 /* --- экраны --- */
