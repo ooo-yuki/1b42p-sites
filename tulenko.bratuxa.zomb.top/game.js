@@ -762,3 +762,16 @@ loadSprites(undefined).then(function (m) {
     pics = m;
 });
 requestAnimationFrame(frame);
+// Крючок для внешней проверки: те же правила плюс текущее состояние.
+window.__hook = {
+    newRun: newRun,
+    step: step,
+    putSeal: putSeal,
+    giveAll: giveAll,
+    killAll: killAll,
+    get state() { return S; },
+    get mode() { return mode; },
+    get hearts() { return S.hearts; },
+    get won() { return S.won; },
+    get dead() { return S.dead; },
+};

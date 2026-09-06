@@ -1,6 +1,6 @@
 import { CFG } from './config.js';
 import { LEVELS } from './levels.js';
-import { newRun, step } from './logic.js';
+import { newRun, step, putSeal, giveAll, killAll } from './logic.js';
 import { FRAMES, TILES, loadSprites } from './sprites.js';
 import { blip } from './audio.js';
 import { loadBest, saveBest } from './save.js';
@@ -289,3 +289,17 @@ loadSprites(undefined as any).then(function (m: Record<string, any>) {
 });
 
 requestAnimationFrame(frame);
+
+// Крючок для внешней проверки: те же правила плюс текущее состояние.
+(window as any).__hook = {
+  newRun: newRun,
+  step: step,
+  putSeal: putSeal,
+  giveAll: giveAll,
+  killAll: killAll,
+  get state() { return S; },
+  get mode() { return mode; },
+  get hearts() { return S.hearts; },
+  get won() { return S.won; },
+  get dead() { return S.dead; },
+};
