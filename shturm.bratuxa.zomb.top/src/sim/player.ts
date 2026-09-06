@@ -6,7 +6,14 @@ export function movePlayer(p: PlayerState, inp: InputState, dt: number) {
   const speed = wantSprint ? 7 : 4;
   if (wantSprint) p.stamina = Math.max(0, p.stamina - 10 * dt);
   else p.stamina = Math.min(43, p.stamina + 12 * dt);
-  const len = Math.hypot(inp.fwd, inp.strafe) || 1;
-  p.vx = (inp.strafe / len) * speed; p.vz = (-inp.fwd / len) * speed;
+  // Движение строго относительно обзора (yaw): W — куда смотрит камера,
+  // D — вправо от неё. Было: мировые оси, W всегда вёз на -Z мира.
+  const ilen = Math.hypot(inp.fwd, inp.strafe);
+  if (ilen < 1e-6) { p.vx = 0; p.vz = 0; return; }
+  const n = Math.max(1, ilen);
+  const nf = inp.fwd / n, ns = inp.strafe / n;
+  const fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw);
+  const rx = Math.cos(p.yaw), rz = -Math.sin(p.yaw);
+  p.vx = (fx * nf + rx * ns) * speed; p.vz = (fz * nf + rz * ns) * speed;
   p.x += p.vx * dt; p.z += p.vz * dt;
 }

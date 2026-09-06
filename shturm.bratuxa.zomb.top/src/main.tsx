@@ -9,7 +9,7 @@ import { makeMob, setMobLightDetail, updateMob, type MobKind } from './three/mob
 import { makeGun } from './three/guns';
 import { makeTracerPool, makeBoomPool, makeBloodPool, makeSparkPool, makeRocketTrail } from './three/effects';
 import { buildMapVisual, disposeMapVisual } from './three/mapsVisual';
-import { setView, getView, updateCamera } from './three/cameraRig';
+import { setView, getView, updateCamera, snapCamera } from './three/cameraRig';
 import { createPlayer, movePlayer, type PlayerState } from './sim/player';
 import { WEAPONS, fireShot, type Slot } from './sim/weapons';
 import { ENEMIES } from './sim/enemies';
@@ -70,6 +70,8 @@ const sim = {
   deaths: 0,
   lowHpStreak: 0,
   balanceMult: 1,
+  /** Приёмка камеры: мобы бьют и толкают, но не убивают (замер без смерти). */
+  god: false,
 };
 
 let mapId: MapId = 'yard';
@@ -258,6 +260,7 @@ function startGame(map: MapId, diff: Difficulty) {
   sim.player.x = SPAWN[map].x;
   sim.player.z = SPAWN[map].z;
   sim.player.yaw = SPAWN[map].yaw;
+  snapCamera(); // спавн — камера сразу на месте, без пролёта через карту
   sim.slot = 'auto';
   sim.mag = { ...MAG };
   sim.reserve = { pistol: 120, auto: 210, shotgun: 42 };
@@ -338,7 +341,12 @@ function pushHud(message?: string) {
   view: (v: 'first' | 'third') => setView(v),
   wave: (n: number) => startWave(n),
   get: () => gameStore.get(),
-  dbg: () => ({ t: sim.timeSec, acc, fps: fpsAvg, n: tickCount, frames: frameCount, enemies: sim.enemies.length, queue: sim.spawnQueue.length }),
+  dbg: () => ({ t: sim.timeSec, acc, fps: fpsAvg, n: tickCount, frames: frameCount, enemies: sim.enemies.length, queue: sim.spawnQueue.length, px: sim.player.x, pz: sim.player.z, yaw: sim.player.yaw, cam: [camera.position.x, camera.position.y, camera.position.z], roll: camera.rotation.z, view: getView() }),
+  /** Приёмка камеры: yaw, телепорт (тест стен), обзор правым стиком. */
+  setYaw: (y: number) => { sim.player.yaw = y; },
+  tp: (x: number, z: number) => { sim.player.x = x; sim.player.z = z; snapCamera(); },
+  /** Приёмка камеры: бессмертие (мобы бьют/толкают, но замер не прерывается смертью). */
+  god: (on: boolean) => { sim.god = on; },
   /** Draw calls приёмки: renderer.info.render (calls/triangles/points/lines). */
   draw: () => ({ ...renderer.info.render }),
   /** Перепись сцены приёмки: видимые меши, источники света с тенями. */
@@ -546,16 +554,17 @@ function tick(dt: number) {
     if (e.type === 'shooter') {
       if (d < 25 && e.cd <= 0) {
         e.cd = 1.5;
-        p.hp -= base.dmg * DIFF_MULT[difficulty] * sim.balanceMult;
+        if (!sim.god) p.hp -= base.dmg * DIFF_MULT[difficulty] * sim.balanceMult;
         pushHud();
       }
     } else if (d <= reach && e.cd <= 0) {
       e.cd = e.type === 'tank' ? 2.5 : e.type === 'boss' ? 1.2 : 0.8;
-      p.hp -= base.dmg * DIFF_MULT[difficulty] * sim.balanceMult;
-      // Отброс танка/босса.
+      if (!sim.god) p.hp -= base.dmg * DIFF_MULT[difficulty] * sim.balanceMult;
+      // Отброс танка/босса — ОТ моба (было: знак минус швырял игрока В моба,
+      // камера прыгала на 1.5м прямо в пасть).
       if (e.type === 'tank' || e.type === 'boss') {
-        p.x += (dx / d) * -1.5;
-        p.z += (dz / d) * -1.5;
+        p.x += (dx / d) * 1.5;
+        p.z += (dz / d) * 1.5;
         resolveCircle(p, 0.4, mapId);
       }
       pushHud();
@@ -693,10 +702,15 @@ function step(now: number) {
     if (flashT <= 0) flash.intensity = 0;
   }
 
-  // Камера + viewmodel ствола.
+  // Камера + viewmodel ствола. Питч и коллизию считает сам риг (порядок YXZ —
+  // крена нет); хак rotation.x += после set удалён — он и давал «завал» при повороте.
   const view = getView();
-  updateCamera(camera, { x: p.x, z: p.z, yaw: p.yaw });
-  camera.rotation.x += (p.pitch ?? 0) * 0.6;
+  const def = MAPS[mapId];
+  updateCamera(
+    camera,
+    { x: p.x, z: p.z, yaw: p.yaw, pitch: p.pitch ?? 0 },
+    { dt, colliders: def.obstacles, half: def.size / 2 },
+  );
   if (inputBus.aim) {
     camera.fov = 45;
     camera.updateProjectionMatrix();
@@ -714,7 +728,9 @@ function step(now: number) {
     gunMesh.visible = true;
     playerRoot.visible = false;
   } else {
-    gunMesh.position.set(p.x - Math.cos(p.yaw) * 0.35, 1.25, p.z + Math.sin(p.yaw) * 0.35);
+    // 3-е лицо: ствол на правом плече — та же сторона, что и камера рига.
+    // Было левое плечо: ствол прятался за героем и выглядел «боком».
+    gunMesh.position.set(p.x + Math.cos(p.yaw) * 0.35, 1.25, p.z - Math.sin(p.yaw) * 0.35);
     // Task 6: та же причина — ствол смотрит по курсу, а не вбок.
     gunMesh.rotation.set(0, p.yaw, 0);
     gunMesh.visible = true;

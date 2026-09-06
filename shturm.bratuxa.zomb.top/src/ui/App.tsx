@@ -170,7 +170,8 @@ export function App() {
       {phase === 'playing' && (
         <>
           <Stick side="left" onMove={(x, y) => { inputBus.move = { x, y }; }} />
-          <Stick side="right" onMove={(x, y) => { inputBus.look.dx = x * 4; inputBus.look.dy = y * 4; }} />
+          {/* Стик вверх = взгляд вверх, как мышь (было инвертировано). */}
+          <Stick side="right" onMove={(x, y) => { inputBus.look.dx = x * 4; inputBus.look.dy = -y * 4; }} />
           <div style={{ position: 'fixed', bottom: 40, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 12, zIndex: 10 }}>
             <button
               onTouchStart={() => { inputBus.fire = true; }} onTouchEnd={() => { inputBus.fire = false; }}
