@@ -34,3 +34,11 @@ export const ENEMIES: Record<string, EnemyDef> = {
   sprinter: { hp: 12, speed: 1.7, reward: 8 },
   director: { hp: 400, speed: 0.5, reward: 200 },
 };
+
+export interface TurretDef { cost: number; dmg: number; rate: number; range: number }
+
+export const TURRETS: Record<string, TurretDef> = {
+  flood: { cost: 30, dmg: 4, rate: 2, range: 2.2 },
+  cobalt: { cost: 70, dmg: 12, rate: 1, range: 2.8 },
+  scarlet: { cost: 150, dmg: 30, rate: 0.6, range: 3.4 },
+};
