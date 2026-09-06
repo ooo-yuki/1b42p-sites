@@ -136,7 +136,7 @@ export default function Defense(): JSX.Element {
         acc -= 100;
         tick(g);
         stepped = true;
-        if (g.lives <= 0 || g.units.length === 0) break;
+        if (g.lives <= 0 || !g.units.some((u) => !u.dead)) break;
       }
       if (!stepped) return;
       const ctx = cvRef.current?.getContext('2d');
@@ -149,7 +149,7 @@ export default function Defense(): JSX.Element {
         setLost(true);
         return;
       }
-      if (g.units.length === 0) {
+      if (!g.units.some((u) => !u.dead)) {
         runRef.current = false;
         setRunning(false);
         const lostNow = Math.max(0, waveStartLives.current - g.lives);
@@ -194,7 +194,7 @@ export default function Defense(): JSX.Element {
 
   const startWave = () => {
     const g = gRef.current;
-    if (g.over || won || lost || running || cards || g.units.length > 0) return;
+    if (g.over || won || lost || running || cards || g.units.some((u) => !u.dead)) return;
     waveStartLives.current = g.lives;
     spawnWave(g, g.wave);
     runRef.current = true;
