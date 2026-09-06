@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>42 VS SASAZOMBIES 🧟</title>
 <style>
   html,body{margin:0;padding:0;background:#0d0716;min-height:100%;}
@@ -11,7 +11,7 @@
   #top h1{margin:4px 0;color:#f5c518;font-size:30px;}
   #top .sub{color:#aaa;font-size:14px;}
   #top .sub a{color:#f5c518;}
-  #wrap{position:relative;width:min(1100px,100vw);}
+  #wrap{position:relative;width:min(1600px,100vw);}
   canvas{display:block;width:100%;height:auto;background:#000;border:3px solid #f5c518;border-radius:12px;touch-action:none;}
   .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
     background:rgba(0,0,0,.55);border-radius:12px;text-align:center;padding:20px;}
@@ -21,7 +21,7 @@
   .bigbtn{background:#f5c518;border:none;font-weight:bold;font-size:20px;padding:14px 34px;border-radius:12px;
     cursor:pointer;margin-top:14px;color:#111;}
   .bigbtn:hover{background:#ffd700;}
-  #hint{color:#888;font-size:13px;padding:8px;text-align:center;max-width:1100px;}
+  #hint{color:#888;font-size:13px;padding:8px;text-align:center;max-width:1600px;}
   #wrap:fullscreen{background:#000;display:flex;align-items:center;justify-content:center;}
   #wrap:fullscreen canvas{width:min(100vw,183.3vh);height:auto;}
   @media(max-width:700px){
@@ -251,8 +251,7 @@ function draw(){
     ctx.ellipse(ax,ay+12,CW*0.32,9,0,0,7);ctx.fill();
     drawImg(IMG[key],ax-s/2,ay+14-s,s,s);
     ctx.globalAlpha=1;
-    if(u.hp<u.maxhp){ctx.fillStyle='#000';ctx.fillRect(p.x+8,ay+18,CW-16,5);
-      ctx.fillStyle='#0f6';ctx.fillRect(p.x+8,ay+18,(CW-16)*u.hp/u.maxhp,5);}
+
   }
   /* враги */
   for(var j=0;j<G.zoms.length;j++){var z=G.zoms[j],zy=rowY(z.r);
@@ -260,8 +259,7 @@ function draw(){
     ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();
     ctx.ellipse(z.x,zy+28,30,10,0,0,7);ctx.fill();
     drawImg(IMG.zombie,z.x-38,zy-70+bob,76,100);
-    if(z.hp<Z_HP){ctx.fillStyle='#000';ctx.fillRect(z.x-30,zy-80,60,5);
-      ctx.fillStyle='#f55';ctx.fillRect(z.x-30,zy-80,60*z.hp/Z_HP,5);}
+
   }
   /* снаряды-мопсы с раскруткой */
   for(var a=0;a<G.peas.length;a++){var q=G.peas[a];
@@ -383,7 +381,10 @@ cv.addEventListener('pointerup',function(e){
     else tryPlant(G.drag,cell.r,cell.c);
     G.drag=null;}
 });
+document.addEventListener('wheel',function(e){if(e.ctrlKey)e.preventDefault();},{passive:false});
+document.addEventListener('gesturestart',function(e){e.preventDefault();});
 document.addEventListener('keydown',function(e){
+  if(e.ctrlKey&&(e.key==='+'||e.key==='-'||e.key==='='||e.key==='0'))e.preventDefault();
   if(e.key==='Escape'&&G){
     if(G.drag){G.drag=null;sfx('cancel');}
     else if(G.state==='play')togglePause();
