@@ -931,6 +931,29 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     expect(maxPy).toBeLessThanOrEqual(1.35);
   });
 
+  test('🧩 редактор: высота строений регулируется', async ({ page }) => {
+    await page.click('#guestBtn');
+    await page.click('#nav-editor');
+    await expect(page.locator('#edHRange')).toBeVisible();
+    // ставим высоту 7 и рисуем одну клетку
+    await page.locator('#edHRange').fill('7');
+    const box = await page.locator('#edGrid').boundingBox();
+    await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.fill('#edName', 'ВысотаТест');
+    await page.click('#edsave');
+    await page.click('#nav-play');
+    await page.click('#goBtn');
+    await page.waitForTimeout(1500);
+    type M = { map: () => string; custom: () => { walls: number; half: number } };
+    expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.map())).toBe('custom');
+    // стена высотой 7 в центре: хитбокс есть у земли, нет выше крыши
+    type S = { solidAt: (x: number, z: number, y: number) => boolean };
+    const cu = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.custom());
+    expect(cu.walls).toBeGreaterThanOrEqual(1);
+    expect(await page.evaluate(() => (window as unknown as { __mtt: S }).__mtt.solidAt(2.5, 2.5, 0))).toBe(true);
+    expect(await page.evaluate(() => (window as unknown as { __mtt: S }).__mtt.solidAt(2.5, 2.5, 8))).toBe(false);
+  });
+
   test('🧩 редактор: нарисовал, сохранил, играю на своей', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#nav-editor');

@@ -149,6 +149,122 @@ function prettyKey(code: string): string {
 
 const NICK_KEY = 'mtt_nick';
 
+/** 3D-превью своей карты: изометрия на 2D — работает везде, высота блоков видна. */
+function EditorPreview({ grid, size }: { grid: number[][]; size: number }) {
+  const ref = useRef<HTMLCanvasElement | null>(null);
+  useEffect(() => {
+    const cv = ref.current;
+    if (!cv) return;
+    const W = 420, H = 300;
+    cv.width = W; cv.height = H;
+    const g = cv.getContext('2d');
+    if (!g) return;
+    const cols = grid.length;
+    const dx = 0.866, dy = 0.5;
+    const s = Math.min(W / (cols * 2 * dx + 2), (H - 30) / (cols * 2 * dy + 16));
+    const hs = s;
+    const ox = W / 2, oy = 16;
+    g.fillStyle = '#101828';
+    g.fillRect(0, 0, W, H);
+    // земля ромбом
+    g.fillStyle = '#2a4a2a';
+    g.beginPath();
+    const gx = (x: number, y: number): number => ox + (x - y) * dx * s;
+    const gy = (x: number, y: number): number => oy + (x + y) * dy * s;
+    g.moveTo(gx(0, 0), gy(0, 0));
+    g.lineTo(gx(cols, 0), gy(cols, 0));
+    g.lineTo(gx(cols, cols), gy(cols, cols));
+    g.lineTo(gx(0, cols), gy(0, cols));
+    g.closePath();
+    g.fill();
+    // блоки от дальних к ближним
+    for (let sy = 0; sy <= cols * 2; sy++) {
+      for (let x = 0; x < cols; x++) {
+        const y = sy - x;
+        if (y < 0 || y >= cols) continue;
+        const h = grid[y]?.[x] ?? 0;
+        if (!h) continue;
+        const hh = h * hs;
+        const cx = gx(x, y), cy = gy(x, y);
+        const hw = dx * s, hh2 = dy * s;
+        // левый и правый бока
+        g.fillStyle = '#8a6f3d';
+        g.beginPath();
+        g.moveTo(cx - hw, cy); g.lineTo(cx, cy + hh2); g.lineTo(cx, cy + hh2 + hh); g.lineTo(cx - hw, cy + hh);
+        g.closePath(); g.fill();
+        g.fillStyle = '#a5854e';
+        g.beginPath();
+        g.moveTo(cx + hw, cy); g.lineTo(cx, cy + hh2); g.lineTo(cx, cy + hh2 + hh); g.lineTo(cx + hw, cy + hh);
+        g.closePath(); g.fill();
+        // крыша
+        g.fillStyle = '#c9a06a';
+        g.beginPath();
+        g.moveTo(cx, cy - hh); g.lineTo(cx + hw, cy + hh2 - hh); g.lineTo(cx, cy + hh2 * 2 - hh); g.lineTo(cx - hw, cy + hh2 - hh);
+        g.closePath(); g.fill();
+      }
+    }
+  }, [grid, size]);
+  return (
+    <canvas
+      id="edPreview"
+      ref={(el) => {
+        const cv = ref.current;
+        void cv;
+        // первичная отрисовка при монтировании
+        if (el) {
+          const W = 420, H = 300;
+          el.width = W; el.height = H;
+          const g = el.getContext('2d');
+          if (g) {
+            const cols = grid.length;
+            const dx = 0.866, dy = 0.5;
+            const s = Math.min(W / (cols * 2 * dx + 2), (H - 30) / (cols * 2 * dy + 16));
+            const hs = s;
+            const ox = W / 2, oy = 16;
+            const gx = (x: number, y: number): number => ox + (x - y) * dx * s;
+            const gy = (x: number, y: number): number => oy + (x + y) * dy * s;
+            g.fillStyle = '#101828';
+            g.fillRect(0, 0, W, H);
+            g.fillStyle = '#2a4a2a';
+            g.beginPath();
+            g.moveTo(gx(0, 0), gy(0, 0));
+            g.lineTo(gx(cols, 0), gy(cols, 0));
+            g.lineTo(gx(cols, cols), gy(cols, cols));
+            g.lineTo(gx(0, cols), gy(0, cols));
+            g.closePath();
+            g.fill();
+            for (let sy = 0; sy <= cols * 2; sy++) {
+              for (let x = 0; x < cols; x++) {
+                const y = sy - x;
+                if (y < 0 || y >= cols) continue;
+                const h = grid[y]?.[x] ?? 0;
+                if (!h) continue;
+                const hh = h * hs;
+                const cx = gx(x, y), cy = gy(x, y);
+                const hw = dx * s, hh2 = dy * s;
+                g.fillStyle = '#8a6f3d';
+                g.beginPath();
+                g.moveTo(cx - hw, cy); g.lineTo(cx, cy + hh2); g.lineTo(cx, cy + hh2 + hh); g.lineTo(cx - hw, cy + hh);
+                g.closePath(); g.fill();
+                g.fillStyle = '#a5854e';
+                g.beginPath();
+                g.moveTo(cx + hw, cy); g.lineTo(cx, cy + hh2); g.lineTo(cx, cy + hh2 + hh); g.lineTo(cx + hw, cy + hh);
+                g.closePath(); g.fill();
+                g.fillStyle = '#c9a06a';
+                g.beginPath();
+                g.moveTo(cx, cy - hh); g.lineTo(cx + hw, cy + hh2 - hh); g.lineTo(cx, cy + hh2 * 2 - hh); g.lineTo(cx - hw, cy + hh2 - hh);
+                g.closePath(); g.fill();
+              }
+            }
+          }
+        }
+        ref.current = el;
+      }}
+      style={{ width: '100%', maxWidth: 420, touchAction: 'none' }}
+    />
+  );
+}
+
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const joyRef = useRef<HTMLDivElement>(null);
@@ -234,6 +350,8 @@ async function loadStats(): Promise<void> {
   const [edSize, setEdSize] = useState(90);
   const [edGrid, setEdGrid] = useState<number[][]>(() => Array.from({ length: 18 }, () => new Array(18).fill(0)));
   const [edTool, setEdTool] = useState<'wall' | 'erase'>('wall');
+  // высота строений: какой высоты кладутся новые стены (2–8м)
+  const [edH, setEdH] = useState(4);
   const edCanvas = useRef<HTMLCanvasElement | null>(null);
   const [duel, setDuel] = useState<DuelInfo | null>(null);
   const roomRef = useRef({ id: '', sid: '' });
@@ -771,7 +889,9 @@ async function loadStats(): Promise<void> {
     const c = Math.max(8, Math.min(28, Math.round(s / 5)));
     applyGrid(Array.from({ length: c }, () => new Array(c).fill(0)));
   };
-  const paintEd = (cx: number, cy: number, v: number) => {
+  const paintEd = (cx: number, cy: number) => {
+    // клетка хранит высоту: 0 — пусто, иначе высота строения
+    const v = edTool === 'wall' ? edH : 0;
     const c = Math.max(8, Math.min(28, Math.round(edSize / 5)));
     if (cx < 0 || cy < 0 || cx >= c || cy >= c) return;
     setEdGrid((g) => {
@@ -787,7 +907,7 @@ async function loadStats(): Promise<void> {
     const r = el.getBoundingClientRect();
     return [Math.floor((e.clientX - r.left) / (r.width / edCols)), Math.floor((e.clientY - r.top) / (r.width / edCols))];
   };
-  // клетки в блоки: сливаем ряды подряд в длинные стены
+  // клетки в блоки: сливаем ряды подряд в длинные стены, высота — из клетки
   const gridToWalls = (grid: number[][], size: number): CustomMap['walls'] => {
     const cols = grid.length;
     const cell = size / cols;
@@ -795,16 +915,18 @@ async function loadStats(): Promise<void> {
     for (let y = 0; y < cols; y++) {
       let x = 0;
       while (x < cols) {
-        if (!grid[y][x]) { x++; continue; }
+        const raw = Math.round(grid[y][x] ?? 0);
+        if (!raw) { x++; continue; }
+        const h = Math.min(8, Math.max(2, raw));
         let x2 = x;
-        while (x2 + 1 < cols && grid[y][x2 + 1]) x2++;
+        while (x2 + 1 < cols && Math.round(grid[y][x2 + 1] ?? 0) === raw) x2++;
         const run = x2 - x + 1;
         walls.push({
           x: -size / 2 + (x + run / 2) * cell,
           z: -size / 2 + (y + 0.5) * cell,
           w: run * cell,
           d: cell,
-          h: 3,
+          h,
         });
         x = x2 + 1;
       }
@@ -815,11 +937,12 @@ async function loadStats(): Promise<void> {
     const grid = Array.from({ length: cols }, () => new Array(cols).fill(0));
     const cell = size / cols;
     for (const b of walls) {
+      const h = Math.min(8, Math.max(2, Math.round(b.h)));
       const x0 = Math.max(0, Math.floor((b.x - b.w / 2 + size / 2) / cell));
       const x1 = Math.min(cols - 1, Math.floor((b.x + b.w / 2 + size / 2) / cell));
       const y0 = Math.max(0, Math.floor((b.z - b.d / 2 + size / 2) / cell));
       const y1 = Math.min(cols - 1, Math.floor((b.z + b.d / 2 + size / 2) / cell));
-      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) grid[y][x] = 1;
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) grid[y][x] = h;
     }
     return grid;
   };
@@ -1260,6 +1383,14 @@ async function loadStats(): Promise<void> {
               <button className={'wbtn' + (edTool === 'erase' ? ' cur' : '')} id="edtool-erase" onClick={() => setEdTool('erase')}>🧽 Стереть</button>
               <button className="wclose" id="edclear" onClick={() => setEdGrid(Array.from({ length: edCols }, () => new Array(edCols).fill(0)))}>Очистить</button>
             </div>
+            <div className="srow">
+              <span>📏 Высота строений: {edH}м</span>
+            </div>
+            <input
+              id="edHRange"
+              type="range" min={2} max={8} step={1} value={edH}
+              onChange={(e) => setEdH(Number(e.target.value))}
+            />
             <canvas
               id="edGrid"
               ref={(el) => {
@@ -1271,14 +1402,16 @@ async function loadStats(): Promise<void> {
               onPointerDown={(e) => {
                 (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
                 const [cx, cy] = edCellPos(e);
-                paintEd(cx, cy, edTool === 'wall' ? 1 : 0);
+                paintEd(cx, cy);
               }}
               onPointerMove={(e) => {
                 if (e.buttons !== 1) return;
                 const [cx, cy] = edCellPos(e);
-                paintEd(cx, cy, edTool === 'wall' ? 1 : 0);
+                paintEd(cx, cy);
               }}
             />
+            <div><small>👁️ 3D-превью карты:</small></div>
+            <EditorPreview grid={edGrid} size={edSize} />
             <div className="srow">
               <button className="wbtn" id="edsave" onClick={saveCustom}>💾 СОХРАНИТЬ И ИГРАТЬ</button>
             </div>

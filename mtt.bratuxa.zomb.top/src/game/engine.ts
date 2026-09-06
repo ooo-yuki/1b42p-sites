@@ -3,6 +3,7 @@ import vrag1Url from '../assets/vrag1.png';
 import vrag2Url from '../assets/vrag2.png';
 import dom1Url from '../assets/dom1.png';
 import travaUrl from '../assets/trava.jpg';
+import facadeUrl from '../assets/facade.jpg';
 import skyUrl from '../assets/sky.jpg';
 import edgeUrl from '../assets/edge.png';
 import house2Url from '../assets/house2.png';
@@ -841,10 +842,11 @@ export class Game {
     mkPer(S + 4, 2, 0, S / 2 + 1);
     mkPer(2, S + 4, -S / 2 - 1, 0);
     mkPer(2, S + 4, S / 2 + 1, 0);
-    // блоки автора карты
-    const wt = Game.makeWindowsTex();
+    // блоки автора карты — тот же фасад, повтор под размер блока
+    const cwt0 = new THREE.TextureLoader().load(facadeUrl);
+    cwt0.colorSpace = THREE.SRGBColorSpace;
     for (const b of c?.walls ?? []) {
-      const bt = wt.clone();
+      const bt = cwt0.clone();
       bt.wrapS = bt.wrapT = THREE.MirroredRepeatWrapping;
       bt.repeat.set(Math.max(1, Math.round(b.w / 6)), Math.max(1, Math.round(b.h / 6)));
       bt.needsUpdate = true;
@@ -932,11 +934,11 @@ export class Game {
       r2.rotation.x = -Math.PI / 2; r2.rotation.z = Math.PI / 2; r2.position.set(i, 0.012, 0); r2.receiveShadow = true; scene.add(r2);
     }
 
-    // край карты с фото МТТ: граффити-стена, зеркало прячет швы
+    // край карты с фото МТТ: текстура целиком — 5 целых повторов по стене, ничего не обрезано
     const wallTex = new THREE.TextureLoader().load(edgeUrl);
     wallTex.colorSpace = THREE.SRGBColorSpace;
     wallTex.wrapS = wallTex.wrapT = THREE.MirroredRepeatWrapping;
-    wallTex.repeat.set(12, 2);
+    wallTex.repeat.set(5, 1);
     const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.85 });
     const wallGeoH = new THREE.BoxGeometry(ARENA + 8, 14, 2);
     const wallGeoV = new THREE.BoxGeometry(2, 14, ARENA + 8);
@@ -951,9 +953,10 @@ export class Game {
       scene.add(m);
     });
 
-    // дома: каждый уникален (размер/цвет/крыша заданы, не рандом).
-    // Пары A и B стоят рядом и связаны мостами; на крышу A ведёт лестница.
+    // дома: фасад с фото МТТ (по мотивам «Дом 1») — у каждого свой повтор под размер
     const winTex = Game.makeWindowsTex();
+    const facadeTex = new THREE.TextureLoader().load(facadeUrl);
+    facadeTex.colorSpace = THREE.SRGBColorSpace;
     const bbTex = new THREE.TextureLoader().load(house2Url);
     bbTex.colorSpace = THREE.SRGBColorSpace;
     type Roof = 'tank' | 'antenna' | 'garden' | 'parapet' | 'flat';
@@ -969,10 +972,10 @@ export class Game {
     ];
     const roofMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2e, roughness: 0.95 });
     for (const cfg of houses) {
-      // окна — свой повтор под размер коробки: окно ~1.2м, не тянется на весь дом
-      const wt = winTex.clone();
+      // фасад: 3 этажа на тайл — повтор по ширине и высоте коробки
+      const wt = facadeTex.clone();
       wt.wrapS = wt.wrapT = THREE.MirroredRepeatWrapping;
-      wt.repeat.set(Math.max(1, Math.round(cfg.w / 6)), Math.max(1, Math.round(cfg.h / 6)));
+      wt.repeat.set(Math.max(1, Math.round(cfg.w / 9)), Math.max(1, Math.round(cfg.h / 9)));
       wt.needsUpdate = true;
       const m = new THREE.Mesh(
         new THREE.BoxGeometry(cfg.w, cfg.h, cfg.d),
@@ -1203,6 +1206,94 @@ export class Game {
       board.rotation.y = ry;
       scene.add(board);
       this.solids.push({ x: bx, z: bz, hx: 0.2, hz: 0.2, h: 6 });
+    }
+
+    // ===== полноценный город: деревья, фонари, машины, скамейки =====
+    // точки подбираем свободно: занято — пропускаем (хитбоксы домов/ящиков святы)
+    const free = (x: number, z: number, r: number): boolean => !this.hitSolid(x, z, r);
+    // деревья: ствол + две кроны (детерминированно, в кварталах между дорогами)
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3d22, roughness: 1 });
+    const leafMat = new THREE.MeshStandardMaterial({ color: 0x2f7a3d, roughness: 1 });
+    const leafMat2 = new THREE.MeshStandardMaterial({ color: 0x3fa34d, roughness: 1 });
+    const treeSpots: Array<[number, number]> = [
+      [6, 6], [-6, 6], [6, -6], [-6, -6], [18, 16], [-18, -16], [18, -16], [-18, 16],
+      [30, 6], [-30, -6], [8, 40], [-8, -40], [40, -8], [-40, 8], [28, -34], [-28, 34],
+    ];
+    let ti = 0;
+    for (const [tx, tz] of treeSpots) {
+      if (!free(tx, tz, 1)) continue;
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 2.4, 7), trunkMat);
+      trunk.position.set(tx, 1.2, tz);
+      trunk.castShadow = true;
+      scene.add(trunk);
+      const lm = ti % 2 === 0 ? leafMat : leafMat2;
+      const c1 = new THREE.Mesh(new THREE.ConeGeometry(1.6, 2.6, 8), lm);
+      c1.position.set(tx, 3.4, tz);
+      c1.castShadow = true;
+      scene.add(c1);
+      const c2 = new THREE.Mesh(new THREE.ConeGeometry(1.1, 1.8, 8), lm);
+      c2.position.set(tx, 4.8, tz);
+      scene.add(c2);
+      this.solids.push({ x: tx, z: tz, r: 0.3, h: 4 });
+      ti++;
+    }
+    // уличные фонари вдоль дорог (лампа светится, без источников — день)
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x2b3444, roughness: 0.7 });
+    const lampGlow = new THREE.MeshBasicMaterial({ color: 0xfff2c4 });
+    const lampSpots: Array<[number, number]> = [
+      [-30, -36], [-8, -36], [14, -36], [36, -36], [-30, 36], [-8, 36], [14, 36], [36, 36],
+      [-36, -30], [-36, -8], [-36, 14], [-36, 36], [36, -30], [36, -8], [36, 14], [36, 36],
+    ];
+    for (const [lx, lz] of lampSpots) {
+      if (!free(lx, lz, 0.8)) continue;
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 6, 7), poleMat);
+      pole.position.set(lx, 3, lz);
+      pole.castShadow = true;
+      scene.add(pole);
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.12, 0.12), poleMat);
+      arm.position.set(lx + 0.6, 5.9, lz);
+      scene.add(arm);
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 8), lampGlow);
+      lamp.position.set(lx + 1.2, 5.7, lz);
+      scene.add(lamp);
+      this.solids.push({ x: lx, z: lz, r: 0.2, h: 6 });
+    }
+    // припаркованные машины: кузов + кабина (стоят вдоль дорог, объезжай)
+    const carCols = [0xc0392b, 0x2471a3, 0xf39c12, 0x7d3c98, 0x1abc9c, 0x7f8c8d];
+    const carSpots: Array<[number, number, number]> = [
+      [20, -30.5, 0], [-16, -30.5, 0], [-38, 13.5, 1], [38, -13.5, 1], [8, 35.5, 0], [-6, -35.5, 0],
+    ];
+    carCols.forEach((cc, ci) => {
+      const spot = carSpots[ci % carSpots.length];
+      const [ax, az, vert] = spot;
+      if (!free(ax, az, 2.6)) return;
+      const cm = new THREE.MeshStandardMaterial({ color: cc, roughness: 0.4 });
+      const glass = new THREE.MeshStandardMaterial({ color: 0x1a2530, roughness: 0.2 });
+      const w = vert ? 1.8 : 4.2, d = vert ? 4.2 : 1.8;
+      const body = new THREE.Mesh(new THREE.BoxGeometry(w, 0.9, d), cm);
+      body.position.set(ax, 0.65, az);
+      body.castShadow = true; body.receiveShadow = true;
+      scene.add(body);
+      const cab = new THREE.Mesh(new THREE.BoxGeometry(vert ? 1.6 : 2.2, 0.7, vert ? 2.2 : 1.6), glass);
+      cab.position.set(ax, 1.4, az);
+      cab.castShadow = true;
+      scene.add(cab);
+      this.solids.push({ x: ax, z: az, hx: w / 2, hz: d / 2, h: 1.8 });
+    });
+    // скамейки у площади и в сквере (низкие — декор, проход свободный)
+    const benchMat = new THREE.MeshStandardMaterial({ color: 0x6e4a26, roughness: 0.9 });
+    for (const [sx, sz, ry] of [[11, 5, 0.5], [-11, -5, 0.5], [5, -11, -0.5], [-5, 11, -0.5], [19, 7, 0], [-19, -7, 0]] as Array<[number, number, number]>) {
+      if (!free(sx, sz, 1.2)) continue;
+      const seat = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.15, 0.6), benchMat);
+      seat.position.set(sx, 0.55, sz);
+      seat.rotation.y = ry;
+      seat.castShadow = true;
+      scene.add(seat);
+      for (const e of [-0.9, 0.9]) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.55, 0.5), poleMat);
+        leg.position.set(sx + e * Math.cos(ry), 0.27, sz - e * Math.sin(ry));
+        scene.add(leg);
+      }
     }
   }
 
