@@ -4,7 +4,6 @@ const CFG = {
     walk: 3.2, jump: 7.5, gravity: 22.0,
     guardSpeed: 1.6, sight: 4.5, stunSec: 4.0,
 };
-
 // --- levels.js ---
 const GLYPHS = '#=-KFE GP';
 function checkMap(map) {
@@ -55,7 +54,6 @@ const LEVELS = [
         '################',
     ],
 ];
-
 // --- logic.js ---
 const SOLID = '#=-';
 function cellSolid(map, c, r) {
@@ -99,6 +97,8 @@ function loadLevel(S, idx) {
                 S.guards.push({ x: c + 0.5, y: cellY(r), dir: 1, stun: 0 });
         }
     }
+    for (const g of S.guards)
+        groundPatrol(S, g);
     const k = findMark(map, 'K');
     S.key = k ? { x: k.c + 0.5, y: cellY(k.r) + 0.5, taken: false } : null;
     const f = findMark(map, 'F');
@@ -108,6 +108,17 @@ function loadLevel(S, idx) {
     S.hasKey = false;
     S.hasFish = false;
     S.caught = false;
+}
+function groundPatrol(S, g) {
+    const map = LEVELS[S.level];
+    const top = Math.floor(g.y);
+    for (let k = top; k >= 0; k--) {
+        if (solidAt(map, g.x, k - 0.01) && !solidAt(map, g.x, k + 0.05) && !solidAt(map, g.x, k + 0.6)) {
+            g.y = k;
+            return true;
+        }
+    }
+    return false;
 }
 function newRun(level) {
     const S = {
@@ -169,13 +180,20 @@ function step(S, input) {
             g.stun = Math.max(0, g.stun - dt);
             continue;
         }
+        if (!groundPatrol(S, g))
+            continue;
         const nxg = g.x + g.dir * CFG.guardSpeed * dt;
         const edge = nxg + (g.dir > 0 ? 0.3 : -0.3);
         if (solidAt(map, edge, g.y + 0.05) || solidAt(map, edge, g.y + 0.6)) {
             g.dir = -g.dir;
         }
+        else if (!solidAt(map, edge, g.y - 0.01)) {
+            g.dir = -g.dir;
+        }
         else {
             g.x = nxg;
+            if (!groundPatrol(S, g))
+                g.dir = -g.dir;
         }
     }
     if (inp.shove) {
@@ -256,7 +274,6 @@ function killAll(S) {
     S.hearts = 0;
     S.dead = true;
 }
-
 // --- sprites.js ---
 // Task 8: загрузка картинок и таблицы кадров.
 // Держим стираемый синтаксис, как в src/levels.ts, чтобы тесты могли
@@ -364,7 +381,6 @@ function loadSprites(loadOne) {
         return out;
     });
 }
-
 // --- audio.js ---
 // Звук гудками: гудок качается кодом через WebAudio, без внешних файлов.
 //
@@ -438,7 +454,6 @@ function blip(kind) {
         // без звука — молча идём дальше
     }
 }
-
 // --- save.js ---
 // Рекорд: бережное чтение, запись лучшего (меньшее время).
 function loadBest() {
@@ -473,7 +488,45 @@ function saveBest(sec) {
         return false;
     }
 }
-
+// --- teach.js ---
+// Task 2: учёба с тёткой. Каждый шаг гаснет своим делом.
+// Держим стираемый синтаксис (без аннотаций), чтобы tests/teach.test.js
+// запускал файл без сборки.
+const TEACH = [
+    'Иди: стрелки влево и вправо',
+    'Возьми ключ',
+    'Возьми рыбу',
+    'Иди к выходу',
+    'Толкни стражу: клавиша X',
+];
+/** @param {any} S @returns {string | null} */
+function teachStep(S) {
+    if (!S)
+        return TEACH[0];
+    if (!S.moved)
+        return TEACH[0];
+    if (!S.key)
+        return TEACH[1];
+    if (!S.fish)
+        return TEACH[2];
+    if (!S.exit)
+        return TEACH[3];
+    if (S.shoved === false)
+        return TEACH[4];
+    return null;
+}
+// --- notes.js ---
+// Task 5: тетрадка с делом часа. Дело по недособранному.
+// Держим стираемый синтаксис (без аннотаций), чтобы tests/notes.test.js
+// запускал файл без сборки.
+/** @param {any} S @returns {string} */
+function hourCase(S) {
+    if (!S.hasKey)
+        return 'добудь ключ';
+    if (!S.hasFish)
+        return 'добудь рыбу';
+    return 'уходи в выход';
+}
 // --- main.js ---
 const W = 960;
 const H = 540;
@@ -481,6 +534,12 @@ const TILE = 60;
 const OY = 30;
 const canvas = document.getElementById('game');
 const g = canvas.getContext('2d');
+function fitCanvas(cv) {
+    const s = Math.min(window.innerWidth / 960, window.innerHeight / 540);
+    cv.style.width = Math.floor(960 * s) + 'px';
+    cv.style.height = Math.floor(540 * s) + 'px';
+    return s;
+}
 const input = { left: false, right: false, jump: false, shove: false };
 let mode = 'start';
 let S = newRun(0);
@@ -494,6 +553,8 @@ let prevLevel = 0;
 let best = loadBest();
 let newRecord = false;
 let stepSnd = 0;
+let learnt = { moved: false, shoved: false };
+let notesOpen = false;
 function wx(x) {
     return x * TILE;
 }
@@ -529,6 +590,27 @@ function drawImg(src, x, y, w, h, fallback, flip) {
     }
     g.restore();
 }
+// Тень-овал под ногами: рисуется раньше ног.
+function shadow(cx, foot, rx) {
+    g.fillStyle = 'rgba(0,0,0,0.35)';
+    g.beginPath();
+    g.ellipse(cx, foot - 2, rx, 6, 0, 0, Math.PI * 2);
+    g.fill();
+}
+// Глаза точкой со сдвигом в сторону хода и взгляда.
+function eyes(cx, ey, dir, gap) {
+    for (const s of [-1, 1]) {
+        const ex = cx + s * gap + dir * 4;
+        g.fillStyle = '#fff';
+        g.beginPath();
+        g.arc(ex, ey, 4, 0, Math.PI * 2);
+        g.fill();
+        g.fillStyle = '#111';
+        g.beginPath();
+        g.arc(ex + dir * 2, ey, 2, 0, Math.PI * 2);
+        g.fill();
+    }
+}
 function startGame() {
     S = newRun(0);
     runTime = 0;
@@ -538,6 +620,8 @@ function startGame() {
     facing = 1;
     newRecord = false;
     stepSnd = 0;
+    learnt = { moved: false, shoved: false };
+    notesOpen = false;
     input.left = false;
     input.right = false;
     input.jump = false;
@@ -548,6 +632,10 @@ function startGame() {
 function doStep() {
     step(S, input);
     runTime += CFG.step;
+    if (input.left || input.right)
+        learnt.moved = true;
+    if (input.shove)
+        learnt.shoved = true;
     if (input.right && !input.left)
         facing = 1;
     else if (input.left && !input.right)
@@ -621,17 +709,21 @@ function render() {
     for (const gd of S.guards) {
         const src = FRAMES.guard[Math.floor(animT * 6) % FRAMES.guard.length];
         const b = wy(gd.y, mapH);
+        shadow(wx(gd.x), b, 18);
         if (gd.stun > 0)
             g.globalAlpha = 0.5;
         drawImg(src, wx(gd.x) - 21, b - 54, 42, 54, '#c0392b', gd.dir < 0);
         g.globalAlpha = 1;
+        eyes(wx(gd.x), b - 38, gd.dir, 6);
     }
     const moving = input.left || input.right;
     const frames = moving && S.seal.onGround ? FRAMES.waddle : FRAMES.idle;
     const rate = moving && S.seal.onGround ? 8 : 2;
     const sealSrc = frames[Math.floor(animT * rate) % frames.length];
     const sb = wy(S.seal.y, mapH);
+    shadow(wx(S.seal.x), sb, 18);
     drawImg(sealSrc, wx(S.seal.x) - 21, sb - 57, 42, 57, '#eeeeee', facing < 0);
+    eyes(wx(S.seal.x), sb - 40, facing, 7);
     let hs = '';
     for (let i = 0; i < CFG.hearts; i++)
         hs += i < S.hearts ? '♥' : '♡';
@@ -645,6 +737,47 @@ function render() {
     g.fillText('ур. ' + (S.level + 1) + '/' + LEVELS.length, W - 12, 30);
     if (best !== null)
         g.fillText('лучшее ' + fmt(best), W - 12, 58);
+    // Полоса времени вверху.
+    const span = best !== null && best > 0 ? best : 60;
+    const frac = Math.min(runTime / span, 1);
+    g.fillStyle = 'rgba(255,255,255,0.25)';
+    g.fillRect(W / 2 - 110, 12, 220, 10);
+    g.fillStyle = '#ffd34d';
+    g.fillRect(W / 2 - 110, 12, 220 * frac, 10);
+    // Тетрадка на пружине: ключ, рыба, выход. Открывается кнопкой N.
+    if (notesOpen) {
+        const nx = W - 300;
+        const ny = 70;
+        g.fillStyle = 'rgba(245,240,220,0.95)';
+        g.fillRect(nx, ny, 280, 150);
+        g.fillStyle = '#8a7a5a';
+        for (let i = 0; i < 5; i++) {
+            g.beginPath();
+            g.arc(nx + 14 + i * 60, ny, 8, 0, Math.PI * 2);
+            g.fill();
+        }
+        g.fillStyle = '#333';
+        g.font = 'bold 20px sans-serif';
+        g.textAlign = 'left';
+        g.fillText('дело часа: ' + hourCase(S), nx + 20, ny + 34);
+        g.font = '20px sans-serif';
+        g.fillText((S.hasKey ? '✓' : '·') + ' ключ', nx + 20, ny + 66);
+        g.fillText((S.hasFish ? '✓' : '·') + ' рыба', nx + 20, ny + 96);
+        g.fillText('→ выход', nx + 20, ny + 126);
+    }
+    // Учёба с тёткой: только в первом корпусе, дальше молчит.
+    if (mode === 'play' && S.level === 0) {
+        const tip = teachStep({ moved: learnt.moved, key: S.hasKey, fish: S.hasFish, exit: false, shoved: learnt.shoved });
+        if (tip) {
+            g.fillStyle = 'rgba(0,0,0,0.7)';
+            g.fillRect(60, H - 96, W - 120, 84);
+            drawImg('img/face_aunt.png', 72, H - 88, 64, 64, '#e8e4de', false);
+            g.fillStyle = '#fff';
+            g.font = '22px sans-serif';
+            g.textAlign = 'left';
+            g.fillText(tip, 150, H - 44);
+        }
+    }
     if (mode === 'start') {
         const lines = ['Собери ключ и рыбу, дойди до выхода.', 'Стрелки — идти, пробел — прыжок, X — толкнуть.'];
         if (best !== null)
@@ -717,6 +850,10 @@ document.addEventListener('keydown', function (e) {
         e.preventDefault();
     if (e.repeat)
         return;
+    if (e.code === 'KeyN') {
+        notesOpen = !notesOpen;
+        return;
+    }
     if (e.code === 'KeyR' || e.code === 'Enter') {
         startGame();
         return;
@@ -760,8 +897,18 @@ canvas.addEventListener('contextmenu', function (e) {
 });
 loadSprites(undefined).then(function (m) {
     pics = m;
+    try {
+        if (typeof Image === 'function') {
+            const ai = new Image();
+            ai.src = 'img/face_aunt.png';
+            pics['img/face_aunt.png'] = { src: 'img/face_aunt.png', broken: false, img: ai };
+        }
+    }
+    catch (e) { }
 });
 requestAnimationFrame(frame);
+window.addEventListener('resize', () => fitCanvas(canvas));
+fitCanvas(canvas);
 // Крючок для внешней проверки: те же правила плюс текущее состояние.
 window.__hook = {
     newRun: newRun,
