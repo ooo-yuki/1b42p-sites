@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildHumanoid, makeClips } from '../rig';
+import { buildHumanoid, makeClips, phaseShiftRight } from '../rig';
 import { getTex } from '../textures';
 
 let furMat: THREE.MeshStandardMaterial | null = null;
@@ -30,33 +30,6 @@ function mats() {
     clawMat = new THREE.MeshStandardMaterial({ color: 0x1c1c22, roughness: 0.35, metalness: 0.6 });
   }
   return { furMat: furMat!, eyeMat: eyeMat!, darkMat: darkMat!, teethMat: teethMat!, clawMat: clawMat! };
-}
-
-/**
- * F4: чистая противофаза без плоских участков.
- * Было: сдвиг времён +dur/2 mod dur — при ключах [0, dur/2, dur] давало
- * дублирующиеся времена (0.3 дважды) → вырожденный сегмент, плоский кусок.
- * Стало: времена не трогаем, инвертируем размах (кватернион -θ = conjugate:
- * -x,-y,-z,w). Для симметричного треугольника [-a,+a,-a] это точная
- * полупериодная противофаза [+a,-a,+a], ключи строго возрастают.
- */
-export function phaseShiftRight(walk: THREE.AnimationClip): THREE.AnimationClip {
-  const tracks = walk.tracks.map((t) => {
-    if (!/R\.quaternion$/.test(t.name)) return t;
-    const n = t.times.length;
-    const itemSize = t.values.length / n;
-    const values = new Float32Array(t.values.length);
-    for (let i = 0; i < n; i++) {
-      values[i * itemSize] = -t.values[i * itemSize];
-      values[i * itemSize + 1] = -t.values[i * itemSize + 1];
-      values[i * itemSize + 2] = -t.values[i * itemSize + 2];
-      for (let j = 3; j < itemSize; j++) values[i * itemSize + j] = t.values[i * itemSize + j];
-    }
-    const c = t.clone();
-    c.values = values as unknown as THREE.KeyframeTrack['values'];
-    return c;
-  });
-  return new THREE.AnimationClip(walk.name, walk.duration, tracks);
 }
 
 function qx(deg: number): number[] {

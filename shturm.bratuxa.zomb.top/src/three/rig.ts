@@ -10,10 +10,18 @@ function bone(name: string, parent: THREE.Object3D, x = 0, y = 0, z = 0): THREE.
   return b;
 }
 
-export function buildHumanoid(): { root: THREE.Group; bones: Record<string, THREE.Bone> } {
+export interface HumanoidBones extends Record<string, THREE.Bone> {
+  hips: THREE.Bone; spine: THREE.Bone; head: THREE.Bone;
+  shoulderL: THREE.Bone; elbowL: THREE.Bone; handL: THREE.Bone;
+  shoulderR: THREE.Bone; elbowR: THREE.Bone; handR: THREE.Bone;
+  hipL: THREE.Bone; kneeL: THREE.Bone; footL: THREE.Bone;
+  hipR: THREE.Bone; kneeR: THREE.Bone; footR: THREE.Bone;
+}
+
+export function buildHumanoid(): { root: THREE.Group; bones: HumanoidBones } {
   const root = new THREE.Group();
   root.name = 'rig';
-  const bones: Record<string, THREE.Bone> = {};
+  const bones = {} as HumanoidBones;
   bones.hips = bone('hips', root, 0, 1.1, 0);
   bones.spine = bone('spine', bones.hips, 0, 0.35, 0);
   bones.head = bone('head', bones.spine, 0, 0.45, 0);
@@ -69,6 +77,31 @@ function q(axis: 'x' | 'z', deg: number): number[] {
 function swing(name: string, axis: 'x' | 'z', amp: number, dur: number): THREE.QuaternionKeyframeTrack {
   return new THREE.QuaternionKeyframeTrack(`${name}.quaternion`, [0, dur / 2, dur],
     [...q(axis, -amp), ...q(axis, amp), ...q(axis, -amp)]);
+}
+
+/**
+ * Противофаза правой стороны walk: времена не трогаем, инвертируем размах
+ * (кватернион -θ = conjugate: -x,-y,-z,w). Для симметричного треугольника
+ * [-a,+a,-a] это точная полупериодная противофаза [+a,-a,+a], ключи строго
+ * возрастают. Переехало из mobs/runner.ts — общее для двуногих.
+ */
+export function phaseShiftRight(walk: THREE.AnimationClip): THREE.AnimationClip {
+  const tracks = walk.tracks.map((t) => {
+    if (!/R\.quaternion$/.test(t.name)) return t;
+    const n = t.times.length;
+    const itemSize = t.values.length / n;
+    const values = new Float32Array(t.values.length);
+    for (let i = 0; i < n; i++) {
+      values[i * itemSize] = -t.values[i * itemSize];
+      values[i * itemSize + 1] = -t.values[i * itemSize + 1];
+      values[i * itemSize + 2] = -t.values[i * itemSize + 2];
+      for (let j = 3; j < itemSize; j++) values[i * itemSize + j] = t.values[i * itemSize + j];
+    }
+    const c = t.clone();
+    c.values = values as unknown as THREE.KeyframeTrack['values'];
+    return c;
+  });
+  return new THREE.AnimationClip(walk.name, walk.duration, tracks);
 }
 
 export function makeClips(_kind: RigKind): Record<'idle' | 'walk' | 'attack' | 'death', THREE.AnimationClip> {
