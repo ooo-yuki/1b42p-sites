@@ -201,7 +201,7 @@ async function loadStats(): Promise<void> {
   const [profile, setProfile] = useState<{ login: string; games: number; best: number; coins: number } | null>(null);
   const [mapChoice, setMapChoice] = useState<MapId>('arena');
   // вкладки меню в стиле TWD: каждая кнопка слева — своя вкладка справа
-  type TabId = 'play' | 'fighter' | 'maps' | 'editor' | 'rooms' | 'settings' | 'tops';
+  type TabId = 'play' | 'fighter' | 'maps' | 'editor' | 'rooms' | 'servers' | 'settings' | 'tops';
   const [menuTab, setMenuTab] = useState<TabId>('play');
   // мирный режим: врагов нет, можно гулять по карте
   const [noEnemies, setNoEnemies] = useState(false);
@@ -464,7 +464,16 @@ async function loadStats(): Promise<void> {
   }, [authed]);
 
   // ---- комнаты ----
-  const refreshRooms = useCallback(() => { loadRooms().then(setRoomsList); void loadStats(); loadDuelTop().then(setDuelTop); }, []);
+  const refreshRooms = useCallback(() => { loadRooms().then(setRoomsList); void loadStats(); loadDuelTop().then(setDuelTop); pingApi(); }, []);
+  const [apiPing, setApiPing] = useState(-1);
+  const pingApi = useCallback(async () => {
+    const t0 = Date.now();
+    try {
+      const r = await fetch('/api/stats');
+      if (!r.ok) throw new Error('bad');
+      setApiPing(Date.now() - t0);
+    } catch { setApiPing(-1); }
+  }, []);
   useEffect(() => { refreshRooms(); }, [refreshRooms]);
 
   const createRoom = useCallback(async () => {
@@ -1124,7 +1133,7 @@ async function loadStats(): Promise<void> {
         <div id="menu" className="twd">
           <div id="menuNav">
             <h1>👊 42 LIVE 💥</h1>
-            {([['play', '▶ ИГРАТЬ'], ['fighter', '🎭 БОЕЦ'], ['maps', '🗺️ КАРТЫ'], ['editor', '🧩 РЕДАКТОР'], ['rooms', '🌐 КОМНАТЫ'], ['settings', '⚙️ НАСТРОЙКИ'], ['tops', '🏆 ТОПЫ']] as Array<[TabId, string]>).map(([id, label]) => (
+            {([['play', '▶ ИГРАТЬ'], ['fighter', '🎭 БОЕЦ'], ['maps', '🗺️ КАРТЫ'], ['editor', '🧩 РЕДАКТОР'], ['rooms', '🌐 КОМНАТЫ'], ['servers', '🖥️ СЕРВЕРА'], ['settings', '⚙️ НАСТРОЙКИ'], ['tops', '🏆 ТОПЫ']] as Array<[TabId, string]>).map(([id, label]) => (
               <button key={id} id={`nav-${id}`} className={'tnav' + (menuTab === id ? ' active' : '')} onClick={() => setMenuTab(id)}>{label}</button>
             ))}
             <a id="hubLink" href="https://hub.bratuxa.zomb.top">← Хаб 1Б42П</a>
@@ -1204,10 +1213,6 @@ async function loadStats(): Promise<void> {
           )}
           </div>
           <div className={'mtab' + (menuTab === 'maps' ? ' show' : '')}>
-          <div className="menuArt">
-            <img src={oruzh1Url} alt="кулаки" />
-            <img src={oruzh2Url} alt="секира" />
-          </div>
           <div className="board" id="mapSec">
             <h3>🗺️ Карта</h3>
             <div className="mapRow">
@@ -1429,6 +1434,22 @@ async function loadStats(): Promise<void> {
                 <button className="wclose" onClick={refreshRooms}>🔄 ОБНОВИТЬ</button>
               </>
             )}
+          </div>
+          </div>
+          <div className={'mtab' + (menuTab === 'servers' ? ' show' : '')}>
+          <div className="board" id="serversSec">
+            <h3>🖥️ Сервера</h3>
+            <div className="srow">
+              <span>API 42 LIVE:</span>
+              <b>{apiPing >= 0 ? `🟢 ${apiPing} мс` : '🔴 нет связи'}</b>
+              <button className="wbtn" id="serversRefresh" onClick={() => { pingApi(); refreshRooms(); }}>🔄 ОБНОВИТЬ</button>
+            </div>
+            <div>🟢 Онлайн: <b>{gstats?.online ?? '…'}</b> · 🌐 Комнат открыто: <b>{roomsList.length}</b></div>
+            {roomsList.length > 0 ? roomsList.map((r) => (
+              <div className="srow" key={r.id}>
+                <span>{r.mode === 'duel' ? '⚔️' : r.mode === 'backrooms' ? '🟨' : '🌍'} {r.name} · 👥 {r.count}{r.mode === 'duel' ? '/2' : ''}{r.started ? ' · ▶️ идёт' : ''}</span>
+              </div>
+            )) : <div>Сервер пуст — создай комнату во вкладке 🌐!</div>}
           </div>
           </div>
           <div className={'mtab' + (menuTab === 'tops' ? ' show' : '')}>

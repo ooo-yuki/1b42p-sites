@@ -690,6 +690,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#nav-rooms');
     await page.fill('#roomDraft', 'BADGE');
     await page.click('#roomCreate');
+    await page.click('#nav-play');
     await page.click('#goBtn');
     await page.waitForTimeout(800);
     const bb = await page.locator('#roomBadge').boundingBox();
@@ -698,6 +699,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     expect(fb).toBeTruthy();
     expect(bb!.x + bb!.width).toBeLessThan(fb!.x);
     await page.click('#menuBtn');
+    await page.click('#nav-rooms');
     await page.click('button:has-text("ПОКИНУТЬ")');
   });
 
@@ -820,7 +822,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
 
   test('🧭 вкладки: каждая кнопка открывает свою', async ({ page }) => {
     await page.click('#guestBtn');
-    const tabs: Array<[string, string]> = [['fighter', '#charSec'], ['maps', '#mapSec'], ['editor', '#editorSec'], ['rooms', '#roomSec'], ['settings', '#setSec'], ['tops', '#duelTop'], ['play', '#goSec']];
+    const tabs: Array<[string, string]> = [['fighter', '#charSec'], ['maps', '#mapSec'], ['editor', '#editorSec'], ['rooms', '#roomSec'], ['servers', '#serversSec'], ['settings', '#setSec'], ['tops', '#duelTop'], ['play', '#goSec']];
     for (const [t, sel] of tabs) {
       await page.click(`#nav-${t}`);
       await expect(page.locator(sel)).toBeVisible();
@@ -841,6 +843,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#guestBtn');
     await page.click('#nav-maps');
     await page.click('#map-backrooms');
+    await page.click('#nav-play');
     await page.click('#goBtn');
     await page.waitForTimeout(1500);
     type M = { maze: () => { n: number; cell: number; segs: number; half: number }; map: () => string };
@@ -851,7 +854,9 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     expect(m1.segs).toBeGreaterThan(300);
     // второй заход — новый лабиринт (стен столько же по числу, но расклад другой — проверяем через перезаход)
     await page.click('#menuBtn');
+    await page.click('#nav-maps');
     await page.click('#map-backrooms');
+    await page.click('#nav-play');
     await page.click('#goBtn');
     await page.waitForTimeout(1500);
     const m2 = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.maze());
@@ -939,6 +944,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.mouse.click(cx + box!.width / 18, cy);
     await page.mouse.click(cx - box!.width / 18, cy);
     await page.click('#edsave');
+    await page.click('#nav-play');
     await expect(page.locator('#goBtn')).toContainText('НА СВОЮ');
     await page.click('#goBtn');
     await page.waitForTimeout(1500);
