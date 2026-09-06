@@ -37,7 +37,34 @@ const MAP: string[] = [
 ];
 
 const G = loadGrid(MAP);
-const SCALE = 2;
+// Круг красоты 3: масштаб держит окно целиком — поле закрывает экран,
+// края режутся картой, а не чернотой. Люди крупнеют сами через SCALE.
+let SCALE = 2;
+let camX = 0;
+let camY = 0;
+function updCam(W: number, H: number): void {
+  const need = Math.max(W / (G.w * TILE), H / (G.h * TILE));
+  SCALE = Math.max(2, Math.ceil(need));
+  const mapW = G.w * TILE * SCALE;
+  const mapH = G.h * TILE * SCALE;
+  const cx = S.seal.x * TILE * SCALE - W / 2;
+  const cy = S.seal.y * TILE * SCALE - H / 2;
+  camX = Math.max(0, Math.min(Math.max(0, mapW - W), cx));
+  camY = Math.max(0, Math.min(Math.max(0, mapH - H), cy));
+}
+function sx(x: number): number {
+  return x * TILE * SCALE - camX;
+}
+function sy(y: number): number {
+  return y * TILE * SCALE - camY;
+}
+// Огоньки-светильники на стенах: горят ночью тёплым мерцанием. Рисуем кодом.
+const LAMPS = [
+  { x: 8.5, y: 5.5 }, { x: 15.5, y: 5.5 },
+  { x: 8.5, y: 8.5 }, { x: 15.5, y: 8.5 },
+  { x: 5.5, y: 0.5 }, { x: 24.5, y: 0.5 },
+  { x: 5.5, y: 15.5 }, { x: 24.5, y: 15.5 },
+];
 
 const SPAWN = { x: 1.5, y: 14.5 };
 const SOL = { x: 27.5, y: 14.5 };
@@ -359,10 +386,6 @@ function drawImg(src: string, x: number, y: number, w: number, h: number, fallba
   g2d.fillRect(x, y, w, h);
 }
 
-function px(x: number): number {
-  return x * TILE * SCALE;
-}
-
 // Клетки фактурой: пол/стена картинками вместо заливки, мебель картинкой
 // поверх пола, цвет комнаты подкрасом поверх с прозрачностью.
 function paintCells(): void {
@@ -396,49 +419,54 @@ function render(now: number): void {
   if (!g2d || !canvas) return;
   const W = canvas.width;
   const H = canvas.height;
+  updCam(W, H);
+  const TS = TILE * SCALE;
   g2d.setTransform(1, 0, 0, 1, 0, 0);
   g2d.fillStyle = '#000';
   g2d.fillRect(0, 0, W, H);
-  g2d.setTransform(SCALE, 0, 0, SCALE, 0, 0);
+  g2d.setTransform(SCALE, 0, 0, SCALE, -camX, -camY);
   paintCells();
   g2d.setTransform(1, 0, 0, 1, 0, 0);
 
   for (const L of SPOTS) {
     g2d.fillStyle = '#ffd23f';
-    g2d.fillRect(px(L.x) - 6, px(L.y) - 6, 12, 12);
+    const ms = 6 * SCALE;
+    g2d.fillRect(sx(L.x) - ms / 2, sy(L.y) - ms / 2, ms, ms);
   }
 
   // Торговец виден ночью: золотая метка рядом с нашими.
   if (isNight(S)) {
     g2d.fillStyle = '#7CFC00';
-    g2d.fillRect(px(TRADER.x) - 6, px(TRADER.y) - 6, 12, 12);
+    const ms = 6 * SCALE;
+    g2d.fillRect(sx(TRADER.x) - ms / 2, sy(TRADER.y) - ms / 2, ms, ms);
   }
 
   // Взгляд конусом по полу, честный.
   for (const gd of seen) {
     g2d.fillStyle = 'rgba(255,220,80,0.18)';
-    const gx = px(gd.x);
-    const gy = px(gd.y);
+    const gx = sx(gd.x);
+    const gy = sy(gd.y);
     const len = CFG.sight * TILE * SCALE;
-    if (gd.dir > 0) g2d.fillRect(gx, gy - 14, len, 28);
-    else g2d.fillRect(gx - len, gy - 14, len, 28);
+    const hh = 7 * SCALE;
+    if (gd.dir > 0) g2d.fillRect(gx, gy - hh, len, hh * 2);
+    else g2d.fillRect(gx - len, gy - hh, len, hh * 2);
   }
 
   // Тени-овалы под ногами.
   g2d.fillStyle = 'rgba(0,0,0,0.35)';
   g2d.beginPath();
-  g2d.ellipse(px(S.seal.x), px(S.seal.y) + 12, 14, 5, 0, 0, Math.PI * 2);
+  g2d.ellipse(sx(S.seal.x), sy(S.seal.y) + 6 * SCALE, 7 * SCALE, 2.5 * SCALE, 0, 0, Math.PI * 2);
   g2d.fill();
   for (const gd of seen) {
     g2d.beginPath();
-    g2d.ellipse(px(gd.x), px(gd.y) + 12, 14, 5, 0, 0, Math.PI * 2);
+    g2d.ellipse(sx(gd.x), sy(gd.y) + 6 * SCALE, 7 * SCALE, 2.5 * SCALE, 0, 0, Math.PI * 2);
     g2d.fill();
   }
 
-  drawImg(TOP_SEAL[face], px(S.seal.x) - 16, px(S.seal.y) - 16, 32, 32, '#dfe3e6');
+  drawImg(TOP_SEAL[face], sx(S.seal.x) - TS / 2, sy(S.seal.y) - TS / 2, TS, TS, '#dfe3e6');
   const frame = Math.floor(now / 300) % 2;
   for (const gd of seen) {
-    drawImg(TOP_GUARD[frame], px(gd.x) - 16, px(gd.y) - 16, 32, 32, '#3a5bd5');
+    drawImg(TOP_GUARD[frame], sx(gd.x) - TS / 2, sy(gd.y) - TS / 2, TS, TS, '#3a5bd5');
   }
 
   if (isNight(S)) {
@@ -454,21 +482,45 @@ function render(now: number): void {
     g2d.fillText('карцер до утра', W / 2, H / 2);
   }
 
-  // Круг красоты 2: тёплый свет вокруг тюленьки и мягкая тень по краям.
-  // Слабо, чтобы поле читалось; ночью темнее, чем днём.
+  // Круг красоты 3: день светлее, тёплое пятно вокруг тюленьки сильнее и шире,
+  // ночью на стенах горят огоньки-светильники с тёплым мерцанием (рисуем кодом).
   {
     const lightNight = isNight(S);
-    const sx = px(S.seal.x);
-    const sy = px(S.seal.y);
-    const lr = 150;
-    const glow = g2d.createRadialGradient(sx, sy, 10, sx, sy, lr);
-    glow.addColorStop(0, lightNight ? 'rgba(255,214,140,0.20)' : 'rgba(255,224,160,0.12)');
+    const seX = sx(S.seal.x);
+    const seY = sy(S.seal.y);
+    if (lightNight) {
+      for (let i = 0; i < LAMPS.length; i++) {
+        const LP = LAMPS[i];
+        const lx = sx(LP.x);
+        const ly = sy(LP.y);
+        const fl = 0.85 + 0.15 * Math.sin(now / 140 + i * 1.9) + 0.05 * Math.sin(now / 47 + i * 3.1);
+        const lr2 = 30 * SCALE * fl;
+        const lamp = g2d.createRadialGradient(lx, ly, 2, lx, ly, lr2);
+        lamp.addColorStop(0, 'rgba(255,196,120,' + (0.34 * fl).toFixed(3) + ')');
+        lamp.addColorStop(1, 'rgba(255,180,100,0)');
+        g2d.fillStyle = lamp;
+        g2d.fillRect(lx - lr2, ly - lr2, lr2 * 2, lr2 * 2);
+      }
+      for (let i = 0; i < LAMPS.length; i++) {
+        const LP = LAMPS[i];
+        const lx = sx(LP.x);
+        const ly = sy(LP.y);
+        const dot = Math.max(3, 2 * SCALE);
+        g2d.fillStyle = '#3a2a18';
+        g2d.fillRect(lx - dot / 2 - 1, ly - dot / 2 - 1, dot + 2, dot + 2);
+        g2d.fillStyle = '#ffca7a';
+        g2d.fillRect(lx - dot / 2, ly - dot / 2, dot, dot);
+      }
+    }
+    const lr = 230;
+    const glow = g2d.createRadialGradient(seX, seY, 10, seX, seY, lr);
+    glow.addColorStop(0, lightNight ? 'rgba(255,214,140,0.34)' : 'rgba(255,224,160,0.22)');
     glow.addColorStop(1, 'rgba(255,210,130,0)');
     g2d.fillStyle = glow;
-    g2d.fillRect(sx - lr, sy - lr, lr * 2, lr * 2);
+    g2d.fillRect(seX - lr, seY - lr, lr * 2, lr * 2);
     const vg = g2d.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
     vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(1, lightNight ? 'rgba(0,0,20,0.42)' : 'rgba(0,0,20,0.22)');
+    vg.addColorStop(1, lightNight ? 'rgba(0,0,20,0.42)' : 'rgba(0,0,20,0.10)');
     g2d.fillStyle = vg;
     g2d.fillRect(0, 0, W, H);
   }
