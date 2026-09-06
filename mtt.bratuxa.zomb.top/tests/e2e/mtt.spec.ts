@@ -104,7 +104,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#reviveBtn');
     await expect(page.locator('#reviveBtn')).toHaveCount(0);
     const hp = await page.evaluate(() => (window as unknown as { __mtt: { hp: () => number } }).__mtt.hp());
-    expect(hp).toBe(100);
+    expect(hp).toBe(120);
   });
 
   test('настройки: звук и чувствительность', async ({ page }) => {
@@ -175,10 +175,10 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     expect(seen).toBe(true);
   });
 
-  test('ствол огромный, белые полосы на замахе', async ({ page }) => {
+  test('ствол огромный, белых полос нет, замах живёт', async ({ page }) => {
     await page.click('#goBtn');
     await page.waitForTimeout(800);
-    await expect(page.locator('#swingFx i')).toHaveCount(3);
+    await expect(page.locator('#swingFx')).toHaveCount(0);
     const box = await page.locator('#weapon').boundingBox();
     expect(box?.width ?? 0).toBeGreaterThan(500);
     // держим удар (press слишком короткий для редких headless-кадров)
@@ -188,20 +188,46 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await expect(page.locator('#weapon.swing')).toHaveCount(1);
   });
 
+  test('выбор персонажа сохраняется', async ({ page }) => {
+    await expect(page.locator('#charSec .charCard')).toHaveCount(2);
+    await page.click('#char-krysa');
+    await expect(page.locator('#char-krysa.sel')).toHaveCount(1);
+    expect(await page.evaluate(() => (window as unknown as { __mtt: { chara: () => string } }).__mtt.chara())).toBe('krysa');
+    await page.reload();
+    await expect(page.locator('#char-krysa.sel')).toHaveCount(1);
+    await page.click('#char-mtt');
+    await expect(page.locator('#char-mtt.sel')).toHaveCount(1);
+  });
+
+  test('качество графики переключается и сохраняется', async ({ page }) => {
+    await page.click('#goBtn');
+    await page.click('#setBtn');
+    await expect(page.locator('#qualityBtn')).toContainText('БЫСТРО');
+    await page.click('#qualityBtn');
+    await expect(page.locator('#qualityBtn')).toContainText('КРАСИВО');
+    await page.reload();
+    await page.click('#goBtn');
+    await page.click('#setBtn');
+    await expect(page.locator('#qualityBtn')).toContainText('КРАСИВО');
+    await page.click('#qualityBtn');
+    await expect(page.locator('#qualityBtn')).toContainText('БЫСТРО');
+  });
+
   test('комнаты: создать/войти/пульс/выйти', async ({ request }) => {
-    const c = await request.post('/api/rooms', { data: { nick: 'PW1', name: 'PWROOM' } });
+    const c = await request.post('/api/rooms', { data: { nick: 'PW1', name: 'PWROOM', char: 'krysa' } });
     expect(c.ok()).toBe(true);
     const { id, sid: sid1 } = await c.json();
     expect(id).toMatch(/^[A-Z0-9]{6}$/);
-    const j = await request.post(`/api/rooms/${id}/join`, { data: { nick: 'PW2' } });
+    const j = await request.post(`/api/rooms/${id}/join`, { data: { nick: 'PW2', char: 'mtt' } });
     expect(j.ok()).toBe(true);
     const { sid: sid2 } = await j.json();
-    const b1 = await request.post(`/api/rooms/${id}/beat`, { data: { sid: sid1, x: 1, z: 2, yaw: 0, hp: 100, score: 10, kills: 1, wave: 1 } });
+    const b1 = await request.post(`/api/rooms/${id}/beat`, { data: { sid: sid1, char: 'krysa', x: 1, z: 2, yaw: 0, hp: 100, score: 10, kills: 1, wave: 1 } });
     expect(b1.ok()).toBe(true);
-    const b2 = await request.post(`/api/rooms/${id}/beat`, { data: { sid: sid2, x: 5, z: 6, yaw: 1, hp: 90, score: 20, kills: 2, wave: 1 } });
+    const b2 = await request.post(`/api/rooms/${id}/beat`, { data: { sid: sid2, char: 'mtt', x: 5, z: 6, yaw: 1, hp: 90, score: 20, kills: 2, wave: 1 } });
     const d2 = await b2.json();
     expect(d2.players.some((p: { nick: string }) => p.nick === 'PW1')).toBe(true);
     expect(d2.players[0].x).toBe(1);
+    expect(d2.players[0].char).toBe('krysa');
     await request.post(`/api/rooms/${id}/leave`, { data: { sid: sid1 } });
     await request.post(`/api/rooms/${id}/leave`, { data: { sid: sid2 } });
     const list = await request.get('/api/rooms');

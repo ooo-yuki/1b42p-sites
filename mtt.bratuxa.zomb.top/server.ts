@@ -25,6 +25,7 @@ function num(v: unknown, lo: number, hi: number, fb = 0): number {
 interface Member {
   sid: string;
   nick: string;
+  char: string;
   x: number;
   z: number;
   yaw: number;
@@ -59,8 +60,12 @@ function prune(room: Room): void {
   }
 }
 
+function cleanChar(v: unknown): string {
+  return v === 'krysa' ? 'krysa' : 'mtt';
+}
+
 function pubList(m: Member): object {
-  return { nick: m.nick, x: m.x, z: m.z, hp: m.hp, score: m.score, kills: m.kills, wave: m.wave };
+  return { nick: m.nick, char: m.char, x: m.x, z: m.z, hp: m.hp, score: m.score, kills: m.kills, wave: m.wave };
 }
 
 async function roomsApi(req: Request): Promise<Response | null> {
@@ -92,7 +97,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const id = newCode();
     const sid = newSid();
     const room: Room = { id, name, created: Date.now(), players: new Map() };
-    room.players.set(sid, { sid, nick, x: 0, z: 22, yaw: 0, hp: 100, score: 0, kills: 0, wave: 1, ts: Date.now() });
+    room.players.set(sid, { sid, nick, char: cleanChar(body.char), x: 0, z: 22, yaw: 0, hp: 100, score: 0, kills: 0, wave: 1, ts: Date.now() });
     rooms.set(id, room);
     return Response.json({ id, sid });
   }
@@ -108,7 +113,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     if (room.players.size >= 8) return Response.json({ error: 'full' }, { status: 403 });
     const nick = cleanNick(body.nick);
     const sid = newSid();
-    room.players.set(sid, { sid, nick, x: 0, z: 22, yaw: 0, hp: 100, score: 0, kills: 0, wave: 1, ts: Date.now() });
+    room.players.set(sid, { sid, nick, char: cleanChar(body.char), x: 0, z: 22, yaw: 0, hp: 100, score: 0, kills: 0, wave: 1, ts: Date.now() });
     return Response.json({ sid, name: room.name });
   }
 
@@ -118,6 +123,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
 
   // пульс: обновить себя, забрать остальных
   if (req.method === 'POST' && action === 'beat') {
+    me.char = cleanChar(body.char ?? me.char);
     me.x = num(body.x, -60, 60);
     me.z = num(body.z, -60, 60);
     me.yaw = num(body.yaw, -10, 10);

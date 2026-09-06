@@ -3,6 +3,27 @@ import vrag1Url from '../assets/vrag1.png';
 import vrag2Url from '../assets/vrag2.png';
 import dom1Url from '../assets/dom1.png';
 import travaUrl from '../assets/trava.jpg';
+import charMttUrl from '../assets/char-mtt.png';
+import charKrysaUrl from '../assets/char-krysa.png';
+
+export interface CharDef {
+  id: string;
+  name: string;
+  desc: string;
+  hp: number;
+  spd: number;
+}
+
+export const CHARS: CharDef[] = [
+  { id: 'mtt', name: '🕶️ МТТ', desc: 'Шуба, очки, золотые перчатки · +HP', hp: 120, spd: 1 },
+  { id: 'krysa', name: '🐀 Крыса', desc: 'Королева крыс в короне · +скорость', hp: 90, spd: 1.15 },
+];
+
+export function charSpec(id: string): CharDef {
+  return CHARS.find((c) => c.id === id) ?? CHARS[0];
+}
+
+export type Quality = 'fast' | 'nice';
 
 export interface HudState {
   hp: number;
@@ -72,6 +93,7 @@ export interface RemotePlayer {
   x: number;
   z: number;
   hp: number;
+  char: string;
 }
 
 interface Remote {
@@ -82,6 +104,7 @@ interface Remote {
   x: number;
   z: number;
   hp: number;
+  char: string;
 }
 
 interface Enemy {
@@ -144,6 +167,9 @@ export class Game {
   private pvy = 0;
   private keyMap: KeyMap = { ...DEFAULT_KEYS };
   private remotes: Remote[] = [];
+  private charId = 'mtt';
+  private quality: Quality = 'fast';
+  private foeTexCache: THREE.Texture[] = [];
   private enemies: Enemy[] = [];
   private solids: { x: number; z: number; r: number }[] = [];
   private AC: AudioContext | null = null;
@@ -194,11 +220,16 @@ export class Game {
     private mmCanvas: HTMLCanvasElement | null,
     private ev: GameEvents,
   ) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+    this.loadQuality();
+    this.loadChar();
+    const spec0 = charSpec(this.charId);
+    this.maxhp = spec0.hp;
+    this.hp = spec0.hp;
+    this.renderer.setPixelRatio(this.quality === 'nice' ? Math.min(window.devicePixelRatio, 1.5) : 1);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.enabled = this.quality === 'nice';
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
     this.camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 400);
@@ -309,6 +340,45 @@ export class Game {
 
   setSound(v: boolean): void { this.soundOn = v; this.saveShop(); this.pushHud(); }
   setSens(v: number): void { this.sens = Math.max(0.3, Math.min(2.5, v)); this.saveShop(); }
+  getChar(): string { return this.charId; }
+  setChar(id: string): string {
+    this.charId = charSpec(id).id;
+    try { localStorage.setItem('mtt_char_v1', this.charId); } catch { /* noop */ }
+    const spec = charSpec(this.charId);
+    this.maxhp = spec.hp;
+    this.hp = spec.hp;
+    this.pushHud();
+    return this.charId;
+  }
+  private loadChar(): void {
+    try {
+      const v = localStorage.getItem('mtt_char_v1');
+      if (v) this.charId = charSpec(v).id;
+    } catch { /* noop */ }
+  }
+  getQuality(): Quality { return this.quality; }
+  setQuality(q: Quality): Quality {
+    this.quality = q === 'nice' ? 'nice' : 'fast';
+    try { localStorage.setItem('mtt_quality_v1', this.quality); } catch { /* noop */ }
+    this.applyQuality();
+    return this.quality;
+  }
+  private loadQuality(): void {
+    try {
+      const v = localStorage.getItem('mtt_quality_v1');
+      this.quality = v === 'nice' ? 'nice' : 'fast';
+    } catch { /* noop */ }
+  }
+  private applyQuality(): void {
+    const fast = this.quality !== 'nice';
+    this.renderer.setPixelRatio(fast ? 1 : Math.min(window.devicePixelRatio, 1.5));
+    this.renderer.shadowMap.enabled = !fast;
+    this.scene.traverse((o) => {
+      const m = o as { material?: { needsUpdate?: boolean } | Array<{ needsUpdate?: boolean }> };
+      if (Array.isArray(m.material)) m.material.forEach((x) => { x.needsUpdate = true; });
+      else if (m.material) m.material.needsUpdate = true;
+    });
+  }
   getSound(): boolean { return this.soundOn; }
   getSens(): number { return this.sens; }
   getKeys(): KeyMap { return { ...this.keyMap }; }
@@ -484,9 +554,19 @@ export class Game {
     for (let i = 0; i < n; i++) this.spawnEnemy();
   }
 
+  private foeTexture(): THREE.Texture {
+    if (this.foeTexCache.length === 0) {
+      for (const url of [vrag1Url, vrag2Url]) {
+        const t = new THREE.TextureLoader().load(url);
+        t.colorSpace = THREE.SRGBColorSpace;
+        this.foeTexCache.push(t);
+      }
+    }
+    return this.foeTexCache[Math.floor(Math.random() * this.foeTexCache.length)] as THREE.Texture;
+  }
+
   private spawnEnemy(): void {
-    const tex = new THREE.TextureLoader().load(Math.random() < 0.5 ? vrag1Url : vrag2Url);
-    tex.colorSpace = THREE.SRGBColorSpace;
+    const tex = this.foeTexture();
     const g = new THREE.Group();
     const body = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
     body.scale.set(1.4, 2.0, 1);
@@ -678,18 +758,31 @@ export class Game {
     }
   }
 
-  // сокомнатники: синие призраки с никами (позиции прилетают с сервера комнаты)
+  private charTexCache: Record<string, THREE.Texture> = {};
+
+  private charTexture(id: string): THREE.Texture {
+    const key = id === 'krysa' ? 'krysa' : 'mtt';
+    let t = this.charTexCache[key];
+    if (!t) {
+      t = new THREE.TextureLoader().load(key === 'krysa' ? charKrysaUrl : charMttUrl);
+      t.colorSpace = THREE.SRGBColorSpace;
+      this.charTexCache[key] = t;
+    }
+    return t;
+  }
+
+  // сокомнатники: призраки в шкуре выбранного персонажа, с никами (позиции с сервера комнаты)
   setRemotes(list: RemotePlayer[]): void {
     const seen = new Set<string>();
     for (const p of list.slice(0, 8)) {
       const nick = String(p.nick ?? '').slice(0, 20) || 'Братуха';
       seen.add(nick);
-      let r = this.remotes.find((q) => q.nick === nick);
+      const char = p.char === 'krysa' ? 'krysa' : 'mtt';
+      let r: Remote | undefined = undefined;
+      for (const q of this.remotes) if (q.nick === nick) { r = q; break; }
       if (!r) {
         const g = new THREE.Group();
-        const tex = new THREE.TextureLoader().load(vrag1Url);
-        tex.colorSpace = THREE.SRGBColorSpace;
-        const body = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, color: 0x66ccff }));
+        const body = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.charTexture(char), transparent: true, color: 0x99ddff }));
         body.scale.set(1.4, 2.0, 1);
         body.position.set(0, 1.0, 0);
         g.add(body);
@@ -701,13 +794,19 @@ export class Game {
         lab.position.set(0, 2.5, 0);
         g.add(lab);
         this.scene.add(g);
-        r = { nick, g, cv, tex: ltex, x: 0, z: 0, hp: 100 };
+        r = { nick, g, cv, tex: ltex, x: 0, z: 0, hp: 100, char };
         this.remotes.push(r);
+      } else if (r.char !== char) {
+        r.char = char;
+        const body = r.g.children[0] as THREE.Sprite;
+        body.material.map = this.charTexture(char);
+        body.material.needsUpdate = true;
       }
-      r.x = clampArena(Number(p.x) || 0);
-      r.z = clampArena(Number(p.z) || 0);
-      r.hp = Math.max(0, Math.min(100, Number(p.hp) || 0));
-      this.drawRemote(r);
+      const rr: Remote = r;
+      rr.x = clampArena(Number(p.x) || 0);
+      rr.z = clampArena(Number(p.z) || 0);
+      rr.hp = Math.max(0, Math.min(100, Number(p.hp) || 0));
+      this.drawRemote(rr);
     }
     this.remotes = this.remotes.filter((r) => {
       if (!seen.has(r.nick)) { this.scene.remove(r.g); return false; }
@@ -804,7 +903,7 @@ export class Game {
       f = Math.max(-1, Math.min(1, f));
       r = Math.max(-1, Math.min(1, r));
       const run = this.input[km.run] || this.input.ShiftLeft || this.input.ShiftRight;
-      const sp = run ? 8.2 : 5.6;
+      const sp = (run ? 8.2 : 5.6) * charSpec(this.charId).spd;
       const len = Math.hypot(f, r);
       this.moving = len > 0.15;
       if (this.moving) this.bobPhase += dt * 11;

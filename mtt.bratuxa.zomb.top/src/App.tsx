@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Game, WEAPONS, KEY_ACTIONS, DEFAULT_KEYS, type HudState, type KeyMap } from './game/engine';
+import { Game, WEAPONS, CHARS, KEY_ACTIONS, DEFAULT_KEYS, type HudState, type KeyMap, type Quality } from './game/engine';
 import oruzh1Url from './assets/oruzh1.png';
 import oruzh2Url from './assets/oruzh2.png';
+import charMttUrl from './assets/char-mtt.png';
+import charKrysaUrl from './assets/char-krysa.png';
+
+const CHARIMG: Record<string, string> = { mtt: charMttUrl, krysa: charKrysaUrl };
 
 interface ScoreRow {
   nick: string;
@@ -11,6 +15,7 @@ interface ScoreRow {
 
 interface RoomMate {
   nick: string;
+  char: string;
   x: number;
   z: number;
   hp: number;
@@ -106,6 +111,8 @@ export default function App() {
   const [setOpen, setSetOpen] = useState(false);
   const [sound, setSound] = useState(true);
   const [sens, setSens] = useState(1);
+  const [quality, setQuality] = useState<Quality>('fast');
+  const [char, setChar] = useState('mtt');
   const [keys, setKeys] = useState<KeyMap>({ ...DEFAULT_KEYS });
   const [capturing, setCapturing] = useState<keyof KeyMap | null>(null);
   const [waveBanner, setWaveBanner] = useState(0);
@@ -144,6 +151,8 @@ export default function App() {
     gameRef.current = game;
     setSound(game.getSound());
     setSens(game.getSens());
+    setQuality(game.getQuality());
+    setChar(game.getChar());
     setKeys(game.getKeys());
     (window as unknown as { __mtt?: object }).__mtt = {
       pos: () => game.debugPos(),
@@ -162,6 +171,8 @@ export default function App() {
       look: (dx: number, dy: number) => game.addLook(dx, dy),
       remotes: () => game.debugRemotes(),
       setRemotes: (list: RoomMate[]) => game.setRemotes(list),
+      chara: () => game.getChar(),
+      quality: () => game.getQuality(),
     };
     const kd = (e: KeyboardEvent) => {
       game.input[e.code] = true;
@@ -197,7 +208,7 @@ export default function App() {
       const r = await fetch('/api/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nick, name: roomDraft }),
+        body: JSON.stringify({ nick, name: roomDraft, char: gameRef.current?.getChar() ?? 'mtt' }),
       });
       if (!r.ok) return;
       const d = (await r.json()) as { id: string; sid: string };
@@ -214,7 +225,7 @@ export default function App() {
       const r = await fetch(`/api/rooms/${id}/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nick }),
+        body: JSON.stringify({ nick, char: gameRef.current?.getChar() ?? 'mtt' }),
       });
       if (!r.ok) return;
       const d = (await r.json()) as { sid: string; name: string };
@@ -257,7 +268,7 @@ export default function App() {
         const r = await fetch(`/api/rooms/${id}/beat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sid, x: p.x, z: p.z, yaw: p.yaw, hp: h.hp, score: h.score, kills: h.kills, wave: h.wave }),
+          body: JSON.stringify({ sid, char: g.getChar(), x: p.x, z: p.z, yaw: p.yaw, hp: h.hp, score: h.score, kills: h.kills, wave: h.wave }),
         });
         if (!r.ok) return;
         const d = (await r.json()) as { players: RoomMate[] };
@@ -344,12 +355,23 @@ export default function App() {
     setSens(v);
   }, []);
 
+  const pickChar = useCallback((id: string) => {
+    const g = gameRef.current;
+    if (g) setChar(g.setChar(id));
+  }, []);
+
+  const toggleQuality = useCallback(() => {
+    const g = gameRef.current;
+    if (g) setQuality(g.setQuality(g.getQuality() === 'nice' ? 'fast' : 'nice'));
+  }, []);
+
   const hpFrac = Math.max(0, hud.hp / hud.maxhp);
   const wname = WEAPONS.find((w) => w.id === hud.weapon)?.name ?? '👊 Кулаки';
 
   return (
     <>
       <canvas id="c" ref={canvasRef} />
+      {!menu && <div id="vig" />}
       {!menu && (
         <div id="hud">
           <div id="hpWrap">
@@ -383,7 +405,6 @@ export default function App() {
           </button>
           <div id="weapon" key={`weapon-${swingTick}`} ref={weaponRef} className={(hud.moving ? 'walk' : '') + (swingTick > 0 ? ' swing' : '')}>
             <img src={WIMG[hud.weapon] ?? oruzh1Url} alt="оружие" />
-            <div id="swingFx"><i /><i /><i /></div>
           </div>
           {roomId && (
             <div id="roomBadge">
@@ -450,6 +471,13 @@ export default function App() {
               type="range" min={0.3} max={2.5} step={0.1} value={sens}
               onChange={(e) => changeSens(Number(e.target.value))}
             />
+            <div className="srow">
+              <span>🎨 Графика</span>
+              <button id="qualityBtn" className="wbtn" onClick={toggleQuality}>
+                {quality === 'nice' ? '✨ КРАСИВО' : '⚡ БЫСТРО'}
+              </button>
+            </div>
+            <div className="wdesc">Быстро — без теней, чёткий fps. Красиво — тени и сглаживание.</div>
             <div className="srow"><span>🎮 Управление (ткни и жми клавишу)</span></div>
             <div id="keysSec">
               {KEY_ACTIONS.map((a) => (
@@ -496,6 +524,24 @@ export default function App() {
             onChange={(e) => setNick(e.target.value)}
             placeholder="Твой ник"
           />
+          <div className="board" id="charSec">
+            <h3>🎭 Боец</h3>
+            <div className="charRow">
+              {CHARS.map((c) => (
+                <button
+                  key={c.id}
+                  id={`char-${c.id}`}
+                  className={'charCard' + (char === c.id ? ' sel' : '')}
+                  onClick={() => pickChar(c.id)}
+                >
+                  <img src={CHARIMG[c.id]} alt={c.name} />
+                  <div className="cname">{c.name}</div>
+                  <div className="cdesc">{c.desc}</div>
+                  <div className="cstats">❤️ {c.hp} · 💨 {c.spd}×</div>
+                </button>
+              ))}
+            </div>
+          </div>
           <button id="goBtn" onClick={go}>▶️ ПОГНАЛИ</button>
           <div className="board" id="roomSec">
             <h3>🌐 Комнаты</h3>
