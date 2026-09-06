@@ -104,7 +104,8 @@ function rebuildMedkitVisuals() {
     const g = new THREE.Group();
     g.position.set(m.x, 0.6, m.z);
     g.userData.i = i;
-    g.add(new THREE.Mesh(medGeo, medBoxMat));
+    const box = new THREE.Mesh(medGeo, medBoxMat);
+    g.add(box);
     for (const s of [1, -1]) {
       const h = new THREE.Mesh(medGeo, medCrossMat);
       h.scale.set(0.6, 0.2, 0.1); h.position.z = 0.26 * s; g.add(h);
@@ -730,7 +731,8 @@ function step(now: number) {
     const t = now / 1000;
     medkitGroup.children.forEach((g) => {
       const m = sim.pickups[g.userData.i];
-      g.visible = !m.taken;
+      if (m.taken) { g.visible = false; return; }
+      g.visible = true;
       g.position.y = 0.6 + Math.sin(t * 2 + g.userData.i) * 0.12;
       g.rotation.y += dt * 1.2;
     });

@@ -19,4 +19,10 @@ describe('банки', () => {
     expect(m.taken).toBe(false);
     expect(updatePickups(list, m.x, m.z, 0.016)).toBe(MEDKIT_HEAL);
   });
+  test('3 банки на island и neon', () => {
+    for (const map of ['island', 'neon'] as const) {
+      const list = spawnPickups(map);
+      expect(list.length).toBe(3);
+    }
+  });
 });
