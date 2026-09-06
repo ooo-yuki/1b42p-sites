@@ -546,6 +546,10 @@ export default function App() {
         <>
           <button id="shopBtn" onClick={() => setShopOpen(true)}>🛒 Магазин</button>
           <button id="setBtn" onClick={() => setSetOpen(true)}>⚙️</button>
+          <button id="fsBtn" onClick={() => {
+            if (document.fullscreenElement) void document.exitFullscreen();
+            else void document.documentElement.requestFullscreen().catch(() => {});
+          }}>⛶</button>
           <div
             id="joy"
             ref={joyRef}

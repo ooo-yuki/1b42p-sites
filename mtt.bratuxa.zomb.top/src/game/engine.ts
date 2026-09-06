@@ -505,7 +505,7 @@ export class Game {
     // периметр — низкие стены с текстурой дома
     const wallTex = new THREE.TextureLoader().load(dom1Url);
     wallTex.colorSpace = THREE.SRGBColorSpace;
-    wallTex.wrapS = wallTex.wrapT = THREE.RepeatWrapping;
+    wallTex.wrapS = wallTex.wrapT = THREE.MirroredRepeatWrapping;
     wallTex.repeat.set(6, 1);
     const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.85 });
     const mkWall = (w: number, d: number, x: number, z: number): void => {
@@ -570,10 +570,10 @@ export class Game {
     moon.shadow.bias = -0.0004;
     scene.add(moon);
 
-    // пол — трава МТТ с фото (тайлится по арене)
+    // пол — трава МТТ с фото (тайлится по арене, зеркальный повтор прячет швы)
     const grassTex = new THREE.TextureLoader().load(travaUrl);
     grassTex.colorSpace = THREE.SRGBColorSpace;
-    grassTex.wrapS = grassTex.wrapT = THREE.RepeatWrapping;
+    grassTex.wrapS = grassTex.wrapT = THREE.MirroredRepeatWrapping;
     grassTex.repeat.set(28, 28);
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(ARENA + 20, ARENA + 20),
@@ -606,11 +606,11 @@ export class Game {
       r2.rotation.x = -Math.PI / 2; r2.rotation.z = Math.PI / 2; r2.position.set(i, 0.012, 0); r2.receiveShadow = true; scene.add(r2);
     }
 
-    // периметр — дома МТТ (текстура подъезда)
+    // периметр — дома МТТ (текстура подъезда 16:9: тайл ~11.8×7м держит пропорции, зеркало прячет швы)
     const wallTex = new THREE.TextureLoader().load(dom1Url);
     wallTex.colorSpace = THREE.SRGBColorSpace;
-    wallTex.wrapS = wallTex.wrapT = THREE.RepeatWrapping;
-    wallTex.repeat.set(8, 1);
+    wallTex.wrapS = wallTex.wrapT = THREE.MirroredRepeatWrapping;
+    wallTex.repeat.set(10, 2);
     const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.85 });
     const wallGeoH = new THREE.BoxGeometry(ARENA + 8, 14, 2);
     const wallGeoV = new THREE.BoxGeometry(2, 14, ARENA + 8);
@@ -633,9 +633,14 @@ export class Game {
     for (const [bx, bz] of spots) {
       const w = 10 + Math.random() * 4, d = 8 + Math.random() * 4, h = 7 + Math.random() * 6;
       const tint = new THREE.Color().setHSL(0.07 + Math.random() * 0.05, 0.25, 0.8 + Math.random() * 0.2);
+      // окна — свой повтор под размер коробки: окно ~1.2м, не тянется на весь дом
+      const wt = winTex.clone();
+      wt.wrapS = wt.wrapT = THREE.MirroredRepeatWrapping;
+      wt.repeat.set(Math.max(1, Math.round(w / 6)), Math.max(1, Math.round(h / 6)));
+      wt.needsUpdate = true;
       const m = new THREE.Mesh(
         new THREE.BoxGeometry(w, h, d),
-        new THREE.MeshStandardMaterial({ map: winTex, roughness: 0.8, color: tint }),
+        new THREE.MeshStandardMaterial({ map: wt, roughness: 0.8, color: tint }),
       );
       m.position.set(bx, h / 2, bz);
       m.castShadow = true; m.receiveShadow = true;

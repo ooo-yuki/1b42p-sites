@@ -435,6 +435,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await expect(page.locator('#goBtn')).toBeVisible();
     await page.reload();
     await expect(page.locator('#authWho')).toContainText(login, { timeout: 15000 });
+    await page.locator('#authOut').scrollIntoViewIfNeeded();
     await page.click('#authOut');
     await expect(page.locator('#authBox')).toBeVisible();
   });
@@ -494,6 +495,15 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     expect(list.ok()).toBeTruthy();
     const rows = await list.json();
     expect(Array.isArray(rows)).toBeTruthy();
+  });
+
+  test('кнопка полного экрана в HUD', async ({ page }) => {
+    await page.click('#guestBtn');
+    await page.click('#goBtn');
+    await page.waitForTimeout(800);
+    await expect(page.locator('#fsBtn')).toBeVisible();
+    await page.click('#fsBtn');
+    await page.waitForTimeout(300);
   });
 
   test('хитбоксы не до неба: выше крыши — проход', async ({ page }) => {
