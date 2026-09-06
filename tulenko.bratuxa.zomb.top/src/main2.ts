@@ -1,5 +1,5 @@
 // Слой 2 (верх): склейка. Вид сверху, день, нить, работа, кара.
-// Берёт grid, actors, vision, clock, work, things, talk, search, paint, audio.
+// Берёт grid, actors, vision, clock, work, things, talk, search, paint, audio, endings.
 // Бок (main, logic) сюда не входит.
 import { CFG } from './config.js';
 import { loadGrid, wallAt, TILE } from './grid.js';
@@ -7,11 +7,12 @@ import { newSeal, stepSeal, newGuard, stepGuard } from './actors.js';
 import { sees, heatUp, toSolitary, catchSeal } from './vision.js';
 import { newDay, tick, hourCase, applyMuster, applyWork, isNight } from './clock.js';
 import { workAt, isBench } from './work.js';
-import { pick, craft, has } from './things.js';
+import { pick, craft, has, deal } from './things.js';
 import { talkFor, say, FACE } from './talk.js';
 import { search, leaveSolitary } from './search.js';
 import { paintFloor } from './paint.js';
 import { blip } from './audio.js';
+import { tryRoof, tryGate } from './endings.js';
 
 // Корпус значками из замысла: D дверь, J станок, B кровать,
 // T стол, S душ, R крыша. P наши, E ворота. Остальное пол.
@@ -40,6 +41,9 @@ const SCALE = 2;
 const SPAWN = { x: 1.5, y: 14.5 };
 const SOL = { x: 27.5, y: 14.5 };
 const MUSTER = { x0: 8, y0: 1, x1: 16, y1: 3 };
+// Торговец ночью: стоит рядом с нашими, меняет монеты на вещи (ложка 2, верёвка 3, мыло 2).
+const TRADER = { x: 3.5, y: 14.5 };
+const TRADE_ORDER: string[] = ['ложка', 'верёвка', 'мыло'];
 
 interface LootSpot {
   x: number;
@@ -196,18 +200,27 @@ export function simStep(dt: number, input?: { dx: number; dy: number }): void {
   if (has(S, 'кляп')) flags.gag = true;
 
   const under = cellAt(S.seal.x, S.seal.y);
-  if (under === 'R' && flags.descent) {
+  const night = isNight(S);
+  S.night = night;
+  // Концовки слоя 3 через endings.ts: крыша ночью со спуском, ворота днём с кляпом.
+  const roof = tryRoof({ atRoof: under === 'R', night: night, bag: bag });
+  if (roof === 'win') {
     mode = 'win';
     winEnd = 'roof';
     snd('win');
-  } else if (under === 'E' && flags.gag) {
-    mode = 'win';
-    winEnd = 'gate';
-    snd('win');
+  } else {
+    if (roof === 'warn' && under === 'R') lastLine = 'Ночью без спуска не уйти — нужен спуск.';
+    const gate = tryGate({ atGate: under === 'E', day: !night, bag: bag, heat: S.wanted || 0 });
+    if (gate === 'win') {
+      mode = 'win';
+      winEnd = 'gate';
+      snd('win');
+    }
   }
 }
 
 // E: выслушать нить. R: подобрать рядом. C: собрать кляп и спуск.
+// T: торг ночью рядом с торговцем — монеты в вещь.
 export function doTalk(): string {
   const lines = talkFor(S);
   if (lines.length === 0) return '';
@@ -251,6 +264,21 @@ export function doSearch(): string[] {
     snd('lose');
   }
   return found;
+}
+
+// Торг: ночью рядом с торговцем, монеты в вещь из things.ts.
+// С именем — ровно её, без имени — первую по карману из ложки, верёвки, мыла.
+export function doTrade(id?: string): string {
+  S.night = isNight(S);
+  if (Math.abs(TRADER.x - S.seal.x) > 1.5 || Math.abs(TRADER.y - S.seal.y) > 1.5) return '';
+  const want: string[] = (typeof id === 'string' && id !== '') ? [id] : TRADE_ORDER;
+  for (const w of want) {
+    if (deal(S, w)) {
+      snd('pickup');
+      return w;
+    }
+  }
+  return '';
 }
 
 function fmtTime(): string {
@@ -337,6 +365,12 @@ function render(now: number): void {
     g2d.fillRect(px(L.x) - 6, px(L.y) - 6, 12, 12);
   }
 
+  // Торговец виден ночью: золотая метка рядом с нашими.
+  if (isNight(S)) {
+    g2d.fillStyle = '#7CFC00';
+    g2d.fillRect(px(TRADER.x) - 6, px(TRADER.y) - 6, 12, 12);
+  }
+
   // Взгляд конусом по полу, честный.
   for (const gd of seen) {
     g2d.fillStyle = 'rgba(255,220,80,0.18)';
@@ -410,6 +444,7 @@ if (doc && doc.addEventListener) {
     if (e.key === 'e' || e.key === 'E' || e.key === 'у' || e.key === 'У') doTalk();
     if (e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К') doPick();
     if (e.key === 'c' || e.key === 'C' || e.key === 'с' || e.key === 'С') doCraft();
+    if (e.key === 't' || e.key === 'T' || e.key === 'е' || e.key === 'Е') doTrade();
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].indexOf(e.key) >= 0 && e.preventDefault) e.preventDefault();
   });
   doc.addEventListener('keyup', (e: any) => {
@@ -454,6 +489,11 @@ ROOT.__hook = {
   doPick: doPick,
   doCraft: doCraft,
   doSearch: doSearch,
+  doTrade: doTrade,
+  TRADER: TRADER,
+  deal: deal,
+  tryRoof: tryRoof,
+  tryGate: tryGate,
   newDay: newDay,
   tick: tick,
   hourCase: hourCase,

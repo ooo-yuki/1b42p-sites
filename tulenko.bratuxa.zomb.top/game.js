@@ -269,7 +269,9 @@ const RECIPES = {
 };
 // Запретное для обысков: с ним в суме — карцер.
 const FORBIDDEN = ['ложка', 'кляп', 'спуск'];
-// Торговец ночью берёт монеты за запретное: цена одна на всё.
+// Торговец ночью (ночь из clock.ts): монеты в запретное.
+// Цены: ложка 2, верёвка 3, мыло 2. Днём торговца нет.
+const TRADER_PRICES = { 'ложка': 2, 'верёвка': 3, 'мыло': 2 };
 const TRADER_PRICE = 2;
 function has(S, id) {
     if (!S || !S.bag)
@@ -326,17 +328,19 @@ function hasForbidden(S) {
     }
     return false;
 }
-// Торговец ночью: монеты в обмен на запретное. Чистое не продаёт.
-function deal(S, id, night) {
+// Торговец ночью: монеты в обмен на ложку, верёвку, мыло.
+// Мало монет или день — торга нет.
+function deal(S, id) {
     if (!S || !S.bag)
         return false;
-    if (night !== true)
+    if (S.night !== true)
         return false;
-    if (!isForbidden(id))
+    const price = TRADER_PRICES[id];
+    if (typeof price !== 'number')
         return false;
-    if (typeof S.coins !== 'number' || S.coins < TRADER_PRICE)
+    if (typeof S.coins !== 'number' || S.coins < price)
         return false;
-    S.coins -= TRADER_PRICE;
+    S.coins -= price;
     S.bag.push(id);
     return true;
 }
@@ -426,7 +430,6 @@ function leaveSolitary(S) {
 }
 // --- paint.js ---
 // Слой 2 (верх): вид сверху, начало — пол, стены, тьма.
-
 const DARK = '#000000';
 const WALL_FACE = '#ffffff';
 function paintFloor(ctx, G) {
@@ -522,21 +525,46 @@ function blip(kind) {
         // без звука — молча идём дальше
     }
 }
+// --- endings.js ---
+// Концовка крыши слоя 3. Берёт things.ts (спуск), clock.ts (ночь). Даёт tryRoof(S).
+// Ночь, клетка крыши, спуск в суме — победа. Нет спуска — предупреждение.
+// День — ждать ночи.
+function hasEnd(S, id) {
+    if (!S || !S.bag)
+        return false;
+    return S.bag.indexOf(id) >= 0;
+}
+// Крыша: ночью со спуском — 'win', ночью без спуска — 'warn', днём — 'wait'.
+function tryRoof(S) {
+    if (!S || S.atRoof !== true)
+        return 'wait';
+    if (S.night !== true)
+        return 'wait';
+    if (hasEnd(S, 'спуск'))
+        return 'win';
+    return 'warn';
+}
+function hasGate(S, id) {
+    if (!S || !S.bag)
+        return false;
+    return S.bag.indexOf(id) >= 0;
+}
+// Ворота: день + ворота + кляп + розыск ноль — 'win', иначе — 'deny'.
+function tryGate(S) {
+    if (!S || S.atGate !== true)
+        return 'deny';
+    if (S.day !== true)
+        return 'deny';
+    if (S.heat !== 0)
+        return 'deny';
+    if (!hasGate(S, 'кляп'))
+        return 'deny';
+    return 'win';
+}
 // --- main2.js ---
 // Слой 2 (верх): склейка. Вид сверху, день, нить, работа, кара.
-// Берёт grid, actors, vision, clock, work, things, talk, search, paint, audio.
+// Берёт grid, actors, vision, clock, work, things, talk, search, paint, audio, endings.
 // Бок (main, logic) сюда не входит.
-
-
-
-
-
-
-
-
-
-
-
 // Корпус значками из замысла: D дверь, J станок, B кровать,
 // T стол, S душ, R крыша. P наши, E ворота. Остальное пол.
 const MAP = [
@@ -562,6 +590,9 @@ const SCALE = 2;
 const SPAWN = { x: 1.5, y: 14.5 };
 const SOL = { x: 27.5, y: 14.5 };
 const MUSTER = { x0: 8, y0: 1, x1: 16, y1: 3 };
+// Торговец ночью: стоит рядом с нашими, меняет монеты на вещи (ложка 2, верёвка 3, мыло 2).
+const TRADER = { x: 3.5, y: 14.5 };
+const TRADE_ORDER = ['ложка', 'верёвка', 'мыло'];
 const SPOTS = [
     { x: 2.5, y: 2.5, id: 'тряпка' },
     { x: 12.5, y: 2.5, id: 'ложка' },
@@ -710,18 +741,28 @@ function simStep(dt, input) {
     if (has(S, 'кляп'))
         flags.gag = true;
     const under = cellAt(S.seal.x, S.seal.y);
-    if (under === 'R' && flags.descent) {
+    const night = isNight(S);
+    S.night = night;
+    // Концовки слоя 3 через endings.ts: крыша ночью со спуском, ворота днём с кляпом.
+    const roof = tryRoof({ atRoof: under === 'R', night: night, bag: bag });
+    if (roof === 'win') {
         mode = 'win';
         winEnd = 'roof';
         snd('win');
     }
-    else if (under === 'E' && flags.gag) {
-        mode = 'win';
-        winEnd = 'gate';
-        snd('win');
+    else {
+        if (roof === 'warn' && under === 'R')
+            lastLine = 'Ночью без спуска не уйти — нужен спуск.';
+        const gate = tryGate({ atGate: under === 'E', day: !night, bag: bag, heat: S.wanted || 0 });
+        if (gate === 'win') {
+            mode = 'win';
+            winEnd = 'gate';
+            snd('win');
+        }
     }
 }
 // E: выслушать нить. R: подобрать рядом. C: собрать кляп и спуск.
+// T: торг ночью рядом с торговцем — монеты в вещь.
 function doTalk() {
     const lines = talkFor(S);
     if (lines.length === 0)
@@ -765,6 +806,21 @@ function doSearch() {
     }
     return found;
 }
+// Торг: ночью рядом с торговцем, монеты в вещь из things.ts.
+// С именем — ровно её, без имени — первую по карману из ложки, верёвки, мыла.
+function doTrade(id) {
+    S.night = isNight(S);
+    if (Math.abs(TRADER.x - S.seal.x) > 1.5 || Math.abs(TRADER.y - S.seal.y) > 1.5)
+        return '';
+    const want = (typeof id === 'string' && id !== '') ? [id] : TRADE_ORDER;
+    for (const w of want) {
+        if (deal(S, w)) {
+            snd('pickup');
+            return w;
+        }
+    }
+    return '';
+}
 function fmtTime() {
     const h = Math.floor(S.t / 3600);
     const m = Math.floor((S.t - h * 3600) / 60);
@@ -775,6 +831,24 @@ const ROOT = typeof window !== 'undefined' ? window : globalThis;
 const doc = typeof document !== 'undefined' ? document : null;
 const canvas = doc ? doc.getElementById('game') : null;
 const g2d = canvas ? canvas.getContext('2d') : null;
+// Экран во всю страницу: холст в размер окна, края обрезаются заливкой.
+function fitScreen() {
+    if (!canvas)
+        return;
+    try {
+        const w = ROOT.innerWidth || canvas.width || 960;
+        const h = ROOT.innerHeight || canvas.height || 540;
+        if (w > 0 && h > 0 && (canvas.width !== w || canvas.height !== h)) {
+            canvas.width = w;
+            canvas.height = h;
+        }
+    }
+    catch (e) { /* стоим как были */ }
+}
+fitScreen();
+if (ROOT && ROOT.addEventListener) {
+    ROOT.addEventListener('resize', fitScreen);
+}
 const pics = {};
 const TOP_SEAL = {
     up: 'img/top_seal_up.png',
@@ -828,6 +902,11 @@ function render(now) {
     for (const L of SPOTS) {
         g2d.fillStyle = '#ffd23f';
         g2d.fillRect(px(L.x) - 6, px(L.y) - 6, 12, 12);
+    }
+    // Торговец виден ночью: золотая метка рядом с нашими.
+    if (isNight(S)) {
+        g2d.fillStyle = '#7CFC00';
+        g2d.fillRect(px(TRADER.x) - 6, px(TRADER.y) - 6, 12, 12);
     }
     // Взгляд конусом по полу, честный.
     for (const gd of seen) {
@@ -903,6 +982,8 @@ if (doc && doc.addEventListener) {
             doPick();
         if (e.key === 'c' || e.key === 'C' || e.key === 'с' || e.key === 'С')
             doCraft();
+        if (e.key === 't' || e.key === 'T' || e.key === 'е' || e.key === 'Е')
+            doTrade();
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].indexOf(e.key) >= 0 && e.preventDefault)
             e.preventDefault();
     });
@@ -953,6 +1034,11 @@ ROOT.__hook = {
     doPick: doPick,
     doCraft: doCraft,
     doSearch: doSearch,
+    doTrade: doTrade,
+    TRADER: TRADER,
+    deal: deal,
+    tryRoof: tryRoof,
+    tryGate: tryGate,
     newDay: newDay,
     tick: tick,
     hourCase: hourCase,
