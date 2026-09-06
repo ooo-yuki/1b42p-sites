@@ -20,3 +20,27 @@ export function tryRoof(S: RoofState): string {
   if (has(S, 'спуск')) return 'win';
   return 'warn';
 }
+
+// Концовка ворот слоя 3. Берёт things.ts (кляп), розыск. Даёт tryGate(S).
+// День, ворота, кляп в суме, розыск ноль — победа. Иначе отказ молча.
+
+export interface GateState {
+  atGate: boolean;
+  day: boolean;
+  bag: string[];
+  heat: number;
+}
+
+function hasGate(S: GateState, id: string): boolean {
+  if (!S || !S.bag) return false;
+  return S.bag.indexOf(id) >= 0;
+}
+
+// Ворота: день + ворота + кляп + розыск ноль — 'win', иначе — 'deny'.
+export function tryGate(S: GateState): string {
+  if (!S || S.atGate !== true) return 'deny';
+  if (S.day !== true) return 'deny';
+  if (S.heat !== 0) return 'deny';
+  if (!hasGate(S, 'кляп')) return 'deny';
+  return 'win';
+}
