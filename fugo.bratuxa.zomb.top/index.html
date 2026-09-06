@@ -28,6 +28,8 @@
   #smokeFill { background: linear-gradient(90deg, #808080, #fff); }
   #hookah { font-size: 90px; margin: 4px 0; filter: drop-shadow(0 0 18px rgba(255,255,255,.25)); }
   #hookah.smoking { animation: puff 1.2s infinite ease-in-out; }
+  #rabbit { font-size: 64px; display: none; cursor: pointer; margin: 2px 0;
+    animation: puff 0.6s infinite ease-in-out; filter: drop-shadow(0 0 12px rgba(255,200,0,.5)); }
   @keyframes puff { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-8px) scale(1.04); } }
   .btns { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin: 10px 0; }
   button { font-size: 16px; font-weight: bold; border-radius: 12px;
@@ -58,6 +60,7 @@
 
 <div id="hud"><span>⏱ <b id="time">90</b>с</span><span>💰 <b id="money">0</b></span><span>Рекорд: <b id="best">0</b></span></div>
 <div id="hookah">🫖</div>
+<div id="rabbit" title="Жми — прогнать!">🐰</div>
 
 <div class="meter"><label>🔥 Жар (держи в рамке 55–80)</label>
   <div class="bar"><div id="tempFill"></div><div id="zone"></div></div></div>
@@ -200,6 +203,20 @@ function tick() {
   if (G.temp >= 55 && G.temp <= 80 && G.coal > 0) G.smoke = Math.min(100, G.smoke + 3 * dt * 2);
   else G.smoke = Math.max(0, G.smoke - 2 * dt * 2);
   if (G.temp > 92) { G.smoke = Math.max(0, G.smoke - 4); say('Горит табак! Продуй скорее!'); }
+  if (!G.rab && (G.rabNext -= dt) <= 0) {
+    G.rab = 8;
+    document.getElementById('rabbit').style.display = 'block';
+    say('Жирный кролик всасывает угли! Жми на него!');
+  }
+  if (G.rab) {
+    G.coal = Math.max(0, G.coal - 2 * dt * 2);
+    G.rab -= dt;
+    if (G.rab <= 0) {
+      document.getElementById('rabbit').style.display = 'none';
+      G.rab = null; G.rabNext = 20 + Math.random() * 15;
+      say('Кролик наелся и укатился...');
+    }
+  }
   G.patience -= dt;
   if (G.patience <= 0) {
     say(G.guest + ' ушёл злой... Следующий!');
@@ -211,7 +228,7 @@ function tick() {
 }
 
 function start() {
-  G = { time: 90, money: 0, temp: 50, coal: 60, smoke: 0, over: false };
+  G = { time: 90, money: 0, temp: 50, coal: 60, smoke: 0, over: false, rab: null, rabNext: 20 + Math.random() * 15 };
   newGuest();
   document.getElementById('start').style.display = 'none';
   ['btnCoal', 'btnPurge', 'btnServe'].forEach(function (id) {
@@ -228,6 +245,7 @@ function finish() {
   ['btnCoal', 'btnPurge', 'btnServe'].forEach(function (id) {
     document.getElementById(id).style.display = 'none';
   });
+  document.getElementById('rabbit').style.display = 'none';
   var b = best();
   if (G.money > b) { setBest(G.money); b = G.money; }
   M.wallet += G.money; saveM(); renderShop();
@@ -249,6 +267,14 @@ document.getElementById('btnCoal').onclick = function () {
 document.getElementById('btnPurge').onclick = function () {
   if (!G || G.over) return;
   G.temp = Math.max(0, G.temp - 15);
+  render();
+};
+document.getElementById('rabbit').onclick = function () {
+  if (!G || G.over || !G.rab) return;
+  document.getElementById('rabbit').style.display = 'none';
+  G.rab = null; G.rabNext = 20 + Math.random() * 15;
+  G.money += 5;
+  say('Кролик прогнан! +5 за спасённые угли!');
   render();
 };
 document.getElementById('btnServe').onclick = function () {
