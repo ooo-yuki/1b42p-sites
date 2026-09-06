@@ -175,13 +175,13 @@ class VHostHandler(SimpleHTTPRequestHandler):
         super().end_headers()
 
 def serve_http():
-    srv = ThreadingHTTPServer(("0.0.0.0", 80), VHostHandler)
+    srv = ThreadingHTTPServer(("127.0.0.1", 8080), VHostHandler)
     srv.request_queue_size = 128
     srv.timeout = 30
     srv.serve_forever()
 
 def serve_https():
-    srv = ThreadingHTTPServer(("0.0.0.0", 443), VHostHandler)
+    srv = ThreadingHTTPServer(("127.0.0.1", 8443), VHostHandler)
     srv.request_queue_size = 128
     srv.timeout = 30
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)

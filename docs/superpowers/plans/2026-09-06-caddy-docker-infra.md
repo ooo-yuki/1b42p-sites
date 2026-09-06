@@ -173,9 +173,6 @@ git commit -m "infra: штурм в Docker, compose в git 🐳"
 shturm.bratuxa.zomb.top {
 	import common
 	reverse_proxy 127.0.0.1:8081
-	tls {
-		dns off
-	}
 }
 
 1b42p.bratuxa.zomb.top, 42laiv.bratuxa.zomb.top, 42vs.bratuxa.zomb.top, ai-714ef0.bratuxa.zomb.top, brohacho.bratuxa.zomb.top, chaev.bratuxa.zomb.top, denis.bratuxa.zomb.top, doom.bratuxa.zomb.top, evaelph.bratuxa.zomb.top, gtaevv.bratuxa.zomb.top, hub.bratuxa.zomb.top, miqqil.bratuxa.zomb.top, mtt.bratuxa.zomb.top, pampers.bratuxa.zomb.top, sasha.bratuxa.zomb.top, setden.bratuxa.zomb.top, skitons.bratuxa.zomb.top, smolgrad.bratuxa.zomb.top, svyatoslav.bratuxa.zomb.top {
