@@ -59,5 +59,18 @@ a.pill{text-decoration:none;display:inline-block}
 
 /* lucide-иконки вместо эмодзи */
 #hint svg{width:1em;height:1em;vertical-align:-0.12em}
+
+/* зал мини-игр: витрина автоматов (поверхность minigames) */
+#mg-col{max-height:100%;overflow-y:auto;pointer-events:auto;
+  animation:mg-rise .5s ease-out backwards}
+@keyframes mg-rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){#mg-col{animation:none}}
+.mg-title{margin:0;font-size:clamp(2rem,8vw,3.25rem);font-weight:800;line-height:1.1;
+  letter-spacing:-0.02em;color:#fff}
+.mg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  gap:14px;width:100%}
+.mg-card{text-align:left}
+.mg-badges{display:flex;gap:6px;flex-wrap:wrap}
+.mg-note{color:var(--dim);font-size:13px;margin:0}
 #homeBtn svg,#depBtn svg{width:1.1em;height:1.1em;vertical-align:-0.18em}
 #secret p svg{width:1.1em;height:1.1em;vertical-align:-0.15em;color:#ffffff}
