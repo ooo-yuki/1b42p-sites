@@ -177,6 +177,12 @@ function switchSlot(s: Slot) {
   const fresh = makeGun(s);
   gunMesh.clear();
   fresh.children.slice().forEach((c) => gunMesh.add(c));
+  scene.add(gunMesh); // remove выше отцеплял ствол — без add переключённый ствол невидим
+  // Task 6: у нового ствола свои muzzle/kick/update — переносим на долгоживущий gunMesh.
+  gunMesh.userData.muzzle = fresh.userData.muzzle;
+  gunMesh.userData.kick = fresh.userData.kick;
+  gunMesh.userData.update = fresh.userData.update;
+  gunMesh.name = fresh.name;
   pushHud();
 }
 
@@ -395,6 +401,8 @@ function tick(dt: number) {
       const dir = new THREE.Vector3(-Math.sin(p.yaw), 0, -Math.cos(p.yaw));
       const from = new THREE.Vector3(p.x, 1.4, p.z).addScaledVector(dir, 0.8);
       tracers.fire(from, dir);
+      // Task 6: отдача ствола — пружинный кик + вспышка 2 кадра + гильза + дымок.
+      (gunMesh.userData.kick as (() => void) | undefined)?.();
       flash.position.copy(from);
       flash.intensity = 30;
       flashT = 0.06;
@@ -624,6 +632,8 @@ function step(now: number) {
     e.mesh.rotation.y = Math.atan2(p.x - e.x, p.z - e.z);
   }
   tracers.update(dt);
+  // Task 6: пружина отдачи, вспышка, гильзы, дым ствола.
+  (gunMesh.userData.update as ((dt: number) => void) | undefined)?.(dt);
   if (flashT > 0) {
     flashT -= dt;
     if (flashT <= 0) flash.intensity = 0;
@@ -644,12 +654,15 @@ function step(now: number) {
     const dir = new THREE.Vector3(-Math.sin(p.yaw), 0, -Math.cos(p.yaw));
     gunMesh.position.copy(camera.position).addScaledVector(dir, 0.5);
     gunMesh.position.y -= 0.25;
-    gunMesh.rotation.set(0, p.yaw + Math.PI, 0);
+    // Task 6: дуло модели строго -Z → rotation.y = yaw кладёт дуло по dir.
+    // (Старое +PI было невидимо на симметричной коробке, разворачивало ствол назад.)
+    gunMesh.rotation.set(0, p.yaw, 0);
     gunMesh.visible = true;
     playerRoot.visible = false;
   } else {
     gunMesh.position.set(p.x - Math.cos(p.yaw) * 0.35, 1.25, p.z + Math.sin(p.yaw) * 0.35);
-    gunMesh.rotation.set(0, p.yaw + Math.PI / 2, 0);
+    // Task 6: та же причина — ствол смотрит по курсу, а не вбок.
+    gunMesh.rotation.set(0, p.yaw, 0);
     gunMesh.visible = true;
     playerRoot.visible = true;
   }
