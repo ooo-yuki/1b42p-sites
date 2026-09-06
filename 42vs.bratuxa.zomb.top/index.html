@@ -114,7 +114,7 @@ function beep(f,d,type){try{
 /* --- настоящие звуки Yarchik: выстрел/попадание/взрыв/смерть/отмена --- */
 var SFX={};
 function sfxLoad(){
-  var files={shoot:'tex/sfx/shoot.mp3',hit:'tex/sfx/hit.mp3',boom:'tex/sfx/boom.mp3',zdie:'tex/sfx/zdie.mp3',cancel:'tex/sfx/cancel.mp3'};
+  var files={shoot:'tex/sfx/shoot.mp3',hit:'tex/sfx/hit.mp3',boom:'tex/sfx/boom.mp3',zdie:'tex/sfx/zdie.mp3',cancel:'tex/sfx/cancel.mp3',pickup:'tex/sfx/pickup.mp3'};
   Object.keys(files).forEach(function(k){
     SFX[k]=[];
     for(var i=0;i<4;i++){try{var a=new Audio();a.preload='auto';a.src=files[k];SFX[k].push(a);}catch(e){}}
@@ -417,7 +417,7 @@ cv.addEventListener('pointerdown',function(e){
     if(Math.hypot(p.x-rpi.x,p.y-rpi.y)<36){
       if(G.drag)G.drag=null;
       G.resps.splice(ri,1);
-      G.fly.push({x0:rpi.x,y0:rpi.y,v:rpi.v,t:0});beep(880,0.08);return;}}
+      G.fly.push({x0:rpi.x,y0:rpi.y,v:rpi.v,t:0});sfx('pickup');return;}}
   var s=seedAtXY(p.x,p.y);
   if(s){var d=seedDef(s);
     if(G.resp<d.cost){G.seedFlash={k:s,t:0.7};sfx('cancel');}
