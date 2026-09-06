@@ -111,6 +111,43 @@ export function step(S, input) {
   }
   S.seal.y = ny;
 
+  for (const g of S.guards) {
+    if (g.stun > 0) {
+      g.stun = Math.max(0, g.stun - dt);
+      continue;
+    }
+    const nxg = g.x + g.dir * CFG.guardSpeed * dt;
+    const edge = nxg + (g.dir > 0 ? 0.3 : -0.3);
+    if (solidAt(map, edge, g.y + 0.05) || solidAt(map, edge, g.y + 0.6)) {
+      g.dir = -g.dir;
+    } else {
+      g.x = nxg;
+    }
+  }
+
+  for (const g of S.guards) {
+    if (g.stun > 0) continue;
+    const dx = S.seal.x - g.x;
+    const dy = S.seal.y - g.y;
+    if (Math.abs(dy) > 0.9) continue;
+    if (Math.abs(dx) > CFG.sight) continue;
+    if (dx !== 0 && Math.sign(dx) !== g.dir && Math.abs(dx) > 0.5) continue;
+    let blocked = false;
+    const n = Math.max(2, Math.ceil(Math.abs(dx) / 0.25));
+    for (let i = 1; i < n; i++) {
+      const px = g.x + (dx * i) / n;
+      if (solidAt(map, px, g.y + 0.5)) { blocked = true; break; }
+    }
+    if (blocked) continue;
+    S.hearts -= 1;
+    S.caught = true;
+    S.seal.x = S.spawn.x;
+    S.seal.y = S.spawn.y;
+    S.seal.vx = 0;
+    S.seal.vy = 0;
+    break;
+  }
+
   if (S.hearts <= 0) S.dead = true;
 }
 
