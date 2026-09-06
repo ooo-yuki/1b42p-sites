@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildHumanoid, makeClips, skinBox } from '../rig';
+import { buildHumanoid, makeClips } from '../rig';
 import { getTex } from '../textures';
 
 let furMat: THREE.MeshStandardMaterial | null = null;
@@ -10,7 +10,20 @@ let clawMat: THREE.MeshStandardMaterial | null = null;
 
 function mats() {
   if (!furMat) {
-    furMat = new THREE.MeshStandardMaterial({ map: getTex('fur'), color: 0x8a7360, roughness: 0.95, metalness: 0 });
+    // F2: мех должен читаться на скрине — клонируем shared-текстуру
+    // (repeat shared менять нельзя, он общий), крупный repeat + bump тем же
+    // канвасом + светлее base color, иначе тёмный мех сливается с ночью.
+    const furTex = getTex('fur').clone();
+    furTex.repeat.set(2, 2);
+    furTex.needsUpdate = true;
+    furMat = new THREE.MeshStandardMaterial({
+      map: furTex,
+      bumpMap: furTex,
+      bumpScale: 0.6,
+      color: 0xb59a7e,
+      roughness: 0.95,
+      metalness: 0,
+    });
     eyeMat = new THREE.MeshStandardMaterial({ color: 0x1a0500, emissive: 0xff4400, emissiveIntensity: 3.2, roughness: 0.3 });
     darkMat = new THREE.MeshStandardMaterial({ color: 0x2a0f0a, roughness: 0.9 });
     teethMat = new THREE.MeshStandardMaterial({ color: 0xe8dcc0, roughness: 0.4 });
@@ -19,26 +32,48 @@ function mats() {
   return { furMat: furMat!, eyeMat: eyeMat!, darkMat: darkMat!, teethMat: teethMat!, clawMat: clawMat! };
 }
 
-/** R-треки walk в противофазу: сдвиг времён +полпериода (mod длительности). */
+/**
+ * F4: чистая противофаза без плоских участков.
+ * Было: сдвиг времён +dur/2 mod dur — при ключах [0, dur/2, dur] давало
+ * дублирующиеся времена (0.3 дважды) → вырожденный сегмент, плоский кусок.
+ * Стало: времена не трогаем, инвертируем размах (кватернион -θ = conjugate:
+ * -x,-y,-z,w). Для симметричного треугольника [-a,+a,-a] это точная
+ * полупериодная противофаза [+a,-a,+a], ключи строго возрастают.
+ */
 export function phaseShiftRight(walk: THREE.AnimationClip): THREE.AnimationClip {
-  const dur = walk.duration;
   const tracks = walk.tracks.map((t) => {
     if (!/R\.quaternion$/.test(t.name)) return t;
     const n = t.times.length;
-    const pairs = Array.from({ length: n }, (_, i) => ({ t: (t.times[i] + dur / 2) % dur, i }));
-    pairs.sort((a, b) => a.t - b.t);
-    const times = new Float32Array(pairs.map((p) => p.t));
     const itemSize = t.values.length / n;
     const values = new Float32Array(t.values.length);
-    pairs.forEach((p, k) => {
-      for (let j = 0; j < itemSize; j++) values[k * itemSize + j] = t.values[p.i * itemSize + j];
-    });
+    for (let i = 0; i < n; i++) {
+      values[i * itemSize] = -t.values[i * itemSize];
+      values[i * itemSize + 1] = -t.values[i * itemSize + 1];
+      values[i * itemSize + 2] = -t.values[i * itemSize + 2];
+      for (let j = 3; j < itemSize; j++) values[i * itemSize + j] = t.values[i * itemSize + j];
+    }
     const c = t.clone();
-    c.times = times as unknown as THREE.KeyframeTrack['times'];
     c.values = values as unknown as THREE.KeyframeTrack['values'];
     return c;
   });
-  return new THREE.AnimationClip(walk.name, dur, tracks);
+  return new THREE.AnimationClip(walk.name, walk.duration, tracks);
+}
+
+function qx(deg: number): number[] {
+  const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(THREE.MathUtils.degToRad(deg), 0, 0));
+  return [q.x, q.y, q.z, q.w];
+}
+
+/**
+ * F3: замах рук в walk — локтевые треки поверх статического сгиба.
+ * elbowL в фазе с shoulderL, elbowR в противофазе (уже инвертирован).
+ * База -26° (предплечье вперёд) ± 12° кач.
+ */
+function elbowTracks(): THREE.QuaternionKeyframeTrack[] {
+  const T = [0, 0.3, 0.6];
+  const L = new THREE.QuaternionKeyframeTrack('elbowL.quaternion', T, [...qx(-38), ...qx(-14), ...qx(-38)]);
+  const R = new THREE.QuaternionKeyframeTrack('elbowR.quaternion', T, [...qx(-14), ...qx(-38), ...qx(-14)]);
+  return [L, R];
 }
 
 export function makeRunner(): THREE.Group {
@@ -48,7 +83,7 @@ export function makeRunner(): THREE.Group {
   g.name = 'runner';
   g.add(root);
 
-  // Порядок костей общего скелета (skinBox пишет индексы 0/1 → ремапим).
+  // Порядок костей общего скелета.
   const order = [
     bones.hips, bones.spine, bones.head,
     bones.shoulderL, bones.elbowL, bones.handL,
@@ -59,75 +94,98 @@ export function makeRunner(): THREE.Group {
   const bi = new Map<THREE.Bone, number>(order.map((b, i) => [b, i]));
 
   const skinned: THREE.SkinnedMesh[] = [];
-  // Точный вызов skinBox: он делает m.add(boneA) — возвращаем кость на место.
-  const skin = (w: number, h: number, d: number, a: THREE.Bone, b: THREE.Bone, y: number, x = 0, z = 0) => {
-    const parentA = a.parent!;
-    const m = skinBox(w, h, d, a, b);
-    parentA.add(a); // skinBox делает m.add(boneA) — возвращаем кость в риг
+  /**
+   * F1: скруглённые объёмы вместо плоских коробок.
+   * Любая BufferGeometry скинится по Y бокса между boneA(верх)/boneB(низ),
+   * как skinBox из rig.ts (его не трогаем — хелпер локальный).
+   */
+  const skinGeo = (geo: THREE.BufferGeometry, a: THREE.Bone, b: THREE.Bone, y: number, x = 0, z = 0) => {
+    geo.computeBoundingBox();
+    const bb = geo.boundingBox!;
+    const h = Math.max(1e-5, bb.max.y - bb.min.y);
+    const pos = geo.getAttribute('position') as THREE.BufferAttribute;
+    const idx = new THREE.BufferAttribute(new Uint16Array(pos.count * 4), 4);
+    const wgt = new THREE.BufferAttribute(new Float32Array(pos.count * 4), 4);
     const ia = bi.get(a)!;
     const ib = bi.get(b)!;
-    const idx = m.geometry.getAttribute('skinIndex') as THREE.BufferAttribute;
-    for (let i = 0; i < idx.count; i++) {
-      const v0 = idx.getX(i) === 0 ? ia : ib;
-      const v1 = idx.getY(i) === 0 ? ia : ib;
-      idx.setXYZW(i, v0, v1, 0, 0);
+    for (let i = 0; i < pos.count; i++) {
+      const t = THREE.MathUtils.clamp((bb.max.y - pos.getY(i)) / h, 0, 1);
+      idx.setXYZW(i, ia, ib, 0, 0);
+      wgt.setXYZW(i, 1 - t, t, 0, 0);
     }
-    idx.needsUpdate = true;
-    m.material = furMat;
+    geo.setAttribute('skinIndex', idx);
+    geo.setAttribute('skinWeight', wgt);
+    const m = new THREE.SkinnedMesh(geo, furMat);
+    m.castShadow = true;
     m.position.set(x, y, z);
     skinned.push(m);
     g.add(m);
     return m;
   };
+  const cap = (r: number, len: number, mat = furMat) => {
+    void mat;
+    return new THREE.CapsuleGeometry(r, len, 4, 8);
+  };
 
-  // Тощий гуманоид: узкий торс, длинные конечности.
-  skin(0.34, 0.75, 0.22, bones.spine, bones.hips, 1.15); // торс
-  skin(0.26, 0.46, 0.28, bones.head, bones.spine, 1.76); // голова+шея (внахлёст торса)
+  // F1: крупные объёмы — капсулы/сферы. Торс-приплюснутая капсула,
+  // голова-сфера, конечности-капсулы. ~3.7к треугольников (лимит 5к).
+  const torso = skinGeo(cap(0.17, 0.42), bones.spine, bones.hips, 1.15);
+  torso.scale.set(1, 1, 0.72);
+  const headGeo = new THREE.SphereGeometry(0.165, 14, 10);
+  headGeo.scale(0.95, 1.2, 1.0);
+  skinGeo(headGeo, bones.head, bones.spine, 1.78);
+  skinGeo(cap(0.07, 0.12), bones.head, bones.spine, 1.6); // шея — закрыть щель
   for (const s of ['L', 'R'] as const) {
     const sg = s === 'L' ? -1 : 1;
-    skin(0.09, 0.35, 0.09, (bones as any)[`shoulder${s}`], (bones as any)[`elbow${s}`], 1.575, 0.28 * sg);
-    skin(0.08, 0.3, 0.08, (bones as any)[`elbow${s}`], (bones as any)[`hand${s}`], 1.25, 0.28 * sg);
-    skin(0.11, 0.45, 0.11, (bones as any)[`hip${s}`], (bones as any)[`knee${s}`], 0.775, 0.12 * sg);
-    skin(0.09, 0.45, 0.09, (bones as any)[`knee${s}`], (bones as any)[`foot${s}`], 0.325, 0.12 * sg);
+    skinGeo(cap(0.055, 0.24), (bones as any)[`shoulder${s}`], (bones as any)[`elbow${s}`], 1.575, 0.28 * sg);
+    skinGeo(cap(0.045, 0.22), (bones as any)[`elbow${s}`], (bones as any)[`hand${s}`], 1.25, 0.28 * sg);
+    skinGeo(cap(0.065, 0.32), (bones as any)[`hip${s}`], (bones as any)[`knee${s}`], 0.775, 0.12 * sg);
+    skinGeo(cap(0.05, 0.32), (bones as any)[`knee${s}`], (bones as any)[`foot${s}`], 0.325, 0.12 * sg);
   }
 
   g.updateMatrixWorld(true);
   const skeleton = new THREE.Skeleton(order);
   for (const m of skinned) {
-    // Риг целиком один раз в граф (g.add(root) выше); общий скелет на все меши.
-    // m.add(root) на каждый меш невозможен: root один, переподвешивание 10 раз
-    // смещает весь риг на позицию последнего меша (наблюдалось как «парящие глаза»).
     m.bind(skeleton);
     m.normalizeSkinWeights();
   }
 
+  // F3: статический сгиб локтей (перебивается walk-треками локтей в движении).
+  (bones as any).elbowL.rotation.x = -0.45;
+  (bones as any).elbowR.rotation.x = -0.45;
+
   const M = mats();
   const add = (o: THREE.Object3D, parent: THREE.Object3D) => { parent.add(o); return o; };
-  const box = (w: number, h: number, d: number, mat: THREE.Material) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  const sph = (r: number, mat: THREE.Material, w = 12, h = 10) => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(r, w, h), mat);
     m.castShadow = true;
     return m;
   };
 
   // Глаза: emissive, на голове, смотрят вперёд (-Z).
   for (const s of [-1, 1]) {
-    const e = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 10), M.eyeMat);
-    e.position.set(0.07 * s, 0.02, -0.15);
+    const e = new THREE.Mesh(new THREE.SphereGeometry(0.032, 8, 6), M.eyeMat);
+    e.position.set(0.068 * s, 0.03, -0.145);
     add(e, bones.head);
   }
   // Пасть: тёмный провал + нижняя челюсть + клыки.
-  const jaw = box(0.18, 0.05, 0.1, M.darkMat);
-  jaw.position.set(0, -0.06, -0.14);
+  const jaw = sph(0.07, M.darkMat);
+  jaw.scale.set(1.3, 0.45, 0.8);
+  jaw.position.set(0, -0.07, -0.12);
   add(jaw, bones.head);
   for (const s of [-1, 0, 1]) {
-    const f = box(0.025, 0.05, 0.025, M.teethMat);
-    f.position.set(0.05 * s, -0.08, -0.17);
+    const f = new THREE.Mesh(new THREE.ConeGeometry(0.014, 0.05, 6), M.teethMat);
+    f.position.set(0.05 * s, -0.1, -0.155);
+    f.rotation.x = Math.PI;
+    f.castShadow = true;
     add(f, bones.head);
   }
-  // Трапеция: мост от торса к плечевым костям (иначе руки висят в воздухе).
+  // Трапеция: скруглённый мост от торса к плечам (капсула лёжа).
   for (const s of [-1, 1]) {
-    const trap = box(0.18, 0.1, 0.13, furMat);
-    trap.position.set(0.2 * s, 0.28, 0);
+    const trap = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.12, 3, 8), furMat);
+    trap.rotation.z = Math.PI / 2 - 0.25 * s;
+    trap.position.set(0.19 * s, 0.3, 0);
+    trap.castShadow = true;
     add(trap, bones.spine);
   }
   // Гребень-шипы вдоль спины.
@@ -142,7 +200,7 @@ export function makeRunner(): THREE.Group {
   for (const s of ['L', 'R'] as const) {
     for (let c = -1; c <= 1; c++) {
       const claw = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.12, 6), M.clawMat);
-      claw.position.set(0.03 * c, -0.06, -0.02);
+      claw.position.set(0.03 * c, -0.07, -0.02);
       claw.rotation.x = Math.PI;
       claw.castShadow = true;
       add(claw, (bones as any)[`hand${s}`]);
@@ -162,7 +220,8 @@ export function makeRunner(): THREE.Group {
 
   // Миксер + экшены.
   const clips = makeClips('biped');
-  clips.walk = phaseShiftRight(clips.walk);
+  const shifted = phaseShiftRight(clips.walk);
+  clips.walk = new THREE.AnimationClip('walk', shifted.duration, [...shifted.tracks, ...elbowTracks()]);
   const mixer = new THREE.AnimationMixer(g);
   const mk = (clip: THREE.AnimationClip) => {
     const a = mixer.clipAction(clip);
@@ -181,4 +240,3 @@ export function makeRunner(): THREE.Group {
   g.userData.dead = false;
   return g;
 }
-

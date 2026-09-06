@@ -30,14 +30,15 @@ function noise(ctx: CanvasRenderingContext2D, n: number, a: string, b: string): 
 
 const painters: Record<TexKind, (ctx: CanvasRenderingContext2D, n: number) => void> = {
   fur: (ctx, n) => {
-    noise(ctx, n, '#6b4a2f', '#4a3120');
-    ctx.strokeStyle = '#3a2617';
-    for (let i = 0; i < 900; i++) {
+    noise(ctx, n, '#7d5a38', '#3d2817');
+    ctx.strokeStyle = '#2c1c0e';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 1600; i++) {
       const x = Math.random() * n;
       const y = Math.random() * n;
       ctx.beginPath();
       ctx.moveTo(x, y);
-      ctx.lineTo(x + 3, y + 6);
+      ctx.lineTo(x + 4, y + 9);
       ctx.stroke();
     }
   },

@@ -63,7 +63,10 @@ export function updateMob(
     if (!actions.attack.isRunning()) actions.attack.reset().fadeIn(0.1).play();
     actions.attack.setEffectiveWeight(1);
   } else if (actions.attack.isRunning()) {
+    // F5: attack выходил снэпом — вход fadeIn 0.1 (выше), выход гасим
+    // и останавливаем ТОЛЬКО когда вес догорел, иначе stop() режет в снэп.
     actions.attack.fadeOut(0.15);
+    if (actions.attack.getEffectiveWeight() < 0.02) actions.attack.stop();
   }
   mixer.update(dt);
 }
