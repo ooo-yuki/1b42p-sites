@@ -9,6 +9,8 @@ if (typeof (globalThis as Record<string, unknown>).document === 'undefined') {
           if (typeof prop === 'symbol') return undefined;
           if (prop === 'measureText') return () => ({ width: 0 });
           if (prop === 'getImageData') return () => ({ data: [] });
+          if (prop === 'createLinearGradient' || prop === 'createRadialGradient')
+            return () => ({ addColorStop() {} });
           return (..._a: unknown[]) => undefined;
         },
         set: () => true,

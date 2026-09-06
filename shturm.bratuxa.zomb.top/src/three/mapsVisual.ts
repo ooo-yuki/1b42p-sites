@@ -214,6 +214,19 @@ export function buildMapVisual(map: MapId): THREE.Group {
       envMapIntensity: 1.5, transparent: true, opacity: 0.85,
     });
     add(mergedMesh([flat(2.2, -5, -8, 0.07), flat(1.6, 10, -12, 0.07), flat(1.8, -12, 6, 0.07)], puddleMat, false));
+    // Пруд: свой инстанс текстуры (оффсет независим от кольца острова) + блик.
+    const pondTex = getWaterTex().clone();
+    pondTex.needsUpdate = true;
+    pondTex.repeat.set(4, 4);
+    const pondMat = new THREE.MeshStandardMaterial({
+      map: pondTex, transparent: true, opacity: 0.9, roughness: 0.12, metalness: 0.1, envMapIntensity: 2.0,
+    });
+    const pond = new THREE.Mesh(new THREE.CircleGeometry(4, 36), pondMat);
+    pond.rotation.x = -Math.PI / 2;
+    pond.position.set(10, 0.06, -2);
+    pond.name = 'pond';
+    pond.onBeforeRender = () => { pondTex.offset.x = (performance.now() / 9000) % 1; };
+    group.add(pond);
     add(mergedMesh(obstacleGeos, matWood));
   } else if (map === 'island') {
     add(mergedMesh([
@@ -255,7 +268,7 @@ export function buildMapVisual(map: MapId): THREE.Group {
     // Вода-кольцо по краю с анимацией скролла текстуры.
     const wtex = getWaterTex();
     const waterMat = new THREE.MeshStandardMaterial({
-      map: wtex, transparent: true, opacity: 0.8, roughness: 0.25, metalness: 0.1,
+      map: wtex, transparent: true, opacity: 0.9, roughness: 0.15, metalness: 0.1, envMapIntensity: 1.2,
     });
     const ring = new THREE.RingGeometry(half - 4, half + 16, 48, 1);
     ring.rotateX(-Math.PI / 2);
