@@ -327,7 +327,7 @@ function tintedArmor(kind,dark,aw,ah){
 function drawArmor(kind,cx,topY,dark){ /* строго по центру башки, кромка на лбу */
   var src=kind==='cone'?IMG.cone:IMG.bucket,ax,ay,aw,ah;
   if(kind==='cone'){ax=cx-23-10;ay=topY-18-5;aw=46;ah=46;}
-  else{ax=cx-26-15;ay=topY-18;aw=52;ah=46;} /* ведро: влево 5, вниз 5 */
+  else{ax=cx-26-15;ay=topY-14;aw=52;ah=46;} /* ведро: влево 5, вниз 9 */
   if(dark>0){var tim=tintedArmor(kind,dark,aw,ah); /* темнеет каждую 5-ю тычку */
     if(tim){try{ctx.drawImage(tim,ax,ay,aw,ah);}catch(e){}return;}}
   drawImg(src,ax,ay,aw,ah);
