@@ -595,9 +595,9 @@ function drawBtn3(x,y,w,h,down){
   if(im&&im.complete&&im.naturalWidth){
     var hh=Math.round(h),x0=Math.round(x),y0=Math.round(y),ww=Math.round(w);
     var cL=Math.round(hh*36/46),cR=Math.round(hh*35/46);
-    try{ /* куски внахлёст 1px + целые координаты: волосяных щелей на стыках нет */
+    try{ /* куски строго встык без нахлёста: сумма ширин = ww, щелей и двойных колонок нет */
       ctx.drawImage(im,0,0,36,46,x0,y0,cL,hh);
-      ctx.drawImage(im,36,0,46,46,x0+cL-1,y0,Math.max(2,ww-cL-cR+2),hh);
+      ctx.drawImage(im,36,0,46,46,x0+cL,y0,Math.max(1,ww-cL-cR),hh);
       ctx.drawImage(im,82,0,35,46,x0+ww-cR,y0,cR,hh);
       return;
     }catch(e){}
