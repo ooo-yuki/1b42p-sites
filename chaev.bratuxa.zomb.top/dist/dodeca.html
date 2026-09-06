@@ -10,8 +10,16 @@
   body { font-family: 'Segoe UI', system-ui, sans-serif; color: #fff; }
   #scene { position: fixed; inset: 0; }
   #scene canvas { display: block; touch-action: none; }
+  #title {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+    background: rgba(7,11,24,.85); border: 2px solid #ffd700; border-radius: 12px;
+    padding: 6px 18px; font-weight: 800; font-size: clamp(12px, 2.6vw, 17px);
+    letter-spacing: .04em; color: #ffd700; text-shadow: 0 0 12px rgba(255,215,0,.6);
+    box-shadow: 0 4px 20px rgba(255,215,0,.25); white-space: nowrap; z-index: 10;
+    max-width: 94vw; overflow: hidden; text-overflow: ellipsis;
+  }
   #sign {
-    position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+    position: fixed; top: 62px; left: 50%; transform: translateX(-50%);
     background: #0d1428; border: 3px solid #E31E25; border-radius: 14px;
     padding: 10px 22px; font-weight: 900; font-size: clamp(15px, 3.4vw, 24px);
     letter-spacing: .02em; color: #fff; text-shadow: 0 0 14px rgba(227,30,37,.8);
@@ -27,6 +35,7 @@
 </head>
 <body>
 <div id="scene"></div>
+<div id="title">ВЕЛИКИЙ БИТРИГОНАЛЬНЫЙ ДОДЕКОИКОСОДОДЕКАЭДР 1 БАТАЛЬОНА 42 ПРОПАГАНДЫ</div>
 <div id="sign">ЗЕЛЁНЫМ ГОБЛИНАМ ВХОД ВОСПРЕЩЁН</div>
 <div id="hint">Крути пальцем / мышью • щипок — зум • <a href="./">← на сайт Чаева</a></div>
 <script>
