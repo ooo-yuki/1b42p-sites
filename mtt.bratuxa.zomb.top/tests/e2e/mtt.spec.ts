@@ -874,6 +874,64 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await expect(page.locator('#chatOv')).toHaveCount(0);
   });
 
+  test('👑 босс: гопник спавнится, баннер виден', async ({ page }) => {
+    await page.click('#guestBtn');
+    await page.click('#goBtn');
+    await page.waitForTimeout(800);
+    await page.evaluate(() => (window as unknown as { __mtt: { spawnKind: (k: string) => number } }).__mtt.spawnKind('boss'));
+    await page.waitForTimeout(800);
+    const b = await page.evaluate(() => (window as unknown as { __mtt: { boss: () => number } }).__mtt.boss());
+    expect(b).toBe(1);
+    await expect(page.locator('#bossBanner')).toContainText('БОСС', { timeout: 8000 });
+  });
+
+  test('⚔️ топ дуэлянтов виден в меню', async ({ page }) => {
+    await page.click('#guestBtn');
+    await expect(page.locator('#duelTop')).toBeVisible();
+    await expect(page.locator('#duelTop')).toContainText('Топ дуэлянтов');
+  });
+
+  test('🟨 Бэкрумс: потолок держит — выше 1.2 не прыгнуть', async ({ page }) => {
+    await page.click('#guestBtn');
+    // меню длинное (комнаты/топы тянут высоту) — жмём напрямую, без скролла
+    await page.evaluate(() => (document.querySelector('#map-backrooms') as HTMLButtonElement).click());
+    await page.evaluate(() => (document.querySelector('#foeBtn') as HTMLButtonElement).click());
+    await page.click('#goBtn');
+    await page.waitForTimeout(800);
+    type M = { py: () => number };
+    let maxPy = 0;
+    await page.keyboard.down('Space');
+    for (let i = 0; i < 20; i++) {
+      await page.waitForTimeout(150);
+      const py = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.py());
+      if (py > maxPy) maxPy = py;
+    }
+    await page.keyboard.up('Space');
+    expect(maxPy).toBeLessThanOrEqual(1.35);
+  });
+
+  test('🧩 редактор: нарисовал, сохранил, играю на своей', async ({ page }) => {
+    await page.click('#guestBtn');
+    await expect(page.locator('#editorSec')).toBeVisible();
+    await page.fill('#edName', 'ТестКарта');
+    const box = await page.locator('#edGrid').boundingBox();
+    expect(box).not.toBeNull();
+    // крестик по центру сетки
+    const cx = box!.x + box!.width / 2, cy = box!.y + box!.height / 2;
+    await page.mouse.click(cx, cy);
+    await page.mouse.click(cx + box!.width / 18, cy);
+    await page.mouse.click(cx - box!.width / 18, cy);
+    await page.click('#edsave');
+    await expect(page.locator('#goBtn')).toContainText('НА СВОЮ');
+    await page.click('#goBtn');
+    await page.waitForTimeout(1500);
+    type M = { map: () => string; custom: () => { walls: number; half: number } };
+    const map = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.map());
+    expect(map).toBe('custom');
+    const cu = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.custom());
+    expect(cu.walls).toBeGreaterThanOrEqual(1);
+  });
+
   test.afterEach(async () => {
     // ожидаемый 403 админки для чужих — не баг, в отчёт не идёт
     const real = errors.filter((e) => !e.includes('/api/admin/stats'));

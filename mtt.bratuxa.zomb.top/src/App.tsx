@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Game, WEAPONS, CHARS, MAPS, KEY_ACTIONS, DEFAULT_KEYS, type HudState, type KeyMap, type Quality, type MapId } from './game/engine';
+import { Game, WEAPONS, CHARS, MAPS, KEY_ACTIONS, DEFAULT_KEYS, type HudState, type KeyMap, type Quality, type MapId, type CustomMap } from './game/engine';
 import oruzh1Url from './assets/oruzh1.png';
 import oruzh2Url from './assets/oruzh2.png';
 import pistolUrl from './assets/pistol.png';
+import batUrl from './assets/bat.jpg';
 import charMttUrl from './assets/char-mtt.png';
 import charKrysaUrl from './assets/char-krysa.png';
 
@@ -81,7 +82,7 @@ async function loadRooms(): Promise<RoomInfo[]> {
   }
 }
 
-const WIMG: Record<string, string> = { fists: oruzh1Url, bat: oruzh1Url, axe: oruzh2Url, pistol: pistolUrl };
+const WIMG: Record<string, string> = { fists: oruzh1Url, bat: batUrl, axe: oruzh2Url, pistol: pistolUrl };
 
 const SID_KEY = 't42_sid';
 function sid(): string {
@@ -120,6 +121,16 @@ async function loadScores(): Promise<ScoreRow[]> {
   }
 }
 
+async function loadDuelTop(): Promise<Array<{ login: string; wins: number }>> {
+  try {
+    const r = await fetch('/api/duel-top');
+    if (!r.ok) return [];
+    return (await r.json()) as Array<{ login: string; wins: number }>;
+  } catch {
+    return [];
+  }
+}
+
 function submitScore(nick: string, score: number, coins: number): void {
   try {
     fetch('/api/score', {
@@ -146,8 +157,9 @@ export default function App() {
   const joyId = useRef(-1);
   const gameRef = useRef<Game | null>(null);
   const [menu, setMenu] = useState(true);
-  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, med: 0, lvl: 1 });
+  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, med: 0, lvl: 1, boss: 0 });
   const [scores, setScores] = useState<ScoreRow[]>([]);
+  const [duelTop, setDuelTop] = useState<Array<{ login: string; wins: number }>>([]);
   const [gstats, setGstats] = useState<{ games: number; best: number; online: number } | null>(null);
 
 async function loadStats(): Promise<void> {
@@ -197,6 +209,31 @@ async function loadStats(): Promise<void> {
   const [chatLog, setChatLog] = useState<Array<{ nick: string; text: string; t: number }>>([]);
   const [chatText, setChatText] = useState('');
   const chatLast = useRef(0);
+  // редактор карт: свои карты живут в localStorage, играют соло
+  const CUSTOMS_KEY = 'mtt_customs_v1';
+  const loadCustoms = (): Record<string, CustomMap> => {
+    try {
+      const d = JSON.parse(localStorage.getItem(CUSTOMS_KEY) ?? '{}') as Record<string, CustomMap>;
+      const out: Record<string, CustomMap> = {};
+      for (const [k, v] of Object.entries(d)) {
+        if (!v || typeof v.name !== 'string') continue;
+        const size = Math.min(140, Math.max(40, Math.floor(v.size ?? 90)));
+        const walls = Array.isArray(v.walls) ? v.walls.filter((b) => b && isFinite(b.x) && isFinite(b.z)).slice(0, 400) : [];
+        out[k] = { name: v.name.slice(0, 24), size, walls };
+      }
+      return out;
+    } catch { return {}; }
+  };
+  const [customs, setCustoms] = useState<Record<string, CustomMap>>(loadCustoms);
+  const [customSel, setCustomSel] = useState<string | null>(null);
+  const [customRev, setCustomRev] = useState(0);
+  const customsRef = useRef(customs);
+  customsRef.current = customs;
+  const [edName, setEdName] = useState('');
+  const [edSize, setEdSize] = useState(90);
+  const [edGrid, setEdGrid] = useState<number[][]>(() => Array.from({ length: 18 }, () => new Array(18).fill(0)));
+  const [edTool, setEdTool] = useState<'wall' | 'erase'>('wall');
+  const edCanvas = useRef<HTMLCanvasElement | null>(null);
   const [duel, setDuel] = useState<DuelInfo | null>(null);
   const roomRef = useRef({ id: '', sid: '' });
   const duelRef = useRef<DuelInfo | null>(null);
@@ -293,7 +330,7 @@ async function loadStats(): Promise<void> {
       onHud: (h) => setHud(h),
       onBusted: () => undefined,
       onSwing: () => { swing(); tryDuelHit(); },
-    }, mapChoice, { enemies: !noEnemies });
+    }, mapChoice, { enemies: !noEnemies, custom: mapChoice === 'custom' ? customsRef.current[customSel ?? ''] ?? null : undefined });
     gameRef.current = game;
     setSound(game.getSound());
     setSens(game.getSens());
@@ -334,10 +371,12 @@ async function loadStats(): Promise<void> {
       medBuy: () => game.buyMedkit(),
       medUse: () => game.useMedkit(),
       level: () => game.level(),
-      spawnKind: (kind: 'walk' | 'fly') => game.debugSpawn(kind),
+      spawnKind: (kind: 'walk' | 'fly' | 'boss') => game.debugSpawn(kind),
       flyers: () => game.debugFlyers(),
+      boss: () => game.debugBoss(),
       remoteList: () => game.debugRemoteList(),
       maze: () => game.debugMaze(),
+      custom: () => game.debugCustom(),
       peaceful: () => !game.enemiesOn,
     };
     const kd = (e: KeyboardEvent) => {
@@ -356,7 +395,7 @@ async function loadStats(): Promise<void> {
       delete (window as unknown as { __mtt?: object }).__mtt;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapChoice, noEnemies]);
+  }, [mapChoice, noEnemies, customSel, customRev]);
 
   const go = useCallback(() => {
     try { localStorage.setItem(NICK_KEY, nick); } catch { /* noop */ }
@@ -424,7 +463,7 @@ async function loadStats(): Promise<void> {
   }, [authed]);
 
   // ---- комнаты ----
-  const refreshRooms = useCallback(() => { loadRooms().then(setRoomsList); void loadStats(); }, []);
+  const refreshRooms = useCallback(() => { loadRooms().then(setRoomsList); void loadStats(); loadDuelTop().then(setDuelTop); }, []);
   useEffect(() => { refreshRooms(); }, [refreshRooms]);
 
   const createRoom = useCallback(async () => {
@@ -622,6 +661,19 @@ async function loadStats(): Promise<void> {
     const t = window.setTimeout(() => setWaveBanner(0), 2600);
     return () => window.clearTimeout(t);
   }, [hud.wave, menu]);
+  // плашка БОССА: гопник вышел — все видят
+  const [bossBanner, setBossBanner] = useState(false);
+  const prevBoss = useRef(0);
+  useEffect(() => {
+    if (menu) { prevBoss.current = hud.boss; return; }
+    if (hud.boss > 0 && prevBoss.current === 0) {
+      setBossBanner(true);
+      const t = window.setTimeout(() => setBossBanner(false), 3000);
+      prevBoss.current = hud.boss;
+      return () => window.clearTimeout(t);
+    }
+    prevBoss.current = hud.boss;
+  }, [hud.boss, menu]);
   // I — полный экран в один клик (в полях ввода не срабатывает)
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -671,7 +723,131 @@ async function loadStats(): Promise<void> {
     } catch { /* noop */ }
   }, [chatText, nick]);
 
-  // захват клавиши для переназначения управления
+  // ---- редактор карт ----
+  const edCols = Math.max(8, Math.min(28, Math.round(edSize / 5)));
+  // рисование сетки: трава + стены + точка спавна (юг). Обычная функция — зовём отовсюду.
+  const drawEd = (grid: number[][]) => {
+    const cv = edCanvas.current ?? (document.querySelector('#edGrid') as HTMLCanvasElement | null);
+    if (!cv) return;
+    const cols = grid.length;
+    const px = 20;
+    cv.width = cols * px; cv.height = cols * px;
+    const g = cv.getContext('2d');
+    if (!g) return;
+    g.fillStyle = '#2a4a2a';
+    g.fillRect(0, 0, cv.width, cv.height);
+    for (let y = 0; y < cols; y++) {
+      for (let x = 0; x < cols; x++) {
+        if (grid[y]?.[x]) {
+          g.fillStyle = '#c9a06a';
+          g.fillRect(x * px + 1, y * px + 1, px - 2, px - 2);
+        } else {
+          g.strokeStyle = 'rgba(255,255,255,.12)';
+          g.strokeRect(x * px + 0.5, y * px + 0.5, px - 1, px - 1);
+        }
+      }
+    }
+    // спавн — юг по центру
+    g.fillStyle = '#39d353';
+    g.beginPath();
+    g.arc(cv.width / 2, cv.height - px * 1.5, px * 0.4, 0, 6.29);
+    g.fill();
+  };
+  // применить сетку сразу с отрисовкой
+  const applyGrid = (ng: number[][]) => { setEdGrid(ng); drawEd(ng); };
+  // смена размера — чистая сетка под него
+  const changeEdSize = (s: number) => {
+    setEdSize(s);
+    const c = Math.max(8, Math.min(28, Math.round(s / 5)));
+    applyGrid(Array.from({ length: c }, () => new Array(c).fill(0)));
+  };
+  const paintEd = (cx: number, cy: number, v: number) => {
+    const c = Math.max(8, Math.min(28, Math.round(edSize / 5)));
+    if (cx < 0 || cy < 0 || cx >= c || cy >= c) return;
+    setEdGrid((g) => {
+      if (cy >= g.length || cx >= g[0].length || g[cy][cx] === v) return g;
+      const ng = g.map((row) => row.slice());
+      ng[cy][cx] = v;
+      drawEd(ng);
+      return ng;
+    });
+  };
+  const edCellPos = (e: React.MouseEvent<HTMLCanvasElement>): [number, number] => {
+    const el = e.target as HTMLCanvasElement;
+    const r = el.getBoundingClientRect();
+    return [Math.floor((e.clientX - r.left) / (r.width / edCols)), Math.floor((e.clientY - r.top) / (r.width / edCols))];
+  };
+  // клетки в блоки: сливаем ряды подряд в длинные стены
+  const gridToWalls = (grid: number[][], size: number): CustomMap['walls'] => {
+    const cols = grid.length;
+    const cell = size / cols;
+    const walls: CustomMap['walls'] = [];
+    for (let y = 0; y < cols; y++) {
+      let x = 0;
+      while (x < cols) {
+        if (!grid[y][x]) { x++; continue; }
+        let x2 = x;
+        while (x2 + 1 < cols && grid[y][x2 + 1]) x2++;
+        const run = x2 - x + 1;
+        walls.push({
+          x: -size / 2 + (x + run / 2) * cell,
+          z: -size / 2 + (y + 0.5) * cell,
+          w: run * cell,
+          d: cell,
+          h: 3,
+        });
+        x = x2 + 1;
+      }
+    }
+    return walls.slice(0, 400);
+  };
+  const wallsToGrid = (walls: CustomMap['walls'], size: number, cols: number): number[][] => {
+    const grid = Array.from({ length: cols }, () => new Array(cols).fill(0));
+    const cell = size / cols;
+    for (const b of walls) {
+      const x0 = Math.max(0, Math.floor((b.x - b.w / 2 + size / 2) / cell));
+      const x1 = Math.min(cols - 1, Math.floor((b.x + b.w / 2 + size / 2) / cell));
+      const y0 = Math.max(0, Math.floor((b.z - b.d / 2 + size / 2) / cell));
+      const y1 = Math.min(cols - 1, Math.floor((b.z + b.d / 2 + size / 2) / cell));
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) grid[y][x] = 1;
+    }
+    return grid;
+  };
+  const saveCustom = useCallback(() => {
+    const name = edName.trim().slice(0, 24) || `Карта ${Object.keys(customsRef.current).length + 1}`;
+    const walls = gridToWalls(edGrid, edSize);
+    const next = { ...customsRef.current, [name]: { name, size: edSize, walls } };
+    setCustoms(next);
+    customsRef.current = next;
+    try { localStorage.setItem(CUSTOMS_KEY, JSON.stringify(next)); } catch { /* noop */ }
+    setCustomSel(name);
+    setCustomRev((r) => r + 1);
+    setMapChoice('custom');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edName, edGrid, edSize]);
+  const editCustom = useCallback((name: string) => {
+    const m = customsRef.current[name];
+    if (!m) return;
+    setEdName(m.name);
+    setEdSize(m.size);
+    const c = Math.max(8, Math.min(28, Math.round(m.size / 5)));
+    setEdGrid(wallsToGrid(m.walls, m.size, c));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const delCustom = useCallback((name: string) => {
+    const next = { ...customsRef.current };
+    delete next[name];
+    setCustoms(next);
+    customsRef.current = next;
+    try { localStorage.setItem(CUSTOMS_KEY, JSON.stringify(next)); } catch { /* noop */ }
+    if (customSel === name) { setCustomSel(null); setMapChoice('arena'); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customSel]);
+  const playCustom = useCallback((name: string) => {
+    if (!customsRef.current[name]) return;
+    setCustomSel(name);
+    setMapChoice('custom');
+  }, []);
   useEffect(() => {
     if (!capturing) return;
     const h = (e: KeyboardEvent) => {
@@ -843,6 +1019,9 @@ async function loadStats(): Promise<void> {
           )}
           {waveBanner > 0 && (
             <div id="waveBanner" key={`wave-${waveBanner}`}>🌊 ВОЛНА {waveBanner}</div>
+          )}
+          {bossBanner && (
+            <div id="bossBanner" key="boss">👑 БОСС-ГОПНИК 🍺</div>
           )}
         </>
       )}
@@ -1039,6 +1218,61 @@ async function loadStats(): Promise<void> {
               </button>
             </div>
           </div>
+          <div className="board" id="editorSec">
+            <h3>🧩 Редактор карт</h3>
+            <div className="srow">
+              <input
+                id="edName"
+                value={edName}
+                maxLength={24}
+                onChange={(e) => setEdName(e.target.value)}
+                placeholder="Название карты"
+              />
+              {[60, 90, 120].map((s) => (
+                <button key={s} className={'wbtn' + (edSize === s ? ' cur' : '')} id={`edsize-${s}`} onClick={() => changeEdSize(s)}>{s}м</button>
+              ))}
+            </div>
+            <div className="srow">
+              <button className={'wbtn' + (edTool === 'wall' ? ' cur' : '')} id="edtool-wall" onClick={() => setEdTool('wall')}>🧱 Стена</button>
+              <button className={'wbtn' + (edTool === 'erase' ? ' cur' : '')} id="edtool-erase" onClick={() => setEdTool('erase')}>🧽 Стереть</button>
+              <button className="wclose" id="edclear" onClick={() => setEdGrid(Array.from({ length: edCols }, () => new Array(edCols).fill(0)))}>Очистить</button>
+            </div>
+            <canvas
+              id="edGrid"
+              ref={(el) => {
+                edCanvas.current = el;
+                if (el) drawEd(edGrid);
+                // eslint-disable-next-line react-hooks/exhaustive-deps
+              }}
+              style={{ width: '100%', maxWidth: 420, touchAction: 'none', cursor: 'crosshair' }}
+              onPointerDown={(e) => {
+                (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
+                const [cx, cy] = edCellPos(e);
+                paintEd(cx, cy, edTool === 'wall' ? 1 : 0);
+              }}
+              onPointerMove={(e) => {
+                if (e.buttons !== 1) return;
+                const [cx, cy] = edCellPos(e);
+                paintEd(cx, cy, edTool === 'wall' ? 1 : 0);
+              }}
+            />
+            <div className="srow">
+              <button className="wbtn" id="edsave" onClick={saveCustom}>💾 СОХРАНИТЬ И ИГРАТЬ</button>
+            </div>
+            {Object.keys(customs).length > 0 && (
+              <div id="customList">
+                {Object.values(customs).map((m) => (
+                  <div className="srow" key={m.name}>
+                    <span>🧩 {m.name} · {m.size}м · 🧱 {m.walls.length}{customSel === m.name ? ' · ✔ выбрана' : ''}</span>
+                    <button className="wbtn" id={`custom-play-${m.name}`} onClick={() => playCustom(m.name)}>ИГРАТЬ</button>
+                    <button className="wbtn" id={`custom-edit-${m.name}`} onClick={() => editCustom(m.name)}>РЕД.</button>
+                    <button className="wclose" id={`custom-del-${m.name}`} onClick={() => delCustom(m.name)}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div><small>Свои карты — для соло (без комнаты). Тыкни по сетке — стена, зелёная точка — спавн.</small></div>
+          </div>
           <div className="board" id="goSec">
             <h3>🚀 В бой</h3>
           <input
@@ -1054,7 +1288,7 @@ async function loadStats(): Promise<void> {
           {(roomId && !isOwner) || waiting ? (
             <button id="goBtn" disabled title="Ждём старта от создателя">⏳ ЖДУ СТАРТА…</button>
           ) : (
-            <button id="goBtn" onClick={go}>{(roomId ? roomMode : mapChoice) === 'duel' ? '⚔️ В ДУЭЛЬ' : (roomId ? roomMode : mapChoice) === 'backrooms' ? '🟨 В БЭКРУМС' : '▶️ ПОГНАЛИ'}</button>
+            <button id="goBtn" onClick={go}>{(() => { const gm = roomId ? roomMode : mapChoice; return gm === 'duel' ? '⚔️ В ДУЭЛЬ' : gm === 'backrooms' ? '🟨 В БЭКРУМС' : gm === 'custom' ? '🧩 НА СВОЮ' : '▶️ ПОГНАЛИ'; })()}</button>
           )}
           </div>
           {profileOpen && (
@@ -1182,6 +1416,14 @@ async function loadStats(): Promise<void> {
               ))}</ol>
             </div>
           )}
+          <div className="board" id="duelTop">
+            <h3>⚔️ Топ дуэлянтов 1×1</h3>
+            {duelTop.length > 0 ? (
+              <ol>{duelTop.slice(0, 5).map((d, i) => (
+                <li key={i}>{d.login} — {d.wins} 👑</li>
+              ))}</ol>
+            ) : <div>Пока пусто — выиграй первый раунд!</div>}
+          </div>
           {gstats && (
             <div className="board" id="gstats">
               <h3>📊 Статистика игры</h3>

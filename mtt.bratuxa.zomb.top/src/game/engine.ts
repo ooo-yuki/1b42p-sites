@@ -10,6 +10,7 @@ import brickUrl from '../assets/brick.jpg';
 import brFloorUrl from '../assets/br-floor.jpg';
 import brWallUrl from '../assets/br-wall.jpg';
 import brCeilUrl from '../assets/br-ceil.jpg';
+import bossUrl from '../assets/boss.png';
 import charMttUrl from '../assets/char-mtt.png';
 import charKrysaUrl from '../assets/char-krysa.png';
 
@@ -31,7 +32,7 @@ export function charSpec(id: string): CharDef {
 }
 
 export type Quality = 'fast' | 'nice';
-export type MapId = 'arena' | 'duel' | 'backrooms';
+export type MapId = 'arena' | 'duel' | 'backrooms' | 'custom';
 
 /** Карты для выбора в меню: id, название, описание. */
 export const MAPS: Array<{ id: MapId; name: string; desc: string }> = [
@@ -40,10 +41,16 @@ export const MAPS: Array<{ id: MapId; name: string; desc: string }> = [
   { id: 'backrooms', name: '🟨 Бэкрумс', desc: 'Случайный лабиринт — новый каждый раз' },
 ];
 
+/** Своя карта из редактора: блоки-стены поверх травы. */
+export interface CustomBlock { x: number; z: number; w: number; d: number; h: number }
+export interface CustomMap { name: string; size: number; walls: CustomBlock[] }
+
 /** Настройки запуска игры из меню. */
 export interface GameOpts {
   /** false — мирный режим: врагов нет, можно гулять. */
   enemies?: boolean;
+  /** Своя карта (map 'custom'). */
+  custom?: CustomMap | null;
 }
 
 export interface HudState {
@@ -62,6 +69,8 @@ export interface HudState {
   kick: number;
   med: number;
   lvl: number;
+  /** Живых боссов на карте — для баннера 👑. */
+  boss: number;
 }
 
 export interface WeaponDef {
@@ -149,7 +158,7 @@ interface Enemy {
   hpCv: HTMLCanvasElement;
   hpTex: THREE.CanvasTexture;
   hpSpr: THREE.Sprite;
-  kind: 'walk' | 'fly';
+  kind: 'walk' | 'fly' | 'boss';
   hp: number;
   maxhp: number;
   speed: number;
@@ -215,6 +224,8 @@ export class Game {
   private half: number = HALF;
   /** Мирный режим из меню: врагов нет, волны не идут. */
   readonly enemiesOn: boolean = true;
+  /** Своя карта из редактора (map 'custom'). */
+  private custom: CustomMap | null = null;
   private wallKickCd = 0;
   private charId = 'mtt';
   private charSpd = 1;
@@ -301,6 +312,7 @@ export class Game {
     opts: GameOpts = {},
   ) {
     this.enemiesOn = opts.enemies !== false;
+    this.custom = opts.custom ?? null;
     // Бэкрумс большой: лабиринт ~120м. Размер задаёт сам строитель через halfOverride.
     this.half = map === 'duel' ? 32 : HALF;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
@@ -790,9 +802,83 @@ export class Game {
     return { n: 21, cell: 6, segs: this.solids.length, half: this.half };
   }
 
+  /**
+   * СВОЯ КАРТА из редактора: трава, кирпичный периметр, блоки-стены.
+   * Пустая карта (без блоков) — просто поле для прогулок.
+   */
+  private buildCustom(): void {
+    const scene = this.scene;
+    const c = this.custom;
+    const S = c && c.size >= 40 && c.size <= 140 ? c.size : 90;
+    this.half = S / 2;
+    scene.add(new THREE.AmbientLight(0xffffff, 0.95));
+    const sun = new THREE.DirectionalLight(0xfff2dd, 1.1);
+    sun.position.set(40, 70, 20);
+    scene.add(sun);
+    const grass = new THREE.TextureLoader().load(travaUrl);
+    grass.colorSpace = THREE.SRGBColorSpace;
+    grass.wrapS = grass.wrapT = THREE.MirroredRepeatWrapping;
+    grass.repeat.set(S / 4, S / 4);
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(S + 10, S + 10),
+      new THREE.MeshStandardMaterial({ map: grass, roughness: 1 }),
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+    const wallTex = new THREE.TextureLoader().load(brickUrl);
+    wallTex.colorSpace = THREE.SRGBColorSpace;
+    wallTex.wrapS = wallTex.wrapT = THREE.MirroredRepeatWrapping;
+    wallTex.repeat.set(S / 8, 1);
+    const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.9 });
+    const PH = 6;
+    const mkPer = (w: number, d: number, x: number, z: number): void => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, PH, d), wallMat);
+      m.position.set(x, PH / 2, z);
+      scene.add(m);
+    };
+    mkPer(S + 4, 2, 0, -S / 2 - 1);
+    mkPer(S + 4, 2, 0, S / 2 + 1);
+    mkPer(2, S + 4, -S / 2 - 1, 0);
+    mkPer(2, S + 4, S / 2 + 1, 0);
+    // блоки автора карты
+    const wt = Game.makeWindowsTex();
+    for (const b of c?.walls ?? []) {
+      const bt = wt.clone();
+      bt.wrapS = bt.wrapT = THREE.MirroredRepeatWrapping;
+      bt.repeat.set(Math.max(1, Math.round(b.w / 6)), Math.max(1, Math.round(b.h / 6)));
+      bt.needsUpdate = true;
+      const m = new THREE.Mesh(
+        new THREE.BoxGeometry(b.w, b.h, b.d),
+        new THREE.MeshStandardMaterial({ map: bt, roughness: 0.85, color: 0xd8b48f }),
+      );
+      m.position.set(b.x, b.h / 2, b.z);
+      m.castShadow = true; m.receiveShadow = true;
+      scene.add(m);
+      this.solids.push({ x: b.x, z: b.z, hx: b.w / 2, hz: b.d / 2, h: b.h });
+    }
+    // спавн: юг карты, если занято — ищем свободное
+    const cand: Array<[number, number]> = [[0, S / 2 - 8], [0, 0], [-S / 4, S / 4], [S / 4, S / 4], [0, -S / 2 + 8]];
+    for (const [qx, qz] of cand) {
+      if (!this.hitSolid(qx, qz, 1.5)) { this.px = qx; this.pz = qz; this.yaw = 0; return; }
+    }
+    for (let t = 0; t < 30; t++) {
+      const qx = (Math.random() * 2 - 1) * (S / 2 - 5);
+      const qz = (Math.random() * 2 - 1) * (S / 2 - 5);
+      if (!this.hitSolid(qx, qz, 1.5)) { this.px = qx; this.pz = qz; this.yaw = 0; return; }
+    }
+    this.px = 0; this.pz = S / 2 - 8; this.yaw = 0;
+  }
+
+  /** Для тестов: что построили из своей карты. */
+  debugCustom(): { walls: number; half: number } {
+    return { walls: this.solids.length, half: this.half };
+  }
+
   private buildWorld(): void {
     if (this.map === 'duel') { this.buildDuel(); return; }
     if (this.map === 'backrooms') { this.buildBackrooms(); return; }
+    if (this.map === 'custom') { this.buildCustom(); return; }
     const scene = this.scene;
     // светло: день вместо ночи
     scene.add(new THREE.AmbientLight(0xffffff, 0.95));
@@ -1137,6 +1223,13 @@ export class Game {
 
   private spawnWave(): void {
     const n = Math.min(4 + this.wave, 10);
+    // каждая 5-я волна — БОСС-гопник + свита поменьше
+    if (this.wave % 5 === 0) {
+      this.spawnEnemy('boss');
+      const flyers = this.wave >= 2 ? Math.floor((n - 2) * 0.3) : 0;
+      for (let i = 0; i < n - 2; i++) this.spawnEnemy(i < flyers ? 'fly' : 'walk');
+      return;
+    }
     // со 2-й волны 30% орды — летуны
     const flyers = this.wave >= 2 ? Math.floor(n * 0.3) : 0;
     for (let i = 0; i < n; i++) this.spawnEnemy(i < flyers ? 'fly' : 'walk');
@@ -1164,42 +1257,60 @@ export class Game {
     return this.flyTexCache;
   }
 
-  debugSpawn(kind: 'walk' | 'fly'): number {
-    this.spawnEnemy(kind === 'fly' ? 'fly' : 'walk');
+  private bossTexCache: THREE.Texture | null = null;
+
+  /** Гопник с пивом: босс каждой 5-й волны. */
+  private bossTexture(): THREE.Texture {
+    if (!this.bossTexCache) {
+      const t = new THREE.TextureLoader().load(bossUrl);
+      t.colorSpace = THREE.SRGBColorSpace;
+      this.bossTexCache = t;
+    }
+    return this.bossTexCache;
+  }
+
+  debugSpawn(kind: 'walk' | 'fly' | 'boss'): number {
+    this.spawnEnemy(kind);
     return this.debugFlyers();
+  }
+
+  debugBoss(): number {
+    return this.enemies.filter((e) => !e.dead && e.kind === 'boss').length;
   }
 
   debugFlyers(): number {
     return this.enemies.filter((e) => !e.dead && e.kind === 'fly').length;
   }
 
-  private spawnEnemy(kind: 'walk' | 'fly'): void {
-    // в Бэкрумс потолок 3м — летуны бы скребли макушкой, только пешие
+  private spawnEnemy(kind: 'walk' | 'fly' | 'boss'): void {
+    // в Бэкрумс потолок 3м — летуны бы скребли макушкой, только пешие (босс проходит: он земной)
     const fly = kind === 'fly' && this.map !== 'backrooms';
-    const tex = fly ? this.foeTextureTinted() : this.foeTexture();
+    const boss = kind === 'boss';
+    const tex = boss ? this.bossTexture() : fly ? this.foeTextureTinted() : this.foeTexture();
     const g = new THREE.Group();
     const body = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, color: fly ? 0xdd99ff : 0xffffff }));
-    body.scale.set(fly ? 1.2 : 1.4, fly ? 1.6 : 2.0, 1);
-    body.position.set(0, fly ? 3.2 : 1.0, 0);
+    body.scale.set(boss ? 2.8 : fly ? 1.2 : 1.4, boss ? 3.6 : fly ? 1.6 : 2.0, 1);
+    body.position.set(0, boss ? 1.8 : fly ? 3.2 : 1.0, 0);
     g.add(body);
     // полоска HP с цифрами: рисуем на канвасе (пиксель-стиль)
     const hpCv = document.createElement('canvas');
     hpCv.width = 128; hpCv.height = 32;
     const hpTex = new THREE.CanvasTexture(hpCv);
-    const hpSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: hpTex, depthTest: false, transparent: true }));
-    hpSpr.scale.set(1.7, 0.42, 1);
-    hpSpr.position.set(0, fly ? 4.6 : 2.35, 0);
+    const hpSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: hpTex, depthTest: true, transparent: true }));
+    hpSpr.scale.set(boss ? 3.4 : 1.7, boss ? 0.84 : 0.42, 1);
+    hpSpr.position.set(0, boss ? 4.1 : fly ? 4.6 : 2.35, 0);
     g.add(hpSpr);
-    // точка спавна: только свободная (не внутри укрытий) и не впритык к игроку
+    // точка спавна: только свободная (не внутри укрытий) и не впритык к игроку (босс — подальше)
     let sx = 0, sz = 40;
     let ok = false;
+    const minDist = boss ? 14 : 10;
     for (let t = 0; t < 24; t++) {
       const a = Math.random() * Math.PI * 2;
       const r = 26 + Math.random() * 22;
       const cx = clampArena(Math.cos(a) * r);
       const cz = clampArena(Math.sin(a) * r);
       if (this.hitSolid(cx, cz, 2)) continue;
-      if (Math.hypot(cx - this.px, cz - this.pz) < 10) continue;
+      if (Math.hypot(cx - this.px, cz - this.pz) < minDist) continue;
       sx = cx; sz = cz;
       ok = true;
       break;
@@ -1219,12 +1330,14 @@ export class Game {
     this.scene.add(g);
     const foe: Enemy = {
       g, body, hpCv, hpTex, hpSpr, kind,
-      hp: fly ? 70 : 100, maxhp: fly ? 70 : 100,
-      speed: 1.7 + Math.random() * 1.1 + this.wave * 0.12 + (fly ? 0.6 : 0),
+      hp: boss ? 500 + this.wave * 50 : fly ? 70 : 100,
+      maxhp: boss ? 500 + this.wave * 50 : fly ? 70 : 100,
+      speed: boss ? 1.5 : 1.7 + Math.random() * 1.1 + this.wave * 0.12 + (fly ? 0.6 : 0),
       hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, ey: 0, evy: 0, hopCd: 1 + Math.random() * 2, dead: false,
     };
     this.updateHpBar(foe);
     this.enemies.push(foe);
+    this.pushHud();
   }
 
   private updateHpBar(e: Enemy): void {
@@ -1296,7 +1409,7 @@ export class Game {
     }
     if (hits > 0) this.blip(440);
     this.pushHud();
-    if ((this.map === 'arena' || this.map === 'backrooms') && this.enemiesOn && this.enemies.length > 0 && this.enemies.every((e) => e.dead)) {
+    if ((this.map === 'arena' || this.map === 'backrooms' || this.map === 'custom') && this.enemiesOn && this.enemies.length > 0 && this.enemies.every((e) => e.dead)) {
       this.wave++;
       this.hp = Math.min(this.maxhp, this.hp + 25);
       this.fantiki += 25;
@@ -1321,9 +1434,10 @@ export class Game {
       e.dead = true;
       this.scene.remove(e.g);
       this.kills++;
-      this.score += 100 + this.wave * 10;
-      this.fantiki += 10;
-      this.addXp(10);
+      // за босса — куш: +500 очков и +100 фантиков
+      this.score += e.kind === 'boss' ? 500 + this.wave * 10 : 100 + this.wave * 10;
+      this.fantiki += e.kind === 'boss' ? 100 : 10;
+      this.addXp(e.kind === 'boss' ? 100 : 10);
       this.saveShop();
       this.blip(520);
     }
@@ -1360,7 +1474,7 @@ export class Game {
     this.afterHit(best, best.g.position.x - cx, best.g.position.z - cz, Math.hypot(best.g.position.x - cx, best.g.position.z - cz), 0.8);
     this.blip(440);
     this.pushHud();
-    if ((this.map === 'arena' || this.map === 'backrooms') && this.enemiesOn && this.enemies.length > 0 && this.enemies.every((e) => e.dead)) {
+    if ((this.map === 'arena' || this.map === 'backrooms' || this.map === 'custom') && this.enemiesOn && this.enemies.length > 0 && this.enemies.every((e) => e.dead)) {
       this.wave++;
       this.hp = Math.min(this.maxhp, this.hp + 25);
       this.fantiki += 25;
@@ -1468,6 +1582,7 @@ export class Game {
       moving: this.moving,
       med: this.medkits,
       lvl: this.level(),
+      boss: this.enemies.filter((e) => !e.dead && e.kind === 'boss').length,
       dash: Math.round(this.dashCd * 10) / 10,
       kick: Math.round(this.wallKickCd * 10) / 10,
     });
@@ -1527,7 +1642,7 @@ export class Game {
         const cv = document.createElement('canvas');
         cv.width = 128; cv.height = 48;
         const ltex = new THREE.CanvasTexture(cv);
-        const lab = new THREE.Sprite(new THREE.SpriteMaterial({ map: ltex, depthTest: false, transparent: true }));
+        const lab = new THREE.Sprite(new THREE.SpriteMaterial({ map: ltex, depthTest: true, transparent: true }));
         lab.scale.set(1.9, 0.72, 1);
         lab.position.set(0, 2.5, 0);
         g.add(lab);
@@ -1817,6 +1932,8 @@ export class Game {
       } else {
         this.pvy -= 12 * dt;
         this.py += this.pvy * dt;
+        // Бэкрумс: потолок 3м — головой не пробивать (глаза 1.7м + прыжок)
+        if (this.map === 'backrooms' && this.py > 1.2) { this.py = 1.2; this.pvy = Math.min(0, this.pvy); }
         // приземление на опору под ногами: земля, крыша, мост, ступень
         const g = this.groundAt(this.px, this.pz);
         if (this.py <= g) { this.py = g; this.pvy = 0; }
@@ -1834,8 +1951,9 @@ export class Game {
           if (!this.hitSolid(nx, e.g.position.z, 0.8, eyH)) e.g.position.x = clampArena(nx);
           if (!this.hitSolid(e.g.position.x, nz, 0.8, eyH)) e.g.position.z = clampArena(nz);
         } else if (e.hitCd <= 0) {
-          e.hitCd = 0.95;
-          this.hp -= 6 + Math.random() * 5;
+          e.hitCd = e.kind === 'boss' ? 1.2 : 0.95;
+          // босс бьёт втрое злее
+          this.hp -= e.kind === 'boss' ? 18 + Math.random() * 10 : 6 + Math.random() * 5;
           this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
           this.shakeT = 0.25;
           this.blip(90);

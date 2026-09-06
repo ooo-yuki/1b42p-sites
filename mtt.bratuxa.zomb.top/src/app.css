@@ -10,7 +10,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 #menu{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;
  justify-content:center;text-align:center;padding:20px;overflow-y:auto;
  background:radial-gradient(ellipse at 50% 30%,#1a1440 0%,#0a0824 55%,#04060f 100%)}
-#menu h1{margin:0;font-size:min(13vw,64px);font-weight:900;letter-spacing:2px;
+#menu h1{margin:0;font-size:min(20vw,110px);font-weight:900;letter-spacing:4px;
  background:linear-gradient(180deg,#ffd23f 20%,#ff9f1c 55%,#ff3b3b 100%);
  -webkit-background-clip:text;background-clip:text;color:transparent;
  filter:drop-shadow(0 0 26px rgba(255,80,40,.55)) drop-shadow(3px 3px 0 #000)}
@@ -163,4 +163,8 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
  pointer-events:none;font-size:min(11vw,72px);font-weight:900;color:#ffd23f;
  text-shadow:3px 3px 0 #7a2d00,6px 6px 0 rgba(0,0,0,.55);letter-spacing:2px;
  animation:wavein 2.6s steps(12) forwards}
+#bossBanner{position:fixed;inset:0;z-index:16;display:flex;align-items:center;justify-content:center;
+ pointer-events:none;font-size:min(10vw,64px);font-weight:900;color:#ff6b6b;
+ text-shadow:3px 3px 0 #4a0000,6px 6px 0 rgba(0,0,0,.55);letter-spacing:2px;
+ animation:wavein 3s steps(12) forwards}
 @keyframes wavein{0%{opacity:0;transform:scale(.6)}12%{opacity:1;transform:scale(1.08)}22%{transform:scale(1)}78%{opacity:1}100%{opacity:0;transform:scale(1.05)}}

@@ -27,6 +27,11 @@ db.run(`CREATE TABLE IF NOT EXISTS users (
   created INTEGER NOT NULL
 )`);
 try { db.run('ALTER TABLE scores ADD COLUMN login TEXT DEFAULT ""'); } catch { /* уже есть */ }
+// топ дуэлянтов 1×1: победы в раундах по логину (гости мимо)
+db.run(`CREATE TABLE IF NOT EXISTS duel_top (
+  login TEXT PRIMARY KEY,
+  wins INTEGER NOT NULL DEFAULT 0
+)`);
 
 async function registerUser(login: string, pass: string): Promise<{ ok: boolean; error?: string; token?: string }> {
   if (String(pass ?? '').length < 4 || String(pass ?? '').length > 64) return { ok: false, error: 'passlen' };
@@ -360,6 +365,10 @@ async function roomsApi(req: Request): Promise<Response | null> {
       room.round++;
       room.lastWinner = me.nick;
       for (const m of room.players.values()) m.duelHp = 100;
+      // победа в раунде — в вечный топ дуэлянтов (только залогиненные)
+      if (me.login) {
+        db.run('INSERT INTO duel_top (login, wins) VALUES (?, 1) ON CONFLICT(login) DO UPDATE SET wins = wins + 1', [me.login]);
+      }
     }
     return Response.json({ foeHp: Math.round(foe.duelHp), wins: me.wins, round: room.round, lastWinner: room.lastWinner });
   }
@@ -426,6 +435,10 @@ Bun.serve({
   routes: {
     '/api/scores': () => {
       const rows = db.query('SELECT nick, score, coins FROM scores ORDER BY score DESC LIMIT 10').all();
+      return Response.json(rows);
+    },
+    '/api/duel-top': () => {
+      const rows = db.query('SELECT login, wins FROM duel_top ORDER BY wins DESC, login ASC LIMIT 10').all();
       return Response.json(rows);
     },
     '/api/score': {
