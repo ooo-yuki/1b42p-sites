@@ -15,6 +15,7 @@ import { WEAPONS, fireShot, type Slot } from './sim/weapons';
 import { ENEMIES, ATTACK_RANGE } from './sim/enemies';
 import { makeWave } from './sim/waves';
 import { MAPS, resolveCircle, type MapId } from './sim/maps';
+import { spawnPickups, updatePickups, type Medkit } from './sim/pickups';
 import { gameStore, DIFF_MULT, type Difficulty } from './game/store';
 
 createRoot(document.getElementById('root')!).render(
@@ -59,6 +60,7 @@ const sim = {
   reloadT: 0,
   wave: 1,
   enemies: [] as Enemy[],
+  pickups: [] as Medkit[],
   spawnQueue: [] as { type: keyof typeof ENEMIES }[],
   spawnT: 0,
   summonCd: 12,
@@ -88,6 +90,31 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.info.autoReset = false;
 let mapGroup = buildMapVisual(mapId);
 scene.add(mapGroup);
+
+// Банки-аптечки: зелёный ящик с белым крестом, видно издалека.
+// Геометрия/материалы общие на все банки — без аллокаций на штуку.
+const medGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+const medBoxMat = new THREE.MeshStandardMaterial({ color: 0x0a7a3a, emissive: 0x00c853, emissiveIntensity: 0.7, roughness: 0.4 });
+const medCrossMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.5, roughness: 0.4 });
+let medkitGroup: THREE.Group | null = null;
+function rebuildMedkitVisuals() {
+  if (medkitGroup) scene.remove(medkitGroup);
+  medkitGroup = new THREE.Group();
+  sim.pickups.forEach((m, i) => {
+    const g = new THREE.Group();
+    g.position.set(m.x, 0.6, m.z);
+    g.userData.i = i;
+    g.add(new THREE.Mesh(medGeo, medBoxMat));
+    for (const s of [1, -1]) {
+      const h = new THREE.Mesh(medGeo, medCrossMat);
+      h.scale.set(0.6, 0.2, 0.1); h.position.z = 0.26 * s; g.add(h);
+      const v = new THREE.Mesh(medGeo, medCrossMat);
+      v.scale.set(0.2, 0.6, 0.1); v.position.z = 0.26 * s; g.add(v);
+    }
+    medkitGroup!.add(g);
+  });
+  scene.add(medkitGroup);
+}
 
 let shuba: Shuba | null = null;
 const playerRoot = new THREE.Group();
@@ -249,6 +276,8 @@ function startGame(map: MapId, diff: Difficulty) {
   disposeMapVisual(scene, mapGroup);
   mapGroup = buildMapVisual(mapId);
   scene.add(mapGroup);
+  sim.pickups = spawnPickups(mapId);
+  rebuildMedkitVisuals();
   applyMapMood(mapId);
   sim.player = createPlayer() as PlayerState & { pitch?: number };
   // Спавн вдали от препятствий, лицом к центру карты.
@@ -342,7 +371,7 @@ function pushHud(message?: string) {
   view: (v: 'first' | 'third') => setView(v),
   wave: (n: number) => startWave(n),
   get: () => gameStore.get(),
-  dbg: () => ({ t: sim.timeSec, acc, fps: fpsAvg, n: tickCount, frames: frameCount, enemies: sim.enemies.length, queue: sim.spawnQueue.length, px: sim.player.x, pz: sim.player.z, yaw: sim.player.yaw, cam: [camera.position.x, camera.position.y, camera.position.z], roll: camera.rotation.z, view: getView() }),
+  dbg: () => ({ t: sim.timeSec, acc, fps: fpsAvg, n: tickCount, frames: frameCount, enemies: sim.enemies.length, queue: sim.spawnQueue.length, px: sim.player.x, pz: sim.player.z, yaw: sim.player.yaw, cam: [camera.position.x, camera.position.y, camera.position.z], roll: camera.rotation.z, view: getView(), meds: sim.pickups.filter((m) => !m.taken).length }),
   /** Приёмка камеры: yaw, телепорт (тест стен), обзор правым стиком. */
   setYaw: (y: number) => { sim.player.yaw = y; },
   tp: (x: number, z: number) => { sim.player.x = x; sim.player.z = z; snapCamera(); },
@@ -421,6 +450,11 @@ function tick(dt: number) {
   inputBus.look.dx *= 0.8;
   inputBus.look.dy *= 0.8;
   resolveCircle(p, 0.4, mapId);
+  const healed = updatePickups(sim.pickups, p.x, p.z, dt);
+  if (healed > 0) {
+    p.hp = Math.min(MAX_HP, p.hp + healed);
+    pushHud(`Аптечка +${healed} 🏥`);
+  }
 
   // Оружие: кулдаун, огонь, перезарядка.
   const w = WEAPONS[sim.slot];
@@ -692,6 +726,15 @@ function step(now: number) {
     e.mesh.rotation.y = Math.atan2(p.x - e.x, p.z - e.z);
   }
   tracers.update(dt);
+  if (medkitGroup) {
+    const t = now / 1000;
+    medkitGroup.children.forEach((g) => {
+      const m = sim.pickups[g.userData.i];
+      g.visible = !m.taken;
+      g.position.y = 0.6 + Math.sin(t * 2 + g.userData.i) * 0.12;
+      g.rotation.y += dt * 1.2;
+    });
+  }
   boomPool.update(dt);
   bloodPool.update(dt);
   sparkPool.update(dt);
