@@ -1,0 +1,90 @@
+# Все приложения батальона в Docker (приказ Miqqil).
+# Пилот: miqqil-api. Остальные сервисы добавляются тем же шаблоном.
+# Запуск: docker compose -f compose.apps.yml up -d --build
+services:
+  miqqil-api:
+    build:
+      context: ../miqqil.bratuxa.zomb.top
+      dockerfile: ../infra/docker/bun.Dockerfile
+    image: bat42/miqqil-api:latest
+    restart: unless-stopped
+    env_file: /etc/miqqil-api.env
+    environment:
+      BIND: 0.0.0.0
+    ports: ["127.0.0.1:8091:8091"]
+
+  mtt-api:
+    build:
+      context: ../mtt.bratuxa.zomb.top
+      dockerfile: ../infra/docker/bun.Dockerfile
+    image: bat42/mtt-api:latest
+    restart: unless-stopped
+    command: ["bun", "run", "server.ts"]
+    volumes:
+      - /data:/app/data
+    ports: ["127.0.0.1:8095:8095"]
+
+  sasha-arena:
+    build:
+      context: ../sasha.bratuxa.zomb.top
+      dockerfile: ../infra/docker/bun.Dockerfile
+    image: bat42/sasha-arena:latest
+    restart: unless-stopped
+    command: ["bun", "arena/server.ts"]
+    ports: ["127.0.0.1:8094:8094"]
+
+  evaelph-api:
+    build:
+      context: ../evaelph.bratuxa.zomb.top
+      dockerfile: ../infra/docker/node.Dockerfile
+    image: bat42/evaelph-api:latest
+    restart: unless-stopped
+    network_mode: host
+    env_file: /etc/evaelph-api.env
+    command: ["node", "server.js"]
+
+  tracker-api:
+    build:
+      context: ../hub.bratuxa.zomb.top
+      dockerfile: ../infra/docker/node.Dockerfile
+    image: bat42/tracker-api:latest
+    restart: unless-stopped
+    network_mode: host
+    env_file: /etc/tracker-api.env
+    command: ["node", "server-tracker.js"]
+
+  bat42bot:
+    build:
+      context: /root/bat42bot
+      dockerfile: /root/sites/infra/docker/python.Dockerfile
+      args:
+        PIP_PKGS: "requests"
+    image: bat42/bat42bot:latest
+    restart: unless-stopped
+    env_file: /root/bat42bot/bot.env
+    command: ["python", "bot.py"]
+    volumes:
+      - /root/bat42bot/bat42.db:/app/bat42.db
+
+  news-rewriter:
+    build:
+      context: /root/news-rewriter
+      dockerfile: /root/sites/infra/docker/node.Dockerfile
+    image: bat42/news-rewriter:latest
+    restart: unless-stopped
+    env_file: /root/news-rewriter/bot.env
+    command: ["node", "node_modules/tsx/dist/cli.mjs", "src/index.ts"]
+    volumes:
+      - /root/news-rewriter/data:/app/data
+
+  chaev-router:
+    build:
+      context: ..
+      dockerfile: infra/docker/router.Dockerfile
+    image: bat42/chaev-router:latest
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /root/sites:/root/sites:ro
+    command: ["python", "router.py"]

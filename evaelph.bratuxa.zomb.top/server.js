@@ -6,7 +6,7 @@ const { Pool } = require('pg');
 
 const PORT = 8092;
 const pool = new Pool({
-  host: '127.0.0.1',
+  host: process.env.PGHOST || '127.0.0.1',
   database: 'evaelph',
   user: 'evaelph_api',
   password: process.env.EVA_DB_PASSWORD || '',

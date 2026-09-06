@@ -157,7 +157,7 @@ function handleWsMessage(ws: any, msg: any) {
 // ============================================================
 const server = Bun.serve({
   port: 8091,
-  hostname: '127.0.0.1',
+  hostname: process.env.BIND || '127.0.0.1',
   async fetch(req, srv) {
     const url = new URL(req.url);
 

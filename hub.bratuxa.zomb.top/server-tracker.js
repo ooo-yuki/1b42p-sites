@@ -7,7 +7,7 @@ const PORT = 8093;
 const ONLINE_SEC = 90;
 const SITES = ['hub', 'chaev', 'doom', 'evaelph', 'smolgrad', 'miqqil', 'setden', 'svyatoslav', 'denis', 'sasha', 'gtaevv', 'brohacho', '1b42p', 'mtt', 'laiv42'];
 const pool = new Pool({
-  host: '127.0.0.1', database: 'tracker42', user: 'tracker_api',
+  host: process.env.PGHOST || '127.0.0.1', database: 'tracker42', user: 'tracker_api',
   password: process.env.TR_DB_PASSWORD || '',
 });
 
