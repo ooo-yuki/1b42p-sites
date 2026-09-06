@@ -82,7 +82,7 @@ var SKY_RESP_EVERY=18,SKY_RESP_VAL=25,START_RESP=150; // небо-рэспэкт
 /* --- состояние --- */
 var G=null;
 function newGame(){
-  G={state:'play',t:0,resp:START_RESP,units:[],zoms:[],peas:[],fx:[],floats:[],resps:[],fly:[],
+  G={state:'play',t:0,resp:START_RESP,units:[],zoms:[],peas:[],fx:[],floats:[],resps:[],fly:[],debris:[],
     kills:0,spawned:0,spawnT:3,skyT:6,seeds:{mopso:0,sun:0,bomb:0},drag:null,over:null,
     seedFlash:null,cellFlash:null};
 }
@@ -90,7 +90,7 @@ function cellXY(r,c){return {x:GX0+c*CW,y:GY0+r*CH};}
 function rowY(r){return GY0+(r+0.65)*CH;} // линия точек трафарета: центр X, 65% высоты клетки
 function unitAt(r,c){for(var i=0;i<G.units.length;i++){var u=G.units[i];if(u.r===r&&u.c===c)return u;}return null;}
 /* --- текстуры --- */
-var IMG={},IMGNAMES={bg:'tex/bg1.jpg',zombie:'tex/zombie.png',mopso:'tex/mopso.png',sunflow:'tex/sunflow.png',bomba:'tex/bomba.png',mops:'tex/mops.png',resp:'tex/respect.png',panel:'tex/panel.png'};
+var IMG={},IMGNAMES={bg:'tex/bg1.jpg',zombie:'tex/zombie.png',mopso:'tex/mopso.png',sunflow:'tex/sunflow.png',bomba:'tex/bomba.png',mops:'tex/mops.png',resp:'tex/respect.png',panel:'tex/panel.png',cone:'tex/Enemies/cone.png',bucket:'tex/Enemies/bucket.png'};
 var IMG_OK=0,IMG_NEED=Object.keys(IMGNAMES).length;
 function loadAll(next){
   Object.keys(IMGNAMES).forEach(function(k){
@@ -146,10 +146,20 @@ function spawnResp(x,y){
   G.resps.push({x:x,y:y,ty:(y<0?GY0+30+Math.random()*(GY1-GY0-60):y),v:SKY_RESP_VAL,t:RESP_LIFE,ph:Math.random()*6});
 }
 /* --- спавн --- */
+/* --- броня зомби: конус +1141 (с 90с, 20%), ведро +1941 (со 180с, 10%), таймер скрыт --- */
+var ARM_T1=90,ARM_T2=180,ARM_CONE_HP=1141,ARM_BUCKET_HP=1941;
 function spawnZom(){
   var r=Math.floor(Math.random()*ROWS);
-  G.zoms.push({r:r,x:1135,hp:Z_HP,eatT:0,ph:Math.random()*6}); // выползает из-за правого края экрана
+  var arm=null,ahp=0,roll=Math.random();
+  if(roll<0.10){if(G.t>=ARM_T2){arm='bucket';ahp=ARM_BUCKET_HP;}}
+  else if(roll<0.30){if(G.t>=ARM_T1){arm='cone';ahp=ARM_CONE_HP;}}
+  G.zoms.push({r:r,x:1135,hp:Z_HP,armor:arm,armorHp:ahp,eatT:0,ph:Math.random()*6}); // выползает из-за правого края экрана
   G.spawned++;
+}
+function popArmor(w,ak){ /* броня слетает куском с физикой, голова отлетит только после смерти */
+  G.debris.push({r:w.r,x:w.x,y:rowY(w.r)-70,kind:ak,t:0,
+    vx:(Math.random()<0.5?-1:1)*(60+Math.random()*60),vy:-220,rot:0,vr:(Math.random()<0.5?-1:1)*8});
+  G.fx.push({x:w.x,y:rowY(w.r)-50,t:0.3,r:10});sfx('hit');
 }
 function firePea(u){
   var p=cellXY(u.r,u.c);
@@ -180,8 +190,8 @@ function update(dt){
   for(var k in G.seeds)if(G.seeds[k]>0)G.seeds[k]-=dt;
   if(G.seedFlash){G.seedFlash.t-=dt;if(G.seedFlash.t<=0)G.seedFlash=null;}
   if(G.cellFlash){G.cellFlash.t-=dt;if(G.cellFlash.t<=0)G.cellFlash=null;}
-  /* спавн врагов: бесконечно, хаотично, каждые 5–10 секунд */
-  {G.spawnT-=dt;if(G.spawnT<=0){G.spawnT=5+Math.random()*5;spawnZom();}}
+  /* спавн врагов: бесконечно, хаотично 5–10с, с каждой минутой чаще до +50% (6 минут) */
+  {G.spawnT-=dt;if(G.spawnT<=0){var sm=1+0.5*Math.min(G.t/360,1);G.spawnT=(5+Math.random()*5)/sm;spawnZom();}}
   /* небо-рэспэкт: падает, подобрать кликом */
   G.skyT-=dt;
   if(G.skyT<=0){G.skyT=SKY_RESP_EVERY;spawnResp();}
@@ -213,7 +223,11 @@ function update(dt){
   for(var a=G.peas.length-1;a>=0;a--){var s=G.peas[a];s.x+=220*dt;s.rot=(s.rot||0)+11*dt;
     var hit=false;
     for(var b=0;b<G.zoms.length;b++){var w=G.zoms[b];
-      if(!w.dying&&w.r===s.r&&Math.abs(w.x-s.x)<34){w.hp-=U_MOPSO.dmg;hit=true;sfx('hit');
+      if(!w.dying&&w.r===s.r&&Math.abs(w.x-s.x)<34){
+        if(w.armor){w.armorHp-=U_MOPSO.dmg; /* сначала сносим броню */
+          if(w.armorHp<=0){var ak=w.armor;w.armor=null;popArmor(w,ak);}else sfx('hit');}
+        else{w.hp-=U_MOPSO.dmg;sfx('hit');}
+        hit=true;
         G.fx.push({x:s.x,y:s.y,t:0.2,r:6});break;}}
     if(hit||s.x>GX1+60)G.peas.splice(a,1);
   }
@@ -245,6 +259,13 @@ function update(dt){
   /* долёт рэспэкта до счётчика: 0.6с, по прибытии +v к балансу */
   for(var fi=G.fly.length-1;fi>=0;fi--){var fo=G.fly[fi];fo.t+=dt/0.6;
     if(fo.t>=1){G.resp+=fo.v;G.fly.splice(fi,1);}}
+  /* обломки брони: летят, падают, тают за 1.1с */
+  for(var bi=G.debris.length-1;bi>=0;bi--){var bd=G.debris[bi];bd.t+=dt;
+    bd.vy+=700*dt;bd.x+=bd.vx*dt;bd.y+=bd.vy*dt;bd.rot+=bd.vr*dt;
+    var dfl=rowY(bd.r)+12;
+    if(bd.y>dfl){bd.y=dfl;
+      if(Math.abs(bd.vy)>90)bd.vy*=-0.35;else{bd.vy=0;bd.vr*=0.5;}}
+    if(bd.t>=1.1)G.debris.splice(bi,1);}
 }
 function killZom(i){
   var z=G.zoms[i];
@@ -285,6 +306,10 @@ function draw(){
     ctx.globalAlpha=1;
 
   }
+function drawArmor(kind,cx,topY){ /* броня сидит на макушке */
+  if(kind==='cone')drawImg(IMG.cone,cx-23,topY-42,46,46);
+  else drawImg(IMG.bucket,cx-26,topY-34,52,46);
+}
   /* враги: у зомби башка — верхние 150px из 373 */
   var ZH_HEAD=150,ZH_FULL=373;
   for(var j=0;j<G.zoms.length;j++){var z=G.zoms[j],zy=rowY(z.r);
@@ -297,6 +322,7 @@ function draw(){
       ctx.save();ctx.translate(z.x,zy+30);ctx.rotate(fallK*1.35*(z.fallDir||1));
       try{var bi=IMG.zombie;
         if(bi&&bi.complete&&bi.naturalWidth)ctx.drawImage(bi,0,ZH_HEAD,bi.naturalWidth,bi.naturalHeight-ZH_HEAD,-38,bdt,76,bdh);}catch(e){}
+      if(z.armor)drawArmor(z.armor,0,bdt); // броня уцелела после бомбы — валится вместе с телом
       ctx.restore();
       var hdh=100*ZH_HEAD/ZH_FULL;
       ctx.save();ctx.translate(z.headX,z.headY);ctx.rotate(z.headRot||0);
@@ -311,9 +337,18 @@ function draw(){
     var zsq=Math.sin(G.t*1.6+z.ph),zsx=1-0.04*zsq,zsy=1+0.05*zsq;
     var sway=(z.eatT>0?0.02:0.06)*Math.sin(G.t*3.4+z.ph);
     ctx.save();ctx.translate(z.x,zy+30);ctx.rotate(sway);ctx.scale(zsx,zsy);
-    drawImg(IMG.zombie,-38,-100+bob,76,100);ctx.restore();
+    drawImg(IMG.zombie,-38,-100+bob,76,100);
+    if(z.armor)drawArmor(z.armor,0,-100+bob);
+    ctx.restore();
 
   }
+  /* обломки брони на газоне */
+  for(var bdi=0;bdi<G.debris.length;bdi++){var dbo=G.debris[bdi];
+    ctx.save();ctx.globalAlpha=Math.max(0,1-Math.max(0,dbo.t-0.6)/0.5);
+    ctx.translate(dbo.x,dbo.y);ctx.rotate(dbo.rot);
+    if(dbo.kind==='bucket')drawImg(IMG.bucket,-26,-23,52,46);
+    else drawImg(IMG.cone,-23,-23,46,46);
+    ctx.restore();ctx.globalAlpha=1;}
   /* снаряды-мопсы с раскруткой */
   for(var a=0;a<G.peas.length;a++){var q=G.peas[a];
     ctx.save();ctx.translate(q.x,q.y);ctx.rotate(q.rot||0);
@@ -362,11 +397,11 @@ var SEED_ORDER=['mopso','sun','bomb'];
 function seedRect(i){return {x:6,y:77+i*59.7,w:121,h:56};} // размер как в версии с 9 слотами; ниже — пустое место
 function drawPanel(){
   drawImg(IMG.panel,0,0,133,619); // фон панели из архива ui
-  /* счётчик в синей рамке: центр (991,388)→(93.5,36.7), HandelGothic, трёхзнак влезает */
+  /* счётчик ровно по центру синей рамки: (990,389)→(93.2,36.7) */
   var cs=26;ctx.textAlign='center';
   ctx.font=cs+'px Z42H, Arial';
   while(ctx.measureText(''+G.resp).width>56&&cs>12){cs-=2;ctx.font=cs+'px Z42H, Arial';}
-  ctx.fillStyle='#ffd94d';ctx.fillText(G.resp,93.5,50);
+  ctx.fillStyle='#ffd94d';ctx.fillText(G.resp,93.2,46);
   /* 3 кнопки как в примере chrome_sv70Ful6KL: тёмный пакт, светлая рамка, иконка+цена */
   for(var i=0;i<SEED_ORDER.length;i++){var k=SEED_ORDER[i],d=seedDef(k),R=seedRect(i);
     var avail=G.resp>=d.cost&&G.seeds[k]<=0;
