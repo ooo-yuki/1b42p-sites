@@ -209,6 +209,8 @@ function draw(){
     var key=u.type==='mopso'?'mopso':(u.type==='sun'?'sunflow':'bomba');
     var s=u.type==='mopso'?66:60;
     if(u.type==='bomb'&&Math.floor(G.t*8)%2===0){ctx.globalAlpha=0.6+0.4*Math.abs(Math.sin(G.t*10));}
+    ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();
+    ctx.ellipse(p.x+CW/2,p.y+CH-8,CW*0.32,9,0,0,7);ctx.fill();
     drawImg(IMG[key],p.x+CW/2-s/2,p.y+CH-s-6,s,s);
     ctx.globalAlpha=1;
     if(u.hp<u.maxhp){ctx.fillStyle='#000';ctx.fillRect(p.x+8,p.y+CH-12,CW-16,5);
@@ -217,6 +219,8 @@ function draw(){
   /* враги */
   for(var j=0;j<G.zoms.length;j++){var z=G.zoms[j],zy=rowY(z.r);
     var bob=Math.sin(G.t*4+z.ph)*3;
+    ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();
+    ctx.ellipse(z.x,zy+46,30,10,0,0,7);ctx.fill();
     drawImg(IMG.zombie,z.x-38,zy-52+bob,76,100);
     if(z.hp<Z_HP){ctx.fillStyle='#000';ctx.fillRect(z.x-30,zy-62,60,5);
       ctx.fillStyle='#f55';ctx.fillRect(z.x-30,zy-62,60*z.hp/Z_HP,5);}
@@ -248,7 +252,7 @@ function draw(){
   }
   drawPanel();
 }
-function seedRect(i){return {x:8,y:112+i*112,w:120,h:100};}
+function seedRect(i){return {x:8,y:108+i*96,w:120,h:88};}
 function drawPanel(){
   ctx.fillStyle='rgba(10,5,20,.88)';ctx.fillRect(0,0,PANELW,cv.height);
   ctx.strokeStyle='#f5c518';ctx.lineWidth=2;ctx.strokeRect(1,1,PANELW-2,cv.height-2);
@@ -265,11 +269,11 @@ function drawPanel(){
     ctx.fillRect(R.x,R.y,R.w,R.h);
     ctx.strokeStyle=G.drag===k?'#0f6':'#f5c518';ctx.lineWidth=G.drag===k?4:2;
     ctx.strokeRect(R.x,R.y,R.w,R.h);
-    drawImg(IMG[d.img],R.x+33,R.y+6,54,54);
-    ctx.fillStyle='#fff';ctx.font='bold 12px Arial';ctx.textAlign='center';
-    ctx.fillText(d.name,R.x+R.w/2,R.y+74);
-    ctx.fillStyle='#ffe26b';ctx.font='12px Arial';
-    ctx.fillText('☀️'+d.cost,R.x+R.w/2,R.y+90);
+    drawImg(IMG[d.img],R.x+36,R.y+4,48,48);
+    ctx.fillStyle='#fff';ctx.font='bold 11px Arial';ctx.textAlign='center';
+    ctx.fillText(d.name,R.x+R.w/2,R.y+64);
+    ctx.fillStyle='#ffe26b';ctx.font='11px Arial';
+    ctx.fillText('☀️'+d.cost,R.x+R.w/2,R.y+79);
     ctx.textAlign='left';
     if(G.seeds[k]>0){ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(R.x,R.y,R.w,R.h);
       ctx.fillStyle='#fff';ctx.font='bold 22px Arial';ctx.textAlign='center';
