@@ -26,6 +26,7 @@ const SITES = {
   pampers: 'pampers.bratuxa.zomb.top',
   shturm: 'shturm.bratuxa.zomb.top',
   skitons: 'skitons.bratuxa.zomb.top',
+  podval42: 'podval42.bratuxa.zomb.top',
 };
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', '__pycache__', '.tmp-test', '.hermes']);
 const SKIP_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'mp3', 'm4a', 'wav', 'mp4', 'woff', 'woff2', 'ttf', 'map', 'pyc']);
