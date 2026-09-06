@@ -10,12 +10,14 @@ groups:
         annotations:
           summary: "Сайт {{ $labels.instance }} не отвечает (не 200 >2 мин)"
       - alert: UpstreamDown
-        expr: increase(caddy_http_requests_total{code=~"5.."}[5m]) > 0
+        # Сигнатура лежащего апстрима/тыла: валятся сразу несколько сайтов
+        # (один сайт = его собственная беда, ловит SiteDown).
+        expr: count(probe_success{job="blackbox-http"} == 0) >= 3
         for: 2m
         labels:
           severity: critical
         annotations:
-          summary: "Апстрим отдаёт 5xx через Caddy (см. instance/code)"
+          summary: "3+ сайтов лежат одновременно — похоже, лёг апстрим/тыл"
       - alert: CertExpiringSoon
         expr: (probe_ssl_earliest_cert_expiry - time()) / 86400 < 14
         for: 10m

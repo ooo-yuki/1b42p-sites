@@ -8,9 +8,10 @@ route:
   repeat_interval: 4h
 
 receivers:
-  # Telegram выключен: chat_id Босса НЕ найден в конфигах сервера
-  # (bat42bot/bot.env: ADMINS пуст; news-rewriter — userbot без chat id).
-  # Включение: раскомментить telegram_configs, вписать токен + ID Босса
+  # Канал доставки — сам Amigo 43: крон `infra-watch-42` каждые 5 мин опрашивает
+  # Prometheus/Alertmanager скриптом infra/watch.py и пишет в этот чат, если горит.
+  # Отдельный Telegram-бот НЕ нужен (решение Miqqil).
+  # Запасной вариант: раскомментить telegram_configs, вписать токен + chat id
   # (секрет — только на сервере, не в git), `docker compose up -d alertmanager`.
   - name: telegram
     # telegram_configs:
