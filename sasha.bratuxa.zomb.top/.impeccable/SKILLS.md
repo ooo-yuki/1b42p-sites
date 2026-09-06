@@ -17,6 +17,8 @@
 | 8 | `impeccable/reference/new-work.md` | новая поверхность: контракт, комп, запись в бриф |
 | 9 | Системный промпт | скиллы первее всего; честность цифр; tools вместо слов; проверка после записи |
 | 10 | Память (MEMORY.md/USER.md) | люди, святыни, инфра, запреты — всегда авторитетны |
+| 11 | `using-superpowers` (+ `references/hermes-tools.md`) | скилл-чек РАНЬШЕ любого ответа/действия; процессные скиллы первее имплементационных; маппинг на `read_file`/`patch`/`delegate_task` |
+| 12 | superpowers-гейты | `brainstorming` (креатив — только после аппрува) → `writing-plans` → `executing-plans`/`subagent-driven-development`; `verification-before-completion` перед каждым клеймом |
 
 ## Tier 1 — по типу задачи (триггер → скилл)
 
@@ -36,6 +38,14 @@
 - DESIGN.md как токены → `creative/design-md` (валидация спеки)
 - Упавшая страница → `web/blocked-page-recovery`
 - Свои возможности/настройки → `autonomous-ai-agents/hermes-agent` + доки Hermes
+- Любой креатив до кода → `brainstorming` (spike/bounded/architectural вслух; гейт: дизайн в чат или спека — код только после «да»)
+- Многозадачка со спекой → `writing-plans` (план в `docs/superpowers/plans/`, шаги 2-5 мин, без TBD) → `executing-plans` (чужая сессия) / `subagent-driven-development` (эта сессия, свежий сабагент на таск + ревью)
+- 2+ независимых домена → `dispatching-parallel-agents` (по агенту на домен в одном ответе; веер `delegate_task` — см. Ритуал п.5)
+- Нужна изоляция → `using-git-worktrees` (детект → натив → фолбэк `.worktrees/`, бейзлайн тестов)
+- Перед клеймом «готово/починил/тесты зелёные» → `verification-before-completion` (команда → вывод → exit code → только потом клейм)
+- Финиш ветки → `finishing-a-development-branch` (сьют → меню merge/PR/keep → чистка только своих)
+- Прилетело ревью → `receiving-code-review` (без «ты прав/спасибо»; понять → сверить с кодбейсой → пушбэк по технике, фикс по одному)
+- Примечание: `test-driven-development`, `systematic-debugging`, `requesting-code-review` выше — часть superpowers-ядра, гейты оттуда обязательны
 
 ## Ритуал каждого промпта
 
@@ -46,3 +56,6 @@
 5. `delegate_task` в строю (проверено 05.09.2026 веером и 06.09.2026 голубем за 2.77с) —
    веер можно поднимать; ревью через сабагента — штатно по скиллу, ручной проход
    только если голубь не вернулся; любую хандру веера писать честно.
+6. superpowers-гейты (добавка, старое не отменяет): креатив — через `brainstorming` с аппрувом; план — через `writing-plans`; исполнение — `subagent-driven-development` (здесь) / `executing-plans` (там).
+7. Никаких клеймов без `verification-before-completion`: тесты/линт/билд/сборка — свежей командой в этом же заходе, вывод+exit code в руках.
+8. Финиш ветки — только через `finishing-a-development-branch`; прилетевшее ревью — через `receiving-code-review`.
