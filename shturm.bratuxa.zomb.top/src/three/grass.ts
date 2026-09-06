@@ -45,7 +45,7 @@ function bladeTexture(): THREE.CanvasTexture {
   return t;
 }
 
-export interface GrassRig { mesh: THREE.InstancedMesh; setLow(low: boolean): void; tick(dt: number): void; }
+export interface GrassRig { mesh: THREE.InstancedMesh; setLow(low: boolean): void; tick(dt: number): void; dispose(): void; }
 
 export function buildGrass(map: MapId, seed: number): GrassRig {
   const def = MAPS[map];
@@ -108,6 +108,13 @@ export function buildGrass(map: MapId, seed: number): GrassRig {
     mesh,
     setLow: (l: boolean) => { mesh.count = l ? low : high; },
     tick: (dt: number) => { uTime.value += dt; },
+    // Старый риг снимается со сцены в startGame — без dispose утекает GPU-память.
+    dispose: () => {
+      mesh.geometry.dispose();
+      const m = mesh.material as THREE.MeshLambertMaterial;
+      if (m.map) m.map.dispose();
+      m.dispose();
+    },
   };
 }
 

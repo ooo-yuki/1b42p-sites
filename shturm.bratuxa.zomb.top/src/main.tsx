@@ -289,8 +289,9 @@ function startGame(map: MapId, diff: Difficulty) {
   scene.add(mapGroup);
   sim.pickups = spawnPickups(mapId);
   rebuildMedkitVisuals();
-  // Task 2: трава заново под карту со свежим сидом (старый меш — со сцены).
+  // Task 2: трава заново под карту со свежим сидом (старый риг — dispose + со сцены).
   sim.seed = Date.now() % 2147483647;
+  grassRig.dispose();
   scene.remove(grassRig.mesh);
   grassRig = buildGrass(mapId, sim.seed);
   scene.add(grassRig.mesh);

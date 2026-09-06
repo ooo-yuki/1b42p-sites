@@ -14,6 +14,23 @@ describe('трава', () => {
       for (const o of MAPS.yard.obstacles) expect(Math.hypot(v.x - o.x, v.z - o.z)).toBeGreaterThan(o.r + 1.5);
     }
   });
+  test('dispose существует и освобождает геометрию/материал/текстуру', () => {
+    const g = buildGrass('yard', 42);
+    expect(typeof g.dispose).toBe('function');
+    let geo = false; let mat = false; let tex = false;
+    const og = g.mesh.geometry.dispose.bind(g.mesh.geometry);
+    g.mesh.geometry.dispose = () => { geo = true; og(); };
+    const m = g.mesh.material as THREE.MeshLambertMaterial;
+    const om = m.dispose.bind(m);
+    m.dispose = () => { mat = true; om(); };
+    const t = m.map!;
+    const ot = t.dispose.bind(t);
+    t.dispose = () => { tex = true; ot(); };
+    g.dispose();
+    expect(geo).toBe(true);
+    expect(mat).toBe(true);
+    expect(tex).toBe(true);
+  });
   test('setLow режет count', () => {
     const g = buildGrass('yard', 42);
     g.setLow(true);
