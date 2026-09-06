@@ -8,6 +8,7 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     emptyOutDir: true,
+    rollupOptions: { input: { main: 'index.html', dodeca: 'dodeca.html' } },
   },
   test: {
     include: ['tests/**/*.test.{js,ts}'],
