@@ -4,382 +4,450 @@ const CFG = {
     walk: 3.2, jump: 7.5, gravity: 22.0,
     guardSpeed: 1.6, sight: 4.5, stunSec: 4.0,
 };
-// --- levels.js ---
-const GLYPHS = '#=-KFE GP';
-function checkMap(map) {
-    const bad = [];
-    if (map.length === 0)
-        return ['пустая карта'];
-    const w = map[0].length;
-    const flat = map.join('');
-    if (!map.every((r) => r.length === w))
-        bad.push('строки разной длины');
-    for (const must of ['P', 'E', 'K', 'F']) {
-        if (!flat.includes(must))
-            bad.push('нет знака ' + must);
+// --- grid.js ---
+// Слой 2 (верх): поле клетками. Значки карты — клетки, стены держат.
+const WALL = '#';
+const TILE = 16;
+const FLOOR = '#9aa0a6';
+const ROOM = {
+    B: '#c96a2b',
+    T: '#d9b23a',
+    J: '#8a8f98',
+    S: '#3a7bd5',
+    R: '#6b7280',
+};
+function loadGrid(map) {
+    const h = map.length;
+    let w = 0;
+    for (const row of map)
+        w = Math.max(w, row.length);
+    const cells = [];
+    for (let y = 0; y < h; y++) {
+        const row = [];
+        for (let x = 0; x < w; x++)
+            row.push(map[y][x] || WALL);
+        cells.push(row);
     }
-    for (const ch of flat) {
-        if (!('#=-KFE GP'.includes(ch)))
-            bad.push('чужой знак ' + ch);
-    }
-    return [...new Set(bad)];
+    return { w, h, cells };
 }
-const LEVELS = [
-    [
-        '################',
-        '#P     K      E#',
-        '#   ######     #',
-        '#              #',
-        '#      G       #',
-        '#   F  G       #',
-        '#              #',
-        '################',
-    ],
-    [
-        '################',
-        '#P            E#',
-        '#   F    K     #',
-        '#   -----      #',
-        '#        G     #',
-        '#  -----    ---#',
-        '################',
-    ],
-    [
-        '################',
-        '#P    ==    K E#',
-        '#     ==       #',
-        '#  G   ==  F   #',
-        '#      ==   G  #',
-        '#              #',
-        '################',
-    ],
-];
-// --- logic.js ---
-const SOLID = '#=-';
-function cellSolid(map, c, r) {
+function wallAt(g, x, y) {
+    if (x < 0 || y < 0 || x >= g.w || y >= g.h)
+        return true;
+    return g.cells[y][x] === WALL;
+}
+function roomColor(ch) {
+    return ROOM[ch] || FLOOR;
+}
+// --- actors.js ---
+function newSeal(x, y) {
+    return { x: x, y: y, dir: 1, noise: 0 };
+}
+function stepSeal(s, input, grid, night) {
+    const dx = input.dx || 0;
+    const dy = input.dy || 0;
+    if (dx === 0 && dy === 0) {
+        s.noise = 0;
+        return;
+    }
+    if (dx > 0)
+        s.dir = 1;
+    if (dx < 0)
+        s.dir = -1;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    const dist = CFG.walk * CFG.step;
+    const nx = s.x + (dx / len) * dist;
+    const ny = s.y + (dy / len) * dist;
+    if (grid === undefined || grid === null) {
+        s.x = nx;
+        s.y = ny;
+    }
+    else {
+        if (!wallAt(grid, Math.floor(nx), Math.floor(s.y)))
+            s.x = nx;
+        if (!wallAt(grid, Math.floor(s.x), Math.floor(ny)))
+            s.y = ny;
+    }
+    if (night === true)
+        s.noise = 2;
+    else
+        s.noise = 1;
+}
+function newGuard(x, y, dir) {
+    return { x: x, y: y, dir: dir };
+}
+function stepGuard(g, grid) {
+    const nx = g.x + g.dir * CFG.guardSpeed * CFG.step;
+    if (wallAt(grid, Math.floor(nx), Math.floor(g.y))) {
+        if (g.dir > 0)
+            g.dir = -1;
+        else
+            g.dir = 1;
+        return;
+    }
+    g.x = nx;
+}
+// --- vision.js ---
+const SEE_WALL = '#=-';
+function cellWall(map, c, r) {
     if (r < 0 || r >= map.length)
         return true;
-    if (c < 0 || c >= map[r].length)
+    const row = map[r];
+    if (c < 0 || c >= row.length)
         return true;
-    return SOLID.includes(map[r][c]);
+    return SEE_WALL.indexOf(row[c]) >= 0;
 }
-function solidAt(map, x, y) {
-    const H = map.length;
-    const c = Math.floor(x);
-    const r = H - 1 - Math.floor(y);
-    return cellSolid(map, c, r);
-}
-function findMark(map, ch) {
-    for (let r = 0; r < map.length; r++) {
-        for (let c = 0; c < map[r].length; c++) {
-            if (map[r][c] === ch)
-                return { c, r };
-        }
-    }
-    return null;
-}
-function loadLevel(S, idx) {
-    S.level = idx;
-    const map = LEVELS[idx];
-    const H = map.length;
-    const cellY = (r) => H - 1 - r;
-    const p = findMark(map, 'P');
-    S.spawn = { x: p.c + 0.5, y: cellY(p.r) };
-    S.seal.x = S.spawn.x;
-    S.seal.y = S.spawn.y;
-    S.seal.vx = 0;
-    S.seal.vy = 0;
-    S.seal.onGround = false;
-    S.guards = [];
-    for (let r = 0; r < H; r++) {
-        for (let c = 0; c < map[r].length; c++) {
-            if (map[r][c] === 'G')
-                S.guards.push({ x: c + 0.5, y: cellY(r), dir: 1, stun: 0 });
-        }
-    }
-    for (const g of S.guards)
-        groundPatrol(S, g);
-    const k = findMark(map, 'K');
-    S.key = k ? { x: k.c + 0.5, y: cellY(k.r) + 0.5, taken: false } : null;
-    const f = findMark(map, 'F');
-    S.fish = f ? { x: f.c + 0.5, y: cellY(f.r) + 0.5, taken: false } : null;
-    const e = findMark(map, 'E');
-    S.exit = e ? { x: e.c + 0.5, y: cellY(e.r) + 0.5 } : null;
-    S.hasKey = false;
-    S.hasFish = false;
-    S.caught = false;
-}
-function groundPatrol(S, g) {
-    const map = LEVELS[S.level];
-    const top = Math.floor(g.y);
-    for (let k = top; k >= 0; k--) {
-        if (solidAt(map, g.x, k - 0.01) && !solidAt(map, g.x, k + 0.05) && !solidAt(map, g.x, k + 0.6)) {
-            g.y = k;
+function losBlocked(map, x0, y0, x1, y1) {
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const n = Math.max(2, Math.ceil(dist / 0.25));
+    for (let i = 1; i < n; i++) {
+        const px = x0 + (dx * i) / n;
+        const py = y0 + (dy * i) / n;
+        if (cellWall(map, Math.floor(px), Math.floor(py)))
             return true;
-        }
     }
     return false;
 }
-function newRun(level) {
-    const S = {
-        level: 0,
-        seal: { x: 0, y: 0, vx: 0, vy: 0, onGround: false },
-        guards: [],
-        hearts: CFG.hearts,
-        caught: false,
-        hasKey: false,
-        hasFish: false,
-        won: false,
-        dead: false,
-        spawn: { x: 0, y: 0 },
-        key: null,
-        fish: null,
-        exit: null,
-    };
-    loadLevel(S, level || 0);
-    return S;
+// Конус стражи вперёд на дальность из баланса, стены закрывают.
+function sees(g, x, y, dir) {
+    if (g === null || g === undefined)
+        return false;
+    if (typeof g.x !== 'number' || typeof x !== 'number')
+        return false;
+    if (typeof y !== 'number' || typeof dir !== 'number')
+        return false;
+    const dx = x - g.x;
+    const dy = y - g.y;
+    if (Math.abs(dx) > CFG.sight)
+        return false;
+    if (Math.abs(dy) > 0.9)
+        return false;
+    if (dx !== 0 && Math.sign(dx) !== dir && Math.abs(dx) > 0.5)
+        return false;
+    if (g.map && losBlocked(g.map, g.x, g.y, x, y))
+        return false;
+    return true;
 }
-function step(S, input) {
-    if (S.won || S.dead)
+// Розыск плюс один; три розыска — карцер до утра.
+function heatUp(S) {
+    if (S === null || S === undefined)
         return;
-    const inp = input || {};
-    const dt = CFG.step;
-    const map = LEVELS[S.level];
-    S.caught = false;
-    const move = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
-    S.seal.vx = move * CFG.walk;
-    let nx = S.seal.x + S.seal.vx * dt;
-    if (move !== 0) {
-        const edge = nx + (move > 0 ? 0.3 : -0.3);
-        if (solidAt(map, edge, S.seal.y + 0.05) || solidAt(map, edge, S.seal.y + 0.6)) {
-            nx = S.seal.x;
-        }
-    }
-    S.seal.x = nx;
-    S.seal.vy -= CFG.gravity * dt;
-    if (inp.jump && S.seal.onGround) {
-        S.seal.vy = CFG.jump;
-        S.seal.onGround = false;
-    }
-    let ny = S.seal.y + S.seal.vy * dt;
-    S.seal.onGround = false;
-    if (S.seal.vy <= 0) {
-        if (solidAt(map, S.seal.x - 0.25, ny) || solidAt(map, S.seal.x + 0.25, ny) || solidAt(map, S.seal.x, ny)) {
-            ny = Math.floor(ny) + 1;
-            S.seal.vy = 0;
-            S.seal.onGround = true;
-        }
-    }
-    else if (solidAt(map, S.seal.x, ny + 0.9)) {
-        ny = Math.floor(ny + 0.9) - 0.9 - 0.001;
-        S.seal.vy = 0;
-    }
-    S.seal.y = ny;
-    for (const g of S.guards) {
-        if (g.stun > 0) {
-            g.stun = Math.max(0, g.stun - dt);
-            continue;
-        }
-        if (!groundPatrol(S, g))
-            continue;
-        const nxg = g.x + g.dir * CFG.guardSpeed * dt;
-        const edge = nxg + (g.dir > 0 ? 0.3 : -0.3);
-        if (solidAt(map, edge, g.y + 0.05) || solidAt(map, edge, g.y + 0.6)) {
-            g.dir = -g.dir;
-        }
-        else if (!solidAt(map, edge, g.y - 0.01)) {
-            g.dir = -g.dir;
-        }
-        else {
-            g.x = nxg;
-            if (!groundPatrol(S, g))
-                g.dir = -g.dir;
-        }
-    }
-    if (inp.shove) {
-        for (const g of S.guards) {
-            if (g.stun > 0)
-                continue;
-            if (Math.abs(S.seal.x - g.x) <= 1.0 && Math.abs(S.seal.y - g.y) <= 1.0) {
-                g.stun = CFG.stunSec;
-            }
-        }
-    }
-    for (const g of S.guards) {
-        if (g.stun > 0)
-            continue;
-        const dx = S.seal.x - g.x;
-        const dy = S.seal.y - g.y;
-        if (Math.abs(dy) > 0.9)
-            continue;
-        if (Math.abs(dx) > CFG.sight)
-            continue;
-        if (dx !== 0 && Math.sign(dx) !== g.dir && Math.abs(dx) > 0.5)
-            continue;
-        let blocked = false;
-        const n = Math.max(2, Math.ceil(Math.abs(dx) / 0.25));
-        for (let i = 1; i < n; i++) {
-            const px = g.x + (dx * i) / n;
-            if (solidAt(map, px, g.y + 0.5)) {
-                blocked = true;
-                break;
-            }
-        }
-        if (blocked)
-            continue;
-        S.hearts -= 1;
-        S.caught = true;
-        S.seal.x = S.spawn.x;
-        S.seal.y = S.spawn.y;
-        S.seal.vx = 0;
-        S.seal.vy = 0;
-        break;
-    }
-    if (S.key && !S.key.taken && Math.abs(S.seal.x - S.key.x) <= 1.0 && Math.abs(S.seal.y + 0.5 - S.key.y) <= 1.0) {
-        S.key.taken = true;
-        S.hasKey = true;
-    }
-    if (S.fish && !S.fish.taken && Math.abs(S.seal.x - S.fish.x) <= 1.0 && Math.abs(S.seal.y + 0.5 - S.fish.y) <= 1.0) {
-        S.fish.taken = true;
-        S.hasFish = true;
-    }
-    if (S.exit && S.hasKey && S.hasFish && Math.abs(S.seal.x - S.exit.x) <= 1.0 && Math.abs(S.seal.y + 0.5 - S.exit.y) <= 1.2) {
-        if (S.level >= LEVELS.length - 1) {
-            S.won = true;
-        }
-        else {
-            const hearts = S.hearts;
-            loadLevel(S, S.level + 1);
-            S.hearts = hearts;
-        }
-    }
-    if (S.hearts <= 0)
-        S.dead = true;
+    if (typeof S.wanted !== 'number')
+        S.wanted = 0;
+    S.wanted = Math.min(3, S.wanted + 1);
+    if (S.wanted >= 3)
+        toSolitary(S);
 }
-function putSeal(S, x, y) {
-    S.seal.x = x;
-    S.seal.y = y;
-    S.seal.vx = 0;
-    S.seal.vy = 0;
+// Карцер до утра: розыск три, возврат в камеру, вещи отобраны.
+function toSolitary(S) {
+    if (S === null || S === undefined)
+        return;
+    S.wanted = 3;
+    S.solitary = true;
+    const home = S.cell ? S.cell : S.spawn;
+    if (S.seal && home) {
+        S.seal.x = home.x;
+        S.seal.y = home.y;
+    }
+    if (S.items)
+        S.items.length = 0;
 }
-function giveAll(S) {
-    S.hasKey = true;
-    S.hasFish = true;
-    if (S.key)
-        S.key.taken = true;
-    if (S.fish)
-        S.fish.taken = true;
+// Поимка взглядом: розыск плюс один и возврат в камеру.
+function catchSeal(S) {
+    if (S === null || S === undefined)
+        return;
+    heatUp(S);
+    if (!S.solitary) {
+        const home = S.cell ? S.cell : S.spawn;
+        if (S.seal && home) {
+            S.seal.x = home.x;
+            S.seal.y = home.y;
+        }
+    }
 }
-function killAll(S) {
-    S.hearts = 0;
-    S.dead = true;
+// --- clock.js ---
+// Часы и распорядок верхнего слоя. Ничего не берёт, отдаёт tick и hourCase.
+// Распорядок: подъём, поверка, еда, работа, душ, поверка, отбой.
+const HOUR = 3600;
+const DAY_LEN = 86400;
+const NIGHT_END = 6 * HOUR;
+const MUSTER1 = 7 * HOUR;
+const MEAL = 8 * HOUR;
+const WORK = 9 * HOUR;
+const SHOWER = 17 * HOUR;
+const MUSTER2 = 18 * HOUR;
+const MUSTER2_END = 19 * HOUR;
+const LIGHTSOUT = 22 * HOUR;
+const MAX_HEAT = 3;
+function newDay() {
+    return { t: 0, day: 1, heat: 0, coins: 0, lights: false };
 }
-// --- sprites.js ---
-// Task 8: загрузка картинок и таблицы кадров.
-// Держим стираемый синтаксис, как в src/levels.ts, чтобы тесты могли
-// запускать файл без сборки (снять аннотации и export в CJS).
-const FRAMES = {
-    idle: ['img/seal_idle_0.png', 'img/seal_idle_1.png'],
-    waddle: [
-        'img/seal_waddle_0.png',
-        'img/seal_waddle_1.png',
-        'img/seal_waddle_2.png',
-        'img/seal_waddle_3.png',
-    ],
-    guard: ['img/guard_0.png', 'img/guard_1.png'],
+function tick(S, dt) {
+    if (dt < 0)
+        dt = 0;
+    S.t += dt;
+    while (S.t >= DAY_LEN) {
+        S.t -= DAY_LEN;
+        S.day += 1;
+    }
+    S.lights = S.t >= NIGHT_END && S.t < LIGHTSOUT;
+}
+function hourCase(S) {
+    const t = S.t;
+    if (t < NIGHT_END)
+        return 'ночь';
+    if (t < MUSTER1)
+        return 'подъём';
+    if (t < MEAL)
+        return 'поверка';
+    if (t < WORK)
+        return 'еда';
+    if (t < SHOWER)
+        return 'работа';
+    if (t < MUSTER2)
+        return 'душ';
+    if (t < MUSTER2_END)
+        return 'поверка';
+    if (t < LIGHTSOUT)
+        return 'вечер';
+    return 'отбой';
+}
+// Нет на поверке — розыск вверх, потолок три.
+function applyMuster(S, present) {
+    if (!present && S.heat < MAX_HEAT)
+        S.heat += 1;
+}
+// Был на работе — монета, нет — без монет.
+function applyWork(S, present) {
+    if (present)
+        S.coins += 1;
+}
+function isNight(S) {
+    return !S.lights;
+}
+// --- work.js ---
+// Работа и монеты слоя 2. Берёт часы clock.ts (смена 9–17, там WORK..SHOWER),
+// даёт workAt(S): монеты за смену, усталость, станки J.
+const WORK_START = 9;
+const WORK_END = 17;
+const COINS_PER_SHIFT = 1;
+const BENCH = 'J';
+// Час внутри смены clock.ts: 9 <= hour < 17.
+function isWorkHour(hour) {
+    if (typeof hour !== 'number' || isNaN(hour))
+        return false;
+    return hour >= WORK_START && hour < WORK_END;
+}
+// Клетка станка на карте корпусов.
+function isBench(cell) {
+    return cell === BENCH;
+}
+// Монет за смену: у станка в часы работы — монета, иначе ноль.
+function workAt(S) {
+    if (!S || !S.atBench)
+        return 0;
+    if (!isWorkHour(S.hour))
+        return 0;
+    return COINS_PER_SHIFT;
+}
+// Смена целиком: монеты в кошель, усталость плюс один за смену с делом.
+function applyShift(W, S) {
+    const pay = workAt(S);
+    if (pay > 0) {
+        W.coins += pay;
+        W.tired += 1;
+    }
+}
+// --- things.js ---
+// Вещи и сборка слоя 2. Ничего не берёт, даёт pick, craft, has,
+// находки (тряпка, ложка, верёвка, мыло), сборку (кляп, спуск) и торговца.
+const LOOT = ['тряпка', 'ложка', 'верёвка', 'мыло'];
+const RECIPES = {
+    'кляп': ['ложка', 'тряпка'],
+    'спуск': ['верёвка', 'мыло'],
 };
-const TILES = {
-    floor: 'img/tile_floor.png',
-    wall: 'img/tile_wall.png',
-    bars: 'img/tile_bars.png',
-    exit: 'img/tile_exit.png',
-    fish: 'img/tile_fish.png',
-    key: 'img/tile_key.png',
-};
-function allSources() {
+// Запретное для обысков: с ним в суме — карцер.
+const FORBIDDEN = ['ложка', 'кляп', 'спуск'];
+// Торговец ночью берёт монеты за запретное: цена одна на всё.
+const TRADER_PRICE = 2;
+function has(S, id) {
+    if (!S || !S.bag)
+        return false;
+    return S.bag.indexOf(id) >= 0;
+}
+function take(S, id) {
+    if (!S || !S.bag)
+        return false;
+    const i = S.bag.indexOf(id);
+    if (i < 0)
+        return false;
+    S.bag.splice(i, 1);
+    return true;
+}
+// Подобрать находку в суму.
+function pick(S, id) {
+    if (!S || !S.bag)
+        return;
+    if (typeof id !== 'string' || id === '')
+        return;
+    S.bag.push(id);
+}
+// Сборка: без нужного в суме не выходит, состав уходит в дело.
+function craft(S, id) {
+    if (!S || !S.bag)
+        return false;
+    const parts = RECIPES[id];
+    if (!parts)
+        return false;
+    if (has(S, id))
+        return true;
+    for (const p of parts) {
+        if (!has(S, p))
+            return false;
+    }
+    for (const p of parts) {
+        take(S, p);
+    }
+    S.bag.push(id);
+    return true;
+}
+// Запретное помечено для обысков.
+function isForbidden(id) {
+    return FORBIDDEN.indexOf(id) >= 0;
+}
+// В суме есть запретное — обыск ведёт в карцер.
+function hasForbidden(S) {
+    if (!S || !S.bag)
+        return false;
+    for (const id of S.bag) {
+        if (isForbidden(id))
+            return true;
+    }
+    return false;
+}
+// Торговец ночью: монеты в обмен на запретное. Чистое не продаёт.
+function deal(S, id, night) {
+    if (!S || !S.bag)
+        return false;
+    if (night !== true)
+        return false;
+    if (!isForbidden(id))
+        return false;
+    if (typeof S.coins !== 'number' || S.coins < TRADER_PRICE)
+        return false;
+    S.coins -= TRADER_PRICE;
+    S.bag.push(id);
+    return true;
+}
+// --- talk.js ---
+// Разговоры и нить верхнего слоя. Берёт флаги памяти, даёт talkFor и say.
+// Три узла на день: утро, обед, вечер. Концы: крыша (нужен спуск),
+// ворота (нужен кляп). Лицо духа рядом с речью: img/face_wisp.png.
+const FACE = 'img/face_wisp.png';
+const NODES = [
+    { id: 'm1', who: 'дух', text: 'Утро. Поверка скоро — держись места, не шуми.', face: FACE },
+    { id: 'n1', who: 'дух', text: 'Обед. Миска лечит сердце, работа даёт монеты.', face: FACE },
+    { id: 'e1', who: 'дух', text: 'Вечер. Ночью торговец, тихо — спуск или кляп.', face: FACE },
+    { id: 'roof', who: 'дух', text: 'Спуск готов. Тихий уход через крышу ждёт.', face: FACE },
+    { id: 'gate', who: 'дух', text: 'Кляп готов. Громкий уход через ворота ждёт.', face: FACE },
+];
+function talkFor(S) {
     const out = [];
-    const lists = [FRAMES.idle, FRAMES.waddle, FRAMES.guard];
-    for (const l of lists) {
-        for (const s of l) {
-            if (out.indexOf(s) < 0) {
-                out.push(s);
-            }
-        }
-    }
-    const keys = Object.keys(TILES);
-    for (const k of keys) {
-        const s = TILES[k];
-        if (out.indexOf(s) < 0) {
-            out.push(s);
-        }
+    for (const n of NODES) {
+        if (S.flags[n.id])
+            continue;
+        if (n.id === 'roof' && !S.flags.descent)
+            continue;
+        if (n.id === 'gate' && !S.flags.gag)
+            continue;
+        out.push(n);
     }
     return out;
 }
-// Рисованный квадрат-заглушка: битая картинка не роняет игру.
-function placeholder(src) {
-    let img = null;
-    try {
-        if (typeof document !== 'undefined' && document && document.createElement) {
-            const canvas = document.createElement('canvas');
-            canvas.width = 32;
-            canvas.height = 32;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                ctx.fillStyle = '#f0f';
-                ctx.fillRect(0, 0, 32, 32);
+function say(S, id) {
+    S.flags[id] = true;
+}
+// --- search.js ---
+// Обыски и карцер верхнего слоя. Берёт суму из things.ts (bag),
+// часы из clock.ts (heat), отдаёт search и leaveSolitary.
+// Обыск в камере находит запретное, уводит в карцер до утра, вещи отобраны.
+// Запретное для обысков: орудия и сборка (ложка, верёвка, кляп, спуск).
+// Тряпка и мыло — безвинны, обыск их не берёт.
+const SEARCH_FORBIDDEN = ['ложка', 'верёвка', 'кляп', 'спуск'];
+function searchForbidden(id) {
+    return SEARCH_FORBIDDEN.indexOf(id) >= 0;
+}
+function sack(S) {
+    if (S === null || S === undefined)
+        return [];
+    if (Array.isArray(S.bag))
+        return S.bag;
+    if (Array.isArray(S.items))
+        return S.items;
+    return [];
+}
+// Обыск: возвращает найденное запретное. Нашёл — карцер до утра:
+// розыск три, возврат в камеру, вещи отобраны. Чист — тишина.
+function search(S) {
+    if (S === null || S === undefined)
+        return [];
+    const found = [];
+    const have = sack(S);
+    for (const id of have) {
+        if (searchForbidden(id))
+            found.push(id);
+    }
+    if (found.length === 0)
+        return found;
+    if (typeof S.heat === 'number')
+        S.heat = 3;
+    if (typeof S.wanted === 'number')
+        S.wanted = 3;
+    if (S.heat === undefined && S.wanted === undefined)
+        S.heat = 3;
+    S.solitary = true;
+    const home = S.cell ? S.cell : S.spawn;
+    if (S.seal && home) {
+        S.seal.x = home.x;
+        S.seal.y = home.y;
+    }
+    if (Array.isArray(S.bag))
+        S.bag.length = 0;
+    if (Array.isArray(S.items))
+        S.items.length = 0;
+    return found;
+}
+// Утро: карцер отпускает.
+function leaveSolitary(S) {
+    if (S === null || S === undefined)
+        return;
+    S.solitary = false;
+}
+// --- paint.js ---
+// Слой 2 (верх): вид сверху, начало — пол, стены, тьма.
+
+const DARK = '#000000';
+const WALL_FACE = '#ffffff';
+function paintFloor(ctx, G) {
+    ctx.fillStyle = DARK;
+    ctx.fillRect(-TILE, -TILE, (G.w + 2) * TILE, (G.h + 2) * TILE);
+    for (let y = 0; y < G.h; y++) {
+        for (let x = 0; x < G.w; x++) {
+            const px = x * TILE;
+            const py = y * TILE;
+            if (wallAt(G, x, y)) {
+                ctx.fillStyle = DARK;
+                ctx.fillRect(px, py, TILE, TILE);
+                ctx.fillStyle = WALL_FACE;
+                ctx.fillRect(px + 1, py + 1, TILE - 2, TILE - 2);
             }
-            img = canvas;
+            else {
+                ctx.fillStyle = roomColor(G.cells[y][x]);
+                ctx.fillRect(px, py, TILE, TILE);
+            }
         }
     }
-    catch (e) {
-        img = null;
-    }
-    return { src: src, broken: true, img: img };
-}
-function browserLoadOne(src) {
-    return new Promise(function (resolve) {
-        try {
-            if (typeof Image !== 'function') {
-                resolve(placeholder(src));
-                return;
-            }
-            const im = new Image();
-            im.onload = function () {
-                resolve({ src: src, broken: false, img: im });
-            };
-            im.onerror = function () {
-                resolve(placeholder(src));
-            };
-            im.src = src;
-        }
-        catch (e) {
-            resolve(placeholder(src));
-        }
-    });
-}
-// Ждёт все картинки; битая заменяется квадратом, промис не падает.
-function loadSprites(loadOne) {
-    const load = loadOne || browserLoadOne;
-    const sources = allSources();
-    const jobs = sources.map(function (s) {
-        try {
-            return load(s).then(function (p) {
-                return p;
-            }, function (e) {
-                return placeholder(s);
-            });
-        }
-        catch (e) {
-            return Promise.resolve(placeholder(s));
-        }
-    });
-    return Promise.all(jobs).then(function (pics) {
-        const out = {};
-        for (const p of pics) {
-            out[p.src] = p;
-        }
-        return out;
-    });
 }
 // --- audio.js ---
 // Звук гудками: гудок качается кодом через WebAudio, без внешних файлов.
@@ -454,471 +522,461 @@ function blip(kind) {
         // без звука — молча идём дальше
     }
 }
-// --- save.js ---
-// Рекорд: бережное чтение, запись лучшего (меньшее время).
-function loadBest() {
-    try {
-        if (typeof localStorage === 'undefined')
-            return null;
-        const raw = localStorage.getItem(CFG.saveKey);
-        if (raw === null)
-            return null;
-        const v = parseFloat(raw);
-        if (!isFinite(v) || v < 0)
-            return null;
-        return v;
-    }
-    catch {
-        return null;
-    }
-}
-function saveBest(sec) {
-    try {
-        if (typeof localStorage === 'undefined')
-            return false;
-        if (!isFinite(sec) || sec < 0)
-            return false;
-        const cur = loadBest();
-        if (cur !== null && cur <= sec)
-            return false;
-        localStorage.setItem(CFG.saveKey, String(sec));
-        return true;
-    }
-    catch {
-        return false;
-    }
-}
-// --- teach.js ---
-// Task 2: учёба с тёткой. Каждый шаг гаснет своим делом.
-// Держим стираемый синтаксис (без аннотаций), чтобы tests/teach.test.js
-// запускал файл без сборки.
-const TEACH = [
-    'Иди: стрелки влево и вправо',
-    'Возьми ключ',
-    'Возьми рыбу',
-    'Иди к выходу',
-    'Толкни стражу: клавиша X',
+// --- main2.js ---
+// Слой 2 (верх): склейка. Вид сверху, день, нить, работа, кара.
+// Берёт grid, actors, vision, clock, work, things, talk, search, paint, audio.
+// Бок (main, logic) сюда не входит.
+
+
+
+
+
+
+
+
+
+
+
+// Корпус значками из замысла: D дверь, J станок, B кровать,
+// T стол, S душ, R крыша. P наши, E ворота. Остальное пол.
+const MAP = [
+    '##############################',
+    '#BBB...D....TTT....JJJ...SSS#',
+    '#BBB........TTT....JJJ...SSS#',
+    '#BBB...D....TTT....JJJ...SSS#',
+    '#..........................#',
+    '#.....######D######....D...#',
+    '#.....#BBB..B..BBB#....#RRR#',
+    '#.....#BBB..B..BBB#....#RRR#',
+    '#.....######D######....#RRR#',
+    '#..........................#',
+    '#.TTT....D....JJJ....D...SSS#',
+    '#.TTT........JJJ........SSS#',
+    '#.TTT........JJJ........SSS#',
+    '#..........................#',
+    '#P........................E#',
+    '##############################',
 ];
-/** @param {any} S @returns {string | null} */
-function teachStep(S) {
-    if (!S)
-        return TEACH[0];
-    if (!S.moved)
-        return TEACH[0];
-    if (!S.key)
-        return TEACH[1];
-    if (!S.fish)
-        return TEACH[2];
-    if (!S.exit)
-        return TEACH[3];
-    if (S.shoved === false)
-        return TEACH[4];
-    return null;
+const G = loadGrid(MAP);
+const SCALE = 2;
+const SPAWN = { x: 1.5, y: 14.5 };
+const SOL = { x: 27.5, y: 14.5 };
+const MUSTER = { x0: 8, y0: 1, x1: 16, y1: 3 };
+const SPOTS = [
+    { x: 2.5, y: 2.5, id: 'тряпка' },
+    { x: 12.5, y: 2.5, id: 'ложка' },
+    { x: 19.5, y: 2.5, id: 'верёвка' },
+    { x: 25.5, y: 2.5, id: 'мыло' },
+];
+const bag = [];
+const flags = {};
+const D = newDay();
+const S = D;
+S.wanted = 0;
+S.solitary = false;
+S.seal = { x: SPAWN.x, y: SPAWN.y };
+S.spawn = { x: SPAWN.x, y: SPAWN.y };
+S.cell = { x: SPAWN.x, y: SPAWN.y };
+S.bag = bag;
+S.items = bag;
+S.coins = 0;
+S.flags = flags;
+const seal = newSeal(SPAWN.x, SPAWN.y);
+const guards = [
+    newGuard(6.5, 4.5, 1),
+    newGuard(22.5, 9.5, -1),
+];
+const seen = [];
+for (const gd of guards) {
+    gd.map = MAP;
+    seen.push(gd);
 }
-// --- notes.js ---
-// Task 5: тетрадка с делом часа. Дело по недособранному.
-// Держим стираемый синтаксис (без аннотаций), чтобы tests/notes.test.js
-// запускал файл без сборки.
-/** @param {any} S @returns {string} */
-function hourCase(S) {
-    if (!S.hasKey)
-        return 'добудь ключ';
-    if (!S.hasFish)
-        return 'добудь рыбу';
-    return 'уходи в выход';
-}
-// --- main.js ---
-const W = 960;
-const H = 540;
-const TILE = 60;
-const OY = 30;
-const canvas = document.getElementById('game');
-const g = canvas.getContext('2d');
-function fitCanvas(cv) {
-    const s = Math.min(window.innerWidth / 960, window.innerHeight / 540);
-    cv.style.width = Math.floor(960 * s) + 'px';
-    cv.style.height = Math.floor(540 * s) + 'px';
-    return s;
-}
-const input = { left: false, right: false, jump: false, shove: false };
-let mode = 'start';
-let S = newRun(0);
-let pics = {};
-let runTime = 0;
-let animT = 0;
-let facing = 1;
-let prevKey = false;
-let prevFish = false;
-let prevLevel = 0;
-let best = loadBest();
-let newRecord = false;
-let stepSnd = 0;
-let learnt = { moved: false, shoved: false };
-let notesOpen = false;
-function wx(x) {
-    return x * TILE;
-}
-function wy(y, mapH) {
-    return OY + (mapH - y) * TILE;
-}
-function fmt(sec) {
-    const m = Math.floor(sec / 60);
-    const s = sec - m * 60;
-    return m + ':' + (s < 10 ? '0' : '') + s.toFixed(1);
-}
-// Картинка или цветной квадрат, если битая/ещё грузится.
-function drawImg(src, x, y, w, h, fallback, flip) {
-    const p = pics[src];
-    g.save();
-    if (flip) {
-        g.translate(x + w / 2, 0);
-        g.scale(-1, 1);
-        g.translate(-(x + w / 2), 0);
+let mode = 'play';
+let winEnd = '';
+let face = 'right';
+let tired = 0;
+let lastMuster = '';
+let lastWork = '';
+let lastLine = '';
+let sndOn = true;
+function snd(kind) {
+    if (!sndOn)
+        return;
+    try {
+        blip(kind);
     }
-    if (p && !p.broken && p.img) {
-        try {
-            g.drawImage(p.img, x, y, w, h);
-        }
-        catch (e) {
-            g.fillStyle = fallback;
-            g.fillRect(x, y, w, h);
-        }
+    catch (e) { /* без звука идём дальше */ }
+}
+function syncHeat() {
+    const h = Math.max(S.heat || 0, S.wanted || 0);
+    S.heat = h;
+    S.wanted = h;
+}
+function cellAt(x, y) {
+    const cx = Math.floor(x);
+    const cy = Math.floor(y);
+    if (cy < 0 || cy >= G.h || cx < 0 || cx >= G.w)
+        return '#';
+    return G.cells[cy][cx];
+}
+function inMuster() {
+    const x = S.seal.x;
+    const y = S.seal.y;
+    return x >= MUSTER.x0 && x <= MUSTER.x1 && y >= MUSTER.y0 && y <= MUSTER.y1;
+}
+// Один шаг мира. Тем же шагом гонит окно и крючок для проверки.
+function simStep(dt, input) {
+    if (mode !== 'play')
+        return;
+    if (!(dt > 0))
+        dt = CFG.step;
+    if (dt > 1)
+        dt = 1;
+    tick(S, dt);
+    syncHeat();
+    const nowHour = Math.floor(S.t / 3600);
+    const hc = hourCase(S);
+    if (input && (input.dx !== 0 || input.dy !== 0)) {
+        if (input.dy < 0)
+            face = 'up';
+        else if (input.dy > 0)
+            face = 'down';
+        else if (input.dx > 0)
+            face = 'right';
+        else
+            face = 'left';
     }
-    else {
-        g.fillStyle = fallback;
-        g.fillRect(x, y, w, h);
+    if (S.solitary) {
+        S.seal.x = SOL.x;
+        S.seal.y = SOL.y;
     }
-    g.restore();
-}
-// Тень-овал под ногами: рисуется раньше ног.
-function shadow(cx, foot, rx) {
-    g.fillStyle = 'rgba(0,0,0,0.35)';
-    g.beginPath();
-    g.ellipse(cx, foot - 2, rx, 6, 0, 0, Math.PI * 2);
-    g.fill();
-}
-// Глаза точкой со сдвигом в сторону хода и взгляда.
-function eyes(cx, ey, dir, gap) {
-    for (const s of [-1, 1]) {
-        const ex = cx + s * gap + dir * 4;
-        g.fillStyle = '#fff';
-        g.beginPath();
-        g.arc(ex, ey, 4, 0, Math.PI * 2);
-        g.fill();
-        g.fillStyle = '#111';
-        g.beginPath();
-        g.arc(ex + dir * 2, ey, 2, 0, Math.PI * 2);
-        g.fill();
+    else if (input) {
+        seal.x = S.seal.x;
+        seal.y = S.seal.y;
+        stepSeal(seal, input, G, isNight(S));
+        S.seal.x = seal.x;
+        S.seal.y = seal.y;
     }
-}
-function startGame() {
-    S = newRun(0);
-    runTime = 0;
-    prevKey = false;
-    prevFish = false;
-    prevLevel = 0;
-    facing = 1;
-    newRecord = false;
-    stepSnd = 0;
-    learnt = { moved: false, shoved: false };
-    notesOpen = false;
-    input.left = false;
-    input.right = false;
-    input.jump = false;
-    input.shove = false;
-    mode = 'play';
-    blip('pickup');
-}
-function doStep() {
-    step(S, input);
-    runTime += CFG.step;
-    if (input.left || input.right)
-        learnt.moved = true;
-    if (input.shove)
-        learnt.shoved = true;
-    if (input.right && !input.left)
-        facing = 1;
-    else if (input.left && !input.right)
-        facing = -1;
-    if ((input.left || input.right) && S.seal.onGround) {
-        stepSnd += CFG.step;
-        if (stepSnd > 0.28) {
-            stepSnd = 0;
-            blip('step');
+    const frames = Math.max(1, Math.min(64, Math.round(dt / CFG.step)));
+    for (let i = 0; i < frames; i++) {
+        for (const gd of seen)
+            stepGuard(gd, G);
+    }
+    for (const gd of seen) {
+        if (sees(gd, S.seal.x, S.seal.y, gd.dir)) {
+            catchSeal(S);
+            syncHeat();
+            S.seal.x = seal.x = S.cell.x;
+            S.seal.y = seal.y = S.cell.y;
+            snd('hit');
+            break;
         }
     }
-    if ((S.hasKey && !prevKey) || (S.hasFish && !prevFish))
-        blip('pickup');
-    prevKey = S.hasKey;
-    prevFish = S.hasFish;
-    if (S.caught)
-        blip('hit');
-    if (S.level !== prevLevel) {
-        prevLevel = S.level;
-        blip('pickup');
-    }
-    if (S.won) {
-        mode = 'win';
-        newRecord = saveBest(runTime);
-        best = loadBest();
-        blip('win');
-    }
-    else if (S.dead) {
-        mode = 'lose';
-        blip('lose');
-    }
-}
-function overlay(title, lines) {
-    g.fillStyle = 'rgba(0,0,0,0.65)';
-    g.fillRect(0, 0, W, H);
-    g.fillStyle = '#fff';
-    g.textAlign = 'center';
-    g.font = 'bold 44px sans-serif';
-    g.fillText(title, W / 2, 200);
-    g.font = '22px sans-serif';
-    for (let i = 0; i < lines.length; i++) {
-        g.fillText(lines[i], W / 2, 260 + i * 34);
-    }
-}
-function render() {
-    const map = LEVELS[S.level];
-    const mapH = map.length;
-    g.fillStyle = '#0e2233';
-    g.fillRect(0, 0, W, H);
-    for (let r = 0; r < mapH; r++) {
-        for (let c = 0; c < map[r].length; c++) {
-            const ch = map[r][c];
-            if (ch === '#')
-                drawImg(TILES.wall, c * TILE, r * TILE + OY, TILE, TILE, '#5b6b7a', false);
-            else if (ch === '=' || ch === '-')
-                drawImg(TILES.floor, c * TILE, r * TILE + OY, TILE, TILE, '#7a5c3e', false);
-        }
-    }
-    if (S.exit) {
-        const b = wy(S.exit.y - 0.5, mapH);
-        drawImg(TILES.exit, wx(S.exit.x) - 25, b - 50, 50, 50, '#3fae5a', false);
-    }
-    if (S.key && !S.key.taken) {
-        const b = wy(S.key.y - 0.5, mapH);
-        drawImg(TILES.key, wx(S.key.x) - 20, b - 40, 40, 40, '#ffd34d', false);
-    }
-    if (S.fish && !S.fish.taken) {
-        const b = wy(S.fish.y - 0.5, mapH);
-        drawImg(TILES.fish, wx(S.fish.x) - 20, b - 40, 40, 40, '#7fd4ff', false);
-    }
-    for (const gd of S.guards) {
-        const src = FRAMES.guard[Math.floor(animT * 6) % FRAMES.guard.length];
-        const b = wy(gd.y, mapH);
-        shadow(wx(gd.x), b, 18);
-        if (gd.stun > 0)
-            g.globalAlpha = 0.5;
-        drawImg(src, wx(gd.x) - 21, b - 54, 42, 54, '#c0392b', gd.dir < 0);
-        g.globalAlpha = 1;
-        eyes(wx(gd.x), b - 38, gd.dir, 6);
-    }
-    const moving = input.left || input.right;
-    const frames = moving && S.seal.onGround ? FRAMES.waddle : FRAMES.idle;
-    const rate = moving && S.seal.onGround ? 8 : 2;
-    const sealSrc = frames[Math.floor(animT * rate) % frames.length];
-    const sb = wy(S.seal.y, mapH);
-    shadow(wx(S.seal.x), sb, 18);
-    drawImg(sealSrc, wx(S.seal.x) - 21, sb - 57, 42, 57, '#eeeeee', facing < 0);
-    eyes(wx(S.seal.x), sb - 40, facing, 7);
-    let hs = '';
-    for (let i = 0; i < CFG.hearts; i++)
-        hs += i < S.hearts ? '♥' : '♡';
-    g.fillStyle = '#ff5b5b';
-    g.font = '24px sans-serif';
-    g.textAlign = 'left';
-    g.fillText(hs, 12, 30);
-    g.fillStyle = '#fff';
-    g.fillText(fmt(runTime), 12, 58);
-    g.textAlign = 'right';
-    g.fillText('ур. ' + (S.level + 1) + '/' + LEVELS.length, W - 12, 30);
-    if (best !== null)
-        g.fillText('лучшее ' + fmt(best), W - 12, 58);
-    // Полоса времени вверху.
-    const span = best !== null && best > 0 ? best : 60;
-    const frac = Math.min(runTime / span, 1);
-    g.fillStyle = 'rgba(255,255,255,0.25)';
-    g.fillRect(W / 2 - 110, 12, 220, 10);
-    g.fillStyle = '#ffd34d';
-    g.fillRect(W / 2 - 110, 12, 220 * frac, 10);
-    // Тетрадка на пружине: ключ, рыба, выход. Открывается кнопкой N.
-    if (notesOpen) {
-        const nx = W - 300;
-        const ny = 70;
-        g.fillStyle = 'rgba(245,240,220,0.95)';
-        g.fillRect(nx, ny, 280, 150);
-        g.fillStyle = '#8a7a5a';
-        for (let i = 0; i < 5; i++) {
-            g.beginPath();
-            g.arc(nx + 14 + i * 60, ny, 8, 0, Math.PI * 2);
-            g.fill();
-        }
-        g.fillStyle = '#333';
-        g.font = 'bold 20px sans-serif';
-        g.textAlign = 'left';
-        g.fillText('дело часа: ' + hourCase(S), nx + 20, ny + 34);
-        g.font = '20px sans-serif';
-        g.fillText((S.hasKey ? '✓' : '·') + ' ключ', nx + 20, ny + 66);
-        g.fillText((S.hasFish ? '✓' : '·') + ' рыба', nx + 20, ny + 96);
-        g.fillText('→ выход', nx + 20, ny + 126);
-    }
-    // Учёба с тёткой: только в первом корпусе, дальше молчит.
-    if (mode === 'play' && S.level === 0) {
-        const tip = teachStep({ moved: learnt.moved, key: S.hasKey, fish: S.hasFish, exit: false, shoved: learnt.shoved });
-        if (tip) {
-            g.fillStyle = 'rgba(0,0,0,0.7)';
-            g.fillRect(60, H - 96, W - 120, 84);
-            drawImg('img/face_aunt.png', 72, H - 88, 64, 64, '#e8e4de', false);
-            g.fillStyle = '#fff';
-            g.font = '22px sans-serif';
-            g.textAlign = 'left';
-            g.fillText(tip, 150, H - 44);
-        }
-    }
-    if (mode === 'start') {
-        const lines = ['Собери ключ и рыбу, дойди до выхода.', 'Стрелки — идти, пробел — прыжок, X — толкнуть.'];
-        if (best !== null)
-            lines.push('Лучшее время: ' + fmt(best));
-        lines.push('Нажми или коснись, чтобы играть.');
-        overlay('Побег тюленьки', lines);
-    }
-    else if (mode === 'win') {
-        const lines = ['Время: ' + fmt(runTime)];
-        lines.push(newRecord ? 'Новый рекорд!' : best !== null ? 'Лучшее: ' + fmt(best) : '');
-        lines.push('Нажми или коснись, чтобы играть заново.');
-        overlay('Победа!', lines);
-    }
-    else if (mode === 'lose') {
-        overlay('Поймали!', ['Сердца кончились.', 'Нажми или коснись, чтобы попробовать заново.']);
-    }
-}
-// Цикл по стенным часам фиксированным шагом.
-let acc = 0;
-let last = performance.now();
-let lastFrame = last;
-function frame(now) {
-    const dt = (now - last) / 1000;
-    last = now;
-    lastFrame = now;
-    animT += dt;
-    if (mode === 'play') {
-        acc += dt;
-        const max = CFG.step * 5;
-        if (acc > max)
-            acc = max;
-        while (acc >= CFG.step) {
-            acc -= CFG.step;
-            doStep();
-            if (mode !== 'play') {
-                acc = 0;
-                break;
+    if (hc === 'поверка') {
+        const id = S.day + (nowHour < 12 ? 'am' : 'pm');
+        if (id !== lastMuster) {
+            lastMuster = id;
+            if (!S.solitary && !inMuster()) {
+                applyMuster(S, false);
+                syncHeat();
+                snd('hit');
             }
         }
     }
-    else {
-        acc = 0;
-    }
-    render();
-    requestAnimationFrame(frame);
-}
-// Сторож для вкладок без кадров: тот же шаг.
-setInterval(function () {
-    const now = performance.now();
-    if (now - lastFrame > 250) {
-        last = now;
-        lastFrame = now;
-        if (mode === 'play')
-            doStep();
-        render();
-    }
-}, 100);
-function press(code, down) {
-    if (code === 'ArrowLeft' || code === 'KeyA')
-        input.left = down;
-    else if (code === 'ArrowRight' || code === 'KeyD')
-        input.right = down;
-    else if (code === 'ArrowUp' || code === 'Space' || code === 'KeyW')
-        input.jump = down;
-    else if (code === 'KeyX' || code === 'ShiftLeft' || code === 'ShiftRight')
-        input.shove = down;
-}
-document.addEventListener('keydown', function (e) {
-    if (e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'ArrowUp' || e.code === 'Space')
-        e.preventDefault();
-    if (e.repeat)
-        return;
-    if (e.code === 'KeyN') {
-        notesOpen = !notesOpen;
-        return;
-    }
-    if (e.code === 'KeyR' || e.code === 'Enter') {
-        startGame();
-        return;
-    }
-    if (e.code === 'Space' && mode !== 'play') {
-        startGame();
-        return;
-    }
-    press(e.code, true);
-});
-document.addEventListener('keyup', function (e) {
-    press(e.code, false);
-});
-function bindBtn(id, key) {
-    const el = document.getElementById(id);
-    const on = function (e) {
-        e.preventDefault();
-        if (mode !== 'play')
-            startGame();
-        press(key, true);
-    };
-    const off = function (e) {
-        e.preventDefault();
-        press(key, false);
-    };
-    el.addEventListener('pointerdown', on);
-    el.addEventListener('pointerup', off);
-    el.addEventListener('pointerleave', off);
-    el.addEventListener('pointercancel', off);
-}
-bindBtn('btn-left', 'ArrowLeft');
-bindBtn('btn-right', 'ArrowRight');
-bindBtn('btn-jump', 'Space');
-bindBtn('btn-shove', 'KeyX');
-canvas.addEventListener('pointerdown', function () {
-    if (mode !== 'play')
-        startGame();
-});
-canvas.addEventListener('contextmenu', function (e) {
-    e.preventDefault();
-});
-loadSprites(undefined).then(function (m) {
-    pics = m;
-    try {
-        if (typeof Image === 'function') {
-            const ai = new Image();
-            ai.src = 'img/face_aunt.png';
-            pics['img/face_aunt.png'] = { src: 'img/face_aunt.png', broken: false, img: ai };
+    if (hc === 'работа' && !S.solitary) {
+        const id = S.day + 'h' + nowHour;
+        if (id !== lastWork && isBench(cellAt(S.seal.x, S.seal.y))) {
+            lastWork = id;
+            const pay = workAt({ atBench: true, hour: nowHour });
+            if (pay > 0) {
+                S.coins += pay;
+                tired += 1;
+                applyWork(S, true);
+                snd('pickup');
+            }
         }
     }
-    catch (e) { }
-});
-requestAnimationFrame(frame);
-window.addEventListener('resize', () => fitCanvas(canvas));
-fitCanvas(canvas);
-// Крючок для внешней проверки: те же правила плюс текущее состояние.
-window.__hook = {
-    newRun: newRun,
-    step: step,
-    putSeal: putSeal,
-    giveAll: giveAll,
-    killAll: killAll,
-    get state() { return S; },
+    if (S.solitary && hc === 'подъём') {
+        leaveSolitary(S);
+        S.cell = { x: SPAWN.x, y: SPAWN.y };
+        S.seal.x = seal.x = SPAWN.x;
+        S.seal.y = seal.y = SPAWN.y;
+        syncHeat();
+        S.heat = 0;
+        S.wanted = 0;
+    }
+    if (has(S, 'спуск'))
+        flags.descent = true;
+    if (has(S, 'кляп'))
+        flags.gag = true;
+    const under = cellAt(S.seal.x, S.seal.y);
+    if (under === 'R' && flags.descent) {
+        mode = 'win';
+        winEnd = 'roof';
+        snd('win');
+    }
+    else if (under === 'E' && flags.gag) {
+        mode = 'win';
+        winEnd = 'gate';
+        snd('win');
+    }
+}
+// E: выслушать нить. R: подобрать рядом. C: собрать кляп и спуск.
+function doTalk() {
+    const lines = talkFor(S);
+    if (lines.length === 0)
+        return '';
+    say(S, lines[0].id);
+    lastLine = lines[0].text;
+    return lastLine;
+}
+function doPick() {
+    for (let i = 0; i < SPOTS.length; i++) {
+        const L = SPOTS[i];
+        if (Math.abs(L.x - S.seal.x) < 1 && Math.abs(L.y - S.seal.y) < 1) {
+            pick(S, L.id);
+            SPOTS.splice(i, 1);
+            snd('pickup');
+            return L.id;
+        }
+    }
+    return '';
+}
+function doCraft() {
+    const out = [];
+    if (craft(S, 'кляп')) {
+        flags.gag = true;
+        out.push('кляп');
+    }
+    if (craft(S, 'спуск')) {
+        flags.descent = true;
+        out.push('спуск');
+    }
+    if (out.length > 0)
+        snd('pickup');
+    return out;
+}
+function doSearch() {
+    const found = search(S);
+    if (found.length > 0) {
+        syncHeat();
+        S.cell = { x: SOL.x, y: SOL.y };
+        snd('lose');
+    }
+    return found;
+}
+function fmtTime() {
+    const h = Math.floor(S.t / 3600);
+    const m = Math.floor((S.t - h * 3600) / 60);
+    return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+}
+// --- Окно: холст, ввод, кадры. В проверке узла холста нет — тихо стоим.
+const ROOT = typeof window !== 'undefined' ? window : globalThis;
+const doc = typeof document !== 'undefined' ? document : null;
+const canvas = doc ? doc.getElementById('game') : null;
+const g2d = canvas ? canvas.getContext('2d') : null;
+const pics = {};
+const TOP_SEAL = {
+    up: 'img/top_seal_up.png',
+    down: 'img/top_seal_down.png',
+    left: 'img/top_seal_left.png',
+    right: 'img/top_seal_right.png',
+};
+const TOP_GUARD = ['img/top_guard_0.png', 'img/top_guard_1.png'];
+function loadPics() {
+    if (!doc || typeof Image === 'undefined')
+        return;
+    const all = [TOP_SEAL.up, TOP_SEAL.down, TOP_SEAL.left, TOP_SEAL.right,
+        TOP_GUARD[0], TOP_GUARD[1], FACE];
+    for (const src of all) {
+        try {
+            const im = new Image();
+            im.src = src;
+            pics[src] = { src: src, broken: false, img: im };
+        }
+        catch (e) { /* битая — квадратом */ }
+    }
+}
+function drawImg(src, x, y, w, h, fallback) {
+    if (!g2d)
+        return;
+    const p = pics[src];
+    if (p && !p.broken && p.img) {
+        try {
+            g2d.drawImage(p.img, x, y, w, h);
+            return;
+        }
+        catch (e) { /* квадратом */ }
+    }
+    g2d.fillStyle = fallback;
+    g2d.fillRect(x, y, w, h);
+}
+function px(x) {
+    return x * TILE * SCALE;
+}
+function render(now) {
+    if (!g2d || !canvas)
+        return;
+    const W = canvas.width;
+    const H = canvas.height;
+    g2d.setTransform(1, 0, 0, 1, 0, 0);
+    g2d.fillStyle = '#000';
+    g2d.fillRect(0, 0, W, H);
+    g2d.setTransform(SCALE, 0, 0, SCALE, 0, 0);
+    paintFloor(g2d, G);
+    g2d.setTransform(1, 0, 0, 1, 0, 0);
+    for (const L of SPOTS) {
+        g2d.fillStyle = '#ffd23f';
+        g2d.fillRect(px(L.x) - 6, px(L.y) - 6, 12, 12);
+    }
+    // Взгляд конусом по полу, честный.
+    for (const gd of seen) {
+        g2d.fillStyle = 'rgba(255,220,80,0.18)';
+        const gx = px(gd.x);
+        const gy = px(gd.y);
+        const len = CFG.sight * TILE * SCALE;
+        if (gd.dir > 0)
+            g2d.fillRect(gx, gy - 14, len, 28);
+        else
+            g2d.fillRect(gx - len, gy - 14, len, 28);
+    }
+    // Тени-овалы под ногами.
+    g2d.fillStyle = 'rgba(0,0,0,0.35)';
+    g2d.beginPath();
+    g2d.ellipse(px(S.seal.x), px(S.seal.y) + 12, 14, 5, 0, 0, Math.PI * 2);
+    g2d.fill();
+    for (const gd of seen) {
+        g2d.beginPath();
+        g2d.ellipse(px(gd.x), px(gd.y) + 12, 14, 5, 0, 0, Math.PI * 2);
+        g2d.fill();
+    }
+    drawImg(TOP_SEAL[face], px(S.seal.x) - 16, px(S.seal.y) - 16, 32, 32, '#dfe3e6');
+    const frame = Math.floor(now / 300) % 2;
+    for (const gd of seen) {
+        drawImg(TOP_GUARD[frame], px(gd.x) - 16, px(gd.y) - 16, 32, 32, '#3a5bd5');
+    }
+    if (isNight(S)) {
+        g2d.fillStyle = 'rgba(0,0,32,0.45)';
+        g2d.fillRect(0, 0, W, H);
+    }
+    if (S.solitary) {
+        g2d.fillStyle = 'rgba(0,0,0,0.55)';
+        g2d.fillRect(0, 0, W, H);
+        g2d.fillStyle = '#fff';
+        g2d.font = '28px sans-serif';
+        g2d.textAlign = 'center';
+        g2d.fillText('карцер до утра', W / 2, H / 2);
+    }
+    // Вверху слева монеты и розыск. Внизу полоса: время, день, дело часа.
+    g2d.fillStyle = '#fff';
+    g2d.font = '18px sans-serif';
+    g2d.textAlign = 'left';
+    let heat = '';
+    for (let i = 0; i < 3; i++)
+        heat += i < S.wanted ? '★' : '☆';
+    g2d.fillText('◉ ' + S.coins + '   ' + heat, 12, 24);
+    g2d.textAlign = 'center';
+    const hc = hourCase(S);
+    g2d.fillText(fmtTime() + '  день ' + S.day + '  ' + hc, W / 2, H - 34);
+    const lines = talkFor(S);
+    const show = lastLine || (lines.length > 0 ? lines[0].text : '');
+    if (show) {
+        drawImg(FACE, W / 2 - 220, H - 96, 64, 64, '#cfe8ff');
+        g2d.textAlign = 'left';
+        g2d.font = '16px sans-serif';
+        g2d.fillText(show.slice(0, 48), W / 2 - 148, H - 58);
+    }
+    if (mode === 'win') {
+        g2d.fillStyle = '#fff';
+        g2d.font = '30px sans-serif';
+        g2d.textAlign = 'center';
+        g2d.fillText(winEnd === 'roof' ? 'тихий уход через крышу' : 'громкий уход через ворота', W / 2, H / 2 - 40);
+    }
+}
+const keys = {};
+if (doc && doc.addEventListener) {
+    doc.addEventListener('keydown', (e) => {
+        keys[e.key] = true;
+        if (e.key === 'e' || e.key === 'E' || e.key === 'у' || e.key === 'У')
+            doTalk();
+        if (e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К')
+            doPick();
+        if (e.key === 'c' || e.key === 'C' || e.key === 'с' || e.key === 'С')
+            doCraft();
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].indexOf(e.key) >= 0 && e.preventDefault)
+            e.preventDefault();
+    });
+    doc.addEventListener('keyup', (e) => {
+        keys[e.key] = false;
+    });
+}
+function readInput() {
+    let dx = 0;
+    let dy = 0;
+    if (keys.ArrowLeft || keys.a || keys.A || keys.ф || keys.Ф)
+        dx -= 1;
+    if (keys.ArrowRight || keys.d || keys.D || keys.в || keys.В)
+        dx += 1;
+    if (keys.ArrowUp || keys.w || keys.W || keys.ц || keys.Ц)
+        dy -= 1;
+    if (keys.ArrowDown || keys.s || keys.S || keys.ы || keys.Ы)
+        dy += 1;
+    return { dx: dx, dy: dy };
+}
+let prevT = 0;
+function frame(now) {
+    if (!g2d)
+        return;
+    if (!prevT)
+        prevT = now;
+    let dt = (now - prevT) / 1000;
+    prevT = now;
+    if (dt > 0.1)
+        dt = 0.1;
+    simStep(dt, readInput());
+    render(now);
+    if (typeof requestAnimationFrame !== 'undefined')
+        requestAnimationFrame(frame);
+}
+if (canvas && g2d) {
+    loadPics();
+    if (typeof requestAnimationFrame !== 'undefined')
+        requestAnimationFrame(frame);
+}
+// Крючок для внешней проверки: день целиком прогоном, нить, карцер.
+ROOT.__hook = {
+    S: S,
+    G: G,
+    MAP: MAP,
+    simStep: simStep,
+    doTalk: doTalk,
+    doPick: doPick,
+    doCraft: doCraft,
+    doSearch: doSearch,
+    newDay: newDay,
+    tick: tick,
+    hourCase: hourCase,
+    applyMuster: applyMuster,
+    applyWork: applyWork,
+    isNight: isNight,
+    loadGrid: loadGrid,
+    wallAt: wallAt,
+    newSeal: newSeal,
+    stepSeal: stepSeal,
+    sees: sees,
+    heatUp: heatUp,
+    toSolitary: toSolitary,
+    catchSeal: catchSeal,
+    workAt: workAt,
+    isBench: isBench,
+    pick: pick,
+    craft: craft,
+    has: has,
+    talkFor: talkFor,
+    say: say,
+    search: search,
+    leaveSolitary: leaveSolitary,
+    FACE: FACE,
     get mode() { return mode; },
-    get hearts() { return S.hearts; },
-    get won() { return S.won; },
-    get dead() { return S.dead; },
+    get winEnd() { return winEnd; },
 };
