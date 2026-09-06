@@ -307,7 +307,9 @@ function draw(){
 
   }
 function drawArmor(kind,cx,topY){ /* броня сидит на макушке */
-  if(kind==='cone')drawImg(IMG.cone,cx-23,topY-42,46,46);
+  if(kind==='cone'){ /* как на референсе: набекрень, кромка на лбу */
+    ctx.save();ctx.translate(cx,topY+30);ctx.rotate(-0.14);
+    drawImg(IMG.cone,-23,-48,46,46);ctx.restore();}
   else drawImg(IMG.bucket,cx-26,topY-34,52,46);
 }
   /* враги: у зомби башка — верхние 150px из 373 */
