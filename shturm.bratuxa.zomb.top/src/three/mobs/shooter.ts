@@ -149,13 +149,14 @@ export function makeShooter(): THREE.Group {
   scopeGlass.rotation.y = Math.PI;
   add(scopeGlass, bones.head);
 
-  // Наплечник слева: крупная пластина.
-  const pad = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.6), M.metalMat);
-  pad.position.set(-0.02, 0.08, 0);
+  // Наплечник слева: приплюснутая пластина-купол, сидит на плече.
+  const pad = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), M.metalMat);
+  pad.scale.set(1.1, 0.62, 1.1);
+  pad.position.set(-0.04, 0.02, 0);
   pad.castShadow = true;
   add(pad, (bones as any).shoulderL);
   const padTrim = box(0.16, 0.03, 0.16, M.darkMat);
-  padTrim.position.set(-0.02, 0.0, 0);
+  padTrim.position.set(-0.04, -0.035, 0);
   add(padTrim, (bones as any).shoulderL);
 
   // Пояс + подсумки.
