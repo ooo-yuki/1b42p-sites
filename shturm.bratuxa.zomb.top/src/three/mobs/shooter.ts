@@ -1,7 +1,6 @@
 import * as THREE from 'three';
-import { buildHumanoid, makeClips } from '../rig';
+import { buildHumanoid, makeClips, phaseShiftRight } from '../rig';
 import { getTex } from '../textures';
-import { phaseShiftRight } from './runner';
 
 let camoMat: THREE.MeshStandardMaterial | null = null;
 let fabricMat: THREE.MeshStandardMaterial | null = null;
@@ -92,20 +91,30 @@ export function makeShooter(): THREE.Group {
   torso.scale.set(1.25, 1, 0.8);
   // Бронежилет-пластина спереди.
   skinGeo(new THREE.BoxGeometry(0.34, 0.4, 0.06), M.fabricMat, bones.spine, bones.hips, 1.2, 0, -0.17);
-  // Шея.
-  skinGeo(cap(0.06, 0.1), M.skinMat, bones.head, bones.spine, 1.62);
-  // Голова.
-  const headGeo = new THREE.SphereGeometry(0.155, 16, 12);
-  headGeo.scale(1, 1.15, 1);
-  skinGeo(headGeo, M.skinMat, bones.head, bones.spine, 1.82);
-  // Руки: рукава камо, предплечья камо.
+  // F1: воротник закрывает стык шея–торс.
+  skinGeo(new THREE.CylinderGeometry(0.11, 0.14, 0.12, 12), M.camoMat, bones.head, bones.spine, 1.52);
+  // Шея: короткая и толстая (было cap(0.06,0.1) на 1.62 — «жираф»).
+  skinGeo(cap(0.075, 0.05), M.skinMat, bones.head, bones.spine, 1.6);
+  // F2: голова шире и короче — не яйцо (было scale 1,1.15,1).
+  const headGeo = new THREE.SphereGeometry(0.155, 14, 10);
+  headGeo.scale(1.06, 1.0, 0.96);
+  skinGeo(headGeo, M.skinMat, bones.head, bones.spine, 1.8);
+  // F3: руки/ноги +25–30% толщины. Плечи ближе к торсу (0.28) — уже зазор.
   for (const s of ['L', 'R'] as const) {
     const sg = s === 'L' ? -1 : 1;
-    skinGeo(cap(0.075, 0.2), M.camoMat, (bones as any)[`shoulder${s}`], (bones as any)[`elbow${s}`], 1.575, 0.3 * sg);
-    skinGeo(cap(0.06, 0.2), M.camoMat, (bones as any)[`elbow${s}`], (bones as any)[`hand${s}`], 1.25, 0.3 * sg);
+    const shoulder = s === 'L' ? bones.shoulderL : bones.shoulderR;
+    const elbow = s === 'L' ? bones.elbowL : bones.elbowR;
+    const hand = s === 'L' ? bones.handL : bones.handR;
+    const hip = s === 'L' ? bones.hipL : bones.hipR;
+    const knee = s === 'L' ? bones.kneeL : bones.kneeR;
+    const foot = s === 'L' ? bones.footL : bones.footR;
+    skinGeo(cap(0.096, 0.2), M.camoMat, shoulder, elbow, 1.575, 0.28 * sg);
+    skinGeo(cap(0.078, 0.2), M.camoMat, elbow, hand, 1.25, 0.28 * sg);
     // Ноги: штаны fabric, ботинки тёмные.
-    skinGeo(cap(0.085, 0.28), M.fabricMat, (bones as any)[`hip${s}`], (bones as any)[`knee${s}`], 0.775, 0.13 * sg);
-    skinGeo(cap(0.07, 0.28), M.darkMat, (bones as any)[`knee${s}`], (bones as any)[`foot${s}`], 0.325, 0.13 * sg);
+    skinGeo(cap(0.108, 0.28), M.fabricMat, hip, knee, 0.775, 0.13 * sg);
+    skinGeo(cap(0.09, 0.28), M.darkMat, knee, foot, 0.325, 0.13 * sg);
+    // F1: набедренник закрывает стык торс–бедро.
+    skinGeo(new THREE.BoxGeometry(0.2, 0.22, 0.24), M.camoMat, hip, knee, 0.95, 0.13 * sg);
   }
 
   g.updateMatrixWorld(true);
@@ -115,8 +124,8 @@ export function makeShooter(): THREE.Group {
     m.normalizeSkinWeights();
   }
 
-  (bones as any).elbowL.rotation.x = -0.35;
-  (bones as any).elbowR.rotation.x = -0.35;
+  bones.elbowL.rotation.x = -0.35;
+  bones.elbowR.rotation.x = -0.35;
 
   const add = (o: THREE.Object3D, parent: THREE.Object3D) => { parent.add(o); return o; };
   const box = (w: number, h: number, d: number, mat: THREE.Material) => {
@@ -125,9 +134,9 @@ export function makeShooter(): THREE.Group {
     return m;
   };
 
-  // Каска: полусфера + козырёк.
-  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.175, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), M.darkMat);
-  helmet.position.set(0, 0.05, 0);
+  // Каска: полусфера + козырёк. F2: посажена ниже, закрывает скулы.
+  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.175, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), M.darkMat);
+  helmet.position.set(0, 0.03, 0.01);
   helmet.castShadow = true;
   add(helmet, bones.head);
   const brim = box(0.3, 0.03, 0.12, M.darkMat);
@@ -149,15 +158,34 @@ export function makeShooter(): THREE.Group {
   scopeGlass.rotation.y = Math.PI;
   add(scopeGlass, bones.head);
 
-  // Наплечник слева: приплюснутая пластина-купол, сидит на плече.
-  const pad = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), M.metalMat);
-  pad.scale.set(1.1, 0.62, 1.1);
-  pad.position.set(-0.04, 0.02, 0);
-  pad.castShadow = true;
-  add(pad, (bones as any).shoulderL);
-  const padTrim = box(0.16, 0.03, 0.16, M.darkMat);
-  padTrim.position.set(-0.04, -0.035, 0);
-  add(padTrim, (bones as any).shoulderL);
+  // F2: респиратор закрывает низ лица-«яйца»; щёчные пластины каски — скулы.
+  const respirator = box(0.16, 0.1, 0.09, M.darkMat);
+  respirator.position.set(0, -0.11, -0.1);
+  add(respirator, bones.head);
+  for (const fs of [-1, 1]) {
+    const filter = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.06, 8), M.metalMat);
+    filter.rotation.x = Math.PI / 2;
+    filter.position.set(0.07 * fs, -0.13, -0.1);
+    filter.castShadow = true;
+    add(filter, bones.head);
+    const cheek = box(0.05, 0.15, 0.13, M.darkMat);
+    cheek.position.set(0.135 * fs, -0.03, -0.01);
+    add(cheek, bones.head);
+  }
+
+  // F1+F4: наплечники на ОБОИХ плечах, шире (1.35) и посажены на плечо (y −0.01) — без парения.
+  for (const s of ['L', 'R'] as const) {
+    const sg = s === 'L' ? -1 : 1;
+    const shoulder = s === 'L' ? bones.shoulderL : bones.shoulderR;
+    const pad = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.55), M.metalMat);
+    pad.scale.set(1.35, 0.62, 1.35);
+    pad.position.set(-0.02 * sg, -0.01, 0);
+    pad.castShadow = true;
+    add(pad, shoulder);
+    const padTrim = box(0.2, 0.03, 0.2, M.darkMat);
+    padTrim.position.set(-0.02 * sg, -0.055, 0);
+    add(padTrim, shoulder);
+  }
 
   // Пояс + подсумки.
   const belt = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.09, 0.3), M.darkMat);
@@ -181,7 +209,7 @@ export function makeShooter(): THREE.Group {
   const lamp = new THREE.Group();
   lamp.name = 'flashlight';
   lamp.position.set(0, -0.05, -0.08);
-  add(lamp, (bones as any).handR);
+  add(lamp, bones.handR);
   const lampBody = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.065, 0.18, 12), M.metalMat);
   lampBody.rotation.x = Math.PI / 2;
   lampBody.castShadow = true;
@@ -203,11 +231,15 @@ export function makeShooter(): THREE.Group {
   lamp.add(beam);
   lamp.add(beam.target);
 
-  // Кисть левой руки — кулак.
-  const fist = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), M.skinMat);
-  fist.position.set(0, -0.06, 0);
+  // F3: кулаки больше; правый сжимает рукоять фонаря.
+  const fist = new THREE.Mesh(new THREE.SphereGeometry(0.085, 8, 6), M.skinMat);
+  fist.position.set(0, -0.07, 0);
   fist.castShadow = true;
-  add(fist, (bones as any).handL);
+  add(fist, bones.handL);
+  const fistR = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), M.skinMat);
+  fistR.position.set(0, -0.04, 0.05);
+  fistR.castShadow = true;
+  add(fistR, bones.handR);
 
   // Миксер + экшены. Attack — вскидка фонаря-руки вперёд.
   const clips = makeClips('biped');
