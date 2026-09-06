@@ -4,6 +4,7 @@ import oruzh1Url from './assets/oruzh1.png';
 import oruzh2Url from './assets/oruzh2.png';
 import pistolUrl from './assets/pistol.png';
 import batUrl from './assets/bat.jpg';
+import menuBgUrl from './assets/menu-bg.jpg';
 import charMttUrl from './assets/char-mtt.png';
 import charKrysaUrl from './assets/char-krysa.png';
 
@@ -200,8 +201,9 @@ async function loadStats(): Promise<void> {
   const [admin, setAdmin] = useState<null | { rooms: Array<{ id: string; name: string; mode: string; started: boolean; round: number; players: Array<{ nick: string; login: string; char: string; score: number; kills: number; wave: number; hp: number; x: number; z: number }> ; pending: Array<{ nick: string; login: string }> }>; totalPlayers: number }>(null);
   const [profile, setProfile] = useState<{ login: string; games: number; best: number; coins: number } | null>(null);
   const [mapChoice, setMapChoice] = useState<MapId>('arena');
-  // экраны меню: main — главная, chars — отдельный выбор бойца
-  const [menuScreen, setMenuScreen] = useState<'main' | 'chars'>('main');
+  // вкладки меню в стиле TWD: каждая кнопка слева — своя вкладка справа
+  type TabId = 'play' | 'fighter' | 'maps' | 'editor' | 'rooms' | 'settings' | 'tops';
+  const [menuTab, setMenuTab] = useState<TabId>('play');
   // мирный режим: врагов нет, можно гулять по карте
   const [noEnemies, setNoEnemies] = useState(false);
   // чат комнаты: T — открыть, Enter — отправить
@@ -1120,9 +1122,16 @@ async function loadStats(): Promise<void> {
         </div>
       )}
       {menu && (
-        <div id="menu">
-          <h1>👊 42 LIVE 💥</h1>
-          {menuScreen === 'chars' ? (
+        <div id="menu" className="twd" style={{ backgroundImage: `url(${menuBgUrl})` }}>
+          <div id="menuNav">
+            <h1>👊 42 LIVE 💥</h1>
+            {([['play', '▶ ИГРАТЬ'], ['fighter', '🎭 БОЕЦ'], ['maps', '🗺️ КАРТЫ'], ['editor', '🧩 РЕДАКТОР'], ['rooms', '🌐 КОМНАТЫ'], ['settings', '⚙️ НАСТРОЙКИ'], ['tops', '🏆 ТОПЫ']] as Array<[TabId, string]>).map(([id, label]) => (
+              <button key={id} id={`nav-${id}`} className={'tnav' + (menuTab === id ? ' active' : '')} onClick={() => setMenuTab(id)}>{label}</button>
+            ))}
+            <a id="hubLink" href="https://hub.bratuxa.zomb.top">← Хаб 1Б42П</a>
+          </div>
+          <div id="menuBody">
+          <div className={'mtab' + (menuTab === 'fighter' ? ' show' : '')}>
             <div className="board" id="charSec">
               <h3>🎭 Выбор бойца</h3>
               <div className="charRow">
@@ -1142,17 +1151,16 @@ async function loadStats(): Promise<void> {
                 ))}
               </div>
               <div className="srow">
-                <button className="wclose" id="charBack" onClick={() => setMenuScreen('main')}>← НАЗАД</button>
-                <button className="wbtn" id="charGo" onClick={() => setMenuScreen('main')}>ИГРАТЬ ЭТИМ ✔</button>
+                <button className="wclose" id="charBack" onClick={() => setMenuTab('play')}>← НАЗАД</button>
+                <button className="wbtn" id="charGo" onClick={() => setMenuTab('play')}>ИГРАТЬ ЭТИМ ✔</button>
               </div>
             </div>
-          ) : (
-          <>
+          </div>
+          <div className={'mtab' + (menuTab === 'play' ? ' show' : '')}>
           <p>Арена 42 LIVE от первого лица: машешься с волнами врагов, у каждого полоска HP.
             Джойстик слева — движение, кнопка справа — удар. Фантики с врагов трать в 🛒 оружейке,
-            завал — жми 💚 возродиться!
-            <br /><a id="hubLink" href="https://hub.bratuxa.zomb.top">← Хаб 1Б42П</a></p>
-          {!authed ? (
+            завал — жми 💚 возродиться!</p>
+          {!authed && (
             <div className="board" id="authBox">
               <h3>🔐 Вход</h3>
               <input
@@ -1179,8 +1187,8 @@ async function loadStats(): Promise<void> {
               </div>
               <button className="wclose" id="guestBtn" onClick={guestIn}>ИГРАТЬ ГОСТЕМ</button>
             </div>
-          ) : (
-            <>
+          )}
+          {authed !== '' && (
               <div id="authWho">
                 {authed === 'guest' ? '👤 Гость' : `🔐 ${authed}`}
                 {' · '}
@@ -1190,6 +1198,9 @@ async function loadStats(): Promise<void> {
                 {' · '}
                 <button id="authOut" onClick={authOut}>{authed === 'guest' ? 'войти' : 'выйти'}</button>
               </div>
+          )}
+          </div>
+          <div className={'mtab' + (menuTab === 'maps' ? ' show' : '')}>
           <div className="menuArt">
             <img src={oruzh1Url} alt="кулаки" />
             <img src={oruzh2Url} alt="секира" />
@@ -1210,6 +1221,8 @@ async function loadStats(): Promise<void> {
               ))}
             </div>
           </div>
+          </div>
+          <div className={'mtab' + (menuTab === 'play' ? ' show' : '')}>
           <div className="board" id="foeSec">
             <h3>👹 Враги</h3>
             <div className="srow">
@@ -1218,6 +1231,8 @@ async function loadStats(): Promise<void> {
               </button>
             </div>
           </div>
+          </div>
+          <div className={'mtab' + (menuTab === 'editor' ? ' show' : '')}>
           <div className="board" id="editorSec">
             <h3>🧩 Редактор карт</h3>
             <div className="srow">
@@ -1273,6 +1288,8 @@ async function loadStats(): Promise<void> {
             )}
             <div><small>Свои карты — для соло (без комнаты). Тыкни по сетке — стена, зелёная точка — спавн.</small></div>
           </div>
+          </div>
+          <div className={'mtab' + (menuTab === 'play' ? ' show' : '')}>
           <div className="board" id="goSec">
             <h3>🚀 В бой</h3>
           <input
@@ -1282,7 +1299,7 @@ async function loadStats(): Promise<void> {
             onChange={(e) => setNick(e.target.value)}
             placeholder="Твой ник"
           />
-          <button id="charBtn" className="wbtn" onClick={() => setMenuScreen('chars')}>
+          <button id="charBtn" className="wbtn" onClick={() => setMenuTab('fighter')}>
             🎭 БОЕЦ: {char === 'krysa' ? '🐀 Крыса' : '🕶️ МТТ'} — ВЫБРАТЬ
           </button>
           {(roomId && !isOwner) || waiting ? (
@@ -1290,6 +1307,7 @@ async function loadStats(): Promise<void> {
           ) : (
             <button id="goBtn" onClick={go}>{(() => { const gm = roomId ? roomMode : mapChoice; return gm === 'duel' ? '⚔️ В ДУЭЛЬ' : gm === 'backrooms' ? '🟨 В БЭКРУМС' : gm === 'custom' ? '🧩 НА СВОЮ' : '▶️ ПОГНАЛИ'; })()}</button>
           )}
+          </div>
           </div>
           {profileOpen && (
             <div className="modal" id="profileOv">
@@ -1333,11 +1351,12 @@ async function loadStats(): Promise<void> {
               </div>
             </div>
           )}
+          <div className={'mtab' + (menuTab === 'rooms' ? ' show' : '')}>
           <div className="board" id="roomSec">
             <h3>🌐 Комнаты</h3>
             {roomId ? (
               <>
-                <div>Сидишь в <b>{roomName || roomId}</b> ({roomId}) {roomMode === 'duel' ? '⚔️ ДУЭЛЬ 1×1' : '🌍 Арена'}{isOwner ? ' · 👑 ты создатель' : ''} — сокомнатники появятся на карте призраками.</div>
+                <div>Сидишь в <b>{roomName || roomId}</b> ({roomId}) {roomMode === 'duel' ? '⚔️ ДУЭЛЬ 1×1' : roomMode === 'backrooms' ? '🟨 БЭКРУМС' : roomMode === 'custom' ? '🧩 СВОЯ' : '🌍 Арена'}{isOwner ? ' · 👑 ты создатель' : ''} — сокомнатники появятся на карте призраками.</div>
                 {(lobby?.players?.length ?? 0) > 0 && (
                   <div id="lobbyList">
                     <b>👥 В комнате ({(lobby?.players?.length ?? 0) + 1}):</b>
@@ -1408,6 +1427,8 @@ async function loadStats(): Promise<void> {
               </>
             )}
           </div>
+          </div>
+          <div className={'mtab' + (menuTab === 'tops' ? ' show' : '')}>
           {scores.length > 0 && (
             <div className="board">
               <h3>🏆 Топ братух</h3>
@@ -1430,6 +1451,31 @@ async function loadStats(): Promise<void> {
               <div>🎮 Всего сыграно: <b>{gstats.games}</b> · 🏆 Рекорд: <b>{gstats.best}</b> · 🟢 Онлайн: <b>{gstats.online}</b></div>
             </div>
           )}
+          </div>
+          <div className={'mtab' + (menuTab === 'settings' ? ' show' : '')}>
+          <div className="board" id="setSec">
+            <h3>⚙️ Настройки</h3>
+            <div className="srow">
+              <span>🔊 Звук</span>
+              <button id="m-soundBtn" className="wbtn" onClick={toggleSound}>{sound ? 'ВЫКЛ' : 'ВКЛ'}</button>
+            </div>
+            <div className="srow">
+              <span>👀 Чувствительность: {sens.toFixed(1)}</span>
+            </div>
+            <input
+              id="m-sensRange"
+              type="range" min={0.3} max={2.5} step={0.1} value={sens}
+              onChange={(e) => changeSens(Number(e.target.value))}
+            />
+            <div className="srow">
+              <span>🎨 Графика</span>
+              <button id="m-qualityBtn" className="wbtn" onClick={toggleQuality}>
+                {quality === 'nice' ? '✨ КРАСИВО' : '⚡ БЫСТРО'}
+              </button>
+            </div>
+            <div><small>Клавиши — в бою кнопкой ⚙️ (там же сброс).</small></div>
+          </div>
+          </div>
           {admin !== null && (
             <div className="board" id="adminSec">
               <h3>📊 Онлайн (только для тебя)</h3>
@@ -1453,10 +1499,7 @@ async function loadStats(): Promise<void> {
             </div>
           )}
           {adminOpen && admin === null && <div className="board">Загрузка онлайна…</div>}
-            </>
-          )}
-          </>
-          )}
+          </div>
         </div>
       )}
     </>

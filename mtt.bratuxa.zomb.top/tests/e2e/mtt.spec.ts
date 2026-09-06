@@ -505,6 +505,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('дуэль в клиенте: создатель принимает и стартует', async ({ page, request }) => {
     await page.click('#guestBtn');
     await page.fill('#nick', 'D1');
+    await page.click('#nav-rooms');
     await page.fill('#roomDraft', 'DROOM');
     await page.click('#mode-duel');
     await page.click('#roomCreate');
@@ -686,6 +687,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     expect(cb).toBeTruthy();
     expect(Math.abs((cb!.x + cb!.width / 2) - vw / 2)).toBeLessThan(60);
     await page.click('#menuBtn');
+    await page.click('#nav-rooms');
     await page.fill('#roomDraft', 'BADGE');
     await page.click('#roomCreate');
     await page.click('#goBtn');
@@ -791,6 +793,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     expect(typeof d.best).toBe('number');
     expect(typeof d.online).toBe('number');
     await page.click('#guestBtn');
+    await page.click('#nav-tops');
     await expect(page.locator('#gstats')).toContainText('Всего сыграно', { timeout: 10000 });
   });
 
@@ -815,8 +818,19 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     expect(high).toBe(false);
   });
 
+  test('🧭 вкладки: каждая кнопка открывает свою', async ({ page }) => {
+    await page.click('#guestBtn');
+    const tabs: Array<[string, string]> = [['fighter', '#charSec'], ['maps', '#mapSec'], ['editor', '#editorSec'], ['rooms', '#roomSec'], ['settings', '#setSec'], ['tops', '#duelTop'], ['play', '#goSec']];
+    for (const [t, sel] of tabs) {
+      await page.click(`#nav-${t}`);
+      await expect(page.locator(sel)).toBeVisible();
+    }
+    await expect(page.locator('#nav-play.active')).toHaveCount(1);
+  });
+
   test('🗺️ выбор карты: три карточки, Бэкрумс выбирается', async ({ page }) => {
     await page.click('#guestBtn');
+    await page.click('#nav-maps');
     await expect(page.locator('#mapSec .mapCard')).toHaveCount(3);
     await page.click('#map-backrooms');
     await expect(page.locator('#map-backrooms.sel')).toHaveCount(1);
@@ -825,6 +839,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
 
   test('🟨 Бэкрумс: лабиринт большой, стены на месте, случайный', async ({ page }) => {
     await page.click('#guestBtn');
+    await page.click('#nav-maps');
     await page.click('#map-backrooms');
     await page.click('#goBtn');
     await page.waitForTimeout(1500);
@@ -887,6 +902,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
 
   test('⚔️ топ дуэлянтов виден в меню', async ({ page }) => {
     await page.click('#guestBtn');
+    await page.click('#nav-tops');
     await expect(page.locator('#duelTop')).toBeVisible();
     await expect(page.locator('#duelTop')).toContainText('Топ дуэлянтов');
   });
@@ -912,6 +928,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
 
   test('🧩 редактор: нарисовал, сохранил, играю на своей', async ({ page }) => {
     await page.click('#guestBtn');
+    await page.click('#nav-editor');
     await expect(page.locator('#editorSec')).toBeVisible();
     await page.fill('#edName', 'ТестКарта');
     const box = await page.locator('#edGrid').boundingBox();

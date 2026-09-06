@@ -10,12 +10,42 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 #menu{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;
  justify-content:center;text-align:center;padding:20px;overflow-y:auto;
  background:radial-gradient(ellipse at 50% 30%,#1a1440 0%,#0a0824 55%,#04060f 100%)}
-#menu h1{margin:0;font-size:min(20vw,110px);font-weight:900;letter-spacing:4px;
- background:linear-gradient(180deg,#ffd23f 20%,#ff9f1c 55%,#ff3b3b 100%);
- -webkit-background-clip:text;background-clip:text;color:transparent;
- filter:drop-shadow(0 0 26px rgba(255,80,40,.55)) drop-shadow(3px 3px 0 #000)}
-#menu p{color:#c6cdf2;max-width:60ch}
-#hubLink{color:#ff9f1c}
+#menu.twd{background-size:cover;background-position:center;background-color:#0a0805}
+#menu.twd::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
+ background:linear-gradient(90deg,rgba(5,4,2,.92) 0%,rgba(5,4,2,.78) 34%,rgba(5,4,2,.25) 62%,rgba(5,4,2,.45) 100%)}
+#menuNav{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;max-width:1060px;
+ padding:0 8px;position:relative;z-index:1}
+#menuBody{width:100%;max-width:1060px;display:flex;justify-content:flex-end;position:relative;z-index:1}
+#menuBody .mtab{display:none;width:min(92vw,470px);text-align:left;max-height:62vh;overflow-y:auto;
+ background:rgba(8,6,4,.72);border:1px solid rgba(216,197,106,.25);border-radius:6px;padding:14px 16px}
+#menuBody .mtab.show{display:block}
+#menu h1{margin:0 0 10px;font-size:min(11vw,58px);font-weight:900;letter-spacing:3px;text-align:left;
+ font-family:'Courier New',Courier,monospace;color:#e8c33a;
+ text-shadow:0 0 22px rgba(255,160,40,.35),3px 3px 0 #000}
+.tnav{display:block;background:transparent;border:none;cursor:pointer;text-align:left;
+ font-family:'Courier New',Courier,monospace;font-weight:900;letter-spacing:3px;
+ font-size:min(6.4vw,27px);color:#d8a91f;text-shadow:2px 2px 0 #000;padding:7px 26px 7px 18px;margin:1px 0}
+.tnav.active{color:#1a1408;text-shadow:none;
+ background:linear-gradient(100deg,#cfb95c 0%,#ddd08a 12%,#c9b45e 26%,#d6c47a 40%,#c4ae58 55%,#d9cb84 70%,#c9b45e 85%,#cfb95c 100%);
+ clip-path:polygon(0 12%,3% 0,97% 4%,100% 22%,98.5% 45%,100% 68%,97% 92%,94% 100%,2% 96%,0 78%,1.5% 55%,0 32%)}
+#hubLink{color:#9aa3c0;font-size:13px;margin:10px 0 0 18px}
+#menu .board{background:transparent;border:none;box-shadow:none;padding:6px 0}
+#menu .board h3{color:#e8c33a;letter-spacing:2px;margin:6px 0 10px;font-size:17px}
+#menu p{color:#c9c2ae;font-size:14px;text-align:left}
+#menu input{background:rgba(10,8,5,.85);border:1px solid #6a5a28;color:#f0e6c8}
+#menu .wbtn{background:#2a2113;border:1px solid #8a7226;color:#e8c33a;box-shadow:2px 2px 0 #000}
+#menu .wbtn.cur{background:#cfb95c;color:#1a1408;border-color:#cfb95c}
+#menu .wclose{background:transparent;border:1px solid #5a4a22;color:#9a8a5a;box-shadow:none}
+#menu .mapCard{background:rgba(20,14,8,.85);border-color:#5a4a22}
+#menu .mapCard.sel{border-color:#e8c33a;background:rgba(50,38,14,.9)}
+#menu .mapCard .mdesc{color:#9a8a6a}
+@media (max-width:700px){
+ #menuNav{align-items:flex-start}
+ #menuBody{justify-content:flex-start;flex-direction:column}
+ #menuBody .mtab{width:100%;max-height:52vh}
+}
+/* старый градиентный заголовок заменён TWD-стилем выше */
+/* p и hubLink — в TWD-блоке выше */
 .menuArt{display:flex;gap:14px;margin:6px 0 2px}
 .menuArt img{width:96px;height:96px;object-fit:contain;background:#0d1428;border:1px solid #ff9f1c;border-radius:12px;padding:6px}
 #nick{background:#0d1428;color:#fff;border:1px solid #ff9f1c;border-radius:10px;
