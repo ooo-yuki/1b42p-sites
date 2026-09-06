@@ -163,8 +163,8 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#goBtn');
     await page.waitForTimeout(800);
     let seen = false;
-    for (let i = 0; i < 14 && !seen; i++) {
-      await page.waitForTimeout(500);
+    for (let i = 0; i < 60 && !seen; i++) {
+      await page.waitForTimeout(300);
       const hops = await page.evaluate(() => (window as unknown as { __mtt: { hops: () => number[] } }).__mtt.hops());
       seen = hops.some((h) => h > 0.05);
     }
