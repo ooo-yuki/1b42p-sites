@@ -946,6 +946,24 @@ function render(now) {
         g2d.textAlign = 'center';
         g2d.fillText('карцер до утра', W / 2, H / 2);
     }
+    // Круг красоты 2: тёплый свет вокруг тюленьки и мягкая тень по краям.
+    // Слабо, чтобы поле читалось; ночью темнее, чем днём.
+    {
+        const lightNight = isNight(S);
+        const sx = px(S.seal.x);
+        const sy = px(S.seal.y);
+        const lr = 150;
+        const glow = g2d.createRadialGradient(sx, sy, 10, sx, sy, lr);
+        glow.addColorStop(0, lightNight ? 'rgba(255,214,140,0.20)' : 'rgba(255,224,160,0.12)');
+        glow.addColorStop(1, 'rgba(255,210,130,0)');
+        g2d.fillStyle = glow;
+        g2d.fillRect(sx - lr, sy - lr, lr * 2, lr * 2);
+        const vg = g2d.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+        vg.addColorStop(0, 'rgba(0,0,0,0)');
+        vg.addColorStop(1, lightNight ? 'rgba(0,0,20,0.42)' : 'rgba(0,0,20,0.22)');
+        g2d.fillStyle = vg;
+        g2d.fillRect(0, 0, W, H);
+    }
     // Вверху слева монеты и розыск. Внизу полоса: время, день, дело часа.
     g2d.fillStyle = '#fff';
     g2d.font = '18px sans-serif';
