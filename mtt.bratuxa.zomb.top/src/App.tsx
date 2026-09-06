@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Game, WEAPONS, type HudState } from './game/engine';
+import { Game, WEAPONS, KEY_ACTIONS, DEFAULT_KEYS, type HudState, type KeyMap } from './game/engine';
 import oruzh1Url from './assets/oruzh1.png';
 import oruzh2Url from './assets/oruzh2.png';
 
@@ -59,6 +59,11 @@ function submitScore(nick: string, score: number, coins: number): void {
   } catch { /* noop */ }
 }
 
+function prettyKey(code: string): string {
+  return code.replace(/^Key/, '').replace(/^Digit/, '').replace(/^Arrow/, '')
+    .replace('Space', 'Пробел').replace('ShiftLeft', 'Shift').replace('ShiftRight', 'Shift');
+}
+
 const NICK_KEY = 'mtt_nick';
 
 export default function App() {
@@ -75,6 +80,8 @@ export default function App() {
   const [setOpen, setSetOpen] = useState(false);
   const [sound, setSound] = useState(true);
   const [sens, setSens] = useState(1);
+  const [keys, setKeys] = useState<KeyMap>({ ...DEFAULT_KEYS });
+  const [capturing, setCapturing] = useState<keyof KeyMap | null>(null);
   const [waveBanner, setWaveBanner] = useState(0);
   const prevWave = useRef(0);
   const [nick, setNick] = useState(() => {
@@ -99,10 +106,14 @@ export default function App() {
     gameRef.current = game;
     setSound(game.getSound());
     setSens(game.getSens());
+    setKeys(game.getKeys());
     (window as unknown as { __mtt?: object }).__mtt = {
       pos: () => game.debugPos(),
       attack: () => game.debugAttack(),
       hp: () => game.debugHp(),
+      py: () => game.debugPy(),
+      hops: () => game.debugHops(),
+      keys: () => game.getKeys(),
       spots: () => game.debugSpots(),
       solids: () => game.debugSolids(),
       give: (n: number) => game.debugGive(n),
@@ -121,14 +132,20 @@ export default function App() {
     };
     const kd = (e: KeyboardEvent) => {
       game.input[e.code] = true;
-      if (e.code === 'Space' || e.code === 'KeyJ') { e.preventDefault(); swing(); }
+      const hk = game.getKeys().hit;
+      if (e.code === hk || e.code === 'KeyJ') { e.preventDefault(); swing(); }
     };
     const ku = (e: KeyboardEvent) => { game.input[e.code] = false; };
+    const md = () => {
+      if (document.pointerLockElement === canvasRef.current) swing();
+    };
     window.addEventListener('keydown', kd);
     window.addEventListener('keyup', ku);
+    canvasRef.current.addEventListener('mousedown', md);
     return () => {
       window.removeEventListener('keydown', kd);
       window.removeEventListener('keyup', ku);
+      canvasRef.current?.removeEventListener('mousedown', md);
       game.destroy();
       gameRef.current = null;
       delete (window as unknown as { __mtt?: object }).__mtt;
@@ -152,6 +169,19 @@ export default function App() {
     const t = window.setTimeout(() => setWaveBanner(0), 2600);
     return () => window.clearTimeout(t);
   }, [hud.wave, menu]);
+  // захват клавиши для переназначения управления
+  useEffect(() => {
+    if (!capturing) return;
+    const h = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const g = gameRef.current;
+      if (g) setKeys({ ...g.setKeys({ [capturing]: e.code } as Partial<KeyMap>) });
+      setCapturing(null);
+    };
+    window.addEventListener('keydown', h, true);
+    return () => window.removeEventListener('keydown', h, true);
+  }, [capturing]);
   useEffect(() => {
     if (hud.dead && !onBustedShown.current) {
       onBustedShown.current = true;
@@ -220,7 +250,7 @@ export default function App() {
           </div>
           <div id="hudRow">🌊 Волна {hud.wave} · 👹 {hud.enemies} · 💀 {hud.kills} · 🏆 {hud.score}</div>
           <div id="hudRow2">🎟️ {hud.fantiki} · {wname}</div>
-          <small id="hint">WASD — идти · клик по экрану — захват мыши · Пробел/J — удар · Shift — бег</small>
+          <small id="hint">WASD — идти · Space — прыжок · клик/J — удар · Shift — бег</small>
         </div>
       )}
       {!menu && (
@@ -304,6 +334,30 @@ export default function App() {
               type="range" min={0.3} max={2.5} step={0.1} value={sens}
               onChange={(e) => changeSens(Number(e.target.value))}
             />
+            <div className="srow"><span>🎮 Управление (ткни и жми клавишу)</span></div>
+            <div id="keysSec">
+              {KEY_ACTIONS.map((a) => (
+                <div className="srow" key={a.id}>
+                  <span>{a.label}</span>
+                  <button
+                    id={`key-${a.id}`}
+                    className={'wbtn' + (capturing === a.id ? ' cur' : '')}
+                    onClick={() => setCapturing(a.id)}
+                  >
+                    {capturing === a.id ? 'НАЖМИ…' : prettyKey(keys[a.id])}
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              className="wclose"
+              onClick={() => {
+                const g = gameRef.current;
+                if (g) setKeys({ ...g.resetKeys() });
+              }}
+            >
+              ↩ СБРОС КЛАВИШ
+            </button>
             <button className="wclose" onClick={() => setSetOpen(false)}>ЗАКРЫТЬ</button>
           </div>
         </div>

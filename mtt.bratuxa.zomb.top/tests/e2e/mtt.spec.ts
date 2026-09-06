@@ -113,7 +113,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await expect(page.locator('.sheet')).toContainText('Настройки');
     await page.click('#soundBtn');
     await page.locator('#sensRange').fill('2');
-    await page.click('.wclose');
+    await page.click('.sheet button:has-text("ЗАКРЫТЬ")');
     await expect(page.locator('.modal')).toHaveCount(0);
   });
 
@@ -130,6 +130,45 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#goBtn');
     await expect(page.locator('#waveBanner')).toBeVisible();
     await expect(page.locator('#waveBanner')).toContainText('ВОЛНА 1');
+  });
+
+  test('управление переназначается и сохраняется', async ({ page }) => {
+    await page.click('#goBtn');
+    await page.click('#setBtn');
+    await expect(page.locator('#keysSec')).toBeVisible();
+    await page.click('#key-hit');
+    await page.keyboard.press('k');
+    await expect(page.locator('#key-hit')).toContainText('K');
+    // сейв переживает перезагрузку
+    await page.reload();
+    await page.click('#goBtn');
+    await page.click('#setBtn');
+    await expect(page.locator('#key-hit')).toContainText('K');
+    // сброс возвращает J
+    await page.click('.sheet .wclose:first-of-type');
+    await expect(page.locator('#key-hit')).toContainText('J');
+  });
+
+  test('прыжок поднимает игрока', async ({ page }) => {
+    await page.click('#goBtn');
+    await page.waitForTimeout(800);
+    await page.keyboard.down('Space');
+    await page.waitForTimeout(400);
+    const py = await page.evaluate(() => (window as unknown as { __mtt: { py: () => number } }).__mtt.py());
+    await page.keyboard.up('Space');
+    expect(py).toBeGreaterThan(0);
+  });
+
+  test('враги прыгают', async ({ page }) => {
+    await page.click('#goBtn');
+    await page.waitForTimeout(800);
+    let seen = false;
+    for (let i = 0; i < 14 && !seen; i++) {
+      await page.waitForTimeout(500);
+      const hops = await page.evaluate(() => (window as unknown as { __mtt: { hops: () => number[] } }).__mtt.hops());
+      seen = hops.some((h) => h > 0.05);
+    }
+    expect(seen).toBe(true);
   });
 
   test('API: валидация и топ без мусора', async ({ request }) => {

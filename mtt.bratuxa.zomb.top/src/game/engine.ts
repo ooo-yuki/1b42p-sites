@@ -36,6 +36,31 @@ export const WEAPONS: WeaponDef[] = [
   { id: 'axe', name: '🪓 Секира', desc: 'Тяжёлый аргумент', dmg: 70, range: 4.6, cd: 0.85, price: 800, minWave: 3 },
 ];
 
+export interface KeyMap {
+  fwd: string;
+  back: string;
+  left: string;
+  right: string;
+  hit: string;
+  run: string;
+  jump: string;
+}
+
+export const KEY_ACTIONS: Array<{ id: keyof KeyMap; label: string }> = [
+  { id: 'fwd', label: '⬆️ Вперёд' },
+  { id: 'back', label: '⬇️ Назад' },
+  { id: 'left', label: '⬅️ Влево' },
+  { id: 'right', label: '➡️ Вправо' },
+  { id: 'hit', label: '👊 Удар' },
+  { id: 'jump', label: '🐇 Прыжок' },
+  { id: 'run', label: '💨 Бег' },
+];
+
+export const DEFAULT_KEYS: KeyMap = {
+  fwd: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD',
+  hit: 'KeyJ', run: 'ShiftLeft', jump: 'Space',
+};
+
 export interface GameEvents {
   onHud(h: HudState): void;
   onBusted(s: { score: number; coins: number }): void;
@@ -53,6 +78,9 @@ interface Enemy {
   hitCd: number;
   hurtT: number;
   phase: number;
+  ey: number;
+  evy: number;
+  hopCd: number;
   dead: boolean;
 }
 
@@ -94,6 +122,9 @@ export class Game {
   private sens = 1;
   private moving = false;
   private bobPhase = 0;
+  private py = 0;
+  private pvy = 0;
+  private keyMap: KeyMap = { ...DEFAULT_KEYS };
   private enemies: Enemy[] = [];
   private solids: { x: number; z: number; r: number }[] = [];
   private AC: AudioContext | null = null;
@@ -156,14 +187,23 @@ export class Game {
     this.scene.background = new THREE.Color(0x9ecdf0);
     this.scene.fog = new THREE.Fog(0x9ecdf0, 60, 200);
     this.loadShop();
+    this.loadKeys();
     this.buildWorld();
     this.spawnWave();
     window.addEventListener('resize', this.onResize);
     canvas.addEventListener('pointerdown', this.onPointerDown);
     window.addEventListener('pointermove', this.onPointerMove);
     window.addEventListener('pointerup', this.onPointerUp);
+    canvas.addEventListener('mousedown', this.onMouseDown);
     this.loop();
   }
+
+  // клик в захвате мыши — удар (кнопка не нужна)
+  private onMouseDown = (e: MouseEvent): void => {
+    if (e.button === 0 && typeof document !== 'undefined' && document.pointerLockElement === this.canvas) {
+      this.attack();
+    }
+  };
 
   private onResize = (): void => {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -252,6 +292,29 @@ export class Game {
   setSens(v: number): void { this.sens = Math.max(0.3, Math.min(2.5, v)); this.saveShop(); }
   getSound(): boolean { return this.soundOn; }
   getSens(): number { return this.sens; }
+  getKeys(): KeyMap { return { ...this.keyMap }; }
+  setKeys(p: Partial<KeyMap>): KeyMap {
+    const clean: Partial<KeyMap> = {};
+    (Object.keys(DEFAULT_KEYS) as Array<keyof KeyMap>).forEach((k) => {
+      const v = p[k];
+      if (typeof v === 'string' && v.length > 0 && v.length < 24) clean[k] = v;
+    });
+    this.keyMap = { ...this.keyMap, ...clean };
+    try { localStorage.setItem('mtt_keys_v1', JSON.stringify(this.keyMap)); } catch { /* noop */ }
+    return this.getKeys();
+  }
+  resetKeys(): KeyMap {
+    this.keyMap = { ...DEFAULT_KEYS };
+    try { localStorage.removeItem('mtt_keys_v1'); } catch { /* noop */ }
+    return this.getKeys();
+  }
+  private loadKeys(): void {
+    try {
+      const raw = localStorage.getItem('mtt_keys_v1');
+      if (!raw) return;
+      this.setKeys(JSON.parse(raw) as Partial<KeyMap>);
+    } catch { /* noop */ }
+  }
 
   revive(): boolean {
     if (!this.dead) return false;
@@ -436,7 +499,7 @@ export class Game {
       g, body, hpCv, hpTex, hpSpr,
       hp: 100, maxhp: 100,
       speed: 1.7 + Math.random() * 1.1 + this.wave * 0.12,
-      hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, dead: false,
+      hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, ey: 0, evy: 0, hopCd: 1 + Math.random() * 2, dead: false,
     };
     this.updateHpBar(foe);
     this.enemies.push(foe);
@@ -476,6 +539,7 @@ export class Game {
     this.canvas.removeEventListener('pointerdown', this.onPointerDown);
     window.removeEventListener('pointermove', this.onPointerMove);
     window.removeEventListener('pointerup', this.onPointerUp);
+    this.canvas.removeEventListener('mousedown', this.onMouseDown);
     this.renderer.dispose();
   }
 
@@ -620,6 +684,10 @@ export class Game {
     return Math.round(this.hp);
   }
   debugRevive(): boolean { return this.revive(); }
+  debugPy(): number { return Math.round(this.py * 100) / 100; }
+  debugHops(): number[] {
+    return this.enemies.filter((e) => !e.dead).map((e) => Math.round(e.ey * 100) / 100);
+  }
   debugSetWave(n: number): number {
     this.wave = Math.max(1, Math.min(10, Math.floor(n)));
     this.pushHud();
@@ -637,21 +705,27 @@ export class Game {
     this.raf = requestAnimationFrame(this.loop);
     const dt = Math.min(this.clock.getDelta(), 0.05);
     if (this.started && !this.dead) {
+      const km = this.keyMap;
       // поворот стрелками
       if (this.input.ArrowLeft) this.yaw += 1.9 * dt;
       if (this.input.ArrowRight) this.yaw -= 1.9 * dt;
-      // атака с клавы
-      if (this.input.Space || this.input.KeyJ) {
-        this.input.Space = false;
+      // атака с клавы (назначенная + J запасная)
+      if (this.input[km.hit] || this.input.KeyJ) {
+        this.input[km.hit] = false;
         this.input.KeyJ = false;
         this.attack();
       }
-      // движение: WASD + джойстик
-      let f = (this.input.KeyW || this.input.ArrowUp ? 1 : 0) - (this.input.KeyS || this.input.ArrowDown ? 1 : 0) - this.joy.y;
-      let r = (this.input.KeyD ? 1 : 0) - (this.input.KeyA ? 1 : 0) + this.joy.x;
+      // прыжок (держи — будет банни-хоп)
+      if (this.input[km.jump] && this.py <= 0) this.pvy = 4.8;
+      this.pvy -= 12 * dt;
+      this.py += this.pvy * dt;
+      if (this.py <= 0) { this.py = 0; this.pvy = 0; }
+      // движение: назначенные клавиши + стрелки + джойстик
+      let f = (this.input[km.fwd] || this.input.ArrowUp ? 1 : 0) - (this.input[km.back] || this.input.ArrowDown ? 1 : 0) - this.joy.y;
+      let r = (this.input[km.right] ? 1 : 0) - (this.input[km.left] ? 1 : 0) + this.joy.x;
       f = Math.max(-1, Math.min(1, f));
       r = Math.max(-1, Math.min(1, r));
-      const run = this.input.ShiftLeft || this.input.ShiftRight;
+      const run = this.input[km.run] || this.input.ShiftLeft || this.input.ShiftRight;
       const sp = run ? 8.2 : 5.6;
       const len = Math.hypot(f, r);
       this.moving = len > 0.15;
@@ -693,7 +767,18 @@ export class Game {
         if (e.hitCd > 0) e.hitCd -= dt;
         // анимация ходьбы: пружинка + покачивание
         e.phase += dt * (2 + e.speed);
-        e.body.position.y = 1.0 + Math.abs(Math.sin(e.phase)) * 0.12;
+        // прыжки орды
+        e.hopCd -= dt;
+        if (e.hopCd <= 0 && e.ey <= 0) {
+          e.evy = 2.5 + Math.random() * 1.5;
+          e.hopCd = 2 + Math.random() * 2;
+        }
+        if (e.ey > 0 || e.evy !== 0) {
+          e.evy -= 10 * dt;
+          e.ey += e.evy * dt;
+          if (e.ey <= 0) { e.ey = 0; e.evy = 0; }
+        }
+        e.body.position.y = 1.0 + Math.abs(Math.sin(e.phase)) * 0.12 + e.ey;
         e.body.material.rotation = Math.sin(e.phase) * 0.07;
         if (e.hurtT > 0) {
           e.hurtT -= dt;
@@ -715,7 +800,7 @@ export class Game {
     const shake = this.shakeT > 0 ? Math.sin(performance.now() / 20) * 0.03 : 0;
     const bob = this.moving ? Math.sin(this.bobPhase) * 0.055 : 0;
     const kick = this.swingT > 0 ? -this.swingT * 0.35 : 0;
-    this.camera.position.set(this.px, 1.7 + shake + bob, this.pz);
+    this.camera.position.set(this.px, 1.7 + this.py + shake + bob, this.pz);
     this.camera.rotation.set(this.pitch + kick, this.yaw, 0);
     this.renderer.render(this.scene, this.camera);
   };
