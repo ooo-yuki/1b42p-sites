@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { App, inputBus } from './ui/App';
 import { initScene } from './three/scene';
 import { loadShuba, type Shuba } from './three/shuba';
-import { makeMob, setMobLightDetail, type MobKind } from './three/mobs';
+import { makeMob, setMobLightDetail, updateMob, type MobKind } from './three/mobs';
 import { makeGun } from './three/guns';
 import { makeTracerPool } from './three/effects';
 import { buildMapVisual, disposeMapVisual } from './three/mapsVisual';
@@ -35,12 +35,17 @@ interface Enemy {
   maxHp: number;
   x: number;
   z: number;
+  px: number;
+  pz: number;
   cd: number;
   mesh: THREE.Group;
-  bob: number;
+  anim: { dying: boolean; dieT: number };
 }
 
 const MAG: Record<Slot, number> = { pistol: 12, auto: 30, shotgun: 6 };
+// Длительность взмаха атаки (~0.45с): флаг attacking горит только в начале кулдауна.
+// План давал e.cd > 0.6 для всех — танк (cd 2.5с) замирал бы в позе удара на ~2с.
+const ATK_CD: Record<Enemy['type'], number> = { runner: 0.8, shooter: 1.5, tank: 2.5, boss: 1.2 };
 const SLOTS: Slot[] = ['pistol', 'auto', 'shotgun'];
 const STEP = 1 / 60;
 
@@ -102,6 +107,16 @@ const tracers = makeTracerPool(scene);
 const flash = new THREE.PointLight(0xffd27f, 0, 9, 1.6);
 scene.add(flash);
 let flashT = 0;
+// Пас освещения Task 4: контровый rim со спины солнца + мягкий подъём снизу,
+// чтобы спина бегуна и низ крыла чайки не тонули в темноте (особенно neon-карта).
+// Без теней, дешёвый. applyMapMood его не трогает (метка isRim).
+const rim = new THREE.DirectionalLight(0x9db8ff, 0.55);
+rim.position.set(-18, 14, -20);
+rim.userData.isRim = true;
+scene.add(rim);
+const under = new THREE.HemisphereLight(0x8a9ac8, 0x3a2f22, 0.25);
+under.userData.isRim = true;
+scene.add(under);
 
 // ---------- Resize + pixelRatio (спек §11) ----------
 function applySize() {
@@ -198,7 +213,8 @@ function spawnOne() {
   mesh.position.set(x, 0, z);
   scene.add(mesh);
   sim.enemies.push({
-    type: q.type, hp: base.hp * mult, maxHp: base.hp * mult, x, z, cd: 1, mesh, bob: Math.random() * 6,
+    type: q.type, hp: base.hp * mult, maxHp: base.hp * mult, x, z, px: x, pz: z,
+    cd: 1, mesh, anim: { dying: false, dieT: 0 },
   });
 }
 
@@ -253,8 +269,8 @@ function applyMapMood(map: MapId) {
     scene.fog.far = mood.fogFar;
   }
   scene.traverse((o) => {
-    if ((o as THREE.HemisphereLight).isHemisphereLight) (o as THREE.HemisphereLight).intensity = mood.hemi;
-    if ((o as THREE.DirectionalLight).isDirectionalLight) {
+    if ((o as THREE.HemisphereLight).isHemisphereLight && !o.userData.isRim) (o as THREE.HemisphereLight).intensity = mood.hemi;
+    if ((o as THREE.DirectionalLight).isDirectionalLight && !o.userData.isRim) {
       (o as THREE.DirectionalLight).color.set(mood.sun);
       (o as THREE.DirectionalLight).intensity = mood.sunI;
     }
@@ -386,6 +402,7 @@ function tick(dt: number) {
       let best: Enemy | null = null;
       let bestD = Infinity;
       for (const e of sim.enemies) {
+        if (e.anim.dying) continue; // по трупам не стреляем
         const dx = e.x - p.x;
         const dz = e.z - p.z;
         const d = Math.hypot(dx, dz);
@@ -402,9 +419,10 @@ function tick(dt: number) {
         sim.hits += 1;
         const fall = sim.slot === 'shotgun' && bestD > 15 ? 0.5 : 1;
         best.hp -= res.pellets.length * (sim.slot === 'shotgun' ? 12 * fall : w.dmg);
-        if (best.hp <= 0) {
-          scene.remove(best.mesh);
-          sim.enemies.splice(sim.enemies.indexOf(best), 1);
+        if (best.hp <= 0 && !best.anim.dying) {
+          // Task 4: смерть с задержкой — death-клип 0.8с, remove в кадровом цикле.
+          best.anim.dying = true;
+          best.anim.dieT = 0.8;
           sim.kills += 1;
           // Дроп 42%: патроны или аптечка.
           if (Math.random() < 0.42) {
@@ -441,6 +459,7 @@ function tick(dt: number) {
 
   // ИИ мобов: steering к игроку + сепарация + атаки.
   for (const e of sim.enemies) {
+    if (e.anim.dying) continue; // труп: не ходит, не бьёт, ждёт death-клип
     const dx = p.x - e.x;
     const dz = p.z - e.z;
     const d = Math.hypot(dx, dz) || 1;
@@ -581,9 +600,27 @@ function step(now: number) {
   playerRoot.position.set(p.x, 0, p.z);
   playerRoot.rotation.y = p.yaw;
   if (shuba) shuba.update(speed, false, gameStore.get().phase === 'lost', dt);
-  for (const e of sim.enemies) {
-    e.bob += dt * 6;
-    e.mesh.position.set(e.x, Math.abs(Math.sin(e.bob)) * 0.06, e.z);
+  // Task 4: контроллер анима мобов. Скорость — из прошлого кадра (px/pz),
+  // нормированная на ENEMIES.speed (updateMob ждёт бленд idle/walk 0..1,
+  // сырая м/с давала бы вечный w=1). Смерть — death-клип 0.8с, потом remove.
+  for (const e of [...sim.enemies]) {
+    if (e.anim.dying) {
+      e.anim.dieT -= dt;
+      updateMob(e.mesh, { speed: 0, attacking: false, dying: true, dt });
+      if (e.anim.dieT <= 0) {
+        scene.remove(e.mesh);
+        sim.enemies.splice(sim.enemies.indexOf(e), 1);
+      }
+      continue;
+    }
+    const base = ENEMIES[e.type];
+    const raw = Math.hypot(e.x - e.px, e.z - e.pz) / Math.max(dt, 1e-4);
+    const v = THREE.MathUtils.clamp(base.speed > 0 ? raw / base.speed : 0, 0, 1);
+    e.px = e.x;
+    e.pz = e.z;
+    const cdMax = ATK_CD[e.type] ?? 0.8;
+    updateMob(e.mesh, { speed: v, attacking: e.cd > cdMax - 0.45, dying: false, dt });
+    e.mesh.position.set(e.x, 0, e.z);
     e.mesh.rotation.y = Math.atan2(p.x - e.x, p.z - e.z);
   }
   tracers.update(dt);
