@@ -430,6 +430,7 @@ function leaveSolitary(S) {
 }
 // --- paint.js ---
 // Слой 2 (верх): вид сверху, начало — пол, стены, тьма.
+
 const DARK = '#000000';
 const WALL_FACE = '#ffffff';
 function paintFloor(ctx, G) {
@@ -565,6 +566,19 @@ function tryGate(S) {
 // Слой 2 (верх): склейка. Вид сверху, день, нить, работа, кара.
 // Берёт grid, actors, vision, clock, work, things, talk, search, paint, audio, endings.
 // Бок (main, logic) сюда не входит.
+
+
+
+
+
+
+
+
+
+
+
+// Фактура клеток 16х16: пол, стена, мебель поверх пола. Цвета комнат держим
+// подкрасом поверх с прозрачностью.
 // Корпус значками из замысла: D дверь, J станок, B кровать,
 // T стол, S душ, R крыша. P наши, E ворота. Остальное пол.
 const MAP = [
@@ -857,11 +871,24 @@ const TOP_SEAL = {
     right: 'img/top_seal_right.png',
 };
 const TOP_GUARD = ['img/top_guard_0.png', 'img/top_guard_1.png'];
+const TOP_FLOOR = 'img/top_floor.png';
+const TOP_WALL = 'img/top_wall.png';
+// Мебель поверх пола: D дверь, B койка, T стол, S душ, J станок, R крыша.
+const TOP_FURN = {
+    D: 'img/top_door.png',
+    B: 'img/top_bed.png',
+    T: 'img/top_table.png',
+    S: 'img/top_shower.png',
+    J: 'img/top_bench.png',
+    R: 'img/top_roof.png',
+};
 function loadPics() {
     if (!doc || typeof Image === 'undefined')
         return;
     const all = [TOP_SEAL.up, TOP_SEAL.down, TOP_SEAL.left, TOP_SEAL.right,
-        TOP_GUARD[0], TOP_GUARD[1], FACE];
+        TOP_GUARD[0], TOP_GUARD[1], FACE,
+        TOP_FLOOR, TOP_WALL,
+        TOP_FURN.D, TOP_FURN.B, TOP_FURN.T, TOP_FURN.S, TOP_FURN.J, TOP_FURN.R];
     for (const src of all) {
         try {
             const im = new Image();
@@ -888,6 +915,42 @@ function drawImg(src, x, y, w, h, fallback) {
 function px(x) {
     return x * TILE * SCALE;
 }
+// Клетки фактурой: пол/стена картинками вместо заливки, мебель картинкой
+// поверх пола, цвет комнаты подкрасом поверх с прозрачностью.
+function paintCells() {
+    if (!g2d)
+        return;
+    for (let y = 0; y < G.h; y++) {
+        for (let x = 0; x < G.w; x++) {
+            const ch = G.cells[y][x];
+            const px0 = x * TILE;
+            const py0 = y * TILE;
+            if (ch === '#') {
+                drawImg(TOP_WALL, px0, py0, TILE, TILE, '#ffffff');
+                continue;
+            }
+            drawImg(TOP_FLOOR, px0, py0, TILE, TILE, roomColor(ch));
+            const tint = ROOM[ch];
+            if (tint) {
+                try {
+                    g2d.globalAlpha = 0.35;
+                    g2d.fillStyle = tint;
+                    g2d.fillRect(px0, py0, TILE, TILE);
+                    g2d.globalAlpha = 1;
+                }
+                catch (e) {
+                    try {
+                        g2d.globalAlpha = 1;
+                    }
+                    catch (_e) { /* стоим */ }
+                }
+            }
+            const over = TOP_FURN[ch];
+            if (over)
+                drawImg(over, px0, py0, TILE, TILE, tint || '#9aa0a6');
+        }
+    }
+}
 function render(now) {
     if (!g2d || !canvas)
         return;
@@ -897,7 +960,7 @@ function render(now) {
     g2d.fillStyle = '#000';
     g2d.fillRect(0, 0, W, H);
     g2d.setTransform(SCALE, 0, 0, SCALE, 0, 0);
-    paintFloor(g2d, G);
+    paintCells();
     g2d.setTransform(1, 0, 0, 1, 0, 0);
     for (const L of SPOTS) {
         g2d.fillStyle = '#ffd23f';

@@ -2,7 +2,7 @@
 // Берёт grid, actors, vision, clock, work, things, talk, search, paint, audio, endings.
 // Бок (main, logic) сюда не входит.
 import { CFG } from './config.js';
-import { loadGrid, wallAt, TILE } from './grid.js';
+import { loadGrid, wallAt, TILE, ROOM, roomColor } from './grid.js';
 import { newSeal, stepSeal, newGuard, stepGuard } from './actors.js';
 import { sees, heatUp, toSolitary, catchSeal } from './vision.js';
 import { newDay, tick, hourCase, applyMuster, applyWork, isNight } from './clock.js';
@@ -10,9 +10,10 @@ import { workAt, isBench } from './work.js';
 import { pick, craft, has, deal } from './things.js';
 import { talkFor, say, FACE } from './talk.js';
 import { search, leaveSolitary } from './search.js';
-import { paintFloor } from './paint.js';
 import { blip } from './audio.js';
 import { tryRoof, tryGate } from './endings.js';
+// Фактура клеток 16х16: пол, стена, мебель поверх пола. Цвета комнат держим
+// подкрасом поверх с прозрачностью.
 
 // Корпус значками из замысла: D дверь, J станок, B кровать,
 // T стол, S душ, R крыша. P наши, E ворота. Остальное пол.
@@ -318,11 +319,24 @@ const TOP_SEAL: Record<string, string> = {
   right: 'img/top_seal_right.png',
 };
 const TOP_GUARD = ['img/top_guard_0.png', 'img/top_guard_1.png'];
+const TOP_FLOOR = 'img/top_floor.png';
+const TOP_WALL = 'img/top_wall.png';
+// Мебель поверх пола: D дверь, B койка, T стол, S душ, J станок, R крыша.
+const TOP_FURN: Record<string, string> = {
+  D: 'img/top_door.png',
+  B: 'img/top_bed.png',
+  T: 'img/top_table.png',
+  S: 'img/top_shower.png',
+  J: 'img/top_bench.png',
+  R: 'img/top_roof.png',
+};
 
 function loadPics(): void {
   if (!doc || typeof Image === 'undefined') return;
   const all: string[] = [TOP_SEAL.up, TOP_SEAL.down, TOP_SEAL.left, TOP_SEAL.right,
-    TOP_GUARD[0], TOP_GUARD[1], FACE];
+    TOP_GUARD[0], TOP_GUARD[1], FACE,
+    TOP_FLOOR, TOP_WALL,
+    TOP_FURN.D, TOP_FURN.B, TOP_FURN.T, TOP_FURN.S, TOP_FURN.J, TOP_FURN.R];
   for (const src of all) {
     try {
       const im = new Image();
@@ -349,6 +363,35 @@ function px(x: number): number {
   return x * TILE * SCALE;
 }
 
+// Клетки фактурой: пол/стена картинками вместо заливки, мебель картинкой
+// поверх пола, цвет комнаты подкрасом поверх с прозрачностью.
+function paintCells(): void {
+  if (!g2d) return;
+  for (let y = 0; y < G.h; y++) {
+    for (let x = 0; x < G.w; x++) {
+      const ch = G.cells[y][x];
+      const px0 = x * TILE;
+      const py0 = y * TILE;
+      if (ch === '#') {
+        drawImg(TOP_WALL, px0, py0, TILE, TILE, '#ffffff');
+        continue;
+      }
+      drawImg(TOP_FLOOR, px0, py0, TILE, TILE, roomColor(ch));
+      const tint = ROOM[ch];
+      if (tint) {
+        try {
+          g2d.globalAlpha = 0.35;
+          g2d.fillStyle = tint;
+          g2d.fillRect(px0, py0, TILE, TILE);
+          g2d.globalAlpha = 1;
+        } catch (e) { try { g2d.globalAlpha = 1; } catch (_e) { /* стоим */ } }
+      }
+      const over = TOP_FURN[ch];
+      if (over) drawImg(over, px0, py0, TILE, TILE, tint || '#9aa0a6');
+    }
+  }
+}
+
 function render(now: number): void {
   if (!g2d || !canvas) return;
   const W = canvas.width;
@@ -357,7 +400,7 @@ function render(now: number): void {
   g2d.fillStyle = '#000';
   g2d.fillRect(0, 0, W, H);
   g2d.setTransform(SCALE, 0, 0, SCALE, 0, 0);
-  paintFloor(g2d, G);
+  paintCells();
   g2d.setTransform(1, 0, 0, 1, 0, 0);
 
   for (const L of SPOTS) {
