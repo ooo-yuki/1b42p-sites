@@ -76,8 +76,9 @@ function findKing(bd: (Piece | null)[], c: Color): number {
 function attacked(bd: (Piece | null)[], sq: number, by: Color): boolean {
   const f = file(sq);
   const r = rank(sq);
-  // пешки: белая бьёт вверх (r-1), чёрная вниз (r+1)
-  const pr = by === 'w' ? r - 1 : r + 1;
+  // пешки: белая стоит на ряд ниже цели (бьёт вверх, r-1),
+  // чёрная — на ряд выше (бьёт вниз, r+1)
+  const pr = by === 'w' ? r + 1 : r - 1;
   for (const df of [-1, 1]) {
     if (onBoard(f + df, pr)) {
       const p = bd[idx(f + df, pr)];
@@ -127,7 +128,8 @@ function pseudoFrom(st: ChessState, sq: number): Move[] {
     if (!onBoard(nf, nr)) return;
     const t = idx(nf, nr);
     const q = bd[t];
-    if (!q || q.c !== p.c) out.push({ from: sq, to: t, ...extra });
+    // короля не едят (ФИДЕ 1.4.1) — он вообще не цель
+    if (!q || (q.c !== p.c && q.k !== 'k')) out.push({ from: sq, to: t, ...extra });
   };
   if (p.k === 'p') {
     const dir = p.c === 'w' ? -1 : 1;
@@ -143,7 +145,7 @@ function pseudoFrom(st: ChessState, sq: number): Move[] {
       const t = idx(f + df, r + dir);
       const q = bd[t];
       const isPromo = r + dir === last;
-      if (q && q.c !== p.c) {
+      if (q && q.c !== p.c && q.k !== 'k') {
         if (isPromo) for (const pr of ['q', 'r', 'b', 'n'] as Promote[]) out.push({ from: sq, to: t, promote: pr });
         else out.push({ from: sq, to: t });
       } else if (!q && st.ep === t) {
@@ -186,7 +188,7 @@ function pseudoFrom(st: ChessState, sq: number): Move[] {
       const q = bd[t];
       if (!q) out.push({ from: sq, to: t });
       else {
-        if (q.c !== p.c) out.push({ from: sq, to: t });
+        if (q.c !== p.c && q.k !== 'k') out.push({ from: sq, to: t });
         break;
       }
       nf += df;
@@ -421,6 +423,8 @@ export function applyMove(st: ChessState, pid: string, mv: MoveInput): { ok: boo
     return { ok: false, err: 'кривые клетки' };
   }
   if (st.board[from]?.c !== c) return { ok: false, err: 'это не твоя фигура' };
+  // пояс и подтяжки: короля съесть нельзя даже кривым пакетом (ФИДЕ 1.4.1)
+  if (st.board[to]?.k === 'k') return { ok: false, err: 'короля не едят — это мат' };
   const cand = pseudoFrom(st, from).filter(m => m.to === to);
   if (cand.length === 0) return { ok: false, err: 'так ходить нельзя' };
   // превращение: выбор фигуры или ферзь по умолчанию
