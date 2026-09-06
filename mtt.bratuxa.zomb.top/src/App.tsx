@@ -105,7 +105,7 @@ export default function App() {
   const joyId = useRef(-1);
   const gameRef = useRef<Game | null>(null);
   const [menu, setMenu] = useState(true);
-  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0 });
+  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0 });
   const [scores, setScores] = useState<ScoreRow[]>([]);
   const [shopOpen, setShopOpen] = useState(false);
   const [setOpen, setSetOpen] = useState(false);
@@ -175,6 +175,12 @@ export default function App() {
       quality: () => game.getQuality(),
       dash: () => game.debugDash(),
       doDash: () => game.dash(),
+      wall: () => game.debugWall(),
+      kick: () => game.debugKick(),
+      teleport: (x: number, z: number, yaw?: number) => game.debugTeleport(x, z, yaw),
+      charaSet: (id: string) => game.setChar(id),
+      spawnKind: (kind: 'walk' | 'fly') => game.debugSpawn(kind),
+      flyers: () => game.debugFlyers(),
       remoteList: () => game.debugRemoteList(),
     };
     const kd = (e: KeyboardEvent) => {
@@ -382,8 +388,8 @@ export default function App() {
             <div id="hpBar"><div id="hpFill" style={{ width: `${hpFrac * 100}%` }} /></div>
           </div>
           <div id="hudRow">🌊 Волна {hud.wave} · 👹 {hud.enemies} · 💀 {hud.kills} · 🏆 {hud.score}</div>
-          <div id="hudRow2">🎟️ {hud.fantiki} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}</div>
-          <small id="hint">WASD — идти · Space — прыжок · клик/J — удар · Shift — бег{char === 'mtt' ? ' · C — рывок' : ''}</small>
+          <div id="hudRow2">🎟️ {hud.fantiki} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}{char === 'krysa' && (hud.kick > 0 ? ` · 🌀 ${hud.kick.toFixed(1)}с` : ' · 🌀 вол-кик готов')}</div>
+          <small id="hint">WASD — идти · Space — прыжок · клик/J — удар · Shift — бег{char === 'mtt' ? ' · C — рывок' : ' · стена + прыжок — вол-кик'}</small>
         </div>
       )}
       {!menu && (

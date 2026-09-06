@@ -16,7 +16,7 @@ export interface CharDef {
 
 export const CHARS: CharDef[] = [
   { id: 'mtt', name: '🕶️ МТТ', desc: 'Шуба, очки, золотые перчатки · +HP', hp: 120, spd: 1 },
-  { id: 'krysa', name: '🐀 Крыса', desc: 'Королева крыс в короне · +скорость', hp: 90, spd: 1.15 },
+  { id: 'krysa', name: '🐀 Крыса', desc: 'Королева крыс · скорость, прыжки ×3, вол-кик', hp: 90, spd: 1.15 },
 ];
 
 export function charSpec(id: string): CharDef {
@@ -38,6 +38,7 @@ export interface HudState {
   owned: string[];
   moving: boolean;
   dash: number;
+  kick: number;
 }
 
 export interface WeaponDef {
@@ -116,6 +117,7 @@ interface Enemy {
   hpCv: HTMLCanvasElement;
   hpTex: THREE.CanvasTexture;
   hpSpr: THREE.Sprite;
+  kind: 'walk' | 'fly';
   hp: number;
   maxhp: number;
   speed: number;
@@ -170,8 +172,13 @@ export class Game {
   private pvy = 0;
   private keyMap: KeyMap = { ...DEFAULT_KEYS };
   private remotes: Remote[] = [];
+  private wallKickCd = 0;
   private charId = 'mtt';
   private charSpd = 1;
+  private jumpVel = 4.8;
+  private wallT = 0;
+  private wallNx = 0;
+  private wallNz = 0;
   private dashT = 0;
   private dashCd = 0;
   private dashDx = 0;
@@ -179,7 +186,8 @@ export class Game {
   private quality: Quality = 'fast';
   private foeTexCache: THREE.Texture[] = [];
   private enemies: Enemy[] = [];
-  private solids: { x: number; z: number; r: number }[] = [];
+  // коллизия ровно по размеру: коробки как AABB (полуширина/hx, полуглубина/hz)
+  private solids: { x: number; z: number; hx: number; hz: number }[] = [];
   private AC: AudioContext | null = null;
   private lookPointer = -1;
   private lookLX = 0;
@@ -235,6 +243,7 @@ export class Game {
     this.maxhp = spec0.hp;
     this.hp = spec0.hp;
     this.charSpd = spec0.spd;
+    this.jumpVel = this.charId === 'krysa' ? 4.8 * Math.sqrt(3) : 4.8;
     this.renderer.setPixelRatio(this.quality === 'nice' ? Math.min(window.devicePixelRatio, 1.5) : 1);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = this.quality === 'nice';
@@ -357,6 +366,8 @@ export class Game {
     this.maxhp = spec.hp;
     this.hp = spec.hp;
     this.charSpd = spec.spd;
+    // Крыса прыгает в 3 раза выше: высота ~ v², значит скорость ×√3
+    this.jumpVel = this.charId === 'krysa' ? 4.8 * Math.sqrt(3) : 4.8;
     this.dashT = 0;
     this.dashCd = 0;
     this.pushHud();
@@ -519,7 +530,7 @@ export class Game {
       m.position.set(bx, h / 2, bz);
       m.castShadow = true; m.receiveShadow = true;
       scene.add(m);
-      this.solids.push({ x: bx, z: bz, r: Math.max(w, d) / 2 + 0.6 });
+      this.solids.push({ x: bx, z: bz, hx: w / 2, hz: d / 2 });
       if (Math.random() < 0.6) {
         const bb = new THREE.Mesh(new THREE.PlaneGeometry(8, 4.5), new THREE.MeshBasicMaterial({ map: bbTex }));
         bb.position.set(bx, h + 2.6, bz);
@@ -528,8 +539,8 @@ export class Game {
       }
     }
 
-    // фонари
-    for (const [fx, fz] of [[-44, -44], [44, -44], [-44, 44], [44, 44], [0, 0]] as Array<[number, number]>) {
+    // фонари (центр занят фонтаном)
+    for (const [fx, fz] of [[-44, -44], [44, -44], [-44, 44], [44, 44]] as Array<[number, number]>) {
       const pole = new THREE.Mesh(
         new THREE.CylinderGeometry(0.25, 0.25, 9, 8),
         new THREE.MeshStandardMaterial({ color: 0x334155 }),
@@ -543,6 +554,63 @@ export class Game {
       const pl = new THREE.PointLight(0xffd88a, 0.5, 46);
       pl.position.set(fx, 9, fz);
       scene.add(pl);
+      // столб тонкий, но честный: коллизия ровно по нему
+      this.solids.push({ x: fx, z: fz, hx: 0.3, hz: 0.3 });
+    }
+
+    // центр — площадь с фонтаном
+    const plaza = new THREE.Mesh(
+      new THREE.CircleGeometry(9, 28),
+      new THREE.MeshStandardMaterial({ color: 0x5d7050, roughness: 1 }),
+    );
+    plaza.rotation.x = -Math.PI / 2;
+    plaza.position.set(0, 0.015, 0);
+    plaza.receiveShadow = true;
+    scene.add(plaza);
+    const fountainBase = new THREE.Mesh(
+      new THREE.CylinderGeometry(2, 2.3, 1, 14),
+      new THREE.MeshStandardMaterial({ color: 0x8fa3c4, roughness: 0.7 }),
+    );
+    fountainBase.position.set(0, 0.5, 0);
+    fountainBase.castShadow = true;
+    scene.add(fountainBase);
+    const fountainWater = new THREE.Mesh(
+      new THREE.CircleGeometry(1.8, 14),
+      new THREE.MeshBasicMaterial({ color: 0x66ddff }),
+    );
+    fountainWater.rotation.x = -Math.PI / 2;
+    fountainWater.position.set(0, 1.02, 0);
+    scene.add(fountainWater);
+    this.solids.push({ x: 0, z: 0, hx: 2, hz: 2 });
+
+    // ящики-укрытия (ровно 2.2×2.2, без поворотов — коллизия честная)
+    const crateMat = new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: 0.9 });
+    const crateMat2 = new THREE.MeshStandardMaterial({ color: 0x6e4520, roughness: 0.9 });
+    const crates: Array<[number, number, number]> = [
+      [12, 8, 0], [-12, 10, 1], [14, -10, 1], [-14, -12, 0], [8, 32, 0],
+      [-8, -32, 1], [32, 12, 0], [-32, -14, 1], [10, -24, 0], [-10, 26, 1],
+    ];
+    for (const [cx, cz, v] of crates) {
+      const c = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.2, 2.2), v === 0 ? crateMat : crateMat2);
+      c.position.set(cx, 1.1, cz);
+      c.castShadow = true; c.receiveShadow = true;
+      scene.add(c);
+      this.solids.push({ x: cx, z: cz, hx: 1.1, hz: 1.1 });
+    }
+
+    // два больших билборда у площади
+    for (const [bx, bz, ry] of [[12, 0, -Math.PI / 2], [-12, 0, Math.PI / 2]] as Array<[number, number, number]>) {
+      const legs = new THREE.Mesh(
+        new THREE.BoxGeometry(0.4, 6, 0.4),
+        new THREE.MeshStandardMaterial({ color: 0x334155 }),
+      );
+      legs.position.set(bx, 3, bz);
+      scene.add(legs);
+      const board = new THREE.Mesh(new THREE.PlaneGeometry(9, 5), new THREE.MeshBasicMaterial({ map: bbTex }));
+      board.position.set(bx, 8.5, bz);
+      board.rotation.y = ry;
+      scene.add(board);
+      this.solids.push({ x: bx, z: bz, hx: 0.3, hz: 0.3 });
     }
   }
 
@@ -563,7 +631,9 @@ export class Game {
 
   private spawnWave(): void {
     const n = Math.min(4 + this.wave, 10);
-    for (let i = 0; i < n; i++) this.spawnEnemy();
+    // со 2-й волны 30% орды — летуны
+    const flyers = this.wave >= 2 ? Math.floor(n * 0.3) : 0;
+    for (let i = 0; i < n; i++) this.spawnEnemy(i < flyers ? 'fly' : 'walk');
   }
 
   private foeTexture(): THREE.Texture {
@@ -577,12 +647,33 @@ export class Game {
     return this.foeTexCache[Math.floor(Math.random() * this.foeTexCache.length)] as THREE.Texture;
   }
 
-  private spawnEnemy(): void {
-    const tex = this.foeTexture();
+  private flyTexCache: THREE.Texture | null = null;
+
+  private foeTextureTinted(): THREE.Texture {
+    if (!this.flyTexCache) {
+      const t = new THREE.TextureLoader().load(vrag2Url);
+      t.colorSpace = THREE.SRGBColorSpace;
+      this.flyTexCache = t;
+    }
+    return this.flyTexCache;
+  }
+
+  debugSpawn(kind: 'walk' | 'fly'): number {
+    this.spawnEnemy(kind === 'fly' ? 'fly' : 'walk');
+    return this.debugFlyers();
+  }
+
+  debugFlyers(): number {
+    return this.enemies.filter((e) => !e.dead && e.kind === 'fly').length;
+  }
+
+  private spawnEnemy(kind: 'walk' | 'fly'): void {
+    const fly = kind === 'fly';
+    const tex = fly ? this.foeTextureTinted() : this.foeTexture();
     const g = new THREE.Group();
-    const body = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
-    body.scale.set(1.4, 2.0, 1);
-    body.position.set(0, 1.0, 0);
+    const body = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, color: fly ? 0xdd99ff : 0xffffff }));
+    body.scale.set(fly ? 1.2 : 1.4, fly ? 1.6 : 2.0, 1);
+    body.position.set(0, fly ? 3.2 : 1.0, 0);
     g.add(body);
     // полоска HP с цифрами: рисуем на канвасе (пиксель-стиль)
     const hpCv = document.createElement('canvas');
@@ -590,10 +681,11 @@ export class Game {
     const hpTex = new THREE.CanvasTexture(hpCv);
     const hpSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: hpTex, depthTest: false, transparent: true }));
     hpSpr.scale.set(1.7, 0.42, 1);
-    hpSpr.position.set(0, 2.35, 0);
+    hpSpr.position.set(0, fly ? 4.6 : 2.35, 0);
     g.add(hpSpr);
     // точка спавна: только свободная (не внутри укрытий) и не впритык к игроку
     let sx = 0, sz = 40;
+    let ok = false;
     for (let t = 0; t < 24; t++) {
       const a = Math.random() * Math.PI * 2;
       const r = 26 + Math.random() * 22;
@@ -602,14 +694,26 @@ export class Game {
       if (this.hitSolid(cx, cz, 2)) continue;
       if (Math.hypot(cx - this.px, cz - this.pz) < 10) continue;
       sx = cx; sz = cz;
+      ok = true;
       break;
+    }
+    // запасные свободные точки, если рандом не нашёл
+    if (!ok) {
+      const safe: Array<[number, number]> = [[20, 20], [-20, 20], [20, -20], [-20, -20], [0, 0], [40, 0], [-40, 0]];
+      for (const [qx, qz] of safe) {
+        if (!this.hitSolid(qx, qz, 2) && Math.hypot(qx - this.px, qz - this.pz) >= 10) {
+          sx = qx; sz = qz;
+          ok = true;
+          break;
+        }
+      }
     }
     g.position.set(sx, 0, sz);
     this.scene.add(g);
     const foe: Enemy = {
-      g, body, hpCv, hpTex, hpSpr,
-      hp: 100, maxhp: 100,
-      speed: 1.7 + Math.random() * 1.1 + this.wave * 0.12,
+      g, body, hpCv, hpTex, hpSpr, kind,
+      hp: fly ? 70 : 100, maxhp: fly ? 70 : 100,
+      speed: 1.7 + Math.random() * 1.1 + this.wave * 0.12 + (fly ? 0.6 : 0),
       hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, ey: 0, evy: 0, hopCd: 1 + Math.random() * 2, dead: false,
     };
     this.updateHpBar(foe);
@@ -707,21 +811,12 @@ export class Game {
     return hits;
   }
 
-  // рывок МТТ: резкий бросок вперёд (по движению, иначе по взгляду), кд 3с.
+  // рывок МТТ: строго в сторону взгляда (куда смотрит камера), кд 3с.
   // Союзников (remotes) урон не трогает вовсе: attack() бьёт только enemies.
   dash(): boolean {
     if (!this.started || this.dead || this.dashCd > 0 || this.charId !== 'mtt') return false;
-    const km = this.keyMap;
-    let f = (this.input[km.fwd] || this.input.ArrowUp ? 1 : 0) - (this.input[km.back] || this.input.ArrowDown ? 1 : 0) - this.joy.y;
-    let r = (this.input[km.right] ? 1 : 0) - (this.input[km.left] ? 1 : 0) + this.joy.x;
-    f = Math.max(-1, Math.min(1, f));
-    r = Math.max(-1, Math.min(1, r));
-    const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
-    const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
-    let dx = fx * f + rx * r, dz = fz * f + rz * r;
-    const len = Math.hypot(dx, dz);
-    if (len < 0.01) { dx = fx; dz = fz; } else { dx /= len; dz /= len; }
-    this.dashDx = dx; this.dashDz = dz;
+    this.dashDx = -Math.sin(this.yaw);
+    this.dashDz = -Math.cos(this.yaw);
     this.dashT = 0.18;
     this.dashCd = 3;
     this.burst(this.px, 0.4, this.pz, 12);
@@ -731,14 +826,24 @@ export class Game {
   }
 
   debugDash(): number { return Math.round(this.dashCd * 10) / 10; }
+  debugKick(): number { return Math.round(this.wallKickCd * 10) / 10; }
+  debugWall(): number { return Math.round(this.wallT * 100) / 100; }
+  debugTeleport(x: number, z: number, yaw?: number): void {
+    this.px = clampArena(Number(x) || 0);
+    this.pz = clampArena(Number(z) || 0);
+    if (typeof yaw === 'number' && Number.isFinite(yaw)) this.yaw = yaw;
+  }
   debugRemoteList(): RemotePlayer[] {
     return this.remotes.map((m) => ({ nick: m.nick, char: m.char, x: m.x, z: m.z, hp: m.hp }));
   }
 
+  // круг (игрок/враг радиусом rad) против коробки ровно по её размеру
   private hitSolid(x: number, z: number, rad: number): boolean {
     for (const s of this.solids) {
-      const dx = x - s.x, dz = z - s.z;
-      if (dx * dx + dz * dz < (s.r + rad) * (s.r + rad)) return true;
+      const cx = Math.max(s.x - s.hx, Math.min(x, s.x + s.hx));
+      const cz = Math.max(s.z - s.hz, Math.min(z, s.z + s.hz));
+      const dx = x - cx, dz = z - cz;
+      if (dx * dx + dz * dz < rad * rad) return true;
     }
     return false;
   }
@@ -773,6 +878,7 @@ export class Game {
       owned: [...this.owned],
       moving: this.moving,
       dash: Math.round(this.dashCd * 10) / 10,
+      kick: Math.round(this.wallKickCd * 10) / 10,
     });
   }
 
@@ -914,8 +1020,8 @@ export class Game {
   debugSpots(): Array<{ x: number; z: number }> {
     return this.enemies.filter((e) => !e.dead).map((e) => ({ x: e.g.position.x, z: e.g.position.z }));
   }
-  debugSolids(): Array<{ x: number; z: number; r: number }> {
-    return this.solids.map((s) => ({ ...s }));
+  debugSolids(): Array<{ x: number; z: number; hx: number; hz: number; r: number }> {
+    return this.solids.map((s) => ({ ...s, r: Math.hypot(s.hx, s.hz) }));
   }
 
   private loop = (): void => {
@@ -933,11 +1039,31 @@ export class Game {
         this.input.KeyJ = false;
         this.attack();
       }
-      // прыжок (держи — будет банни-хоп)
-      if (this.input[km.jump] && this.py <= 0) this.pvy = 4.8;
+      // прыжок: с земли — вверх; Крыса в полёте у стены — вол-кик от стены (кд 5с)
+      if (this.input[km.jump]) {
+        if (this.py <= 0) {
+          this.pvy = this.jumpVel;
+        } else if (this.charId === 'krysa' && this.wallT > 0 && this.wallKickCd <= 0 && this.py > 0.05) {
+          this.pvy = 7.5;
+          const kx = clampArena(this.px + this.wallNx * 1.6);
+          const kz = clampArena(this.pz + this.wallNz * 1.6);
+          if (!this.hitSolid(kx, this.pz, 0.9)) this.px = kx;
+          if (!this.hitSolid(this.px, kz, 0.9)) this.pz = kz;
+          this.wallT = 0;
+          this.wallKickCd = 5;
+          this.burst(this.px, 1.0, this.pz, 10);
+          this.blip(700);
+          this.pushHud();
+        }
+      }
       this.pvy -= 12 * dt;
       this.py += this.pvy * dt;
       if (this.py <= 0) { this.py = 0; this.pvy = 0; }
+      if (this.wallT > 0) this.wallT -= dt;
+      if (this.wallKickCd > 0) {
+        this.wallKickCd -= dt;
+        if (Math.floor(this.wallKickCd * 5) !== Math.floor((this.wallKickCd + dt) * 5)) this.pushHud();
+      }
       // рывок МТТ на назначенной клавише (по умолчанию C)
       if (this.input[km.ability]) {
         this.input[km.ability] = false;
@@ -960,8 +1086,21 @@ export class Game {
         const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
         const nx = this.px + (fx * nf + rx * nr) * sp * dt;
         const nz = this.pz + (fz * nf + rz * nr) * sp * dt;
-        if (!this.hitSolid(nx, this.pz, 0.9)) this.px = clampArena(nx);
-        if (!this.hitSolid(this.px, nz, 0.9)) this.pz = clampArena(nz);
+        // стена: запоминаем нормаль (толчок от стены для вол-кика Крысы)
+        if (this.hitSolid(nx, this.pz, 0.9)) {
+          this.wallNx = nx > this.px ? -1 : 1;
+          this.wallNz = 0;
+          this.wallT = 0.3;
+        } else {
+          this.px = clampArena(nx);
+        }
+        if (this.hitSolid(this.px, nz, 0.9)) {
+          this.wallNx = 0;
+          this.wallNz = nz > this.pz ? -1 : 1;
+          this.wallT = 0.3;
+        } else {
+          this.pz = clampArena(nz);
+        }
       }
       // рывок: бросок 22 м/с, стены уважает
       if (this.dashT > 0) {
@@ -998,20 +1137,24 @@ export class Game {
           this.pushHud();
         }
         if (e.hitCd > 0) e.hitCd -= dt;
-        // анимация ходьбы: пружинка + покачивание
+        // анимация: ходоки пружинят и прыгают, летуны парят
         e.phase += dt * (2 + e.speed);
-        // прыжки орды
-        e.hopCd -= dt;
-        if (e.hopCd <= 0 && e.ey <= 0) {
-          e.evy = 2.5 + Math.random() * 1.5;
-          e.hopCd = 2 + Math.random() * 2;
+        if (e.kind === 'fly') {
+          e.body.position.y = 3.2 + Math.sin(e.phase * 1.5) * 0.5;
+        } else {
+          // прыжки орды
+          e.hopCd -= dt;
+          if (e.hopCd <= 0 && e.ey <= 0) {
+            e.evy = 2.5 + Math.random() * 1.5;
+            e.hopCd = 2 + Math.random() * 2;
+          }
+          if (e.ey > 0 || e.evy !== 0) {
+            e.evy -= 10 * dt;
+            e.ey += e.evy * dt;
+            if (e.ey <= 0) { e.ey = 0; e.evy = 0; }
+          }
+          e.body.position.y = 1.0 + Math.abs(Math.sin(e.phase)) * 0.12 + e.ey;
         }
-        if (e.ey > 0 || e.evy !== 0) {
-          e.evy -= 10 * dt;
-          e.ey += e.evy * dt;
-          if (e.ey <= 0) { e.ey = 0; e.evy = 0; }
-        }
-        e.body.position.y = 1.0 + Math.abs(Math.sin(e.phase)) * 0.12 + e.ey;
         e.body.material.rotation = Math.sin(e.phase) * 0.07;
         if (e.hurtT > 0) {
           e.hurtT -= dt;

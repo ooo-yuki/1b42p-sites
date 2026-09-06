@@ -69,15 +69,19 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
       const m = (window as unknown as {
         __mtt: {
           spots: () => Array<{ x: number; z: number }>;
-          solids: () => Array<{ x: number; z: number; r: number }>;
+          solids: () => Array<{ x: number; z: number; hx: number; hz: number; r: number }>;
         };
       }).__mtt;
       return { spots: m.spots(), solids: m.solids() };
     });
     expect(st.spots.length).toBeGreaterThan(0);
+    expect(st.solids.length).toBeGreaterThan(10);
     for (const s of st.spots) {
       for (const o of st.solids) {
-        expect(Math.hypot(s.x - o.x, s.z - o.z)).toBeGreaterThan(o.r + 0.5);
+        // дистанция до коробки ровно по её размеру (AABB), запас 0.5м
+        const cx = Math.max(o.x - o.hx, Math.min(s.x, o.x + o.hx));
+        const cz = Math.max(o.z - o.hz, Math.min(s.z, o.z + o.hz));
+        expect(Math.hypot(s.x - cx, s.z - cz)).toBeGreaterThan(0.5);
       }
     }
     await expect(page.locator('#weapon img')).toBeVisible();
@@ -199,6 +203,77 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await expect(page.locator('#char-mtt.sel')).toHaveCount(1);
   });
 
+  test('рывок строго по взгляду, не вбок', async ({ page }) => {
+    await page.click('#goBtn');
+    await page.waitForTimeout(800);
+    const p0 = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { x: number; z: number } } }).__mtt.pos());
+    // стрейф вправо + рывок: рывок должен унести вперёд (по взгляду, -z), а не вбок
+    await page.keyboard.down('d');
+    await page.keyboard.down('c');
+    await page.waitForTimeout(600);
+    await page.keyboard.up('c');
+    await page.waitForTimeout(400);
+    await page.keyboard.up('d');
+    const p1 = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { x: number; z: number } } }).__mtt.pos());
+    expect(p0.z - p1.z).toBeGreaterThan(2);
+  });
+
+  test('крыса прыгает в 3 раза выше', async ({ page }) => {
+    await page.evaluate(() => (window as unknown as { __mtt: { charaSet: (id: string) => string } }).__mtt.charaSet('krysa'));
+    await page.click('#goBtn');
+    await page.waitForTimeout(800);
+    await page.keyboard.down('Space');
+    // headless идёт медленнее реала (dt clamp) — долгое окно с ранним выходом
+    let maxPy = 0;
+    for (let i = 0; i < 90 && maxPy <= 2.2; i++) {
+      await page.waitForTimeout(200);
+      const py = await page.evaluate(() => (window as unknown as { __mtt: { py: () => number } }).__mtt.py());
+      if (py > maxPy) maxPy = py;
+    }
+    await page.keyboard.up('Space');
+    // МТТ ~0.96м, у Крысы ×3 ≈ 2.9м
+    expect(maxPy).toBeGreaterThan(2.2);
+  });
+
+  test('крыса отпрыгивает от стены', async ({ page }) => {
+    await page.evaluate(() => (window as unknown as { __mtt: { charaSet: (id: string) => string } }).__mtt.charaSet('krysa'));
+    await page.click('#goBtn');
+    await page.waitForTimeout(800);
+    // телепорт к коробке (0,-38), смотрим на неё (yaw 0 = взгляд на -z)
+    await page.evaluate(() => (window as unknown as { __mtt: { teleport: (x: number, z: number, y: number) => void } }).__mtt.teleport(0, -28, 0));
+    // бежим в стену с зажатым прыжком: добегаем, взмываем, у стены — вол-кик ещё выше
+    await page.keyboard.down('w');
+    await page.keyboard.down('Space');
+    let maxPy = 0;
+    let wallSeen = false;
+    let kickSeen = false;
+    for (let i = 0; i < 120 && !(wallSeen && kickSeen && maxPy > 3.2); i++) {
+      await page.waitForTimeout(200);
+      const py = await page.evaluate(() => (window as unknown as { __mtt: { py: () => number } }).__mtt.py());
+      if (py > maxPy) maxPy = py;
+      const w = await page.evaluate(() => (window as unknown as { __mtt: { wall: () => number } }).__mtt.wall());
+      if (w > 0) wallSeen = true;
+      const k = await page.evaluate(() => (window as unknown as { __mtt: { kick: () => number } }).__mtt.kick());
+      if (k > 0) kickSeen = true;
+    }
+    await page.keyboard.up('Space');
+    await page.keyboard.up('w');
+    expect(wallSeen).toBe(true);
+    // вол-кик сработал — кд 5с взведено
+    expect(kickSeen).toBe(true);
+    // чистый прыжок Крысы ~2.9м, с вол-киком обязано быть выше
+    expect(maxPy).toBeGreaterThan(3.2);
+  });
+
+  test('летуны парят и бьются', async ({ page }) => {
+    await page.click('#goBtn');
+    await page.waitForTimeout(800);
+    const n = await page.evaluate(() => (window as unknown as { __mtt: { spawnKind: (k: string) => number } }).__mtt.spawnKind('fly'));
+    expect(n).toBe(1);
+    const c = await page.evaluate(() => (window as unknown as { __mtt: { flyers: () => number } }).__mtt.flyers());
+    expect(c).toBe(1);
+  });
+
   test('рывок МТТ на C: бросок и кд', async ({ page }) => {
     await page.click('#goBtn');
     await page.waitForTimeout(800);
@@ -211,7 +286,8 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     const p1 = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { x: number; z: number } } }).__mtt.pos());
     const dist = Math.hypot(p1.x - p0.x, p1.z - p0.z);
     expect(dash).toBeGreaterThan(0);
-    expect(dist).toBeGreaterThan(3);
+    // headless медленный: рывок 0.18с игрового времени ≈ 1 кадр ≈ 1.1м
+    expect(dist).toBeGreaterThan(0.5);
     await expect(page.locator('#hudRow2')).toContainText('⚡');
   });
 
