@@ -19,6 +19,7 @@
 | 10 | Память (MEMORY.md/USER.md) | люди, святыни, инфра, запреты — всегда авторитетны |
 | 11 | `using-superpowers` (+ `references/hermes-tools.md`) | скилл-чек РАНЬШЕ любого ответа/действия; процессные скиллы первее имплементационных; маппинг на `read_file`/`patch`/`delegate_task` |
 | 12 | superpowers-гейты | `brainstorming` (креатив — только после аппрува) → `writing-plans` → `executing-plans`/`subagent-driven-development`; `verification-before-completion` перед каждым клеймом |
+| 13 | browser-верификация DOM-first | `headless-render-verification` (дамп→моушн→эксперимент; скрин без DOM — гипотеза) + `scripted-page-probes` (click→settle→read); скрины врут — DOM правит |
 
 ## Tier 1 — по типу задачи (триггер → скилл)
 
@@ -46,6 +47,10 @@
 - Финиш ветки → `finishing-a-development-branch` (сьют → меню merge/PR/keep → чистка только своих)
 - Прилетело ревью → `receiving-code-review` (без «ты прав/спасибо»; понять → сверить с кодбейсой → пушбэк по технике, фикс по одному)
 - Примечание: `test-driven-development`, `systematic-debugging`, `requesting-code-review` выше — часть superpowers-ядра, гейты оттуда обязательны
+- 3D-сцены/камера (ракета ZOV, дождь 42, арена-вьюхи) → `threejs-fundamentals` (камера, иерархия, quaternion vs euler) + `threejs-interaction` (raycast, контролы, WASD, камера не втыкается в стены) + `threejs-animation` (оффсеты не дёргать за анимацией); остальные `threejs-*` по делу (lighting/shaders/postprocessing/loaders)
+- Проверка в браузере со всех сторон → `headless-render-verification` + `scripted-page-probes` (одноразовые playwright-скрипты на кейс: поворот 360°, стена вплотную, толпа мобов; click→settle→read, скрины последними)
+- Мини-игры/арена-конвенции → `static-browser-games` / `software-development/single-file-threejs-games` / `arena-game-dev` (смотреть по месту жительства игры)
+- Честная карта Амиго: `headless-game-verification` и `browser-automation` не существуют — их покрывают `headless-render-verification` + `scripted-page-probes` выше; не грузить несуществующее
 
 ## Ритуал каждого промпта
 
