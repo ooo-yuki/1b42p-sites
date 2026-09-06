@@ -259,8 +259,8 @@ function startGame(map: MapId, diff: Difficulty) {
 function applyMapMood(map: MapId) {
   const mood = {
     yard: { sky: 0x87ceeb, fogNear: 20, fogFar: 90, hemi: 0.6, sun: 0xffffcc, sunI: 1.5 },
-    island: { sky: 0x9fd4ff, fogNear: 25, fogFar: 110, hemi: 0.7, sun: 0xfff2d8, sunI: 1.6 },
-    neon: { sky: 0x1a1033, fogNear: 12, fogFar: 70, hemi: 0.35, sun: 0xff9a5c, sunI: 0.9 },
+    island: { sky: 0x9fd4ff, fogNear: 25, fogFar: 90, hemi: 0.7, sun: 0xfff2d8, sunI: 1.6 },
+    neon: { sky: 0x1a1033, fogNear: 8, fogFar: 55, hemi: 0.35, sun: 0xff9a5c, sunI: 0.9 },
   }[map];
   (scene.background as THREE.Color).set(mood.sky);
   if (scene.fog instanceof THREE.Fog) {
