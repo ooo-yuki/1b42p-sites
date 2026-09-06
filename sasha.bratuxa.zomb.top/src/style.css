@@ -76,10 +76,11 @@ a.pill{text-decoration:none;display:inline-block}
 @keyframes pv-rise{from{opacity:0;transform:translateY(14px)}}
 @media (prefers-reduced-motion:reduce){#pv-col{animation:none}}
 #pv-hud{display:flex;flex-wrap:wrap;gap:8px;position:sticky;top:0;padding:12px 0;z-index:5}
-#pv-hud .pill{font-variant-numeric:tabular-nums}
-.pill.risk{background:#E31E25;border-color:#E31E25}
+#pv-hud .pill{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-variant-numeric:tabular-nums}
+#pv-title,#pv-sub{text-shadow:0 2px 14px rgba(7,11,24,.95)}
+#pv-hud .pill.risk,.pill.risk{background:#E31E25;border-color:#E31E25}
 #pv-col button.pill{border:none;font-family:inherit}
-#pv-col button.pill:disabled{opacity:.45;cursor:default;transform:none;box-shadow:none}
+#pv-col button.pill:disabled{opacity:.6;cursor:default;transform:none;box-shadow:none}
 #pv-rack{display:flex;flex-direction:column;gap:10px;margin:18px 0}
 .pv-slot{background:#0d1428;border:1px solid #1d2c52;border-radius:16px;padding:12px 14px}
 .pv-slot-name{font-weight:700;display:flex;align-items:center;gap:8px}
