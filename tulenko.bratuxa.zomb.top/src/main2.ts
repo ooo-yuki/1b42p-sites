@@ -264,6 +264,23 @@ const ROOT: any = typeof window !== 'undefined' ? window : globalThis;
 const doc: any = typeof document !== 'undefined' ? document : null;
 const canvas: any = doc ? doc.getElementById('game') : null;
 const g2d: any = canvas ? canvas.getContext('2d') : null;
+
+// Экран во всю страницу: холст в размер окна, края обрезаются заливкой.
+function fitScreen(): void {
+  if (!canvas) return;
+  try {
+    const w = (ROOT as any).innerWidth || canvas.width || 960;
+    const h = (ROOT as any).innerHeight || canvas.height || 540;
+    if (w > 0 && h > 0 && (canvas.width !== w || canvas.height !== h)) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+  } catch (e) { /* стоим как были */ }
+}
+fitScreen();
+if (ROOT && (ROOT as any).addEventListener) {
+  (ROOT as any).addEventListener('resize', fitScreen);
+}
 const pics: Record<string, any> = {};
 
 const TOP_SEAL: Record<string, string> = {
