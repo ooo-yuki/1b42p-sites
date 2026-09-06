@@ -74,16 +74,16 @@ var GX0=227,GX1=864,GY0=83,GY1=565,COLS=9,ROWS=5; // сетка едет вме�
 var CW=(GX1-GX0)/COLS,CH=(GY1-GY0)/ROWS;
 var PANELX=0,PANELW=133; // панель из дизайна ui: 1413×6561 → 133×619 на весь рост экрана
 /* --- баланс: игра бесконечная, зомби ползут бесконечно --- */
-var Z_HP=141,Z_BITE=141,Z_SPEED=10,SPAWN_EVERY=15;
+var Z_HP=141,Z_BITE=141,Z_SPEED=10.5,SPAWN_EVERY=15; // зомби на 5% быстрее
 var U_MOPSO={hp:422,dmg:24,rate:1.5,cost:100,cd:7};
 var U_SUN={hp:300,cost:50,cd:7,respEvery:12,respVal:25};
 var U_BOMB={hp:300,cost:150,cd:20,fuse:1.2};
-var SKY_RESP_EVERY=18,SKY_RESP_VAL=25,START_RESP=150; // небо-рэспэкт — редко
+var SKY_RESP_EVERY=18,SKY_RESP_VAL=25,START_RESP=50; // старт с 50 рэспэков
 /* --- состояние --- */
 var G=null;
 function newGame(){
   G={state:'play',t:0,resp:START_RESP,units:[],zoms:[],peas:[],fx:[],floats:[],resps:[],fly:[],debris:[],
-    kills:0,spawned:0,spawnT:3,skyT:6,seeds:{mopso:0,sun:0,bomb:0},drag:null,over:null,
+    speed:1,kills:0,spawned:0,spawnT:3,skyT:6,seeds:{mopso:0,sun:0,bomb:0},drag:null,over:null,
     seedFlash:null,cellFlash:null};
 }
 function cellXY(r,c){return {x:GX0+c*CW,y:GY0+r*CH};}
@@ -190,8 +190,11 @@ function update(dt){
   for(var k in G.seeds)if(G.seeds[k]>0)G.seeds[k]-=dt;
   if(G.seedFlash){G.seedFlash.t-=dt;if(G.seedFlash.t<=0)G.seedFlash=null;}
   if(G.cellFlash){G.cellFlash.t-=dt;if(G.cellFlash.t<=0)G.cellFlash=null;}
-  /* спавн врагов: бесконечно, хаотично 5–10с, с каждой минутой чаще до +50% (6 минут) */
-  {G.spawnT-=dt;if(G.spawnT<=0){var sm=1+0.5*Math.min(G.t/360,1);G.spawnT=(5+Math.random()*5)/sm;spawnZom();}}
+  /* спавн: 1-я минута редко (15–20с), дальше 5–10с и с каждой минутой чаще до +50% (6 минут) */
+  {G.spawnT-=dt;if(G.spawnT<=0){
+    if(G.t<60)G.spawnT=15+Math.random()*5;
+    else{var sm=1+0.5*Math.min(G.t/360,1);G.spawnT=(5+Math.random()*5)/sm;}
+    spawnZom();}}
   /* небо-рэспэкт: падает, подобрать кликом */
   G.skyT-=dt;
   if(G.skyT<=0){G.skyT=SKY_RESP_EVERY;spawnResp();}
@@ -306,11 +309,9 @@ function draw(){
     ctx.globalAlpha=1;
 
   }
-function drawArmor(kind,cx,topY){ /* броня сидит на макушке */
-  if(kind==='cone'){ /* как на референсе: набекрень, кромка на лбу */
-    ctx.save();ctx.translate(cx,topY+30);ctx.rotate(-0.14);
-    drawImg(IMG.cone,-23,-48,46,46);ctx.restore();}
-  else drawImg(IMG.bucket,cx-26,topY-34,52,46);
+function drawArmor(kind,cx,topY){ /* строго по центру башки, кромка на лбу */
+  if(kind==='cone')drawImg(IMG.cone,cx-23,topY-18,46,46);
+  else drawImg(IMG.bucket,cx-26,topY-18,52,46);
 }
   /* враги: у зомби башка — верхние 150px из 373 */
   var ZH_HEAD=150,ZH_FULL=373;
@@ -421,6 +422,8 @@ function drawPanel(){
     if(G.seeds[k]>0){ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(R.x,R.y,R.w,R.h);
       ctx.fillStyle='#fff';ctx.font='22px Z42B, Arial';ctx.textAlign='center';
       ctx.fillText(Math.ceil(G.seeds[k]),R.x+R.w/2,R.y+R.h/2+8);ctx.textAlign='left';}
+    else if(G.resp<d.cost){ /* не хватает денег — тёмно-серый как перезарядка */
+      ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(R.x,R.y,R.w,R.h);}
     if(G.seedFlash&&G.seedFlash.k===k){ /* красная вспышка: не хватает рэспэкта */
       ctx.fillStyle='rgba(255,40,40,'+(0.3+0.3*Math.abs(Math.sin(G.t*14)))+')';
       ctx.fillRect(R.x,R.y,R.w,R.h);}
@@ -428,7 +431,14 @@ function drawPanel(){
   ctx.textAlign='left';
 }
 var MENUBTN={x:982,y:12,w:106,h:42};
+var SPEEDBTN={x:870,y:12,w:106,h:42}; // ускорение времени 1.5x слева от МЕНЮ
 function drawMenuBtn(){
+  var sp=G&&G.speed===1.5;
+  ctx.fillStyle=sp?'#f5b518':'#1a1410';ctx.fillRect(SPEEDBTN.x,SPEEDBTN.y,SPEEDBTN.w,SPEEDBTN.h);
+  ctx.strokeStyle=sp?'#fff':'#f5b518';ctx.lineWidth=2;
+  ctx.strokeRect(SPEEDBTN.x,SPEEDBTN.y,SPEEDBTN.w,SPEEDBTN.h);
+  ctx.fillStyle=sp?'#111':'#fff';ctx.font='20px Z42B, Arial';ctx.textAlign='center';
+  ctx.fillText('X1.5',SPEEDBTN.x+SPEEDBTN.w/2,SPEEDBTN.y+29);
   ctx.fillStyle='#1a1410';ctx.fillRect(MENUBTN.x,MENUBTN.y,MENUBTN.w,MENUBTN.h);
   ctx.strokeStyle='#f5b518';ctx.lineWidth=2;
   ctx.strokeRect(MENUBTN.x,MENUBTN.y,MENUBTN.w,MENUBTN.h);
@@ -450,8 +460,9 @@ function seedAtXY(x,y){
 cv.addEventListener('pointerdown',function(e){
   var p=evXY(e);mouse=p;
   if(!G||G.state!=='play')return;
-  /* кнопка МЕНЮ в правом верхнем углу = меню паузы (кнопки ЗВУК больше нет) */
+  /* кнопка МЕНЮ в правом верхнем углу = меню паузы; слева от неё — ускорение X1.5 */
   if(p.x>MENUBTN.x&&p.x<MENUBTN.x+MENUBTN.w&&p.y>MENUBTN.y&&p.y<MENUBTN.y+MENUBTN.h){togglePause();return;}
+  if(p.x>SPEEDBTN.x&&p.x<SPEEDBTN.x+SPEEDBTN.w&&p.y>SPEEDBTN.y&&p.y<SPEEDBTN.y+SPEEDBTN.h){G.speed=(G.speed===1.5?1:1.5);beep(520,0.06);return;}
   /* подбор рэспэкта кликом */
   for(var ri=G.resps.length-1;ri>=0;ri--){var rpi=G.resps[ri];
     if(Math.hypot(p.x-rpi.x,p.y-rpi.y)<36){
@@ -503,7 +514,7 @@ document.addEventListener('visibilitychange',function(){
 var lastT=0;
 function loop(ts){
   var dt=Math.min(0.05,(ts-lastT)/1000||0.016);lastT=ts;
-  if(G&&G.state==='play'&&!G.paused)update(dt);
+  if(G&&G.state==='play'&&!G.paused)update(dt*(G.speed||1)); // ускорение X1.5 гонит всю игру
   if(G)draw();
   else{frame2d();drawImg(IMG.bg,0,0,BGW,BGH);} // фон и за меню
   requestAnimationFrame(loop);
