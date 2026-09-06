@@ -3,6 +3,7 @@ import { LEVELS } from './levels.js';
 import { newRun, step, putSeal, giveAll, killAll } from './logic.js';
 import { FRAMES, TILES, loadSprites } from './sprites.js';
 import { blip } from './audio.js';
+import { teachStep } from './teach.js';
 import { loadBest, saveBest } from './save.js';
 
 const W = 960;
@@ -33,6 +34,7 @@ let prevLevel = 0;
 let best: number | null = loadBest();
 let newRecord = false;
 let stepSnd = 0;
+let learnt = { moved: false, shoved: false };
 
 function wx(x: number): number {
   return x * TILE;
@@ -80,6 +82,7 @@ function startGame(): void {
   facing = 1;
   newRecord = false;
   stepSnd = 0;
+  learnt = { moved: false, shoved: false };
   input.left = false;
   input.right = false;
   input.jump = false;
@@ -91,6 +94,8 @@ function startGame(): void {
 function doStep(): void {
   step(S, input);
   runTime += CFG.step;
+  if (input.left || input.right) learnt.moved = true;
+  if (input.shove) learnt.shoved = true;
   if (input.right && !input.left) facing = 1;
   else if (input.left && !input.right) facing = -1;
   if ((input.left || input.right) && S.seal.onGround) {
@@ -181,6 +186,20 @@ function render(): void {
   g.textAlign = 'right';
   g.fillText('ур. ' + (S.level + 1) + '/' + LEVELS.length, W - 12, 30);
   if (best !== null) g.fillText('лучшее ' + fmt(best), W - 12, 58);
+
+  // Учёба с тёткой: только в первом корпусе, дальше молчит.
+  if (mode === 'play' && S.level === 0) {
+    const tip = teachStep({ moved: learnt.moved, key: S.hasKey, fish: S.hasFish, exit: false, shoved: learnt.shoved });
+    if (tip) {
+      g.fillStyle = 'rgba(0,0,0,0.7)';
+      g.fillRect(60, H - 96, W - 120, 84);
+      drawImg('img/face_aunt.png', 72, H - 88, 64, 64, '#e8e4de', false);
+      g.fillStyle = '#fff';
+      g.font = '22px sans-serif';
+      g.textAlign = 'left';
+      g.fillText(tip, 150, H - 44);
+    }
+  }
 
   if (mode === 'start') {
     const lines = ['Собери ключ и рыбу, дойди до выхода.', 'Стрелки — идти, пробел — прыжок, X — толкнуть.'];
@@ -293,6 +312,13 @@ canvas.addEventListener('contextmenu', function (e: Event) {
 
 loadSprites(undefined as any).then(function (m: Record<string, any>) {
   pics = m;
+  try {
+    if (typeof Image === 'function') {
+      const ai = new Image();
+      ai.src = 'img/face_aunt.png';
+      pics['img/face_aunt.png'] = { src: 'img/face_aunt.png', broken: false, img: ai };
+    }
+  } catch (e) {}
 });
 
 requestAnimationFrame(frame);
