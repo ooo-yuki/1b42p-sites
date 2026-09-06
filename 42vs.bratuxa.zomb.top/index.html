@@ -331,7 +331,7 @@ function update(dt){
       if(n.eatT>=1){n.eatT=0;meal.hp-=Z_BITE;
         G.biteI=(G.biteI===1?2:1);sfx('bite'+G.biteI); /* укус: 1-2 вперемешку */
         if(meal.hp<=0){for(var d=0;d<G.units.length;d++)if(G.units[d]===meal)G.units.splice(d,1);}}
-    }else{n.eatT=0;n.x-=Z_SPEED*(n.sp||1)*dt;}
+    }else{n.eatT=0;n.x-=Z_SPEED*(n.sp||1)*(n.x>GX1+5?3:1)*dt;} /* с дороги — маршем ×3, на сетке обычным шагом */
     if(n.x<GX0-12){return lose();}
   }
   /* эффекты */
@@ -603,8 +603,8 @@ cv.addEventListener('pointerdown',function(e){
   for(var ri=G.resps.length-1;ri>=0;ri--){var rpi=G.resps[ri];
     if(Math.hypot(p.x-rpi.x,p.y-rpi.y)<36){
       if(G.drag)G.drag=null;
-      G.resps.splice(ri,1);
-      G.fly.push({x0:rpi.x,y0:rpi.y,v:rpi.v,t:0});sfx('pickup');return;}}
+      G.resps.splice(ri,1);G.resp+=rpi.v; /* пересчёт сразу при подборе */
+      G.fly.push({x0:rpi.x,y0:rpi.y,v:0,t:0});sfx('pickup');return;}}
   var s=seedAtXY(p.x,p.y);
   if(s){var d=seedDef(s);
     if(G.resp<d.cost){G.seedFlash={k:s,t:0.7};sfx('cancel');}
