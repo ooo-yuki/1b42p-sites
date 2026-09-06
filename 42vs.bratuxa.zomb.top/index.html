@@ -99,6 +99,24 @@ function beep(f,d,type){try{
   g.gain.setValueAtTime(0.06,C.currentTime);g.gain.exponentialRampToValueAtTime(0.001,C.currentTime+(d||0.1));
   o.connect(g);g.connect(C.destination);o.start();o.stop(C.currentTime+(d||0.1)+0.02);
 }catch(e){}}
+/* --- настоящие звуки Yarchik: выстрел/попадание/взрыв/смерть/отмена --- */
+var SFX={};
+function sfxLoad(){
+  var files={shoot:'tex/sfx/shoot.mp3',hit:'tex/sfx/hit.mp3',boom:'tex/sfx/boom.mp3',zdie:'tex/sfx/zdie.mp3',cancel:'tex/sfx/cancel.mp3'};
+  Object.keys(files).forEach(function(k){
+    SFX[k]=[];
+    for(var i=0;i<4;i++){try{var a=new Audio();a.preload='auto';a.src=files[k];SFX[k].push(a);}catch(e){}}
+    SFX[k].i=0;
+  });
+}
+function sfx(k){try{
+  if(MUTED)return;
+  var p=SFX[k];if(!p||!p.length)return;
+  p.i=(p.i+1)%p.length;var a=p[p.i];
+  try{a.currentTime=0;}catch(e){}
+  var pr=a.play();if(pr&&pr.catch)pr.catch(function(){});
+}catch(e){}}
+sfxLoad();
 /* --- спавн --- */
 function spawnZom(){
   var r=Math.floor(Math.random()*ROWS);
@@ -108,7 +126,7 @@ function spawnZom(){
 function firePea(u){
   var p=cellXY(u.r,u.c);
   G.peas.push({r:u.r,x:p.x+CW*0.6,y:rowY(u.r)-38,rot:0});
-  beep(520,0.07);
+  sfx('shoot');
 }
 /* --- посадка --- */
 function seedDef(k){
@@ -147,7 +165,7 @@ function update(dt){
       if(u.fuse<=0){ /* БАБАХ 3×3 */
         G.units.splice(i,1);
         G.fx.push({x:ux,y:rowY(u.r),t:0.5,r:0});
-        beep(90,0.4,'sawtooth');
+        sfx('boom');
         for(var j=G.zoms.length-1;j>=0;j--){var z=G.zoms[j];
           var zx=z.x,zy=rowY(z.r);
           if(Math.hypot(zx-ux,zy-rowY(u.r))<CW*2.2)killZom(j);
@@ -165,7 +183,7 @@ function update(dt){
   for(var a=G.peas.length-1;a>=0;a--){var s=G.peas[a];s.x+=220*dt;s.rot=(s.rot||0)+11*dt;
     var hit=false;
     for(var b=0;b<G.zoms.length;b++){var w=G.zoms[b];
-      if(w.r===s.r&&Math.abs(w.x-s.x)<34){w.hp-=U_MOPSO.dmg;hit=true;
+      if(w.r===s.r&&Math.abs(w.x-s.x)<34){w.hp-=U_MOPSO.dmg;hit=true;sfx('hit');
         G.fx.push({x:s.x,y:s.y,t:0.2,r:6});break;}}
     if(hit||s.x>GX1+60)G.peas.splice(a,1);
   }
@@ -186,7 +204,7 @@ function update(dt){
 }
 function killZom(i){
   var z=G.zoms[i];G.zoms.splice(i,1);G.kills++;
-  G.fx.push({x:z.x,y:rowY(z.r)-30,t:0.4,r:10});beep(330,0.12);
+  G.fx.push({x:z.x,y:rowY(z.r)-30,t:0.4,r:10});sfx('zdie');
   if(G.kills>=KILLS_TO_WIN)win();
 }
 function win(){G.state='win';showEnd('ПОБЕДА! 🏆','Лужайка удержана! Зомби повержены: '+G.kills+'.<br>Мы уже победили 🏆');beep(660,0.3);}
@@ -311,13 +329,13 @@ cv.addEventListener('pointerdown',function(e){
   if(p.x>8&&p.x<128&&p.y>522&&p.y<566){MUTED=!MUTED;return;}
   var s=seedAtXY(p.x,p.y);
   if(s){var d=seedDef(s);
-    if(G.sun<d.cost){G.seedFlash={k:s,t:0.7};beep(140,0.15);}
+    if(G.sun<d.cost){G.seedFlash={k:s,t:0.7};sfx('cancel');}
     else if(G.seeds[s]>0)beep(150,0.1);
     else{G.drag=(G.drag===s?null:s);beep(440,0.06);}
     return;}
   var cell=cellFromXY(p.x,p.y);
   if(cell&&G.drag){
-    if(unitAt(cell.r,cell.c)){G.cellFlash={r:cell.r,c:cell.c,t:0.7};beep(140,0.15);}
+    if(unitAt(cell.r,cell.c)){G.cellFlash={r:cell.r,c:cell.c,t:0.7};sfx('cancel');}
     else tryPlant(G.drag,cell.r,cell.c);
     G.drag=null;}
 });
@@ -327,11 +345,11 @@ cv.addEventListener('pointerup',function(e){
   var p=evXY(e);
   var cell=cellFromXY(p.x,p.y);
   if(cell){
-    if(unitAt(cell.r,cell.c)){G.cellFlash={r:cell.r,c:cell.c,t:0.7};beep(140,0.15);}
+    if(unitAt(cell.r,cell.c)){G.cellFlash={r:cell.r,c:cell.c,t:0.7};sfx('cancel');}
     else tryPlant(G.drag,cell.r,cell.c);
     G.drag=null;}
 });
-document.addEventListener('keydown',function(e){if(e.key==='Escape'&&G)G.drag=null;});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&G&&G.drag){G.drag=null;sfx('cancel');}});
 /* --- цикл --- */
 var lastT=0;
 function loop(ts){
