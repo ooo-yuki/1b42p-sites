@@ -24,7 +24,7 @@
 
 ---
 
-### Задача 1: Каркас и числа баланса
+### Task 1: Каркас и числа баланса
 
 **Файлы:**
 - Создать: `tulenko.bratuxa.zomb.top/tsconfig.json`
@@ -75,7 +75,7 @@ git add tulenko.bratuxa.zomb.top/tsconfig.json tulenko.bratuxa.zomb.top/src/conf
 git commit -m "tulenko: каркас и числа баланса"
 ```
 
-### Задача 2: Карты корпусов с проверкой
+### Task 2: Карты корпусов с проверкой
 
 **Файлы:**
 - Создать: `tulenko.bratuxa.zomb.top/src/levels.ts`
@@ -136,7 +136,7 @@ git add tulenko.bratuxa.zomb.top/src/levels.ts tulenko.bratuxa.zomb.top/tests/le
 git commit -m "tulenko: карты корпусов с проверкой"
 ```
 
-### Задача 3: Ходьба и прыжки
+### Task 3: Ходьба и прыжки
 
 **Файлы:**
 - Создать: `tulenko.bratuxa.zomb.top/src/logic.ts` (начало: состояние и шаг)
@@ -168,7 +168,7 @@ git add tulenko.bratuxa.zomb.top/src/logic.ts tulenko.bratuxa.zomb.top/tests/wal
 git commit -m "tulenko: ходьба и прыжки"
 ```
 
-### Задача 4: Зрение охраны и поимка
+### Task 4: Зрение охраны и поимка
 
 **Файлы:**
 - Изменить: `src/logic.ts` (дозор, конус, поимка)
@@ -202,7 +202,7 @@ git add tulenko.bratuxa.zomb.top/src/logic.ts tulenko.bratuxa.zomb.top/tests/gua
 git commit -m "tulenko: зрение охраны и поимка"
 ```
 
-### Задача 5: Толчки и оглушение
+### Task 5: Толчки и оглушение
 
 **Файлы:**
 - Изменить: `src/logic.ts` (толчок)
@@ -234,7 +234,7 @@ git add tulenko.bratuxa.zomb.top/src/logic.ts tulenko.bratuxa.zomb.top/tests/sho
 git commit -m "tulenko: толчки и оглушение"
 ```
 
-### Задача 6: Подбор, выход, победа и поражение
+### Task 6: Подбор, выход, победа и поражение
 
 **Файлы:**
 - Изменить: `src/logic.ts` (подбор и концы)
@@ -269,7 +269,7 @@ git add tulenko.bratuxa.zomb.top/src/logic.ts tulenko.bratuxa.zomb.top/tests/goa
 git commit -m "tulenko: подбор, выход, победа и поражение"
 ```
 
-### Задача 7: Картинки, рисованные кодом
+### Task 7: Картинки, рисованные кодом
 
 **Файлы:**
 - Создать: `scripts/gen_tulenko.py` (не в дело игры, рядом)
@@ -297,7 +297,7 @@ git add tulenko.bratuxa.zomb.top/img scripts/gen_tulenko.py
 git commit -m "tulenko: картинки тюленьки и тюрьмы"
 ```
 
-### Задача 8: Загрузка картинок и таблицы кадров
+### Task 8: Загрузка картинок и таблицы кадров
 
 **Файлы:**
 - Создать: `src/sprites.ts`
@@ -328,7 +328,7 @@ git add tulenko.bratuxa.zomb.top/src/sprites.ts tulenko.bratuxa.zomb.top/tests/s
 git commit -m "tulenko: загрузка картинок и кадры"
 ```
 
-### Задача 9: Звук гудками
+### Task 9: Звук гудками
 
 **Файлы:**
 - Создать: `src/audio.ts`
@@ -352,7 +352,7 @@ git add tulenko.bratuxa.zomb.top/src/audio.ts
 git commit -m "tulenko: звук гудками"
 ```
 
-### Задача 10: Склейка, страница, рекорд
+### Task 10: Склейка, страница, рекорд
 
 **Файлы:**
 - Создать: `src/main.ts`, `src/save.ts`
@@ -385,7 +385,7 @@ git add tulenko.bratuxa.zomb.top/src/main.ts tulenko.bratuxa.zomb.top/src/save.t
 git commit -m "tulenko: склейка, страница, рекорд"
 ```
 
-### Задача 11: Сдача на адрес
+### Task 11: Сдача на адрес
 
 **Файлы:** свои пути из задач выше, плюс карточка в общем доме и учёт.
 
