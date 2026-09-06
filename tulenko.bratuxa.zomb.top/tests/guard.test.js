@@ -23,13 +23,19 @@ lg = lg.replace(/^import .*$/gm, '')
   .replace(/export function /g, 'function ')
   .replace(/export const /g, 'const ');
 
-const js = cfg + '\n' + lv + '\n' + lg + '\nmodule.exports = { newRun, step, putSeal };\n';
+const js = cfg + '\n' + lv + '\n' + lg + '\nmodule.exports = { newRun, step, putSeal, groundPatrol };\n';
 const m = new Module('logic', module);
 m._compile(js, path.join(__dirname, '..', 'src', 'logic.js'));
-const { newRun, step, putSeal } = m.exports;
+const { newRun, step, putSeal, groundPatrol } = m.exports;
 
 const s = newRun(0);
 putSeal(s, s.guards[0].x + 1, s.guards[0].y);
 step(s, {});
 assert.equal(s.hearts, 2);
 assert.equal(s.caught, true);
+
+// Висячий путь: все точки стражи стоят на полу
+{
+  const t = newRun(0);
+  for (const g of t.guards) assert.equal(groundPatrol(t, g), true);
+}

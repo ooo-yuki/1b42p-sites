@@ -43,6 +43,7 @@ function loadLevel(S, idx) {
       if (map[r][c] === 'G') S.guards.push({ x: c + 0.5, y: cellY(r), dir: 1, stun: 0 });
     }
   }
+  for (const g of S.guards) groundPatrol(S, g);
   const k = findMark(map, 'K');
   S.key = k ? { x: k.c + 0.5, y: cellY(k.r) + 0.5, taken: false } : null;
   const f = findMark(map, 'F');
@@ -52,6 +53,18 @@ function loadLevel(S, idx) {
   S.hasKey = false;
   S.hasFish = false;
   S.caught = false;
+}
+
+export function groundPatrol(S, g) {
+  const map = LEVELS[S.level];
+  const top = Math.floor(g.y);
+  for (let k = top; k >= 0; k--) {
+    if (solidAt(map, g.x, k - 0.01) && !solidAt(map, g.x, k + 0.05) && !solidAt(map, g.x, k + 0.6)) {
+      g.y = k;
+      return true;
+    }
+  }
+  return false;
 }
 
 export function newRun(level) {
@@ -116,12 +129,16 @@ export function step(S, input) {
       g.stun = Math.max(0, g.stun - dt);
       continue;
     }
+    if (!groundPatrol(S, g)) continue;
     const nxg = g.x + g.dir * CFG.guardSpeed * dt;
     const edge = nxg + (g.dir > 0 ? 0.3 : -0.3);
     if (solidAt(map, edge, g.y + 0.05) || solidAt(map, edge, g.y + 0.6)) {
       g.dir = -g.dir;
+    } else if (!solidAt(map, edge, g.y - 0.01)) {
+      g.dir = -g.dir;
     } else {
       g.x = nxg;
+      if (!groundPatrol(S, g)) g.dir = -g.dir;
     }
   }
 
