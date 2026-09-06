@@ -37,6 +37,7 @@ export interface HudState {
   weapon: string;
   owned: string[];
   moving: boolean;
+  dash: number;
 }
 
 export interface WeaponDef {
@@ -65,6 +66,7 @@ export interface KeyMap {
   hit: string;
   run: string;
   jump: string;
+  ability: string;
 }
 
 export const KEY_ACTIONS: Array<{ id: keyof KeyMap; label: string }> = [
@@ -75,11 +77,12 @@ export const KEY_ACTIONS: Array<{ id: keyof KeyMap; label: string }> = [
   { id: 'hit', label: '👊 Удар' },
   { id: 'jump', label: '🐇 Прыжок' },
   { id: 'run', label: '💨 Бег' },
+  { id: 'ability', label: '⚡ Рывок (МТТ)' },
 ];
 
 export const DEFAULT_KEYS: KeyMap = {
   fwd: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD',
-  hit: 'KeyJ', run: 'ShiftLeft', jump: 'Space',
+  hit: 'KeyJ', run: 'ShiftLeft', jump: 'Space', ability: 'KeyC',
 };
 
 export interface GameEvents {
@@ -168,6 +171,11 @@ export class Game {
   private keyMap: KeyMap = { ...DEFAULT_KEYS };
   private remotes: Remote[] = [];
   private charId = 'mtt';
+  private charSpd = 1;
+  private dashT = 0;
+  private dashCd = 0;
+  private dashDx = 0;
+  private dashDz = 0;
   private quality: Quality = 'fast';
   private foeTexCache: THREE.Texture[] = [];
   private enemies: Enemy[] = [];
@@ -226,6 +234,7 @@ export class Game {
     const spec0 = charSpec(this.charId);
     this.maxhp = spec0.hp;
     this.hp = spec0.hp;
+    this.charSpd = spec0.spd;
     this.renderer.setPixelRatio(this.quality === 'nice' ? Math.min(window.devicePixelRatio, 1.5) : 1);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = this.quality === 'nice';
@@ -347,6 +356,9 @@ export class Game {
     const spec = charSpec(this.charId);
     this.maxhp = spec.hp;
     this.hp = spec.hp;
+    this.charSpd = spec.spd;
+    this.dashT = 0;
+    this.dashCd = 0;
     this.pushHud();
     return this.charId;
   }
@@ -695,6 +707,34 @@ export class Game {
     return hits;
   }
 
+  // рывок МТТ: резкий бросок вперёд (по движению, иначе по взгляду), кд 3с.
+  // Союзников (remotes) урон не трогает вовсе: attack() бьёт только enemies.
+  dash(): boolean {
+    if (!this.started || this.dead || this.dashCd > 0 || this.charId !== 'mtt') return false;
+    const km = this.keyMap;
+    let f = (this.input[km.fwd] || this.input.ArrowUp ? 1 : 0) - (this.input[km.back] || this.input.ArrowDown ? 1 : 0) - this.joy.y;
+    let r = (this.input[km.right] ? 1 : 0) - (this.input[km.left] ? 1 : 0) + this.joy.x;
+    f = Math.max(-1, Math.min(1, f));
+    r = Math.max(-1, Math.min(1, r));
+    const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
+    const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
+    let dx = fx * f + rx * r, dz = fz * f + rz * r;
+    const len = Math.hypot(dx, dz);
+    if (len < 0.01) { dx = fx; dz = fz; } else { dx /= len; dz /= len; }
+    this.dashDx = dx; this.dashDz = dz;
+    this.dashT = 0.18;
+    this.dashCd = 3;
+    this.burst(this.px, 0.4, this.pz, 12);
+    this.blip(880);
+    this.pushHud();
+    return true;
+  }
+
+  debugDash(): number { return Math.round(this.dashCd * 10) / 10; }
+  debugRemoteList(): RemotePlayer[] {
+    return this.remotes.map((m) => ({ nick: m.nick, char: m.char, x: m.x, z: m.z, hp: m.hp }));
+  }
+
   private hitSolid(x: number, z: number, rad: number): boolean {
     for (const s of this.solids) {
       const dx = x - s.x, dz = z - s.z;
@@ -732,6 +772,7 @@ export class Game {
       weapon: this.weaponId,
       owned: [...this.owned],
       moving: this.moving,
+      dash: Math.round(this.dashCd * 10) / 10,
     });
   }
 
@@ -897,13 +938,19 @@ export class Game {
       this.pvy -= 12 * dt;
       this.py += this.pvy * dt;
       if (this.py <= 0) { this.py = 0; this.pvy = 0; }
+      // рывок МТТ на назначенной клавише (по умолчанию C)
+      if (this.input[km.ability]) {
+        this.input[km.ability] = false;
+        this.dash();
+      }
+      if (this.dashCd > 0) this.dashCd -= dt;
       // движение: назначенные клавиши + стрелки + джойстик
       let f = (this.input[km.fwd] || this.input.ArrowUp ? 1 : 0) - (this.input[km.back] || this.input.ArrowDown ? 1 : 0) - this.joy.y;
       let r = (this.input[km.right] ? 1 : 0) - (this.input[km.left] ? 1 : 0) + this.joy.x;
       f = Math.max(-1, Math.min(1, f));
       r = Math.max(-1, Math.min(1, r));
       const run = this.input[km.run] || this.input.ShiftLeft || this.input.ShiftRight;
-      const sp = (run ? 8.2 : 5.6) * charSpec(this.charId).spd;
+      const sp = (run ? 8.2 : 5.6) * this.charSpd;
       const len = Math.hypot(f, r);
       this.moving = len > 0.15;
       if (this.moving) this.bobPhase += dt * 11;
@@ -915,6 +962,15 @@ export class Game {
         const nz = this.pz + (fz * nf + rz * nr) * sp * dt;
         if (!this.hitSolid(nx, this.pz, 0.9)) this.px = clampArena(nx);
         if (!this.hitSolid(this.px, nz, 0.9)) this.pz = clampArena(nz);
+      }
+      // рывок: бросок 22 м/с, стены уважает
+      if (this.dashT > 0) {
+        this.dashT -= dt;
+        const nx = this.px + this.dashDx * 22 * dt;
+        const nz = this.pz + this.dashDz * 22 * dt;
+        if (!this.hitSolid(nx, this.pz, 0.9)) this.px = clampArena(nx);
+        if (!this.hitSolid(this.px, nz, 0.9)) this.pz = clampArena(nz);
+        if (!this.moving) this.bobPhase += dt * 11;
       }
       // враги идут к игроку и бьют в упор
       for (const e of this.enemies) {

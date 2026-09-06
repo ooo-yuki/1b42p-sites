@@ -199,6 +199,40 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await expect(page.locator('#char-mtt.sel')).toHaveCount(1);
   });
 
+  test('рывок МТТ на C: бросок и кд', async ({ page }) => {
+    await page.click('#goBtn');
+    await page.waitForTimeout(800);
+    const p0 = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { x: number; z: number } } }).__mtt.pos());
+    // держим C (headless-кадры редкие — короткое нажатие может потеряться)
+    await page.keyboard.down('c');
+    await page.waitForTimeout(700);
+    await page.keyboard.up('c');
+    const dash = await page.evaluate(() => (window as unknown as { __mtt: { dash: () => number } }).__mtt.dash());
+    const p1 = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { x: number; z: number } } }).__mtt.pos());
+    const dist = Math.hypot(p1.x - p0.x, p1.z - p0.z);
+    expect(dash).toBeGreaterThan(0);
+    expect(dist).toBeGreaterThan(3);
+    await expect(page.locator('#hudRow2')).toContainText('⚡');
+  });
+
+  test('по союзникам урона нет и ошибок нет', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.click('#goBtn');
+    await page.waitForTimeout(800);
+    // ставим союзника прямо перед носом (смотрим на -z) и лупим ударами
+    await page.evaluate(() => (window as unknown as { __mtt: { setRemotes: (l: object[]) => void } }).__mtt.setRemotes([
+      { nick: 'СОЮЗ', char: 'krysa', x: 0, z: 20, hp: 100 },
+    ]));
+    for (let i = 0; i < 4; i++) {
+      await page.evaluate(() => (window as unknown as { __mtt: { attack: () => number } }).__mtt.attack());
+      await page.waitForTimeout(500);
+    }
+    const mates = await page.evaluate(() => (window as unknown as { __mtt: { remoteList: () => Array<{ nick: string; hp: number }> } }).__mtt.remoteList());
+    expect(mates.find((m) => m.nick === 'СОЮЗ')?.hp).toBe(100);
+    expect(errors).toEqual([]);
+  });
+
   test('качество графики переключается и сохраняется', async ({ page }) => {
     await page.click('#goBtn');
     await page.click('#setBtn');

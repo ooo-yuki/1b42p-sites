@@ -105,7 +105,7 @@ export default function App() {
   const joyId = useRef(-1);
   const gameRef = useRef<Game | null>(null);
   const [menu, setMenu] = useState(true);
-  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false });
+  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0 });
   const [scores, setScores] = useState<ScoreRow[]>([]);
   const [shopOpen, setShopOpen] = useState(false);
   const [setOpen, setSetOpen] = useState(false);
@@ -173,6 +173,9 @@ export default function App() {
       setRemotes: (list: RoomMate[]) => game.setRemotes(list),
       chara: () => game.getChar(),
       quality: () => game.getQuality(),
+      dash: () => game.debugDash(),
+      doDash: () => game.dash(),
+      remoteList: () => game.debugRemoteList(),
     };
     const kd = (e: KeyboardEvent) => {
       game.input[e.code] = true;
@@ -379,8 +382,8 @@ export default function App() {
             <div id="hpBar"><div id="hpFill" style={{ width: `${hpFrac * 100}%` }} /></div>
           </div>
           <div id="hudRow">🌊 Волна {hud.wave} · 👹 {hud.enemies} · 💀 {hud.kills} · 🏆 {hud.score}</div>
-          <div id="hudRow2">🎟️ {hud.fantiki} · {wname}</div>
-          <small id="hint">WASD — идти · Space — прыжок · клик/J — удар · Shift — бег</small>
+          <div id="hudRow2">🎟️ {hud.fantiki} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}</div>
+          <small id="hint">WASD — идти · Space — прыжок · клик/J — удар · Shift — бег{char === 'mtt' ? ' · C — рывок' : ''}</small>
         </div>
       )}
       {!menu && (
