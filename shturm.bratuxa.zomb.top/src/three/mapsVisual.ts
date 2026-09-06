@@ -218,6 +218,7 @@ export function buildMapVisual(map: MapId): THREE.Group {
     const pondTex = getWaterTex().clone();
     pondTex.needsUpdate = true;
     pondTex.repeat.set(4, 4);
+    (group.userData.localTex as THREE.Texture[]).push(pondTex);
     const pondMat = new THREE.MeshStandardMaterial({
       map: pondTex, transparent: true, opacity: 0.9, roughness: 0.12, metalness: 0.1, envMapIntensity: 2.0,
     });
