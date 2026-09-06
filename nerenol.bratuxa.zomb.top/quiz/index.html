@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Угадай символ: священный или нацистский? 42 🏆</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #0a0a1a; }
+  body {
+    color: #fff; font-family: system-ui, sans-serif; text-align: center;
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; padding: 20px 14px 40px;
+  }
+  h1 { font-size: clamp(22px, 5vw, 36px); margin: 8px 0; }
+  h1 .n42 { color: #ffd700; }
+  .sub { color: #bbb; max-width: 620px; font-size: 15px; line-height: 1.6; }
+  .warn {
+    max-width: 620px; background: #2a0a0a; border: 2px solid #e63946;
+    border-radius: 12px; padding: 10px 14px; font-size: 14px; margin: 10px 0;
+  }
+  #hud { display: flex; gap: 18px; margin: 12px 0; font-size: 18px; font-weight: bold; }
+  #stage {
+    width: min(92vw, 380px); height: min(92vw, 380px);
+    border-radius: 18px; border: 3px solid #ffd700;
+    display: flex; align-items: center; justify-content: center;
+    background: #fffdf4; margin: 6px 0 4px;
+  }
+  #ctx { color: #ffd700; font-size: 15px; min-height: 24px; margin-bottom: 6px; }
+  .btns { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  button {
+    font-size: 17px; font-weight: bold; border-radius: 12px; padding: 14px 22px;
+    border: 3px solid #2f5d3a; cursor: pointer; color: #10240f;
+  }
+  #btnSacred { background: linear-gradient(180deg, #ffb300, #ff7b00); }
+  #btnNazi { background: linear-gradient(180deg, #e63946, #8f1218); color: #fff; border-color: #5c0a0e; }
+  button:disabled { opacity: .45; cursor: default; }
+  #fact {
+    max-width: 620px; min-height: 60px; font-size: 16px; line-height: 1.6;
+    background: #ffffff10; border-radius: 12px; padding: 12px 16px; margin: 12px 0;
+  }
+  #fact.good { border: 2px solid #58b368; }
+  #fact.bad { border: 2px solid #e63946; }
+  #next { background: #ffd700; display: none; margin-top: 4px; }
+  #final { display: none; max-width: 620px; }
+  #final .big { font-size: 30px; margin: 10px 0; }
+  a { color: #ffd700; }
+  footer { margin-top: 16px; color: #777; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<h1>УГАДАЙ СИМВОЛ <span class="n42">× 42</span></h1>
+<p class="sub">Свастика — древний символ солнца, ему тысячи лет: храмы, книги и
+праздники Индии. В 1920 году её украл и извратил преступный режим Германии.
+Научись отличать священный знак от нацистского! 10 раундов.</p>
+<div class="warn">Игра — строго познавательная. Нацизм — преступление, ему нет оправдания.</div>
+
+<div id="hud"><span>Раунд <b id="round">1</b>/10</span><span>Очки: <b id="score">0</b></span><span>Рекорд: <b id="best">0</b></span></div>
+<div id="stage"></div>
+<div id="ctx"></div>
+<div class="btns">
+  <button id="btnSacred">Священный (Индия)</button>
+  <button id="btnNazi">Нацистский</button>
+</div>
+<div id="fact">Смотри на картинку и выбирай!</div>
+<button id="next">Дальше →</button>
+<div id="final"></div>
+
+<p><a href="https://hub.bratuxa.zomb.top">← Хаб 1Б42П</a></p>
+<footer>1Б42П • Мы уже победили 🏆 • символы нарисованы кодом в учебных целях</footer>
+
+<script>
+var KEY = 'nerenol_quiz_best';
+var S = { round: 1, score: 0, best: 0, cur: null };
+try { S.best = parseInt(localStorage.getItem(KEY)) || 0; } catch (_) {}
+
+function swastikaSVG(opts) {
+  // Рисуем свастику кодом: крест с загнутыми концами.
+  // opts: {tilt, armColor, bg, dots, disc}
+  var tilt = opts.tilt ? ' transform="rotate(45 100 100)"' : '';
+  var dots = '';
+  if (opts.dots) {
+    dots = '<circle cx="55" cy="55" r="7"/><circle cx="145" cy="55" r="7"/>' +
+           '<circle cx="55" cy="145" r="7"/><circle cx="145" cy="145" r="7"/>';
+  }
+  var disc = opts.disc ? '<circle cx="100" cy="100" r="88" fill="#fff"/>' : '';
+  return '<svg viewBox="0 0 200 200" width="100%" height="100%">' +
+    '<rect width="200" height="200" fill="' + opts.bg + '"/>' + disc +
+    '<g fill="' + opts.armColor + '"' + tilt + '>' +
+    '<rect x="88" y="30" width="24" height="140"/>' +
+    '<rect x="30" y="88" width="140" height="24"/>' +
+    '<rect x="30" y="88" width="24" height="62"/>' +
+    '<rect x="146" y="50" width="24" height="62"/>' +
+    '<rect x="88" y="30" width="62" height="24"/>' +
+    '<rect x="50" y="146" width="62" height="24"/>' +
+    dots + '</g></svg>';
+}
+
+function petalRing(color) {
+  var s = '';
+  for (var i = 0; i < 12; i++) {
+    var a = i * 30 * Math.PI / 180;
+    var x = 100 + 78 * Math.cos(a), y = 100 + 78 * Math.sin(a);
+    s += '<ellipse cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" rx="14" ry="7" fill="' + color +
+         '" transform="rotate(' + (i * 30) + ' ' + x.toFixed(1) + ' ' + y.toFixed(1) + ')"/>';
+  }
+  return '<svg viewBox="0 0 200 200" width="100%" height="100%" style="position:absolute;inset:0">' + s + '</svg>';
+}
+
+var FACTS_SACRED = [
+  'Верно! Это священный знак: прямой (не наклонённый), часто с точками — символ солнца и удачи, ему тысячи лет.',
+  'Верно! Храмы, книги и праздники Индии: свастика там означает благополучие и свет.',
+  'Верно! Подсказка была в окружении: цветы и тёплые цвета — так знак выглядит в традиции.'
+];
+var FACTS_NAZI = [
+  'Верно! Наклон на 45°, чёрный знак в белом круге на красном — клеймо преступного режима 1933–1945.',
+  'Верно! Нацисты украли древний символ в 1920 году и извратили его. Знание — лучшая защита.',
+  'Верно! Наклонённый крест в круге на красном фоне — узнаваемый почерк той пропаганды.'
+];
+
+function pickRound() {
+  var sacred = Math.random() < 0.5;
+  var stage = document.getElementById('stage');
+  var ctx = document.getElementById('ctx');
+  stage.style.position = 'relative';
+  if (sacred) {
+    var v = Math.floor(Math.random() * 3);
+    if (v === 0) {
+      stage.innerHTML = swastikaSVG({ tilt: false, armColor: '#e07b00', bg: '#fff6e0', dots: true, disc: false });
+      ctx.textContent = 'Контекст: страница старой книги';
+    } else if (v === 1) {
+      stage.innerHTML = swastikaSVG({ tilt: false, armColor: '#c1121f', bg: '#fff6e0', dots: false, disc: false }) + petalRing('#ff9e00');
+      ctx.textContent = 'Контекст: гирлянда из бархатцев';
+    } else {
+      stage.innerHTML = swastikaSVG({ tilt: false, armColor: '#1d3557', bg: '#eef6ff', dots: true, disc: false });
+      ctx.textContent = 'Контекст: стена храма';
+    }
+  } else {
+    stage.innerHTML = swastikaSVG({ tilt: true, armColor: '#111', bg: '#c1121f', dots: false, disc: true });
+    ctx.textContent = 'Контекст: плакат 1933–1945 годов';
+  }
+  S.cur = sacred;
+}
+
+function lockBtns(v) {
+  document.getElementById('btnSacred').disabled = v;
+  document.getElementById('btnNazi').disabled = v;
+}
+
+function answer(isSacred) {
+  if (S.cur === null) return;
+  var ok = (isSacred === S.cur);
+  if (ok) S.score++;
+  var pool = S.cur ? FACTS_SACRED : FACTS_NAZI;
+  var fact = document.getElementById('fact');
+  fact.textContent = (ok ? '✅ ' : '❌ Мимо! ') + pool[Math.floor(Math.random() * pool.length)];
+  fact.className = ok ? 'good' : 'bad';
+  document.getElementById('score').textContent = S.score;
+  S.cur = null;
+  lockBtns(true);
+  if (S.round >= 10) {
+    finish();
+  } else {
+    document.getElementById('next').style.display = 'inline-block';
+  }
+}
+
+function nextRound() {
+  S.round++;
+  document.getElementById('round').textContent = S.round;
+  document.getElementById('fact').textContent = 'Смотри на картинку и выбирай!';
+  document.getElementById('fact').className = '';
+  document.getElementById('next').style.display = 'none';
+  lockBtns(false);
+  pickRound();
+}
+
+function finish() {
+  if (S.score > S.best) {
+    S.best = S.score;
+    try { localStorage.setItem(KEY, S.best); } catch (_) {}
+  }
+  document.getElementById('best').textContent = S.best;
+  var f = document.getElementById('final');
+  var msg = S.score >= 8 ? '🏆 Знаток! Ты видишь разницу и не дашь себя обмануть!' :
+            S.score >= 5 ? 'Неплохо! Повтори — и будет 10 из 10!' :
+            'Потренируйся ещё: наклон + круг на красном = тревожный знак.';
+  f.innerHTML = '<div class="big">Финал: ' + S.score + '/10</div><p>' + msg + '</p>' +
+    '<button id="again" style="background:#ffd700">Играть снова</button>';
+  f.style.display = '';
+  document.getElementById('next').style.display = 'none';
+  document.getElementById('again').onclick = function () {
+    S.round = 1; S.score = 0;
+    document.getElementById('round').textContent = 1;
+    document.getElementById('score').textContent = 0;
+    f.style.display = 'none';
+    document.getElementById('fact').textContent = 'Смотри на картинку и выбирай!';
+    document.getElementById('fact').className = '';
+    lockBtns(false);
+    pickRound();
+  };
+}
+
+document.getElementById('btnSacred').onclick = function () { answer(true); };
+document.getElementById('btnNazi').onclick = function () { answer(false); };
+document.getElementById('next').onclick = nextRound;
+document.getElementById('best').textContent = S.best;
+pickRound();
+</script>
+
+</body>
+</html>
