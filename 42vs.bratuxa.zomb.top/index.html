@@ -59,7 +59,7 @@
 var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 /* --- поле 9×5 по лужайке фона (фон 1100×472 сверху, снизу полоса) --- */
 var BGW=1100,BGH=472;
-var GX0=247,GX1=831,GY0=65,GY1=450,COLS=9,ROWS=5; // поле на 50px правее — виден кусок дома
+var GX0=201,GX1=765,GY0=65,GY1=444,COLS=9,ROWS=5; // трафарет Yarchik 1:1 (линии 183..695/59..404 ×1.1)
 var CW=(GX1-GX0)/COLS,CH=(GY1-GY0)/ROWS;
 var PANELX=0,PANELW=136; // компактная панель слева
 /* --- баланс --- */
@@ -76,7 +76,7 @@ function newGame(){
     seedFlash:null,cellFlash:null};
 }
 function cellXY(r,c){return {x:GX0+c*CW,y:GY0+r*CH};}
-function rowY(r){return GY0+r*CH+CH/2;}
+function rowY(r){return GY0+(r+0.65)*CH;} // линия точек трафарета: центр X, 65% высоты клетки
 function unitAt(r,c){for(var i=0;i<G.units.length;i++){var u=G.units[i];if(u.r===r&&u.c===c)return u;}return null;}
 /* --- текстуры --- */
 var IMG={},IMGNAMES={bg:'tex/bg1.jpg',zombie:'tex/zombie.png',mopso:'tex/mopso.png',sunflow:'tex/sunflow.png',bomba:'tex/bomba.png',mops:'tex/mops.png'};
@@ -107,7 +107,7 @@ function spawnZom(){
 }
 function firePea(u){
   var p=cellXY(u.r,u.c);
-  G.peas.push({r:u.r,x:p.x+CW*0.6,y:rowY(u.r)-14,rot:0});
+  G.peas.push({r:u.r,x:p.x+CW*0.6,y:rowY(u.r)-38,rot:0});
   beep(520,0.07);
 }
 /* --- посадка --- */
@@ -142,7 +142,7 @@ function update(dt){
   for(var i=G.units.length-1;i>=0;i--){var u=G.units[i],p=cellXY(u.r,u.c),ux=p.x+CW/2;
     if(u.cool>0)u.cool-=dt;
     if(u.type==='sun'){u.sunT-=dt;if(u.sunT<=0){u.sunT=U_SUN.sunEvery;G.sun+=U_SUN.sunVal;
-      G.floats.push({x:ux,y:p.y+10,t:1.5,txt:'+'+U_SUN.sunVal+' ☀️'});beep(880,0.08);}}
+      G.floats.push({x:ux,y:rowY(u.r)-60,t:1.5,txt:'+'+U_SUN.sunVal+' ☀️'});beep(880,0.08);}}
     if(u.type==='bomb'){u.fuse-=dt;
       if(u.fuse<=0){ /* БАБАХ 3×3 */
         G.units.splice(i,1);
@@ -209,21 +209,22 @@ function draw(){
     var key=u.type==='mopso'?'mopso':(u.type==='sun'?'sunflow':'bomba');
     var s=u.type==='mopso'?66:60;
     if(u.type==='bomb'&&Math.floor(G.t*8)%2===0){ctx.globalAlpha=0.6+0.4*Math.abs(Math.sin(G.t*10));}
+    var ax=p.x+CW/2,ay=rowY(u.r); // точка трафарета: корни чуть ниже точки
     ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();
-    ctx.ellipse(p.x+CW/2,p.y+CH-8,CW*0.32,9,0,0,7);ctx.fill();
-    drawImg(IMG[key],p.x+CW/2-s/2,p.y+CH-s-6,s,s);
+    ctx.ellipse(ax,ay+12,CW*0.32,9,0,0,7);ctx.fill();
+    drawImg(IMG[key],ax-s/2,ay+14-s,s,s);
     ctx.globalAlpha=1;
-    if(u.hp<u.maxhp){ctx.fillStyle='#000';ctx.fillRect(p.x+8,p.y+CH-12,CW-16,5);
-      ctx.fillStyle='#0f6';ctx.fillRect(p.x+8,p.y+CH-12,(CW-16)*u.hp/u.maxhp,5);}
+    if(u.hp<u.maxhp){ctx.fillStyle='#000';ctx.fillRect(p.x+8,ay+18,CW-16,5);
+      ctx.fillStyle='#0f6';ctx.fillRect(p.x+8,ay+18,(CW-16)*u.hp/u.maxhp,5);}
   }
   /* враги */
   for(var j=0;j<G.zoms.length;j++){var z=G.zoms[j],zy=rowY(z.r);
     var bob=Math.sin(G.t*4+z.ph)*3;
     ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();
-    ctx.ellipse(z.x,zy+46,30,10,0,0,7);ctx.fill();
-    drawImg(IMG.zombie,z.x-38,zy-52+bob,76,100);
-    if(z.hp<Z_HP){ctx.fillStyle='#000';ctx.fillRect(z.x-30,zy-62,60,5);
-      ctx.fillStyle='#f55';ctx.fillRect(z.x-30,zy-62,60*z.hp/Z_HP,5);}
+    ctx.ellipse(z.x,zy+28,30,10,0,0,7);ctx.fill();
+    drawImg(IMG.zombie,z.x-38,zy-70+bob,76,100);
+    if(z.hp<Z_HP){ctx.fillStyle='#000';ctx.fillRect(z.x-30,zy-80,60,5);
+      ctx.fillStyle='#f55';ctx.fillRect(z.x-30,zy-80,60*z.hp/Z_HP,5);}
   }
   /* снаряды-мопсы с раскруткой */
   for(var a=0;a<G.peas.length;a++){var q=G.peas[a];
