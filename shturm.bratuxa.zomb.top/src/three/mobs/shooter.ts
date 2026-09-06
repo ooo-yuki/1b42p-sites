@@ -165,11 +165,11 @@ export function makeShooter(): THREE.Group {
   for (const fs of [-1, 1]) {
     const filter = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.06, 8), M.metalMat);
     filter.rotation.x = Math.PI / 2;
-    filter.position.set(0.07 * fs, -0.13, -0.1);
+    filter.position.set(0.07 * fs, -0.13, -0.125);
     filter.castShadow = true;
     add(filter, bones.head);
     const cheek = box(0.05, 0.15, 0.13, M.darkMat);
-    cheek.position.set(0.135 * fs, -0.03, -0.01);
+    cheek.position.set(0.15 * fs, -0.03, -0.01);
     add(cheek, bones.head);
   }
 
