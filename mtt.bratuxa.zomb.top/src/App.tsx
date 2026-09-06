@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { Game, WEAPONS, CHARS, KEY_ACTIONS, DEFAULT_KEYS, type HudState, type KeyMap, type Quality, type MapId } from './game/engine';
 import oruzh1Url from './assets/oruzh1.png';
 import oruzh2Url from './assets/oruzh2.png';
+import pistolUrl from './assets/pistol.png';
 import charMttUrl from './assets/char-mtt.png';
 import charKrysaUrl from './assets/char-krysa.png';
 
@@ -80,7 +81,7 @@ async function loadRooms(): Promise<RoomInfo[]> {
   }
 }
 
-const WIMG: Record<string, string> = { fists: oruzh1Url, bat: oruzh1Url, axe: oruzh2Url };
+const WIMG: Record<string, string> = { fists: oruzh1Url, bat: oruzh1Url, axe: oruzh2Url, pistol: pistolUrl };
 
 const SID_KEY = 't42_sid';
 function sid(): string {
@@ -145,8 +146,16 @@ export default function App() {
   const joyId = useRef(-1);
   const gameRef = useRef<Game | null>(null);
   const [menu, setMenu] = useState(true);
-  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0 });
+  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, med: 0, lvl: 1 });
   const [scores, setScores] = useState<ScoreRow[]>([]);
+  const [gstats, setGstats] = useState<{ games: number; best: number; online: number } | null>(null);
+
+async function loadStats(): Promise<void> {
+  try {
+    const r = await fetch('/api/stats');
+    if (r.ok) setGstats((await r.json()) as { games: number; best: number; online: number });
+  } catch { /* noop */ }
+}
   const [shopOpen, setShopOpen] = useState(false);
   const [setOpen, setSetOpen] = useState(false);
   const [sound, setSound] = useState(true);
@@ -172,8 +181,15 @@ export default function App() {
   const [waiting, setWaiting] = useState(false);
   const [lobby, setLobby] = useState<LobbyInfo | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [passOld, setPassOld] = useState('');
+  const [passNew, setPassNew] = useState('');
+  const [passMsg, setPassMsg] = useState('');
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [admin, setAdmin] = useState<null | { rooms: Array<{ id: string; name: string; mode: string; started: boolean; round: number; players: Array<{ nick: string; login: string; char: string; score: number; kills: number; wave: number; hp: number; x: number; z: number }> ; pending: Array<{ nick: string; login: string }> }>; totalPlayers: number }>(null);
   const [profile, setProfile] = useState<{ login: string; games: number; best: number; coins: number } | null>(null);
   const [mapChoice, setMapChoice] = useState<MapId>('arena');
+  // экраны меню: main — главная, chars — отдельный выбор бойца
+  const [menuScreen, setMenuScreen] = useState<'main' | 'chars'>('main');
   const [duel, setDuel] = useState<DuelInfo | null>(null);
   const roomRef = useRef({ id: '', sid: '' });
   const duelRef = useRef<DuelInfo | null>(null);
@@ -287,6 +303,8 @@ export default function App() {
       spots: () => game.debugSpots(),
       solids: () => game.debugSolids(),
       solidAt: (x: number, z: number, y: number) => game.debugSolidAt(x, z, y),
+      ground: (x: number, z: number) => game.debugGround(x, z),
+      tracers: () => game.debugTracers(),
       give: (n: number) => game.debugGive(n),
       hurt: (n: number) => game.debugHurt(n),
       revive: () => game.debugRevive(),
@@ -305,6 +323,10 @@ export default function App() {
       duelHp: (hp: number) => game.setDuelHp(hp),
       teleport: (x: number, z: number, yaw?: number) => game.debugTeleport(x, z, yaw),
       charaSet: (id: string) => game.setChar(id),
+      switchW: () => game.switchWeapon(),
+      medBuy: () => game.buyMedkit(),
+      medUse: () => game.useMedkit(),
+      level: () => game.level(),
       spawnKind: (kind: 'walk' | 'fly') => game.debugSpawn(kind),
       flyers: () => game.debugFlyers(),
       remoteList: () => game.debugRemoteList(),
@@ -349,6 +371,38 @@ export default function App() {
     loadScores().then(setScores);
   }, [nick, roomMode, isOwner]);
 
+  // смена пароля: старый + новый, хранится только хеш на сервере
+  const changePass = useCallback(async () => {
+    setPassMsg('');
+    try {
+      const r = await fetch('/api/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: token(), old: passOld, pass: passNew }),
+      });
+      const d = (await r.json()) as { ok?: boolean; error?: string };
+      if (!r.ok || !d.ok) {
+        setPassMsg(d.error === 'badpass' ? 'Старый пароль неверный' : d.error === 'passlen' ? 'Новый: от 4 до 64 символов' : 'Не вышло, попробуй позже');
+        return;
+      }
+      setPassOld('');
+      setPassNew('');
+      setPassMsg('Пароль сменён ✅');
+    } catch {
+      setPassMsg('Нет связи');
+    }
+  }, [passOld, passNew]);
+
+  // админ-панель МТТ: онлайн и действия каждого (сервер пускает только владельца)
+  const loadAdmin = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/admin/stats?token=${encodeURIComponent(token())}`);
+      if (!r.ok) { setAdmin(null); return false; }
+      setAdmin((await r.json()) as { rooms: []; totalPlayers: number });
+      return true;
+    } catch { setAdmin(null); return false; }
+  }, []);
+
   // профиль: сведения об аккаунте, скрыты пока не откроешь
   const openProfile = useCallback(async () => {
     setProfileOpen(true);
@@ -361,7 +415,7 @@ export default function App() {
   }, [authed]);
 
   // ---- комнаты ----
-  const refreshRooms = useCallback(() => { loadRooms().then(setRoomsList); }, []);
+  const refreshRooms = useCallback(() => { loadRooms().then(setRoomsList); void loadStats(); }, []);
   useEffect(() => { refreshRooms(); }, [refreshRooms]);
 
   const createRoom = useCallback(async () => {
@@ -533,6 +587,13 @@ export default function App() {
     return () => window.clearInterval(t);
   }, [menu, roomId, go]);
 
+  // админка открыта — обновляем онлайн каждые 2 секунды
+  useEffect(() => {
+    if (!adminOpen || admin === null) return;
+    const t = window.setInterval(() => { void loadAdmin(); }, 2000);
+    return () => window.clearInterval(t);
+  }, [adminOpen, admin, loadAdmin]);
+
   const onBustedShown = useRef(false);
   // плашка нового раунда: всплывает на каждую смену волны
   useEffect(() => {
@@ -542,6 +603,19 @@ export default function App() {
     const t = window.setTimeout(() => setWaveBanner(0), 2600);
     return () => window.clearTimeout(t);
   }, [hud.wave, menu]);
+  // I — полный экран в один клик (в полях ввода не срабатывает)
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (e.code !== 'KeyI') return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+      if (document.fullscreenElement) void document.exitFullscreen();
+      else void document.documentElement.requestFullscreen().catch(() => {});
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, []);
+
   // захват клавиши для переназначения управления
   useEffect(() => {
     if (!capturing) return;
@@ -633,8 +707,8 @@ export default function App() {
             <div id="hpBar"><div id="hpFill" style={{ width: `${hpFrac * 100}%` }} /></div>
           </div>
           <div id="hudRow">🌊 Волна {hud.wave} · 👹 {hud.enemies} · 💀 {hud.kills} · 🏆 {hud.score}</div>
-          <div id="hudRow2">🎟️ {hud.fantiki} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}{char === 'krysa' && (hud.kick > 0 ? ` · 🌀 ${hud.kick.toFixed(1)}с` : ' · 🌀 вол-кик готов')}</div>
-          <small id="hint">WASD — идти · Space — прыжок · клик/J — удар · Shift — бег{char === 'mtt' ? ' · C — рывок (вверх — полёт)' : ' · стена + прыжок — вол-кик'}</small>
+          <div id="hudRow2">🎟️ {hud.fantiki} · 💊 {hud.med}/3 · ⭐ {hud.lvl} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}{char === 'krysa' && (hud.kick > 0 ? ` · 🌀 ${hud.kick.toFixed(1)}с` : ' · 🌀 вол-кик готов')}</div>
+          <small id="hint">WASD — идти · Space — прыжок · клик/J — удар · Shift — бег · E — смена ствола · X — аптечка · I — во весь экран{char === 'mtt' ? ' · C — рывок (вверх — полёт)' : ' · стена + прыжок — вол-кик'}</small>
         </div>
       )}
       {!menu && (
@@ -646,6 +720,7 @@ export default function App() {
             else void document.documentElement.requestFullscreen().catch(() => {});
           }}>⛶</button>
           <button id="menuBtn" onClick={toMenu}>🏠 В МЕНЮ</button>
+          <div id="cross"><i></i><i></i></div>
           <div
             id="joy"
             ref={joyRef}
@@ -662,7 +737,7 @@ export default function App() {
           >
             👊<span>УДАР</span>
           </button>
-          <div id="weapon" key={`weapon-${swingTick}`} ref={weaponRef} className={(hud.moving ? 'walk' : '') + (swingTick > 0 ? ' swing' : '')}>
+          <div id="weapon" key={`weapon-${swingTick}`} ref={weaponRef} className={(hud.moving ? 'walk' : '') + (swingTick > 0 ? ' swing' : '') + (hud.weapon === 'pistol' ? ' pistol' : '')}>
             <img src={WIMG[hud.weapon] ?? oruzh1Url} alt="оружие" />
           </div>
           {roomId && (
@@ -719,6 +794,14 @@ export default function App() {
                 </div>
               );
             })}
+            <h3>💊 Аптечки (макс 3, X — использовать, +50 HP)</h3>
+            <div className="wcard">
+              <div className="wname">💊 Аптечка · в запасе {hud.med}/3</div>
+              <div className="wdesc">Мгновенно +50 HP прямо в бою · 🎟️ 150</div>
+              <button className="wbtn buy" id="buy-med" onClick={() => gameRef.current?.buyMedkit()} disabled={hud.med >= 3 || hud.fantiki < 150}>
+                КУПИТЬ за 🎟️ 150
+              </button>
+            </div>
             <button className="wclose" onClick={() => setShopOpen(false)}>ЗАКРЫТЬ</button>
           </div>
         </div>
@@ -777,6 +860,32 @@ export default function App() {
       {menu && (
         <div id="menu">
           <h1>👊 42 LIVE 💥</h1>
+          {menuScreen === 'chars' ? (
+            <div className="board" id="charSec">
+              <h3>🎭 Выбор бойца</h3>
+              <div className="charRow">
+                {CHARS.map((c) => (
+                  <button
+                    key={c.id}
+                    id={`char-${c.id}`}
+                    className={'charCard' + (char === c.id ? ' sel' : '')}
+                    onClick={() => pickChar(c.id)}
+                  >
+                    <img src={CHARIMG[c.id]} alt={c.name} />
+                    <div className="cname">{c.name}</div>
+                    <div className="cdesc">{c.desc}</div>
+                    <div className="cstats">❤️ {c.hp} · 💨 {c.spd}× · ⭐ Ур. {gameRef.current?.levelOf(c.id) ?? 1}</div>
+                    <div className="cability">{c.id === 'mtt' ? '⚡ Рывок на C — можно вверх, в полёте' : '🌀 Вол-кик у стены + прыжок ×3'}</div>
+                  </button>
+                ))}
+              </div>
+              <div className="srow">
+                <button className="wclose" id="charBack" onClick={() => setMenuScreen('main')}>← НАЗАД</button>
+                <button className="wbtn" id="charGo" onClick={() => setMenuScreen('main')}>ИГРАТЬ ЭТИМ ✔</button>
+              </div>
+            </div>
+          ) : (
+          <>
           <p>Арена 42 LIVE от первого лица: машешься с волнами врагов, у каждого полоска HP.
             Джойстик слева — движение, кнопка справа — удар. Фантики с врагов трать в 🛒 оружейке,
             завал — жми 💚 возродиться!
@@ -815,6 +924,8 @@ export default function App() {
                 {' · '}
                 {authed !== 'guest' && <button id="profileBtn" onClick={openProfile}>👤 ПРОФИЛЬ</button>}
                 {' · '}
+                {authed !== 'guest' && <button id="adminBtn" onClick={async () => { if (await loadAdmin()) setAdminOpen(true); }}>📊 ОНЛАЙН</button>}
+                {' · '}
                 <button id="authOut" onClick={authOut}>{authed === 'guest' ? 'войти' : 'выйти'}</button>
               </div>
           <div className="menuArt">
@@ -828,24 +939,9 @@ export default function App() {
             onChange={(e) => setNick(e.target.value)}
             placeholder="Твой ник"
           />
-          <div className="board" id="charSec">
-            <h3>🎭 Боец</h3>
-            <div className="charRow">
-              {CHARS.map((c) => (
-                <button
-                  key={c.id}
-                  id={`char-${c.id}`}
-                  className={'charCard' + (char === c.id ? ' sel' : '')}
-                  onClick={() => pickChar(c.id)}
-                >
-                  <img src={CHARIMG[c.id]} alt={c.name} />
-                  <div className="cname">{c.name}</div>
-                  <div className="cdesc">{c.desc}</div>
-                  <div className="cstats">❤️ {c.hp} · 💨 {c.spd}×</div>
-                </button>
-              ))}
-            </div>
-          </div>
+          <button id="charBtn" className="wbtn" onClick={() => setMenuScreen('chars')}>
+            🎭 БОЕЦ: {char === 'krysa' ? '🐀 Крыса' : '🕶️ МТТ'} — ВЫБРАТЬ
+          </button>
           {(roomId && !isOwner) || waiting ? (
             <button id="goBtn" disabled title="Ждём старта от создателя">⏳ ЖДУ СТАРТА…</button>
           ) : (
@@ -863,7 +959,28 @@ export default function App() {
                     <div>🎮 Игр сыграно: <b>{profile.games}</b></div>
                     <div>🏆 Лучший счёт: <b>{profile.best}</b></div>
                     <div>🎟️ Фантиков всего: <b>{profile.coins}</b></div>
-                    <div>🎭 Боец: {char === 'krysa' ? '🐀 Крыса' : '🕶️ МТТ'} · Ник: {nick}</div>
+                    <div>🎭 Боец: {char === 'krysa' ? '🐀 Крыса' : '🕶️ МТТ'} · ⭐ Ур. {hud.lvl} · Ник: {nick}</div>
+                    <h3>🔑 Сменить пароль</h3>
+                    <input
+                      id="passOld"
+                      type="password"
+                      value={passOld}
+                      maxLength={64}
+                      onChange={(e) => setPassOld(e.target.value)}
+                      placeholder="Старый пароль"
+                      autoComplete="current-password"
+                    />
+                    <input
+                      id="passNew"
+                      type="password"
+                      value={passNew}
+                      maxLength={64}
+                      onChange={(e) => setPassNew(e.target.value)}
+                      placeholder="Новый пароль (от 4 символов)"
+                      autoComplete="new-password"
+                    />
+                    {passMsg && <div id="passMsg">{passMsg}</div>}
+                    <button className="wbtn" id="passBtn" onClick={changePass}>СМЕНИТЬ ПАРОЛЬ</button>
                   </>
                 ) : (
                   <div>Загрузка…</div>
@@ -954,7 +1071,38 @@ export default function App() {
               ))}</ol>
             </div>
           )}
+          {gstats && (
+            <div className="board" id="gstats">
+              <h3>📊 Статистика игры</h3>
+              <div>🎮 Всего сыграно: <b>{gstats.games}</b> · 🏆 Рекорд: <b>{gstats.best}</b> · 🟢 Онлайн: <b>{gstats.online}</b></div>
+            </div>
+          )}
+          {admin !== null && (
+            <div className="board" id="adminSec">
+              <h3>📊 Онлайн (только для тебя)</h3>
+              <div>👥 В игре: <b>{admin.totalPlayers}</b> · Комнат: <b>{admin.rooms.length}</b></div>
+              {admin.rooms.map((r) => (
+                <div key={r.id} className="srow">
+                  <span>{r.mode === 'duel' ? '⚔️' : '🌍'} <b>{r.name}</b> ({r.id}) {r.started ? '▶️ идёт' : '⏳ лобби'} · раунд {r.round}</span>
+                </div>
+              ))}
+              {admin.rooms.map((r) => (
+                <div key={`p-${r.id}`}>
+                  {r.players.map((m, i) => (
+                    <div key={i}>· {m.char === 'krysa' ? '🐀' : '🕶️'} {m.nick}{m.login ? `(@${m.login})` : ''} — ❤️{m.hp} 🏆{m.score} 💀{m.kills} 🌊{m.wave} 📍{m.x},{m.z}</div>
+                  ))}
+                  {r.pending.map((m, i) => (
+                    <div key={`q-${i}`}>· 🙋 {m.nick}{m.login ? `(@${m.login})` : ''} — ждёт приёма</div>
+                  ))}
+                </div>
+              ))}
+              <button className="wclose" onClick={() => { setAdminOpen(false); setAdmin(null); }}>ЗАКРЫТЬ</button>
+            </div>
+          )}
+          {adminOpen && admin === null && <div className="board">Загрузка онлайна…</div>}
             </>
+          )}
+          </>
           )}
         </div>
       )}

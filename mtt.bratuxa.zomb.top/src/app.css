@@ -61,8 +61,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
  box-shadow:0 0 22px rgba(255,59,59,.5),4px 4px 0 #000}
 #hitBtn span{font-size:13px;letter-spacing:1px}
 #hitBtn:active{background:#ff3b3b}
-#weapon{position:fixed;left:0;right:0;bottom:0;margin:0 auto;z-index:5;width:min(78vmin,700px);pointer-events:none;transform-origin:bottom center;opacity:.95}
+#weapon{position:fixed;left:0;right:0;bottom:-2.5vmin;margin:0 auto;z-index:5;width:min(78vmin,700px);pointer-events:none;transform-origin:bottom center;opacity:.95}
 #weapon img{width:100%;image-rendering:pixelated;filter:drop-shadow(0 0 18px rgba(255,159,28,.8))}
+#weapon.pistol img{width:50%;margin:0 auto;display:block}
 #weapon.walk img{animation:wbob .38s steps(2) infinite}
 @keyframes wbob{0%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-10px) rotate(2deg)}100%{transform:translateY(0) rotate(-2deg)}}
 #weapon.swing{animation:wswing .25s ease-out}
@@ -75,6 +76,13 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
  border:2px solid #ff9f1c;background:rgba(13,20,40,.85);color:#ff9f1c;padding:8px 12px;cursor:pointer}
 #menuBtn{position:fixed;top:166px;right:10px;z-index:6;font-size:13px;font-weight:800;border-radius:10px;
  border:2px solid #ff9f1c;background:rgba(13,20,40,.85);color:#ff9f1c;padding:8px 10px;cursor:pointer}
+/* бейдж комнаты — слева, чтобы не перекрывать ⛶/меню справа */
+#roomBadge{top:170px;left:10px;right:auto}
+/* прицел по центру экрана: белый + difference — виден на любом фоне */
+#cross{position:fixed;left:50%;top:50%;width:22px;height:22px;transform:translate(-50%,-50%);z-index:5;pointer-events:none;opacity:1;mix-blend-mode:difference}
+#cross i{position:absolute;background:#fff;box-shadow:none}
+#cross i:first-child{left:10px;top:2px;width:2px;height:18px}
+#cross i:last-child{left:2px;top:10px;width:18px;height:2px}
 #hudRow2{margin-top:2px;color:#ffd23f}
 .modal{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
  background:rgba(2,4,10,.75);padding:16px}

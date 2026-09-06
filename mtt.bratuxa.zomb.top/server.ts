@@ -51,6 +51,20 @@ async function loginUser(login: string, pass: string): Promise<{ ok: boolean; er
   return { ok: true, token };
 }
 
+// владелец игры (МТТ): логин задаётся env ADMIN_LOGIN, панель статистики только ему
+const ADMIN_LOGIN = (process.env.ADMIN_LOGIN ?? '').trim();
+
+async function changePassword(login: string, oldPass: string, newPass: string): Promise<{ ok: boolean; error?: string }> {
+  if (String(newPass ?? '').length < 4 || String(newPass ?? '').length > 64) return { ok: false, error: 'passlen' };
+  const row = db.query('SELECT phash FROM users WHERE login = ?').get(login) as { phash: string } | null;
+  if (!row) return { ok: false, error: 'nouser' };
+  const good = await Bun.password.verify(String(oldPass ?? ''), row.phash);
+  if (!good) return { ok: false, error: 'badpass' };
+  const phash = await Bun.password.hash(newPass);
+  db.run('UPDATE users SET phash = ? WHERE login = ?', [phash, login]);
+  return { ok: true };
+}
+
 function loginByToken(token: unknown): string {
   if (typeof token !== 'string' || !token) return '';
   try {
@@ -138,7 +152,7 @@ function duelSpawn(i: number): { x: number; z: number; yaw: number } {
 async function roomsApi(req: Request): Promise<Response | null> {
   const u = new URL(req.url);
   const p = u.pathname;
-  if (!p.startsWith('/api/rooms') && !p.startsWith('/api/register') && !p.startsWith('/api/login') && !p.startsWith('/api/me') && !p.startsWith('/api/profile')) return null;
+  if (!p.startsWith('/api/rooms') && !p.startsWith('/api/register') && !p.startsWith('/api/login') && !p.startsWith('/api/me') && !p.startsWith('/api/profile') && !p.startsWith('/api/password') && !p.startsWith('/api/admin') && !p.startsWith('/api/stats')) return null;
   const parts = p.split('/').filter(Boolean); // ['api','rooms', id?, action?]
 
   // ---- аккаунты ----
@@ -175,6 +189,48 @@ async function roomsApi(req: Request): Promise<Response | null> {
       return Response.json({ login, games: row.games ?? 0, best: row.best ?? 0, coins: row.coins ?? 0 });
     } catch {
       return Response.json({ login, games: 0, best: 0, coins: 0 });
+    }
+  }
+  // смена пароля: нужен живой токен + старый пароль
+  if (p === '/api/password' && req.method === 'POST') {
+    let body: Record<string, unknown> = {};
+    try { body = await req.json() as Record<string, unknown>; } catch { return Response.json({ error: 'bad' }, { status: 400 }); }
+    const login = loginByToken(body.token);
+    if (!login) return Response.json({ error: 'nouser' }, { status: 401 });
+    const r = await changePassword(login, String(body.old ?? ''), String(body.pass ?? ''));
+    if (!r.ok) return Response.json({ error: r.error }, { status: r.error === 'badpass' ? 401 : 400 });
+    return Response.json({ ok: true });
+  }
+  // админ-статистика МТТ: онлайн по комнатам — кто где и что делает
+  if (p === '/api/admin/stats' && req.method === 'GET') {
+    const login = loginByToken(u.searchParams.get('token'));
+    if (!ADMIN_LOGIN || login !== ADMIN_LOGIN) return Response.json({ error: 'forbidden' }, { status: 403 });
+    const out: object[] = [];
+    let totalPlayers = 0;
+    for (const r of rooms.values()) {
+      prune(r);
+      if (r.players.size === 0 && r.pending.size === 0) continue;
+      totalPlayers += r.players.size;
+      out.push({
+        id: r.id, name: r.name, mode: r.mode, started: r.started, round: r.round,
+        players: [...r.players.values()].map((m) => ({
+          nick: m.nick, login: m.login, char: m.char, hp: Math.round(m.hp),
+          score: m.score, kills: m.kills, wave: m.wave, x: Math.round(m.x), z: Math.round(m.z),
+        })),
+        pending: [...r.pending.values()].map((m) => ({ nick: m.nick, login: m.login })),
+      });
+    }
+    return Response.json({ rooms: out, totalPlayers, roomCount: out.length });
+  }
+  // общая статистика игры — видна всем: сколько сыграно, рекорд, онлайн
+  if (p === '/api/stats' && req.method === 'GET') {
+    try {
+      const row = db.query('SELECT COUNT(*) AS games, MAX(score) AS best FROM scores').get() as { games: number; best: number | null };
+      let online = 0;
+      for (const r of rooms.values()) { prune(r); online += r.players.size; }
+      return Response.json({ games: row.games ?? 0, best: row.best ?? 0, online });
+    } catch {
+      return Response.json({ games: 0, best: 0, online: 0 });
     }
   }
 

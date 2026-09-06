@@ -40,6 +40,8 @@ export interface HudState {
   moving: boolean;
   dash: number;
   kick: number;
+  med: number;
+  lvl: number;
 }
 
 export interface WeaponDef {
@@ -52,12 +54,15 @@ export interface WeaponDef {
   price: number;
   /** С какой волны доступна. */
   minWave: number;
+  /** Дальнобой: выстрел по прицелу, а не замах вокруг. */
+  ranged?: boolean;
 }
 
 export const WEAPONS: WeaponDef[] = [
   { id: 'fists', name: '👊 Кулаки', desc: 'Всегда с тобой', dmg: 32, range: 3.8, cd: 0.45, price: 0, minWave: 1 },
   { id: 'bat', name: '🏏 Бита', desc: 'Длиннее и злее', dmg: 48, range: 4.3, cd: 0.6, price: 300, minWave: 2 },
   { id: 'axe', name: '🪓 Секира', desc: 'Тяжёлый аргумент', dmg: 70, range: 4.6, cd: 0.85, price: 800, minWave: 3 },
+  { id: 'pistol', name: '🔫 Пистолет', desc: 'Бьёт далеко — целься прицелом', dmg: 45, range: 30, cd: 0.7, price: 1200, minWave: 4, ranged: true },
 ];
 
 export interface KeyMap {
@@ -69,6 +74,8 @@ export interface KeyMap {
   run: string;
   jump: string;
   ability: string;
+  switch: string;
+  use: string;
 }
 
 export const KEY_ACTIONS: Array<{ id: keyof KeyMap; label: string }> = [
@@ -80,11 +87,13 @@ export const KEY_ACTIONS: Array<{ id: keyof KeyMap; label: string }> = [
   { id: 'jump', label: '🐇 Прыжок' },
   { id: 'run', label: '💨 Бег' },
   { id: 'ability', label: '⚡ Рывок (МТТ)' },
+  { id: 'switch', label: '🔫 Смена оружия' },
+  { id: 'use', label: '💊 Аптечка' },
 ];
 
 export const DEFAULT_KEYS: KeyMap = {
   fwd: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD',
-  hit: 'KeyJ', run: 'ShiftLeft', jump: 'Space', ability: 'KeyC',
+  hit: 'KeyJ', run: 'ShiftLeft', jump: 'Space', ability: 'KeyC', switch: 'KeyE', use: 'KeyX',
 };
 
 export interface GameEvents {
@@ -167,6 +176,14 @@ export class Game {
   private weaponId = 'fists';
   private fantiki = 0;
   private owned: string[] = ['fists'];
+  // аптечки и опыт бойцов (не сносить сейвы: merge поверх)
+  private medkits = 0;
+  private xp: Record<string, number> = (() => {
+    try {
+      const d = JSON.parse(localStorage.getItem('mtt_xp_v1') ?? '{}') as Record<string, number>;
+      return { mtt: Math.max(0, Math.floor(d.mtt ?? 0)), krysa: Math.max(0, Math.floor(d.krysa ?? 0)) };
+    } catch { return { mtt: 0, krysa: 0 }; }
+  })();
   private soundOn = true;
   private sens = 1;
   private moving = false;
@@ -186,6 +203,19 @@ export class Game {
   private kickTurnT = 0;
   private kickTurnFrom = 0;
   private kickTurnDelta = 0;
+  // коснулся здания в полёте после кика — вол-кик перезаряжается мгновенно
+  private kickAirT = 0;
+  // трассеры пуль: светящиеся линии выстрелов, живут долю секунды
+  private tracers: Array<{ l: THREE.Line; life: number }> = [];
+  private kickTouch(): void {
+    if (this.charId !== 'krysa' || this.kickAirT <= 0 || this.py < 0.5) return;
+    if (this.wallKickCd > 0) {
+      this.wallKickCd = 0;
+      this.kickAirT = 0;
+      this.blip(700);
+      this.pushHud();
+    }
+  }
   private dashT = 0;
   private dashCd = 0;
   private dashDx = 0;
@@ -196,7 +226,8 @@ export class Game {
   private enemies: Enemy[] = [];
   // хитбокс окружения строго внутри текстуры и только до своей высоты h:
   // коробки — точный AABB, круглые — точный радиус. Пролететь/перепрыгнуть можно.
-  private solids: Array<{ x: number; z: number; hx: number; hz: number; h: number } | { x: number; z: number; r: number; h: number }> = [];
+  // deck: настил (мост) — снизу проход свободный, сверху можно стоять.
+  private solids: Array<{ x: number; z: number; hx: number; hz: number; h: number; deck?: boolean } | { x: number; z: number; r: number; h: number }> = [];
   private AC: AudioContext | null = null;
   private lookPointer = -1;
   private lookLX = 0;
@@ -250,9 +281,9 @@ export class Game {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
     this.loadQuality();
     this.loadChar();
+    this.applyLevel();
     const spec0 = charSpec(this.charId);
-    this.maxhp = spec0.hp;
-    this.hp = spec0.hp;
+    this.hp = this.maxhp;
     this.charSpd = spec0.spd;
     this.jumpVel = this.charId === 'krysa' ? 4.8 * Math.sqrt(3) : 4.8;
     this.renderer.setPixelRatio(this.quality === 'nice' ? Math.min(window.devicePixelRatio, 1.5) : 1);
@@ -326,22 +357,70 @@ export class Game {
     try {
       const raw = localStorage.getItem('mtt_shop_v1');
       if (!raw) return;
-      const d = JSON.parse(raw) as { fantiki?: number; owned?: string[]; weapon?: string; sound?: boolean; sens?: number };
+      const d = JSON.parse(raw) as { fantiki?: number; owned?: string[]; weapon?: string; sound?: boolean; sens?: number; med?: number };
       if (typeof d.fantiki === 'number') this.fantiki = Math.max(0, Math.floor(d.fantiki));
       if (Array.isArray(d.owned) && d.owned.length) this.owned = d.owned.filter((x) => WEAPONS.some((w) => w.id === x));
       if (!this.owned.includes('fists')) this.owned.unshift('fists');
       if (d.weapon && this.owned.includes(d.weapon)) this.weaponId = d.weapon;
       if (typeof d.sound === 'boolean') this.soundOn = d.sound;
       if (typeof d.sens === 'number') this.sens = Math.max(0.3, Math.min(2.5, d.sens));
+      if (typeof d.med === 'number') this.medkits = Math.max(0, Math.min(3, Math.floor(d.med)));
     } catch { /* noop */ }
   }
 
   private saveShop(): void {
     try {
       localStorage.setItem('mtt_shop_v1', JSON.stringify({
-        fantiki: this.fantiki, owned: this.owned, weapon: this.weaponId, sound: this.soundOn, sens: this.sens,
+        fantiki: this.fantiki, owned: this.owned, weapon: this.weaponId, sound: this.soundOn, sens: this.sens, med: this.medkits,
       }));
     } catch { /* noop */ }
+  }
+
+  // аптечки: максимум 3 в запасе, +50 HP по кнопке X
+  buyMedkit(): boolean {
+    if (this.medkits >= 3 || this.fantiki < 150) return false;
+    this.fantiki -= 150;
+    this.medkits++;
+    this.saveShop();
+    this.blip(700);
+    this.pushHud();
+    return true;
+  }
+
+  useMedkit(): boolean {
+    if (!this.started || this.dead || this.medkits <= 0 || this.hp >= this.maxhp) return false;
+    this.medkits--;
+    this.hp = Math.min(this.maxhp, this.hp + 50);
+    this.saveShop();
+    this.blip(600);
+    this.burst(this.px, 1.0, this.pz, 8);
+    this.pushHud();
+    return true;
+  }
+
+  // прокачка бойца: опыт за фраги/волны, уровень = 1+sqrt(xp/1000); +10 maxHP и +5% урона за уровень
+  level(): number {
+    return this.levelOf(this.charId);
+  }
+
+  levelOf(id: string): number {
+    return 1 + Math.floor(Math.sqrt((this.xp[id] ?? 0) / 1000));
+  }
+
+  private addXp(n: number): void {
+    this.xp[this.charId] = (this.xp[this.charId] ?? 0) + n;
+    try { localStorage.setItem('mtt_xp_v1', JSON.stringify(this.xp)); } catch { /* noop */ }
+    this.applyLevel();
+  }
+
+  private applyLevel(): void {
+    const spec = charSpec(this.charId);
+    this.maxhp = spec.hp + (this.level() - 1) * 10;
+    this.hp = Math.min(this.hp, this.maxhp);
+  }
+
+  private dmgMul(): number {
+    return 1 + (this.level() - 1) * 0.05;
   }
 
   buyWeapon(id: string): boolean {
@@ -367,15 +446,28 @@ export class Game {
     return true;
   }
 
+  // E: переключение ствола строго по купленным (по кругу, закрытое не выпадает)
+  switchWeapon(): string {
+    if (!this.started || this.dead) return this.weaponId;
+    const ids = WEAPONS.map((w) => w.id).filter((id) => this.owned.includes(id));
+    if (ids.length < 2) return this.weaponId;
+    const i = ids.indexOf(this.weaponId);
+    this.weaponId = ids[(i + 1) % ids.length];
+    this.saveShop();
+    this.pushHud();
+    this.blip(500);
+    return this.weaponId;
+  }
+
   setSound(v: boolean): void { this.soundOn = v; this.saveShop(); this.pushHud(); }
   setSens(v: number): void { this.sens = Math.max(0.3, Math.min(2.5, v)); this.saveShop(); }
   getChar(): string { return this.charId; }
   setChar(id: string): string {
     this.charId = charSpec(id).id;
     try { localStorage.setItem('mtt_char_v1', this.charId); } catch { /* noop */ }
+    this.applyLevel();
     const spec = charSpec(this.charId);
-    this.maxhp = spec.hp;
-    this.hp = spec.hp;
+    this.hp = this.maxhp;
     this.charSpd = spec.spd;
     // Крыса прыгает в 3 раза выше: высота ~ v², значит скорость ×√3
     this.jumpVel = this.charId === 'krysa' ? 4.8 * Math.sqrt(3) : 4.8;
@@ -625,33 +717,108 @@ export class Game {
       scene.add(m);
     });
 
-    // укрытия-коробки + билборды
+    // дома: каждый уникален (размер/цвет/крыша заданы, не рандом).
+    // Пары A и B стоят рядом и связаны мостами; на крышу A ведёт лестница.
     const winTex = Game.makeWindowsTex();
     const bbTex = new THREE.TextureLoader().load(dom1Url);
     bbTex.colorSpace = THREE.SRGBColorSpace;
-    const spots: Array<[number, number]> = [[-30, -20], [28, -28], [-24, 18], [30, 22], [0, -38], [-38, -2], [38, 0], [0, 38]];
-    for (const [bx, bz] of spots) {
-      const w = 10 + Math.random() * 4, d = 8 + Math.random() * 4, h = 7 + Math.random() * 6;
-      const tint = new THREE.Color().setHSL(0.07 + Math.random() * 0.05, 0.25, 0.8 + Math.random() * 0.2);
+    type Roof = 'tank' | 'antenna' | 'garden' | 'parapet' | 'flat';
+    const houses: Array<{ x: number; z: number; w: number; d: number; h: number; tint: number; roof: Roof; bb: boolean }> = [
+      { x: -24, z: -24, w: 6, d: 6, h: 5, tint: 0xd8b48f, roof: 'flat', bb: false },
+      { x: -24, z: -16, w: 6, d: 6, h: 5, tint: 0xc9a06a, roof: 'garden', bb: false },
+      { x: 24, z: 19, w: 6, d: 6, h: 6, tint: 0xb08d5f, roof: 'flat', bb: false },
+      { x: 24, z: 27, w: 6, d: 6, h: 6, tint: 0xd8c49a, roof: 'tank', bb: false },
+      { x: -41, z: -24, w: 8, d: 8, h: 7, tint: 0xcf9a5a, roof: 'tank', bb: true },
+      { x: 44, z: -24, w: 9, d: 8, h: 8, tint: 0xb57e4a, roof: 'antenna', bb: true },
+      { x: -24, z: 24, w: 9, d: 9, h: 6, tint: 0xdba860, roof: 'garden', bb: true },
+      { x: 44, z: 24, w: 10, d: 8, h: 9, tint: 0xc08a4e, roof: 'parapet', bb: true },
+    ];
+    const roofMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2e, roughness: 0.95 });
+    for (const cfg of houses) {
       // окна — свой повтор под размер коробки: окно ~1.2м, не тянется на весь дом
       const wt = winTex.clone();
       wt.wrapS = wt.wrapT = THREE.MirroredRepeatWrapping;
-      wt.repeat.set(Math.max(1, Math.round(w / 6)), Math.max(1, Math.round(h / 6)));
+      wt.repeat.set(Math.max(1, Math.round(cfg.w / 6)), Math.max(1, Math.round(cfg.h / 6)));
       wt.needsUpdate = true;
       const m = new THREE.Mesh(
-        new THREE.BoxGeometry(w, h, d),
-        new THREE.MeshStandardMaterial({ map: wt, roughness: 0.8, color: tint }),
+        new THREE.BoxGeometry(cfg.w, cfg.h, cfg.d),
+        new THREE.MeshStandardMaterial({ map: wt, roughness: 0.8, color: cfg.tint }),
       );
-      m.position.set(bx, h / 2, bz);
+      m.position.set(cfg.x, cfg.h / 2, cfg.z);
       m.castShadow = true; m.receiveShadow = true;
       scene.add(m);
-      this.solids.push({ x: bx, z: bz, hx: w / 2, hz: d / 2, h });
-      if (Math.random() < 0.6) {
+      this.solids.push({ x: cfg.x, z: cfg.z, hx: cfg.w / 2, hz: cfg.d / 2, h: cfg.h });
+      // крыша: у каждого своя фишка
+      if (cfg.roof === 'tank') {
+        const tank = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 2, 10), roofMat);
+        tank.position.set(cfg.x + cfg.w / 4, cfg.h + 1, cfg.z);
+        tank.castShadow = true;
+        scene.add(tank);
+      } else if (cfg.roof === 'antenna') {
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 5, 6), roofMat);
+        pole.position.set(cfg.x, cfg.h + 2.5, cfg.z);
+        scene.add(pole);
+        const tip = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 8), new THREE.MeshBasicMaterial({ color: 0xff3b3b }));
+        tip.position.set(cfg.x, cfg.h + 5, cfg.z);
+        scene.add(tip);
+      } else if (cfg.roof === 'garden') {
+        const gr = new THREE.Mesh(
+          new THREE.CircleGeometry(Math.min(cfg.w, cfg.d) / 2 - 0.5, 18),
+          new THREE.MeshStandardMaterial({ color: 0x3fa34d, roughness: 1 }),
+        );
+        gr.rotation.x = -Math.PI / 2;
+        gr.position.set(cfg.x, cfg.h + 0.03, cfg.z);
+        scene.add(gr);
+      } else if (cfg.roof === 'parapet') {
+        const ph = 0.6, pt = 0.3;
+        const mkP = (w: number, d: number, x: number, z: number): void => {
+          const p = new THREE.Mesh(new THREE.BoxGeometry(w, ph, d), roofMat);
+          p.position.set(x, cfg.h + ph / 2, z);
+          p.castShadow = true;
+          scene.add(p);
+          this.solids.push({ x, z, hx: w / 2, hz: d / 2, h: cfg.h + ph });
+        };
+        mkP(cfg.w, pt, cfg.x, cfg.z - cfg.d / 2);
+        mkP(cfg.w, pt, cfg.x, cfg.z + cfg.d / 2);
+        mkP(pt, cfg.d, cfg.x - cfg.w / 2, cfg.z);
+        mkP(pt, cfg.d, cfg.x + cfg.w / 2, cfg.z);
+      }
+      if (cfg.bb) {
         const bb = new THREE.Mesh(new THREE.PlaneGeometry(8, 4.5), new THREE.MeshBasicMaterial({ map: bbTex }));
-        bb.position.set(bx, h + 2.6, bz);
-        bb.rotation.y = Math.atan2(-bx, -bz);
+        bb.position.set(cfg.x, cfg.h + 2.6, cfg.z);
+        bb.rotation.y = Math.atan2(-cfg.x, -cfg.z);
         scene.add(bb);
       }
+    }
+
+    // мостики между соседними домами пары (настил: сверху стоим, снизу проходим)
+    const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x7a5230, roughness: 0.9 });
+    const mkBridge = (x: number, z: number, w: number, len: number, top: number): void => {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(w, 0.3, len), bridgeMat);
+      b.position.set(x, top - 0.15, z);
+      b.castShadow = true; b.receiveShadow = true;
+      scene.add(b);
+      this.solids.push({ x, z, hx: w / 2, hz: len / 2, h: top, deck: true });
+      // столбики-опоры по краям (декор)
+      for (const e of [-1, 1]) {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, top, 8), bridgeMat);
+        post.position.set(x + e * (w / 2 - 0.2), top / 2, z);
+        scene.add(post);
+      }
+    };
+    mkBridge(-24, -20, 2.5, 3, 5);
+    mkBridge(24, 23, 2.5, 3, 6);
+
+    // лестница на крышу A1: ступени по 1м снаружи дома — перешагиваем автоматом
+    const stairMat = new THREE.MeshStandardMaterial({ color: 0x9aa0ad, roughness: 1 });
+    for (let i = 0; i < 4; i++) {
+      const top = i + 1;
+      const sx = -33.9 + i * 1.6;
+      const st = new THREE.Mesh(new THREE.BoxGeometry(1.6, top, 3), stairMat);
+      st.position.set(sx, top / 2, -24);
+      st.castShadow = true; st.receiveShadow = true;
+      scene.add(st);
+      this.solids.push({ x: sx, z: -24, hx: 0.8, hz: 1.5, h: top });
     }
 
     // переулки: два ряда узких высоких домов образуют улочки с фонарями (детерминированно, мимо коробок)
@@ -960,6 +1127,7 @@ export class Game {
     this.atkCd = W.cd;
     this.swingT = 0.22;
     this.ev.onSwing();
+    if (W.ranged) return this.shoot(W.dmg, W.range);
     this.blip(220);
     const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
     let hits = 0;
@@ -971,25 +1139,9 @@ export class Game {
       if (d > W.range) continue;
       const cos = (dx * fx + dz * fz) / (d || 1);
       if (cos < 0.35) continue;
-      e.hp -= W.dmg + Math.random() * 8;
-      e.hurtT = 0.18;
-      const push = 1.6;
-      const nx = clampArena(e.g.position.x + (dx / (d || 1)) * push);
-      const nz = clampArena(e.g.position.z + (dz / (d || 1)) * push);
-      if (!this.hitSolid(nx, e.g.position.z, 0.8)) e.g.position.x = nx;
-      if (!this.hitSolid(e.g.position.x, nz, 0.8)) e.g.position.z = nz;
-      this.updateHpBar(e);
-      this.burst(e.g.position.x, 1.2, e.g.position.z, 10);
+      e.hp -= W.dmg * this.dmgMul() + Math.random() * 8;
+      this.afterHit(e, dx, dz, d, 1.6);
       hits++;
-      if (e.hp <= 0) {
-        e.dead = true;
-        this.scene.remove(e.g);
-        this.kills++;
-        this.score += 100 + this.wave * 10;
-        this.fantiki += 10;
-        this.saveShop();
-        this.blip(520);
-      }
     }
     if (hits > 0) this.blip(440);
     this.pushHud();
@@ -997,11 +1149,89 @@ export class Game {
       this.wave++;
       this.hp = Math.min(this.maxhp, this.hp + 25);
       this.fantiki += 25;
+      this.addXp(50);
       this.saveShop();
       this.spawnWave();
     }
     this.drawMM();
     return hits;
+  }
+
+  // общий итог попадания: отброс, полоса HP, частицы, фраг
+  private afterHit(e: Enemy, dx: number, dz: number, d: number, push: number): void {
+    e.hurtT = 0.18;
+    const nx = clampArena(e.g.position.x + (dx / (d || 1)) * push);
+    const nz = clampArena(e.g.position.z + (dz / (d || 1)) * push);
+    if (!this.hitSolid(nx, e.g.position.z, 0.8)) e.g.position.x = nx;
+    if (!this.hitSolid(e.g.position.x, nz, 0.8)) e.g.position.z = nz;
+    this.updateHpBar(e);
+    this.burst(e.g.position.x, 1.2, e.g.position.z, 10);
+    if (e.hp <= 0) {
+      e.dead = true;
+      this.scene.remove(e.g);
+      this.kills++;
+      this.score += 100 + this.wave * 10;
+      this.fantiki += 10;
+      this.addXp(10);
+      this.saveShop();
+      this.blip(520);
+    }
+  }
+
+  // 🔫 выстрел: хитскан по прицелу — ближайший враг в конусе ~8°; урон тает с дистанцией
+  private shoot(baseDmg: number, range: number): number {
+    this.blip(880);
+    const cp = Math.cos(this.pitch);
+    const dx = -Math.sin(this.yaw) * cp, dy = Math.sin(this.pitch), dz = -Math.cos(this.yaw) * cp;
+    const cx = this.px, cy = 1.7 + this.py, cz = this.pz;
+    let best: Enemy | null = null;
+    let bestD = Infinity;
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      const ty = e.kind === 'fly' ? 3.2 : 1.0 + e.ey;
+      const vx = e.g.position.x - cx, vy = ty - cy, vz = e.g.position.z - cz;
+      const dist = Math.hypot(vx, vy, vz);
+      if (dist > range || dist < 0.5) continue;
+      const cos = (vx * dx + vy * dy + vz * dz) / dist;
+      if (cos < 0.99) continue;
+      if (dist < bestD) { bestD = dist; best = e; }
+    }
+    if (!best) {
+      // мимо: пыль на излёте пули + трассер в никуда
+      this.burst(cx + dx * 8, cy + dy * 8, cz + dz * 8, 3);
+      this.tracer(cx, cy, cz, cx + dx * range, cy + dy * range, cz + dz * range);
+      this.pushHud();
+      return 0;
+    }
+    const fall = 1 - (bestD / range) * 0.5;
+    best.hp -= baseDmg * fall * this.dmgMul() + Math.random() * 5;
+    this.tracer(cx, cy, cz, best.g.position.x, (best.kind === 'fly' ? 3.2 : 1.0 + best.ey), best.g.position.z);
+    this.afterHit(best, best.g.position.x - cx, best.g.position.z - cz, Math.hypot(best.g.position.x - cx, best.g.position.z - cz), 0.8);
+    this.blip(440);
+    this.pushHud();
+    if (this.map === 'arena' && this.enemies.every((e) => e.dead)) {
+      this.wave++;
+      this.hp = Math.min(this.maxhp, this.hp + 25);
+      this.fantiki += 25;
+      this.addXp(50);
+      this.saveShop();
+      this.spawnWave();
+    }
+    this.drawMM();
+    return 1;
+  }
+
+  // светящаяся линия выстрела от дула до точки попадания
+  private tracer(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number): void {
+    const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x1, y1, z1), new THREE.Vector3(x2, y2, z2)]);
+    const mat = new THREE.LineBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.95 });
+    const l = new THREE.Line(geo, mat);
+    this.scene.add(l);
+    this.tracers.push({ l, life: 1 });
+    if (this.tracers.length > 12) {
+      const old = this.tracers.shift();
+      if (old) { this.scene.remove(old.l); old.l.geometry.dispose(); (old.l.material as THREE.Material).dispose(); }
+    }
   }
 
   // рывок МТТ: строго в сторону взгляда, включая вверх/вниз (куда смотрит камера), кд 3с.
@@ -1039,10 +1269,14 @@ export class Game {
   private hitSolid(x: number, z: number, rad: number, y = 0): boolean {
     for (const s of this.solids) {
       if (y > s.h + 0.4) continue;
+      // стоишь на верху объекта — это пол, а не стена: идём свободно
+      if (y >= s.h - 0.1) continue;
       if ('r' in s) {
         const dx = x - s.x, dz = z - s.z;
         if (dx * dx + dz * dz < (s.r + rad) * (s.r + rad)) return true;
       } else {
+        // настил: пока ты ниже него — проходишь под мостом свободно
+        if (s.deck && y < s.h - 0.5) continue;
         const cx = Math.max(s.x - s.hx, Math.min(x, s.x + s.hx));
         const cz = Math.max(s.z - s.hz, Math.min(z, s.z + s.hz));
         const dx = x - cx, dz = z - cz;
@@ -1081,6 +1315,8 @@ export class Game {
       weapon: this.weaponId,
       owned: [...this.owned],
       moving: this.moving,
+      med: this.medkits,
+      lvl: this.level(),
       dash: Math.round(this.dashCd * 10) / 10,
       kick: Math.round(this.wallKickCd * 10) / 10,
     });
@@ -1249,6 +1485,29 @@ export class Game {
     return this.hitSolid(Number(x) || 0, Number(z) || 0, 0.9, Number(y) || 0);
   }
 
+  // высота опоры под ногами: верх самого высокого объекта в этой точке (крыши, мосты, ступени).
+  // rad расширяет поиск: для перешагивания смотрим опору впереди по курсу.
+  groundAt(x: number, z: number, rad = 0): number {
+    let g = 0;
+    for (const s of this.solids) {
+      if ('r' in s) {
+        const dx = x - s.x, dz = z - s.z;
+        if (dx * dx + dz * dz <= (s.r + rad) * (s.r + rad) && s.h > g) g = s.h;
+      } else {
+        if (Math.abs(x - s.x) <= s.hx + rad && Math.abs(z - s.z) <= s.hz + rad && s.h > g) g = s.h;
+      }
+    }
+    return g;
+  }
+
+  debugGround(x: number, z: number): number {
+    return this.groundAt(Number(x) || 0, Number(z) || 0);
+  }
+
+  debugTracers(): number {
+    return this.tracers.length;
+  }
+
   private loop = (): void => {
     if (this.destroyed) return;
     this.raf = requestAnimationFrame(this.loop);
@@ -1267,7 +1526,8 @@ export class Game {
       // прыжок: с земли — вверх; Крыса в полёте у стены — вол-кик (кд 5с).
       // Кик швыряет ПРОТИВ движения (разворот на 180°); если стоишь — толчок от стены.
       if (this.input[km.jump]) {
-        if (this.py <= 0) {
+        // прыжок с любой опоры: земля, крыша, мост
+        if (this.py <= this.groundAt(this.px, this.pz) + 0.01) {
           this.pvy = this.jumpVel;
         } else if (this.charId === 'krysa' && this.wallT > 0 && this.wallKickCd <= 0 && this.py > 0.05) {
           let kf = (this.input[km.fwd] || this.input.ArrowUp ? 1 : 0) - (this.input[km.back] || this.input.ArrowDown ? 1 : 0) - this.joy.y;
@@ -1294,6 +1554,7 @@ export class Game {
           while (dyaw < -Math.PI) dyaw += Math.PI * 2;
           this.kickTurnDelta = dyaw;
           this.kickTurnT = 0.3;
+          this.kickAirT = 1.2;
           this.wallT = 0;
           this.wallKickCd = 5;
           this.burst(this.px, 1.0, this.pz, 10);
@@ -1302,10 +1563,24 @@ export class Game {
         }
       }
       if (this.wallT > 0) this.wallT -= dt;
+      // трассеры гаснут за долю секунды
+      for (let i = this.tracers.length - 1; i >= 0; i--) {
+        const t = this.tracers[i];
+        t.life -= dt * 3.5;
+        if (t.life <= 0) {
+          this.scene.remove(t.l);
+          t.l.geometry.dispose();
+          (t.l.material as THREE.Material).dispose();
+          this.tracers.splice(i, 1);
+        } else {
+          (t.l.material as THREE.LineBasicMaterial).opacity = t.life * 0.95;
+        }
+      }
       if (this.wallKickCd > 0) {
         this.wallKickCd -= dt;
         if (Math.floor(this.wallKickCd * 5) !== Math.floor((this.wallKickCd + dt) * 5)) this.pushHud();
       }
+      if (this.kickAirT > 0) this.kickAirT -= dt;
       // доворот камеры за вол-киком: быстро и плавно
       if (this.kickTurnT > 0) {
         this.kickTurnT -= dt;
@@ -1319,6 +1594,18 @@ export class Game {
         this.dash();
       }
       if (this.dashCd > 0) this.dashCd -= dt;
+      // смена оружия на назначенной клавише (по умолчанию E) — только купленное
+      if (this.input[km.switch] || this.input.KeyE) {
+        this.input[km.switch] = false;
+        this.input.KeyE = false;
+        this.switchWeapon();
+      }
+      // аптечка на назначенной клавише (по умолчанию X)
+      if (this.input[km.use] || this.input.KeyX) {
+        this.input[km.use] = false;
+        this.input.KeyX = false;
+        this.useMedkit();
+      }
       // движение: назначенные клавиши + стрелки + джойстик
       let f = (this.input[km.fwd] || this.input.ArrowUp ? 1 : 0) - (this.input[km.back] || this.input.ArrowDown ? 1 : 0) - this.joy.y;
       let r = (this.input[km.right] ? 1 : 0) - (this.input[km.left] ? 1 : 0) + this.joy.x;
@@ -1335,18 +1622,33 @@ export class Game {
         const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
         const nx = this.px + (fx * nf + rx * nr) * sp * dt;
         const nz = this.pz + (fz * nf + rz * nr) * sp * dt;
-        // стена: запоминаем нормаль (толчок от стены для вол-кика Крысы)
+        // стена: запоминаем нормаль (толчок от стены для вол-кика Крысы).
+        // невысокий порог (ступень ≤1.1м) перешагиваем автоматом — так лезем по лестницам на крыши
         if (this.hitSolid(nx, this.pz, 0.9, this.py)) {
-          this.wallNx = nx > this.px ? -1 : 1;
-          this.wallNz = 0;
-          this.wallT = 0.3;
+          const step = this.groundAt(nx, this.pz, 0.9);
+          if (step > this.py && step - this.py <= 1.1 && this.pvy <= 0.5) {
+            this.py = step;
+            this.px = this.clamp(nx);
+          } else {
+            this.wallNx = nx > this.px ? -1 : 1;
+            this.wallNz = 0;
+            this.wallT = 0.3;
+            this.kickTouch();
+          }
         } else {
           if (!this.hitSolid(nx, this.pz, 0.9, this.py)) this.px = this.clamp(nx);
         }
         if (this.hitSolid(this.px, nz, 0.9, this.py)) {
-          this.wallNx = 0;
-          this.wallNz = nz > this.pz ? -1 : 1;
-          this.wallT = 0.3;
+          const step = this.groundAt(this.px, nz, 0.9);
+          if (step > this.py && step - this.py <= 1.1 && this.pvy <= 0.5) {
+            this.py = step;
+            this.pz = this.clamp(nz);
+          } else {
+            this.wallNx = 0;
+            this.wallNz = nz > this.pz ? -1 : 1;
+            this.wallT = 0.3;
+            this.kickTouch();
+          }
         } else {
           this.pz = this.clamp(nz);
         }
@@ -1364,7 +1666,9 @@ export class Game {
       } else {
         this.pvy -= 12 * dt;
         this.py += this.pvy * dt;
-        if (this.py <= 0) { this.py = 0; this.pvy = 0; }
+        // приземление на опору под ногами: земля, крыша, мост, ступень
+        const g = this.groundAt(this.px, this.pz);
+        if (this.py <= g) { this.py = g; this.pvy = 0; }
       }
       // враги идут к игроку и бьют в упор
       for (const e of this.enemies) {
