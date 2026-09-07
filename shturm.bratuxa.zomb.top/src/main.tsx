@@ -190,10 +190,17 @@ window.addEventListener('resize', applySize);
 applySize();
 
 // ---------- Ввод: pointer-lock обзор, мышь огонь, колесо оружие, Esc пауза ----------
+// Клик был по кнопке меню, а не по канвасу — лок надо брать явно при старте,
+// иначе мышь не крутит с первого кадра и кажется что «W ломает вращение».
+export function lockPointer() {
+  if (!canvas || document.pointerLockElement === canvas) return;
+  try {
+    const r = canvas.requestPointerLock() as unknown as Promise<void> | undefined;
+    (r as Promise<void> | undefined)?.catch?.(() => {});
+  } catch { /* iframe/deny — подсказка в HUD скажет кликнуть */ }
+}
 canvas.addEventListener('click', () => {
-  if (gameStore.get().phase === 'playing' && document.pointerLockElement !== canvas) {
-    canvas.requestPointerLock?.();
-  }
+  if (gameStore.get().phase === 'playing') lockPointer();
 });
 document.addEventListener('mousemove', (e) => {
   if (document.pointerLockElement !== canvas) return;
@@ -329,6 +336,7 @@ function startGame(map: MapId, diff: Difficulty) {
   sim.enemies = [];
   gameStore.reset(map, diff);
   gameStore.set({ phase: 'playing' });
+  lockPointer(); // «В бой!» — клик по кнопке, лок берём явно, иначе мышь не крутит
   startWave(1);
 }
 
@@ -368,6 +376,7 @@ function pauseGame() {
 function resumeGame() {
   if (gameStore.get().phase !== 'paused') return;
   gameStore.set({ phase: 'playing' });
+  lockPointer(); // реванш/продолжить — клик по кнопке, лок берём явно
 }
 
 function pushHud(message?: string) {

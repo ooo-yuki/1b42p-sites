@@ -180,6 +180,13 @@ export function App() {
   const inGame = phase === 'playing' || phase === 'paused';
   // Тач-UI только на тачах — десктопу стики не нужны (мышь + WASD).
   const [isTouch] = useState(() => 'ontouchstart' in window || navigator.maxTouchPoints > 0);
+  // Подсказка лока: без pointer lock мышь не крутит — показываем, а не молчим.
+  const [locked, setLocked] = useState(() => document.pointerLockElement !== null);
+  useEffect(() => {
+    const upd = () => setLocked(document.pointerLockElement !== null);
+    document.addEventListener('pointerlockchange', upd);
+    return () => document.removeEventListener('pointerlockchange', upd);
+  }, []);
 
   return (
     <>
@@ -189,6 +196,13 @@ export function App() {
           reserve={snap.reserve} kills={snap.kills} enemies={snap.enemiesLeft}
           fps={snap.fps} map={snap.map} message={snap.message}
         />
+      )}
+      {phase === 'playing' && !isTouch && !locked && (
+        <div style={{
+          position: 'fixed', top: '18%', left: '50%', transform: 'translateX(-50%)',
+          color: '#ffd166', fontFamily: 'system-ui', fontSize: 18, zIndex: 10,
+          background: 'rgba(0,0,0,0.55)', padding: '8px 16px', borderRadius: 10,
+        }}>🖱 кликни по игре для обзора</div>
       )}
       {phase === 'playing' && isTouch && (
         <>
