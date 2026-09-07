@@ -1,6 +1,6 @@
 import type { JSX } from 'react';
 import {
-  Crown, Database, Dumbbell, Flame, Footprints, Headphones, Lock, Mic, Scissors,
+  Crown, Database, Dumbbell, Flame, Footprints, Gamepad2, Globe, Headphones, Lock, Mic, Scissors,
   Shield, Shirt, Sparkles, Tent, Ticket, Trophy, Users, Warehouse, Wind, Zap,
   type LucideIcon,
 } from 'lucide-react';
@@ -33,14 +33,24 @@ export function Masthead(props: { h: number; f: number; fans: number }): JSX.Ele
   return (
     <div id="top">
       <h1>
-        <span>
-          <span className="k">42 БРАТУХА</span>ФАБРИКА ХАЙПА
+        <span className="k">42 БРАТУХА</span>
+        <span className="title-row">
+          <Trophy data-icon="inline-start" aria-hidden size={30} />
+          ФАБРИКА ХАЙПА
         </span>
-        <Trophy data-icon="inline-start" aria-hidden />
       </h1>
       <div className="sub">
-        продюсер Пятёрки · дорога на SLAY 2026 ·{' '}
-        <a href="minigames.html">Мини-игры</a> · <a href="https://hub.bratuxa.zomb.top">Хаб 1Б42П</a>
+        <span className="sub-tag">продюсер Пятёрки · дорога на SLAY 2026</span>
+        <span className="sub-links">
+          <a href="minigames.html">
+            <Gamepad2 data-icon="inline-start" aria-hidden size={13} />
+            Мини-игры
+          </a>
+          <a href="https://hub.bratuxa.zomb.top">
+            <Globe data-icon="inline-start" aria-hidden size={13} />
+            Хаб 1Б42П
+          </a>
+        </span>
       </div>
       <div id="res">
         <span className="pill">

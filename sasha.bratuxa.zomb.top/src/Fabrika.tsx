@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
-import { Crown, Mic, PartyPopper, Tent, Trophy, Users, type LucideIcon } from 'lucide-react';
+import { Crown, Gamepad2, House, Mic, PartyPopper, Tent, Trophy, Users, type LucideIcon } from 'lucide-react';
 import { useBeacon } from './hooks';
 import './fabrika.css';
 import { Masthead, Shop, Venues } from './fabrika/parts';
@@ -194,9 +194,14 @@ export default function Fabrika(): JSX.Element {
             </div>
           </div>
         )}
-        <p className="fab-home">
-          <a href="minigames.html">Зал автоматов</a> · <a href="index.html">Саша ⁴² — на главную</a>
-        </p>
+        <nav className="fab-home" aria-label="Навигация">
+          <a href="minigames.html">
+            <Gamepad2 data-icon="inline-start" aria-hidden size={15} /> Зал автоматов
+          </a>
+          <a href="index.html">
+            <House data-icon="inline-start" aria-hidden size={15} /> Саша ⁴² — на главную
+          </a>
+        </nav>
       </div>
 
       {winOpen && (

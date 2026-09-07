@@ -94,9 +94,18 @@ a {
   text-shadow: 0 0 26px rgba(0, 96, 170, 0.55);
   animation: rise 0.5s ease-out backwards;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  gap: 2px;
+}
+#top h1 .title-row {
+  display: inline-flex;
+  align-items: center;
   gap: 10px;
+}
+#top h1 .title-row svg {
+  color: #6db9f2;
+  flex: none;
 }
 #top h1 .k {
   display: block;
@@ -106,17 +115,40 @@ a {
   text-shadow: none;
 }
 #top .sub {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
   text-align: center;
   font-size: 12px;
   color: var(--dim);
-  margin-top: 6px;
+  margin-top: 8px;
   animation: rise 0.5s 0.08s ease-out backwards;
+}
+#top .sub .sub-links {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+#top .sub .sub-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #9ec9f0;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+#top .sub .sub-links a:hover {
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 #res {
   display: flex;
   gap: 6px;
   justify-content: center;
-  margin-top: 10px;
+  margin-top: 12px;
   flex-wrap: wrap;
   animation: rise 0.5s 0.14s ease-out backwards;
 }
@@ -515,13 +547,33 @@ button.buy:active {
 }
 
 .fab-home {
-  display: block;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
   margin: 18px auto 34px;
   max-width: 640px;
   padding: 0 12px;
-  font-size: 14px;
-  color: var(--dim);
+}
+.fab-home a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #0d1428;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+}
+.fab-home a:hover {
+  border-color: var(--blue);
+}
+.fab-home a svg {
+  color: #6db9f2;
 }
 
 @media (max-width: 480px) {
