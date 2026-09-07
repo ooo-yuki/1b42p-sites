@@ -200,6 +200,9 @@ interface Remote {
   z: number;
   tx: number;
   tz: number;
+  /** буфер слепков {t,x,z} по времени получения: рендерим прошлое (now-550мс) —
+      движение непрерывно при любых рваных обновлениях */
+  snaps: Array<{ t: number; x: number; z: number }>;
   hp: number;
   char: string;
   weapon: string;
@@ -234,6 +237,8 @@ interface Enemy {
   net: boolean;
   tx: number;
   tz: number;
+  /** буфер слепков хоста: рендерим прошлое — кукла не дёргается */
+  snaps: Array<{ t: number; x: number; z: number }>;
   ewave: number;
 }
 
@@ -2428,7 +2433,7 @@ export class Game {
       maxhp: boss ? 500 + this.wave * 50 : fly ? 70 : 100,
       speed: boss ? 1.5 : 1.7 + Math.random() * 1.1 + this.wave * 0.12 + (fly ? 0.6 : 0),
       hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, ey: 0, evy: 0, hopCd: 1 + Math.random() * 2, dead: false,
-      mobId: this.mobIdSeq++, net: false, tx: sx, tz: sz, ewave: this.wave,
+      mobId: this.mobIdSeq++, net: false, tx: sx, tz: sz, snaps: [], ewave: this.wave,
     };
     this.updateHpBar(foe);
     this.enemies.push(foe);
@@ -2783,6 +2788,8 @@ export class Game {
       this.enemies = this.enemies.filter((e) => !e.net);
       this.netMax.clear();
       this.netWave = top;
+      // гость живёт волной хоста: иначе HUD навсегда на 1-й, баннеров нет, счёт врет
+      if (this.wave !== top) { this.wave = top; this.pushHud(); }
     }
     const seen = new Set<number>();
     for (const m of list.slice(0, 60)) {
@@ -2808,11 +2815,13 @@ export class Game {
         e = {
           ...v, kind, hp: maxhp, maxhp, speed: 0,
           hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, ey: 0, evy: 0, hopCd: 1e9, dead: false,
-          mobId: id, net: true, tx: v.g.position.x, tz: v.g.position.z, ewave: Math.round(Number(m.wave) || 1),
+          mobId: id, net: true, tx: v.g.position.x, tz: v.g.position.z, snaps: [{ t: performance.now(), x: v.g.position.x, z: v.g.position.z }], ewave: Math.round(Number(m.wave) || 1),
         };
         this.updateHpBar(e);
         this.enemies.push(e);
       } else {
+        // слепок хоста в буфер куклы
+        this.snapPush(e.snaps, performance.now(), Number(m.x) || 0, Number(m.z) || 0);
         e.tx = Number(m.x) || 0;
         e.tz = Number(m.z) || 0;
         e.hp = Math.max(0, Math.round(Number(m.hp) || 0));
@@ -2952,6 +2961,40 @@ export class Game {
 
   // сокомнатники: полноценные бойцы, а не призраки — тело в цвете, ствол в руках,
   // удары вспышкой, прыжки высотой, смерти лежачими (позиции с сервера комнаты)
+  /** Буфер слепков: положить точку, держать последние 8. Точный дубль
+      выбрасываем — иначе рендер ползёт через нулевой сегмент (пауза). */
+  private snapPush(snaps: Array<{ t: number; x: number; z: number }>, t: number, x: number, z: number): void {
+    const last = snaps[snaps.length - 1];
+    if (last && last.x === x && last.z === z) return;
+    snaps.push({ t, x, z });
+    if (snaps.length > 8) snaps.splice(0, snaps.length - 8);
+  }
+
+  /** Позиция в момент rt по буферу: между слепками — линейно, телепорт >20м — снап. */
+  private snapAt(snaps: Array<{ t: number; x: number; z: number }>, rt: number, fx: number, fz: number): { x: number; z: number } {
+    const n = snaps.length;
+    if (n === 0) return { x: fx, z: fz };
+    if (rt <= snaps[0].t) return { x: snaps[0].x, z: snaps[0].z };
+    for (let i = 0; i + 1 < n; i++) {
+      const a = snaps[i], b = snaps[i + 1];
+      if (rt >= a.t && rt <= b.t) {
+        const dx = b.x - a.x, dz = b.z - a.z;
+        if (dx * dx + dz * dz > 400) return { x: b.x, z: b.z };
+        const k = b.t > a.t ? (rt - a.t) / (b.t - a.t) : 1;
+        return { x: a.x + dx * k, z: a.z + dz * k };
+      }
+    }
+    const last = snaps[n - 1];
+    const prev = snaps[n - 2];
+    // слепки кончились (пропуск пульса): тянемся дальше с той же скоростью, не стоим
+    if (prev && last.t > prev.t) {
+      const dt = last.t - prev.t;
+      const extra = Math.min(rt - last.t, 1500) / dt;
+      return { x: last.x + (last.x - prev.x) * extra, z: last.z + (last.z - prev.z) * extra };
+    }
+    return { x: last.x, z: last.z };
+  }
+
   setRemotes(list: RemotePlayer[]): void {
     const seen = new Set<string>();
     for (const p of list.slice(0, 8)) {
@@ -2983,7 +3026,7 @@ export class Game {
         lab.position.set(0, 2.5, 0);
         g.add(lab);
         this.scene.add(g);
-        r = { nick, g, cv, tex: ltex, gunCv, gunTex, x: 0, z: 0, tx: 0, tz: 0, hp: 100, char, weapon: '', py: 0, atk: 0, flash: 0, dead: false };
+        r = { nick, g, cv, tex: ltex, gunCv, gunTex, x: 0, z: 0, tx: 0, tz: 0, snaps: [], hp: 100, char, weapon: '', py: 0, atk: 0, flash: 0, dead: false };
         this.gunIcon(weapon, gunCv, gunTex);
         r.weapon = weapon;
         this.remotes.push(r);
@@ -3000,9 +3043,11 @@ export class Game {
         }
       }
       const rr: Remote = r;
-      // цели с сервера; рендер догоняет их плавно каждый кадр (без задержек и рывков)
+      // слепок в буфер: рендерим прошлое — движение непрерывно при рваных битах
       rr.tx = this.clamp(Number(p.x) || 0);
       rr.tz = this.clamp(Number(p.z) || 0);
+      const nowMs = performance.now();
+      this.snapPush(rr.snaps, nowMs, rr.tx, rr.tz);
       if (rr.x === 0 && rr.z === 0 && (rr.tx !== 0 || rr.tz !== 0)) { rr.x = rr.tx; rr.z = rr.tz; }
       rr.hp = Math.max(0, Math.min(100, Number(p.hp) || 0));
       rr.py = Math.max(0, Math.min(30, Number(p.py) || 0));
@@ -3328,9 +3373,10 @@ export class Game {
         const dz = this.pz - e.g.position.z;
         const d = Math.hypot(dx, dz) || 1;
         if (e.net) {
-          const k = 1 - Math.exp(-8 * dt);
-          e.g.position.x += ((e.tx ?? e.g.position.x) - e.g.position.x) * k;
-          e.g.position.z += ((e.tz ?? e.g.position.z) - e.g.position.z) * k;
+          // кукла: прошлое по буферу хоста (без «догнал—стою» при рваных битах)
+          const mp = this.snapAt(e.snaps, performance.now() - 550, e.tx, e.tz);
+          e.g.position.x = mp.x;
+          e.g.position.z = mp.z;
         } else if (d > 2.1) {
           const nx = e.g.position.x + (dx / d) * e.speed * dt;
           const nz = e.g.position.z + (dz / d) * e.speed * dt;
@@ -3383,13 +3429,14 @@ export class Game {
       if (this.swingT > 0) this.swingT -= dt;
       if (this.shakeT > 0) this.shakeT -= dt;
       this.updateParts(dt);
-      // сокомнатники догоняют серверные цели плавно (интерполяция — без задержек и телепортов);
-      // удары — вспышкой размера, прыжки — высотой, лежачие — серыми
+      // сокомнатники: рендерим прошлое (now-550мс) по буферу слепков —
+      // непрерывно при любых рваных битах; удары вспышкой, прыжки высотой
       const rt = performance.now() / 600;
-      const k = 1 - Math.exp(-10 * dt);
+      const nowMs = performance.now();
+      const renderT = nowMs - 550;
       for (const r of this.remotes) {
-        r.x += (r.tx - r.x) * k;
-        r.z += (r.tz - r.z) * k;
+        const sp = this.snapAt(r.snaps, renderT, r.tx, r.tz);
+        r.x = sp.x; r.z = sp.z;
         if (r.flash > 0) r.flash -= dt;
         const rbody = r.g.children[0] as THREE.Sprite;
         const pop = r.flash > 0 ? 1 + r.flash : 1;

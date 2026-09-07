@@ -112,7 +112,7 @@ interface Member {
 interface ChatMsg { nick: string; text: string; t: number }
 /** Общий моб комнаты: симулирует владелец (хост), сервер раздаёт всем. */
 interface Mob { id: number; kind: string; x: number; z: number; hp: number; dead: boolean; wave: number }
-interface Room { id: string; name: string; mode: 'arena' | 'duel' | 'backrooms'; created: number; round: number; lastWinner: string; owner: string; started: boolean; players: Map<string, Member>; pending: Map<string, Member>; chat: ChatMsg[]; mobs: Map<number, Mob>; mobHost: string; }
+interface Room { id: string; name: string; mode: 'arena' | 'duel' | 'backrooms'; created: number; round: number; lastWinner: string; owner: string; started: boolean; players: Map<string, Member>; pending: Map<string, Member>; chat: ChatMsg[]; mobs: Map<number, Mob>; mobHost: string; /** тихий вылет: ключ→когда ушёл (грейс-возврат без заявки) */ gone: Map<string, number>; /** кик = бан: ключ→до когда нельзя */ banned: Map<string, number>; }
 const rooms = new Map<string, Room>();
 const STALE_MS = 12000;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -130,14 +130,21 @@ function newCode(): string {
   return rooms.has(c) ? newCode() : c;
 }
 
+function memberKey(m: { login: string; nick: string }): string {
+  return m.login || ('nick:' + m.nick);
+}
+
 function prune(room: Room): void {
   const now = Date.now();
   for (const [sid, m] of room.players) {
-    if (now - m.ts > STALE_MS) room.players.delete(sid);
+    if (now - m.ts > STALE_MS) { room.players.delete(sid); room.gone.set(memberKey(m), now); }
   }
   for (const [sid, m] of room.pending) {
     if (now - m.ts > STALE_MS) room.pending.delete(sid);
   }
+  // грейс-метки старше 5 минут не храним
+  for (const [k, t] of room.gone) if (now - t > 300000) room.gone.delete(k);
+  for (const [k, t] of room.banned) if (now - t > 0) room.banned.delete(k);
   // создатель ушёл — владелец переходит старшему из оставшихся
   if (!room.players.has(room.owner)) {
     const next = [...room.players.keys()][0];
@@ -272,7 +279,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const id = newCode();
     const sid = newSid();
     const sp = duelSpawn(0);
-    const room: Room = { id, name, mode, created: Date.now(), round: 1, lastWinner: '', owner: sid, started: false, players: new Map(), pending: new Map(), chat: [], mobs: new Map(), mobHost: '' };
+    const room: Room = { id, name, mode, created: Date.now(), round: 1, lastWinner: '', owner: sid, started: false, players: new Map(), pending: new Map(), chat: [], mobs: new Map(), mobHost: '', gone: new Map(), banned: new Map() };
     room.players.set(sid, { sid, nick, login, char: cleanChar(body.char), x: mode === 'duel' ? sp.x : 0, z: mode === 'duel' ? sp.z : 22, yaw: mode === 'duel' ? sp.yaw : 0, hp: 100, score: 0, kills: 0, wave: 1, weapon: 'fists', py: 0, atk: 0, dead: false, duelHp: 100, wins: 0, spawnIdx: 0, ts: Date.now() });
     rooms.set(id, room);
     return Response.json({ id, sid, mode, spawn: mode === 'duel' ? sp : null });
@@ -290,8 +297,20 @@ async function roomsApi(req: Request): Promise<Response | null> {
     if (room.players.size + room.pending.size >= cap) return Response.json({ error: 'full' }, { status: 403 });
     const nick = cleanNick(body.nick);
     const login = loginByToken(body.token);
+    const key = login || ('nick:' + nick);
+    if ((room.banned.get(key) ?? 0) > Date.now()) return Response.json({ error: 'banned' }, { status: 403 });
     const sid = newSid();
-    room.pending.set(sid, { sid, nick, login, char: cleanChar(body.char), x: 0, z: 22, yaw: 0, hp: 100, score: 0, kills: 0, wave: 1, weapon: 'fists', py: 0, atk: 0, dead: false, duelHp: 100, wins: 0, spawnIdx: room.players.size, ts: Date.now() });
+    const member = { sid, nick, login, char: cleanChar(body.char), x: 0, z: 22, yaw: 0, hp: 100, score: 0, kills: 0, wave: 1, weapon: 'fists', py: 0, atk: 0, dead: false, duelHp: 100, wins: 0, spawnIdx: room.players.size, ts: Date.now() };
+    // грейс-возврат: свой тихо вылетел <2мин назад, место свободно — сразу в игру без заявки
+    const leftAt = room.gone.get(key) ?? 0;
+    const taken = [...room.players.values()].some((m) => memberKey(m) === key);
+    if (leftAt > 0 && Date.now() - leftAt < 120000 && !taken && room.players.size < cap) {
+      room.gone.delete(key);
+      room.pending.delete(sid);
+      room.players.set(sid, member);
+      return Response.json({ sid, name: room.name, mode: room.mode, pending: false });
+    }
+    room.pending.set(sid, member);
     return Response.json({ sid, name: room.name, mode: room.mode, pending: true });
   }
 
@@ -352,8 +371,16 @@ async function roomsApi(req: Request): Promise<Response | null> {
       room.pending.delete(target);
       return Response.json({ ok: true });
     }
-    // kick: выгнать игрока (не себя)
-    if (target !== sid) room.players.delete(target);
+    // kick: выгнать игрока (не себя) + бан на 10 минут от возврата
+    if (target !== sid) {
+      const out = room.players.get(target);
+      if (out) {
+        const key = memberKey(out);
+        room.banned.set(key, Date.now() + 600000);
+        room.gone.delete(key);
+      }
+      room.players.delete(target);
+    }
     prune(room);
     if (room.players.size === 0) rooms.delete(room.id);
     return Response.json({ ok: true });
@@ -485,11 +512,13 @@ async function roomsApi(req: Request): Promise<Response | null> {
         };
       }
     }
-    return Response.json({ players: others, count: room.players.size, duel, started: room.started, owner: sid === room.owner, chat: room.chat.slice(-20), mobs: [...room.mobs.values()].slice(0, 60).map((m) => ({ id: m.id, kind: m.kind, x: Math.round(m.x * 10) / 10, z: Math.round(m.z * 10) / 10, hp: m.hp, dead: m.dead, wave: m.wave })) });
+    return Response.json({ players: others, count: room.players.size, duel, started: room.started, owner: sid === room.owner, t: Date.now(), chat: room.chat.slice(-20), mobs: [...room.mobs.values()].slice(0, 60).map((m) => ({ id: m.id, kind: m.kind, x: Math.round(m.x * 10) / 10, z: Math.round(m.z * 10) / 10, hp: m.hp, dead: m.dead, wave: m.wave })) });
   }
 
   // выйти (из игроков и из заявителей; владелец уходит — комната живёт дальше)
   if (req.method === 'POST' && action === 'leave') {
+    const out = room.players.get(sid);
+    if (out) room.gone.set(memberKey(out), Date.now());
     room.players.delete(sid);
     room.pending.delete(sid);
     prune(room);

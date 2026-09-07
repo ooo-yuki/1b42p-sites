@@ -477,6 +477,9 @@ async function loadStats(): Promise<void> {
   const duelRef = useRef<DuelInfo | null>(null);
   const matesRef = useRef<RoomMate[]>([]);
   const prevRound = useRef(0);
+  // пульс строго по очереди: пока прошлый не вернулся — новый не шлём (без обгонов и прыжков назад)
+  const beatBusy = useRef(false);
+  const rejoinLast = useRef(0);
   const spawnRef = useRef<{ x: number; z: number; yaw: number } | null>(null);
   // аккаунт: '' — неизвестно, 'guest' — гость, иначе логин
   const [authed, setAuthed] = useState('');
@@ -485,6 +488,9 @@ async function loadStats(): Promise<void> {
   const [authMsg, setAuthMsg] = useState('');
   const hudRef = useRef(hud);
   hudRef.current = hud;
+  // ник в рефах: пульс и переподключение живут в []-эффекте и видят только протухшее замыкание
+  const nickRef = useRef(nick);
+  nickRef.current = nick;
 
   // замах: дёргаем ствол (вызывает движок через onSwing при каждом реальном ударе).
   // Важно через React-state: прямые classList движок React сносит при каждом апдейте HUD.
@@ -641,6 +647,7 @@ async function loadStats(): Promise<void> {
       flyers: () => game.debugFlyers(),
       boss: () => game.debugBoss(),
       remoteList: () => game.debugRemoteList(),
+      roomSid: () => roomRef.current.sid,
       maze: () => game.debugMaze(),
       custom: () => game.debugCustom(),
       peaceful: () => !game.enemiesOn,
@@ -860,17 +867,48 @@ async function loadStats(): Promise<void> {
       const g = gameRef.current;
       const { id, sid } = roomRef.current;
       if (!g || !id || !sid) return;
+      if (beatBusy.current) return;
+      beatBusy.current = true;
       try {
         const p = g.debugPos();
         const h = hudRef.current;
         const pr = g.presence();
-        const r = await fetch(`/api/rooms/${id}/beat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sid, char: g.getChar(), x: p.x, z: p.z, yaw: p.yaw, hp: h.hp, score: h.score, kills: h.kills, wave: h.wave, weapon: pr.weapon, py: pr.py, atk: pr.atk, dead: pr.dead }),
-        });
-        if (!r.ok) return;
-        const d = (await r.json()) as { players: RoomMate[]; duel?: DuelInfo; chat?: Array<{ nick: string; text: string; t: number }>; mobs?: Array<{ id: number; kind: string; x: number; z: number; hp: number; dead: boolean; wave: number }>; owner?: boolean };
+        // зависший запрос не должен клинить пульс навсегда: рвём через 8с
+        const ctl = new AbortController();
+        const to = window.setTimeout(() => ctl.abort(), 8000);
+        let r: Response;
+        try {
+          r = await fetch(`/api/rooms/${id}/beat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sid, char: g.getChar(), x: p.x, z: p.z, yaw: p.yaw, hp: h.hp, score: h.score, kills: h.kills, wave: h.wave, weapon: pr.weapon, py: pr.py, atk: pr.atk, dead: pr.dead }),
+            signal: ctl.signal,
+          });
+        } finally { window.clearTimeout(to); }
+        if (r.status === 404) { leaveRoom(); return; }
+        if (!r.ok) {
+          // вылет из комнаты: молча просимся назад тем же ником (не чаще раза в 5с),
+          // создатель примет — игра продолжится; заявитель просто ждёт; комнаты нет — в меню
+          if (r.status === 403) {
+            let err = '';
+            try { err = String(((await r.json()) as { error?: string }).error ?? ''); } catch { /* noop */ }
+            if (err === 'nosid' && Date.now() - rejoinLast.current > 5000) {
+              rejoinLast.current = Date.now();
+              try {
+                const jr = await fetch(`/api/rooms/${id}/join`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ nick: nickRef.current, char: g.getChar(), token: localStorage.getItem(TOKEN_KEY) ?? '' }),
+                });
+                if (jr.status === 404) { leaveRoom(); return; }
+                const jd = (await jr.json()) as { sid?: string };
+                if (typeof jd.sid === 'string' && jd.sid) roomRef.current = { ...roomRef.current, sid: jd.sid };
+              } catch { /* noop */ }
+            }
+          }
+          return;
+        }
+        const d = (await r.json()) as { players: RoomMate[]; duel?: DuelInfo; chat?: Array<{ nick: string; text: string; t: number }>; mobs?: Array<{ id: number; kind: string; x: number; z: number; hp: number; dead: boolean; wave: number }>; owner?: boolean; t?: number };
         const plist = d.players ?? [];
         setMates(plist);
         matesRef.current = plist;
@@ -921,7 +959,7 @@ async function loadStats(): Promise<void> {
           duelRef.current = null;
           prevRound.current = 0;
         }
-      } catch { /* noop */ }
+      } catch { /* noop */ } finally { beatBusy.current = false; }
     }, 500);
     return () => window.clearInterval(t);
   }, []);
