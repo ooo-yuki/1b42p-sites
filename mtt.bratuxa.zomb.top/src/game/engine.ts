@@ -169,9 +169,11 @@ export const DEFAULT_KEYS: KeyMap = {
 };
 
 export interface GameEvents {
-  onHud(h: HudState): void;
-  onBusted(s: { score: number; coins: number }): void;
-  onSwing(): void;
+  onHud: (h: HudState) => void;
+  onBusted: (s: { score: number; coins: number }) => void;
+  onSwing: () => void;
+  /** удар по сетевому мобу: App шлёт mobhit на сервер, ответ применяет через netSyncHp/netKill */
+  onNetHit?: (id: number, dmg: number) => void;
 }
 
 export interface RemotePlayer {
@@ -227,6 +229,23 @@ interface Enemy {
   evy: number;
   hopCd: number;
   dead: boolean;
+  /** общий моб комнаты: id хоста, сетевая кукла (позиции со сервера) */
+  mobId: number;
+  net: boolean;
+  tx: number;
+  tz: number;
+  ewave: number;
+}
+
+/** Сетевой моб из пульса комнаты (сервер — правда). */
+export interface RemoteMob {
+  id: number;
+  kind: string;
+  x: number;
+  z: number;
+  hp: number;
+  dead: boolean;
+  wave: number;
 }
 
 const ARENA = 110;
@@ -367,6 +386,12 @@ export class Game {
   /** Своя карта из редактора (map 'custom'). */
   private custom: CustomMap | null = null;
   private wallKickCd = 0;
+  /** Общая комната: id локальных мобов для слепка хоста; netSync — я гость (мобы со сервера). */
+  private mobIdSeq = 1;
+  private netSync = false;
+  private netMax = new Map<number, number>();
+  private netWave = 0;
+  private deadLog: RemoteMob[] = [];
   private charId = 'mtt';
   private charSpd = 1;
   private jumpVel = 4.8;
@@ -2342,7 +2367,8 @@ export class Game {
     return this.enemies.filter((e) => !e.dead && e.kind === 'fly').length;
   }
 
-  private spawnEnemy(kind: 'walk' | 'fly' | 'boss'): void {
+  /** Туша моба: спрайт тела + полоска HP (общее для локальных и сетевых кукол). */
+  private makeEnemyVisuals(kind: 'walk' | 'fly' | 'boss'): { g: THREE.Group; body: THREE.Sprite; hpCv: HTMLCanvasElement; hpTex: THREE.CanvasTexture; hpSpr: THREE.Sprite } {
     // в Бэкрумс потолок 3м — летуны бы скребли макушкой, только пешие (босс проходит: он земной)
     const fly = kind === 'fly' && this.map !== 'backrooms';
     const boss = kind === 'boss';
@@ -2360,6 +2386,14 @@ export class Game {
     hpSpr.scale.set(boss ? 3.4 : 1.7, boss ? 0.84 : 0.42, 1);
     hpSpr.position.set(0, boss ? 4.1 : fly ? 4.6 : 2.35, 0);
     g.add(hpSpr);
+    return { g, body, hpCv, hpTex, hpSpr };
+  }
+
+  private spawnEnemy(kind: 'walk' | 'fly' | 'boss'): void {
+    if (this.netSync) return;
+    const boss = kind === 'boss';
+    const fly = kind === 'fly' && this.map !== 'backrooms';
+    const { g, body, hpCv, hpTex, hpSpr } = this.makeEnemyVisuals(kind);
     // точка спавна: только свободная (не внутри укрытий) и не впритык к игроку (босс — подальше)
     let sx = 0, sz = 40;
     let ok = false;
@@ -2394,6 +2428,7 @@ export class Game {
       maxhp: boss ? 500 + this.wave * 50 : fly ? 70 : 100,
       speed: boss ? 1.5 : 1.7 + Math.random() * 1.1 + this.wave * 0.12 + (fly ? 0.6 : 0),
       hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, ey: 0, evy: 0, hopCd: 1 + Math.random() * 2, dead: false,
+      mobId: this.mobIdSeq++, net: false, tx: sx, tz: sz, ewave: this.wave,
     };
     this.updateHpBar(foe);
     this.enemies.push(foe);
@@ -2463,8 +2498,7 @@ export class Game {
       if (d > W.range) continue;
       const cos = (dx * fx + dz * fz) / (d || 1);
       if (cos < 0.35) continue;
-      e.hp -= W.dmg * this.dmgMul() + Math.random() * 8;
-      this.afterHit(e, dx, dz, d, 1.6);
+      this.strikeEnemy(e, W.dmg * this.dmgMul() + Math.random() * 8, dx, dz, d, 1.6);
       hits++;
     }
     if (hits > 0) this.sfx(hitUrl);
@@ -2477,6 +2511,19 @@ export class Game {
   /** Пульс присутствия для комнаты: ствол, высота, счётчик ударов, смерть. */
   presence(): { weapon: string; py: number; atk: number; dead: boolean } {
     return { weapon: this.weaponId, py: Math.round(this.py * 10) / 10, atk: this.atk, dead: this.dead };
+  }
+
+  // удар по врагу: локальному — сразу HP и фраг, сетевому — картинка + заявка на сервер (HP считает сервер)
+  private strikeEnemy(e: Enemy, dmg: number, dx: number, dz: number, d: number, push: number): void {
+    if (e.net) {
+      e.hurtT = 0.18;
+      this.burst(e.g.position.x, 1.2, e.g.position.z, 6);
+      this.updateHpBar(e);
+      this.ev.onNetHit?.(e.mobId, Math.round(dmg));
+      return;
+    }
+    e.hp -= dmg;
+    this.afterHit(e, dx, dz, d, push);
   }
 
   // общий итог попадания: отброс, полоса HP, частицы, фраг
@@ -2493,10 +2540,14 @@ export class Game {
       this.scene.remove(e.g);
       this.kills++;
       // за босса — куш: +500 очков и +100 фантиков
-      this.score += e.kind === 'boss' ? 500 + this.wave * 10 : 100 + this.wave * 10;
+      this.score += e.kind === 'boss' ? 500 + e.ewave * 10 : 100 + e.ewave * 10;
       this.fantiki += e.kind === 'boss' ? 100 : 10;
       this.addXp(e.kind === 'boss' ? 100 : 10);
       this.saveShop();
+      if (!e.net) {
+        this.deadLog.push({ id: e.mobId, kind: e.kind, x: Math.round(e.g.position.x * 10) / 10, z: Math.round(e.g.position.z * 10) / 10, hp: 0, dead: true, wave: e.ewave });
+        if (this.deadLog.length > 24) this.deadLog.splice(0, this.deadLog.length - 24);
+      }
     }
   }
 
@@ -2528,9 +2579,9 @@ export class Game {
       return 0;
     }
     const fall = 1 - (bestD / range) * 0.5;
-    best.hp -= baseDmg * fall * this.dmgMul() + Math.random() * 5;
+    const bdx = best.g.position.x - cx, bdz = best.g.position.z - cz;
     this.tracer(cx, cy, cz, best.g.position.x, (best.kind === 'fly' ? 3.2 : 1.0 + best.ey), best.g.position.z);
-    this.afterHit(best, best.g.position.x - cx, best.g.position.z - cz, Math.hypot(best.g.position.x - cx, best.g.position.z - cz), 0.8);
+    this.strikeEnemy(best, baseDmg * fall * this.dmgMul() + Math.random() * 5, bdx, bdz, Math.hypot(bdx, bdz), 0.8);
     this.sfx(hitUrl);
     this.pushHud();
     this.waveClearCheck();
@@ -2540,6 +2591,7 @@ export class Game {
 
   // зачистка волны: +волна, +25HP, +25 фантиков, +50 опыта (один хелпер на все стволы)
   private waveClearCheck(): void {
+    if (this.netSync) return;
     if ((this.map === 'arena' || this.map === 'backrooms' || this.map === 'custom' || this.map === 'random') && this.enemiesOn && this.enemies.length > 0 && this.enemies.every((e) => e.dead)) {
       this.wave++;
       this.hp = Math.min(this.maxhp, this.hp + 25);
@@ -2608,8 +2660,7 @@ export class Game {
       if (!hp) return;
       const dist = Math.hypot(hp.hx, hp.hz);
       const fall = Math.pow(Math.max(0, 1 - dist / range), 1.6);
-      e.hp -= count * perPellet * fall * this.dmgMul() + Math.random() * 3;
-      this.afterHit(e, hp.hx, hp.hz, dist, 2.2);
+      this.strikeEnemy(e, count * perPellet * fall * this.dmgMul() + Math.random() * 3, hp.hx, hp.hz, dist, 2.2);
       hits++;
     });
     if (hits > 0) this.sfx(hitUrl);
@@ -2674,7 +2725,12 @@ export class Game {
   }
 
   debugDash(): number { return Math.round(this.dashCd * 10) / 10; }
+  /** В бою (для общей комнаты): идёт игра и боец жив. */
+  debugPlaying(): boolean { return this.started && !this.dead; }
   debugAtkCd(): number { return Math.round(this.atkCd * 10) / 10; }
+  /** Гость ли я общей комнаты + сколько сетевых кукол держу. */
+  debugNetSync(): boolean { return this.netSync; }
+  debugNetMobs(): number { return this.enemies.filter((e) => e.net && !e.dead).length; }
   /** Отладка для тестов: сбросить кд атаки (детерминированный выстрел). */
   debugResetCd(): void { this.atkCd = 0; }
   debugKick(): number { return Math.round(this.wallKickCd * 10) / 10; }
@@ -2690,6 +2746,111 @@ export class Game {
   /** Отладка для тестов: живые враги с координатами (навести прицел точно). */
   debugFoes(): Array<{ x: number; z: number; hp: number; dead: boolean; ey: number }> {
     return this.enemies.filter((e) => !e.dead).map((e) => ({ x: e.g.position.x, z: e.g.position.z, hp: Math.round(e.hp), dead: e.dead, ey: Math.round(e.ey * 100) / 100 }));
+  }
+
+  /** Гость общей комнаты: локальную симуляцию гасим, мобы едут со сервера. */
+  setNetSync(on: boolean): void {
+    if (this.netSync === on) return;
+    if (!on && this.netWave > this.wave) this.wave = this.netWave;
+    this.netSync = on;
+    for (const e of this.enemies) this.scene.remove(e.g);
+    this.enemies = [];
+    this.deadLog = [];
+    this.netMax.clear();
+    this.netWave = 0;
+    // вышел из гостей (или стал хостом): своя симуляция с нуля, если поле пустое
+    if (!on && this.started && !this.dead && this.enemiesOn) this.spawnWave();
+  }
+
+  /** Слепок мобов для хоста общей комнаты (живые + свежие трупы, дуэль мимо). */
+  debugMobs(): RemoteMob[] {
+    if (this.map === 'duel') return [];
+    const out: RemoteMob[] = this.enemies
+      .filter((e) => !e.net && !e.dead)
+      .slice(0, 60)
+      .map((e) => ({ id: e.mobId, kind: e.kind, x: Math.round(e.g.position.x * 10) / 10, z: Math.round(e.g.position.z * 10) / 10, hp: Math.round(e.hp), dead: false, wave: e.ewave }));
+    for (const d of this.deadLog) out.push(d);
+    return out.slice(0, 60);
+  }
+
+  /** Сетевые куклы гостя: сверка со слепком хоста (позиции — плавной догонкой). */
+  setRemoteMobs(list: RemoteMob[]): void {
+    if (!this.netSync) return;
+    const waves = list.map((m) => Math.round(Number(m.wave) || 1));
+    const top = waves.length > 0 ? Math.max(...waves) : this.netWave;
+    if (top > this.netWave) {
+      for (const e of this.enemies) if (e.net) this.scene.remove(e.g);
+      this.enemies = this.enemies.filter((e) => !e.net);
+      this.netMax.clear();
+      this.netWave = top;
+    }
+    const seen = new Set<number>();
+    for (const m of list.slice(0, 60)) {
+      const id = Math.floor(Number(m.id));
+      if (!Number.isFinite(id)) continue;
+      seen.add(id);
+      const kind = m.kind === 'fly' || m.kind === 'boss' ? m.kind : 'walk';
+      let e = this.enemies.find((q) => q.net && q.mobId === id);
+      if (m.dead === true) {
+        if (e && !e.dead) {
+          e.dead = true;
+          this.burst(e.g.position.x, 1.2, e.g.position.z, 10);
+          this.scene.remove(e.g);
+        }
+        continue;
+      }
+      if (!e) {
+        const v = this.makeEnemyVisuals(kind);
+        v.g.position.set(Number(m.x) || 0, 0, Number(m.z) || 0);
+        this.scene.add(v.g);
+        const maxhp = Math.max(Math.round(Number(m.hp) || 1), 1);
+        this.netMax.set(id, maxhp);
+        e = {
+          ...v, kind, hp: maxhp, maxhp, speed: 0,
+          hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, ey: 0, evy: 0, hopCd: 1e9, dead: false,
+          mobId: id, net: true, tx: v.g.position.x, tz: v.g.position.z, ewave: Math.round(Number(m.wave) || 1),
+        };
+        this.updateHpBar(e);
+        this.enemies.push(e);
+      } else {
+        e.tx = Number(m.x) || 0;
+        e.tz = Number(m.z) || 0;
+        e.hp = Math.max(0, Math.round(Number(m.hp) || 0));
+        const maxhp = Math.max(e.maxhp, e.hp, 1);
+        e.maxhp = maxhp;
+        this.netMax.set(id, maxhp);
+        this.updateHpBar(e);
+      }
+    }
+    for (const e of this.enemies.filter((q) => q.net && !seen.has(q.mobId))) this.scene.remove(e.g);
+    this.enemies = this.enemies.filter((e) => !e.net || seen.has(e.mobId));
+  }
+
+  /** Ответ сервера на удар: синхронизировать HP сетевого моба. */
+  netSyncHp(netId: number, hp: number): void {
+    const e = this.enemies.find((q) => q.net && q.mobId === netId && !q.dead);
+    if (!e) return;
+    e.hp = Math.max(0, hp);
+    e.maxhp = Math.max(e.maxhp, e.hp, 1);
+    this.updateHpBar(e);
+  }
+
+  /** Сетевой фраг по ответу сервера: награда только здесь (фраг один на всех). */
+  netKill(netId: number, reward = true): boolean {
+    const e = this.enemies.find((q) => q.net && q.mobId === netId && !q.dead);
+    if (!e) return false;
+    e.dead = true;
+    this.burst(e.g.position.x, 1.2, e.g.position.z, 10);
+    this.scene.remove(e.g);
+    if (!reward) { this.pushHud(); return true; }
+    this.kills++;
+    this.score += e.kind === 'boss' ? 500 + e.ewave * 10 : 100 + e.ewave * 10;
+    this.fantiki += e.kind === 'boss' ? 100 : 10;
+    this.addXp(e.kind === 'boss' ? 100 : 10);
+    this.saveShop();
+    this.pushHud();
+    this.drawMM();
+    return true;
   }
 
   // круг (игрок/враг радиусом rad на высоте y) против окружения: коробка — точный AABB,
@@ -3160,13 +3321,17 @@ export class Game {
         const g = this.groundAt(this.px, this.pz);
         if (this.py <= g) { this.py = g; this.pvy = 0; this.blastT = 0; this.blastDx = 0; this.blastDz = 0; }
       }
-      // враги идут к игроку и бьют в упор
+      // враги идут к игроку и бьют в упор; сетевые куклы — догоняют точку хоста
       for (const e of this.enemies) {
         if (e.dead) continue;
         const dx = this.px - e.g.position.x;
         const dz = this.pz - e.g.position.z;
         const d = Math.hypot(dx, dz) || 1;
-        if (d > 2.1) {
+        if (e.net) {
+          const k = 1 - Math.exp(-8 * dt);
+          e.g.position.x += ((e.tx ?? e.g.position.x) - e.g.position.x) * k;
+          e.g.position.z += ((e.tz ?? e.g.position.z) - e.g.position.z) * k;
+        } else if (d > 2.1) {
           const nx = e.g.position.x + (dx / d) * e.speed * dt;
           const nz = e.g.position.z + (dz / d) * e.speed * dt;
           const eyH = e.kind === 'fly' ? 3.2 : e.ey;

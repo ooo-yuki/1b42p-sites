@@ -473,7 +473,7 @@ async function loadStats(): Promise<void> {
   const [edH, setEdH] = useState(4);
   const edCanvas = useRef<HTMLCanvasElement | null>(null);
   const [duel, setDuel] = useState<DuelInfo | null>(null);
-  const roomRef = useRef({ id: '', sid: '' });
+  const roomRef = useRef({ id: '', sid: '', mode: '' });
   const duelRef = useRef<DuelInfo | null>(null);
   const matesRef = useRef<RoomMate[]>([]);
   const prevRound = useRef(0);
@@ -568,6 +568,20 @@ async function loadStats(): Promise<void> {
       onHud: (h) => setHud(h),
       onBusted: () => undefined,
       onSwing: () => { swing(); tryDuelHit(); },
+      onNetHit: (nid, dmg) => {
+        const { id: rid, sid } = roomRef.current;
+        if (!rid || !sid) return;
+        fetch(`/api/rooms/${rid}/mobhit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sid, id: nid, dmg }),
+        }).then((r) => r.json()).then((d: { hp?: number; dead?: boolean; freshKill?: boolean }) => {
+          const g = gameRef.current;
+          if (!g) return;
+          if (d.dead) g.netKill(nid, d.freshKill === true);
+          else if (typeof d.hp === 'number') g.netSyncHp(nid, d.hp);
+        }).catch(() => undefined);
+      },
     }, mapChoice, { enemies: !noEnemies, custom: mapChoice === 'custom' ? customsRef.current[customSel ?? ''] ?? null : undefined });
     gameRef.current = game;
     setSound(game.getSound());
@@ -598,7 +612,10 @@ async function loadStats(): Promise<void> {
       chara: () => game.getChar(),
       quality: () => game.getQuality(),
       dash: () => game.debugDash(),
+      playing: () => game.debugPlaying(),
       atkcd: () => game.debugAtkCd(),
+      netsync: () => game.debugNetSync(),
+      netmobs: () => game.debugNetMobs(),
       resetcd: () => game.debugResetCd(),
       doDash: () => game.dash(),
       wall: () => game.debugWall(),
@@ -736,7 +753,7 @@ async function loadStats(): Promise<void> {
       });
       if (!r.ok) return;
       const d = (await r.json()) as { id: string; sid: string; mode: MapId; spawn: { x: number; z: number; yaw: number } | null };
-      roomRef.current = { id: d.id, sid: d.sid };
+      roomRef.current = { id: d.id, sid: d.sid, mode: d.mode };
       setRoomId(d.id);
       setRoomName(roomDraft || `Комната ${nick}`);
       setRoomMode(d.mode);
@@ -763,7 +780,7 @@ async function loadStats(): Promise<void> {
       });
       if (!r.ok) return;
       const d = (await r.json()) as { sid: string; name: string; mode: MapId; pending?: boolean };
-      roomRef.current = { id, sid: d.sid };
+      roomRef.current = { id, sid: d.sid, mode: d.mode };
       setRoomId(id);
       setRoomName(d.name);
       setRoomMode(d.mode);
@@ -783,7 +800,7 @@ async function loadStats(): Promise<void> {
 
   const leaveRoom = useCallback(async () => {
     const { id, sid } = roomRef.current;
-    roomRef.current = { id: '', sid: '' };
+    roomRef.current = { id: '', sid: '', mode: '' };
     setRoomId('');
     setRoomName('');
     setRoomMode('arena');
@@ -797,6 +814,7 @@ async function loadStats(): Promise<void> {
     setIsOwner(false);
     setWaiting(false);
     setLobby(null);
+    gameRef.current?.setNetSync(false);
     gameRef.current?.setRemotes([]);
     if (id && sid) {
       try {
@@ -815,6 +833,7 @@ async function loadStats(): Promise<void> {
     const h = hudRef.current;
     submitScore(nick, h.score, 0);
     gameRef.current?.stop();
+    gameRef.current?.setNetSync(false);
     setMenu(true);
     loadScores().then(setScores);
     refreshRooms();
@@ -851,7 +870,7 @@ async function loadStats(): Promise<void> {
           body: JSON.stringify({ sid, char: g.getChar(), x: p.x, z: p.z, yaw: p.yaw, hp: h.hp, score: h.score, kills: h.kills, wave: h.wave, weapon: pr.weapon, py: pr.py, atk: pr.atk, dead: pr.dead }),
         });
         if (!r.ok) return;
-        const d = (await r.json()) as { players: RoomMate[]; duel?: DuelInfo; chat?: Array<{ nick: string; text: string; t: number }> };
+        const d = (await r.json()) as { players: RoomMate[]; duel?: DuelInfo; chat?: Array<{ nick: string; text: string; t: number }>; mobs?: Array<{ id: number; kind: string; x: number; z: number; hp: number; dead: boolean; wave: number }>; owner?: boolean };
         const plist = d.players ?? [];
         setMates(plist);
         matesRef.current = plist;
@@ -862,6 +881,22 @@ async function loadStats(): Promise<void> {
           all.push({ nick: f.nick, login: f.login, char: f.char, x: f.x, z: f.z, hp: f.hp, score: 0, kills: 0, wave: 1, weapon: f.weapon, py: f.py, atk: f.atk, dead: f.dead });
         }
         g.setRemotes(all);
+        // общие мобы: хост заливает слепок, гость ставит кукол (только в бою на моб-карте)
+        const mobMap = roomRef.current.mode === 'arena' || roomRef.current.mode === 'backrooms';
+        const amOwner = d.owner === true;
+        const inGame = (() => { try { return g.debugPlaying(); } catch { return false; } })();
+        g.setNetSync(!!id && inGame && !amOwner && mobMap);
+        if (inGame && mobMap && amOwner) {
+          try {
+            await fetch(`/api/rooms/${id}/mobpush`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sid, mobs: g.debugMobs() }),
+            });
+          } catch { /* noop */ }
+        } else if (inGame && mobMap && !amOwner && Array.isArray(d.mobs)) {
+          g.setRemoteMobs(d.mobs);
+        }
         // чат: добираем только новое по метке времени
         if (d.chat && d.chat.length > 0) {
           setChatLog((prev) => {

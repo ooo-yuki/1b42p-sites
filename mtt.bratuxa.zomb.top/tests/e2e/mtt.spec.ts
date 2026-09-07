@@ -420,6 +420,80 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     expect(rooms.some((r) => r.id === id)).toBe(false);
   });
 
+  test('комнаты: общие мобы — хост заливает, все бьют, фраг один', async ({ request }) => {
+    const c = await request.post('/api/rooms', { data: { nick: 'HOST', name: 'MOBROOM', mode: 'arena' } });
+    expect(c.ok()).toBe(true);
+    const { id, sid: host } = await c.json();
+    const j = await request.post(`/api/rooms/${id}/join`, { data: { nick: 'GUEST' } });
+    const { sid: guest } = await j.json();
+    await request.post(`/api/rooms/${id}/approve`, { data: { sid: host, target: guest } });
+    // чужой заливать мобов не может
+    const no = await request.post(`/api/rooms/${id}/mobpush`, { data: { sid: guest, mobs: [] } });
+    expect(no.status()).toBe(403);
+    // хост заливает двух мобов
+    const push = await request.post(`/api/rooms/${id}/mobpush`, { data: { sid: host, mobs: [{ id: 1, kind: 'walk', x: 10, z: 5, hp: 100, dead: false, wave: 1 }, { id: 2, kind: 'fly', x: -3, z: 7, hp: 70, dead: false, wave: 1 }] } });
+    expect((await push.json()).count).toBe(2);
+    // гость бьёт моба — HP общее
+    const h1 = await request.post(`/api/rooms/${id}/mobhit`, { data: { sid: guest, id: 1, dmg: 30 } });
+    expect((await h1.json()).hp).toBe(70);
+    // хост видит то же HP в пульсе
+    const b = await request.post(`/api/rooms/${id}/beat`, { data: { sid: host, x: 0, z: 22, hp: 100 } });
+    const bd = await b.json();
+    expect(bd.mobs.find((m: { id: number }) => m.id === 1).hp).toBe(70);
+    // добивание — фраг один на всех, повторный удар по трупу без эффекта
+    const kill = await request.post(`/api/rooms/${id}/mobhit`, { data: { sid: guest, id: 1, dmg: 80 } });
+    const kd = await kill.json();
+    expect(kd.dead).toBe(true);
+    const again = await request.post(`/api/rooms/${id}/mobhit`, { data: { sid: host, id: 1, dmg: 50 } });
+    expect((await again.json()).dead).toBe(true);
+    // нет моба — 404
+    const miss = await request.post(`/api/rooms/${id}/mobhit`, { data: { sid: host, id: 999, dmg: 10 } });
+    expect(miss.status()).toBe(404);
+    await request.post(`/api/rooms/${id}/leave`, { data: { sid: host } });
+    await request.post(`/api/rooms/${id}/leave`, { data: { sid: guest } });
+  });
+
+  test('комнаты: заявка не протухает пока заявитель на связи', async ({ request }) => {
+    const c = await request.post('/api/rooms', { data: { nick: 'HOLD', name: 'HOLDROOM', mode: 'arena' } });
+    const { id, sid: host } = await c.json();
+    const j = await request.post(`/api/rooms/${id}/join`, { data: { nick: 'WAIT' } });
+    const { sid: guest } = await j.json();
+    // заявитель дышит пульсом 15с (дольше STALE 12с) — заявка обязана жить
+    for (let i = 0; i < 5; i++) {
+      await new Promise((r) => setTimeout(r, 3000));
+      const bw = await request.post(`/api/rooms/${id}/beat`, { data: { sid: guest, x: 0, z: 0, hp: 100 } });
+      expect(bw.status()).toBe(403);
+      expect((await bw.json()).error).toBe('waiting');
+    }
+    const ap = await request.post(`/api/rooms/${id}/approve`, { data: { sid: host, target: guest } });
+    expect(ap.ok()).toBe(true);
+    await request.post(`/api/rooms/${id}/leave`, { data: { sid: host } });
+    await request.post(`/api/rooms/${id}/leave`, { data: { sid: guest } });
+  });
+
+  test('комнаты: лобби держит создателя на связи (info = присутствие)', async ({ request }) => {
+    const c = await request.post('/api/rooms', { data: { nick: 'HOLD2', name: 'HOLDROOM2', mode: 'arena' } });
+    const { id, sid: host } = await c.json();
+    const j = await request.post(`/api/rooms/${id}/join`, { data: { nick: 'WAIT2' } });
+    const { sid: guest } = await j.json();
+    // создатель в меню: только info (beat не идёт), заявитель дышит — 15с дольше STALE
+    for (let i = 0; i < 5; i++) {
+      await new Promise((r) => setTimeout(r, 3000));
+      const li = await request.get(`/api/rooms/${id}/info?sid=${host}`);
+      expect(li.ok()).toBe(true);
+      const bw = await request.post(`/api/rooms/${id}/beat`, { data: { sid: guest, x: 0, z: 0, hp: 100 } });
+      expect(bw.status()).toBe(403);
+    }
+    const ap = await request.post(`/api/rooms/${id}/approve`, { data: { sid: host, target: guest } });
+    expect(ap.ok()).toBe(true);
+    const bo = await request.post(`/api/rooms/${id}/beat`, { data: { sid: host, x: 0, z: 22, hp: 100 } });
+    expect(bo.ok()).toBe(true);
+    const seen = ((await bo.json()) as { players: Array<{ nick: string }> }).players ?? [];
+    expect(seen.some((p) => p.nick === 'WAIT2')).toBe(true);
+    await request.post(`/api/rooms/${id}/leave`, { data: { sid: host } });
+    await request.post(`/api/rooms/${id}/leave`, { data: { sid: guest } });
+  });
+
   test('рывок вверх: смотришь в небо — летишь', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
