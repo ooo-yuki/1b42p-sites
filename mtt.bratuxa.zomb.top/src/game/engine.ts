@@ -40,13 +40,14 @@ export function charSpec(id: string): CharDef {
 }
 
 export type Quality = 'fast' | 'nice';
-export type MapId = 'arena' | 'duel' | 'backrooms' | 'custom';
+export type MapId = 'arena' | 'duel' | 'backrooms' | 'custom' | 'random';
 
 /** Карты для выбора в меню: id, название, описание. */
 export const MAPS: Array<{ id: MapId; name: string; desc: string }> = [
   { id: 'arena', name: '🌍 Арена', desc: 'Новый город: витрины, переулки, Г/П-дома, площадь с фонтаном' },
   { id: 'duel', name: '⚔️ Дуэль', desc: 'Ночной двор 1×1 для разборок' },
   { id: 'backrooms', name: '🟨 Бэкрумс', desc: 'Случайный лабиринт — новый каждый раз' },
+  { id: 'random', name: '🎲 Случайная', desc: 'Дикий ландшафт: холмы, скалы, озеро — новый каждый раз' },
 ];
 
 /** Своя карта из редактора: блоки-стены поверх травы. */
@@ -1152,6 +1153,33 @@ export class Game {
     yardBed.rotation.x = -Math.PI / 2;
     yardBed.position.set(-31, 0.03, 11);
     scene.add(yardBed);
+    // ЕЩЁ ДОМА: забиваем свободные пятна
+    block(6, 32, 7, 7, 10, 1);
+    block(-14, -7, 5, 5, 8, 2);
+    block(48, -8, 6, 7, 10, 3);
+    block(48, -32, 6, 7, 11, 4);
+    block(12, 24, 6, 6, 9, 5);
+    // ГАЗОНЫ: трава + клумба (визуал, проход свободный)
+    const lawn = (lx: number, lz: number, w: number, d: number, bed: number): void => {
+      const g = new THREE.Mesh(
+        new THREE.PlaneGeometry(w, d),
+        new THREE.MeshStandardMaterial({ map: grassT, roughness: 1 }),
+      );
+      g.rotation.x = -Math.PI / 2;
+      g.position.set(lx, 0.012, lz);
+      g.receiveShadow = true;
+      scene.add(g);
+      const b = new THREE.Mesh(
+        new THREE.CircleGeometry(1.4, 18),
+        new THREE.MeshStandardMaterial({ color: bed, roughness: 1 }),
+      );
+      b.rotation.x = -Math.PI / 2;
+      b.position.set(lx, 0.03, lz);
+      scene.add(b);
+    };
+    lawn(-1, 30, 6, 8, 0xffd23f);
+    lawn(2, -28, 8, 6, 0xff6b35);
+    lawn(46, 20, 8, 8, 0xc77dff);
 
 
     // ПЛОЩАДЬ с фонтаном (ЮВ): брусчатка со своей текстурой
@@ -1445,10 +1473,220 @@ export class Game {
     }
   }
 
+  /** 🎲 СЛУЧАЙНАЯ КАРТА: дикий ландшафт — холмы-террасы, скалы, озеро, руины. Новый каждый запуск. */
+  private buildRandom(): void {
+    const scene = this.scene;
+    scene.add(new THREE.AmbientLight(0xffffff, 0.95));
+    scene.add(new THREE.HemisphereLight(0xbfd9ff, 0x6a7a5a, 0.55));
+    const sun = new THREE.DirectionalLight(0xfff3d6, 1.5);
+    sun.position.set(-40, 80, -30);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 1024;
+    sun.shadow.mapSize.height = 1024;
+    sun.shadow.camera.left = -70; sun.shadow.camera.right = 70;
+    sun.shadow.camera.top = 70; sun.shadow.camera.bottom = -70;
+    sun.shadow.camera.near = 10; sun.shadow.camera.far = 220;
+    sun.shadow.bias = -0.0004;
+    scene.add(sun);
+
+    const R = (a: number, b: number): number => a + Math.random() * (b - a);
+    const tex = (url: string, rx: number, ry: number): THREE.Texture => {
+      const t = new THREE.TextureLoader().load(url);
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.wrapS = t.wrapT = THREE.MirroredRepeatWrapping;
+      t.repeat.set(rx, ry);
+      t.anisotropy = 4;
+      return t;
+    };
+    // земля — трава МТТ во всё поле
+    const grassT = tex(travaUrl, 26, 26);
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(ARENA + 20, ARENA + 20),
+      new THREE.MeshStandardMaterial({ map: grassT, roughness: 1 }),
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+    // песчаные проплешины (визуал, без хитбоксов)
+    const sandT = tex(walkUrl, 3, 3);
+    const sandMat = new THREE.MeshStandardMaterial({ map: sandT, color: 0xd8c49a, roughness: 1 });
+    for (let i = 0; i < 4; i++) {
+      const sx = R(-40, 40), sz = R(-40, 40);
+      if (Math.hypot(sx, sz) < 12) continue;
+      const patch = new THREE.Mesh(new THREE.CircleGeometry(R(3, 6), 18), sandMat);
+      patch.rotation.x = -Math.PI / 2;
+      patch.position.set(sx, 0.015, sz);
+      scene.add(patch);
+    }
+
+    const rockMat = new THREE.MeshStandardMaterial({ color: 0x8a7a68, roughness: 1 });
+    const darkRock = new THREE.MeshStandardMaterial({ color: 0x6b6259, roughness: 1 });
+    // ХОЛМЫ-ТЕРРАСЫ: уступы по 1м — перешагиваем автоматом, врозь на 20м
+    const mesas: Array<{ x: number; z: number }> = [];
+    for (let t = 0; t < 60 && mesas.length < 6; t++) {
+      const cx = R(-44, 44), cz = R(-44, 44);
+      if (Math.hypot(cx, cz) < 14) continue;
+      if (mesas.some((m) => Math.hypot(m.x - cx, m.z - cz) < 20)) continue;
+      const B = R(4.5, 7);
+      const L = B > 6.2 ? 4 : 3;
+      for (let k = 0; k < L; k++) {
+        const s = B - 1.7 * k;
+        const lvl = new THREE.Mesh(new THREE.BoxGeometry(2 * s, 1, 2 * s), rockMat);
+        lvl.position.set(cx, k + 0.5, cz);
+        lvl.castShadow = true; lvl.receiveShadow = true;
+        scene.add(lvl);
+        this.solids.push({ x: cx, z: cz, hx: s, hz: s, h: k + 1 });
+      }
+      // травяная шапка на вершине
+      const sTop = B - 1.7 * (L - 1);
+      const cap = new THREE.Mesh(
+        new THREE.BoxGeometry(2 * sTop + 0.15, 0.18, 2 * sTop + 0.15),
+        new THREE.MeshStandardMaterial({ map: grassT, roughness: 1 }),
+      );
+      cap.position.set(cx, L + 0.09, cz);
+      scene.add(cap);
+      mesas.push({ x: cx, z: cz });
+    }
+    // СКАЛЫ: серые глыбы-цилиндры (вращение не ломает круглый хитбокс)
+    for (let t = 0; t < 40; t++) {
+      const rx = R(-48, 48), rz = R(-48, 48);
+      const rr = R(0.7, 1.5), rh = R(1.5, 3.2);
+      if (Math.hypot(rx, rz) < 12) continue;
+      if (this.hitSolid(rx, rz, rr + 1.2)) continue;
+      const rock = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr * 1.25, rh, 7), darkRock);
+      rock.position.set(rx, rh / 2, rz);
+      rock.rotation.y = Math.random() * Math.PI;
+      rock.castShadow = true;
+      scene.add(rock);
+      this.solids.push({ x: rx, z: rz, r: rr, h: rh });
+    }
+    // ОЗЕРО: каменное кольцо + вода (мелко — проходим вброд)
+    for (let t = 0; t < 30; t++) {
+      const lx = R(-35, 35), lz = R(-35, 35);
+      if (Math.hypot(lx, lz) < 14) continue;
+      if (this.hitSolid(lx, lz, 9)) continue;
+      for (let k = 0; k < 10; k++) {
+        const an = (k / 10) * Math.PI * 2;
+        const bx = lx + Math.cos(an) * 7.5, bz = lz + Math.sin(an) * 7.5;
+        const stone = new THREE.Mesh(new THREE.BoxGeometry(2.2, R(1.2, 1.8), 2.2), darkRock);
+        stone.position.set(bx, 0.7, bz);
+        stone.castShadow = true;
+        scene.add(stone);
+        this.solids.push({ x: bx, z: bz, hx: 1.1, hz: 1.1, h: 1.6 });
+      }
+      const water = new THREE.Mesh(new THREE.CircleGeometry(6.6, 24), new THREE.MeshBasicMaterial({ color: 0x55d4ff }));
+      water.rotation.x = -Math.PI / 2;
+      water.position.set(lx, 0.03, lz);
+      scene.add(water);
+      break;
+    }
+    // РУИНЫ: битые кирпичные стены (строго по осям — хитбокс честный)
+    const ruinT = tex(brickUrl, 3, 1);
+    const ruinMat = new THREE.MeshStandardMaterial({ map: ruinT, roughness: 0.95 });
+    for (let t = 0; t < 30; t++) {
+      const wx = R(-44, 44), wz = R(-44, 44);
+      if (Math.hypot(wx, wz) < 12) continue;
+      const len = R(4, 7), wh = R(1.6, 2.6);
+      const alongX = Math.random() < 0.5;
+      if (this.hitSolid(wx, wz, len / 2 + 1)) continue;
+      const wall = new THREE.Mesh(
+        alongX ? new THREE.BoxGeometry(len, wh, 0.7) : new THREE.BoxGeometry(0.7, wh, len),
+        ruinMat,
+      );
+      wall.position.set(wx, wh / 2, wz);
+      wall.castShadow = true; wall.receiveShadow = true;
+      scene.add(wall);
+      this.solids.push(alongX
+        ? { x: wx, z: wz, hx: len / 2, hz: 0.35, h: wh }
+        : { x: wx, z: wz, hx: 0.35, hz: len / 2, h: wh });
+      if (this.solids.length > 90) break;
+    }
+    // ХУТОРА: 3 домика витрина+панелька (поровну, врозь от холмов)
+    const hutShop = tex(shopUrl, 2, 1);
+    const hutPanel = tex(panelUrl, 1, 1);
+    const hutRoof = tex(roofUrl, 2, 2);
+    const hutRoofMat = new THREE.MeshStandardMaterial({ map: hutRoof, roughness: 0.95 });
+    let huts = 0;
+    for (let t = 0; t < 50 && huts < 3; t++) {
+      const hx = R(-42, 42), hz = R(-42, 42);
+      if (Math.hypot(hx, hz) < 13) continue;
+      if (mesas.some((m) => Math.hypot(m.x - hx, m.z - hz) < 14)) continue;
+      const w = R(5, 7), d = R(5, 7), H = R(6, 9);
+      if (this.hitSolid(hx, hz, Math.max(w, d) / 2 + 2)) continue;
+      const gnd = new THREE.Mesh(new THREE.BoxGeometry(w, 3.5, d), new THREE.MeshStandardMaterial({ map: hutShop, roughness: 0.7 }));
+      gnd.position.set(hx, 1.75, hz);
+      gnd.castShadow = true; gnd.receiveShadow = true;
+      scene.add(gnd);
+      const up = new THREE.Mesh(new THREE.BoxGeometry(w, H - 3.5, d), new THREE.MeshStandardMaterial({ map: hutPanel, roughness: 0.85 }));
+      up.position.set(hx, 3.5 + (H - 3.5) / 2, hz);
+      up.castShadow = true;
+      scene.add(up);
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(w + 0.4, 0.35, d + 0.4), hutRoofMat);
+      slab.position.set(hx, H + 0.17, hz);
+      scene.add(slab);
+      this.solids.push({ x: hx, z: hz, hx: w / 2, hz: d / 2, h: H + 0.4 });
+      huts++;
+    }
+    // ящики и заборы вразброс
+    const crateMat = new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: 0.9 });
+    for (let t = 0; t < 30; t++) {
+      const cx = R(-46, 46), cz = R(-46, 46);
+      if (Math.hypot(cx, cz) < 11) continue;
+      if (this.hitSolid(cx, cz, 1.8)) continue;
+      const c = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.2, 2.2), crateMat);
+      c.position.set(cx, 1.1, cz);
+      c.castShadow = true; c.receiveShadow = true;
+      scene.add(c);
+      this.solids.push({ x: cx, z: cz, hx: 1.1, hz: 1.1, h: 2.2 });
+      if (this.solids.length > 110) break;
+    }
+    const fenceT = tex(fenceUrl, 1, 1);
+    const fenceMat = new THREE.MeshStandardMaterial({ map: fenceT, roughness: 0.9 });
+    for (let t = 0; t < 20; t++) {
+      const fx = R(-44, 44), fz = R(-44, 44);
+      if (Math.hypot(fx, fz) < 11) continue;
+      if (this.hitSolid(fx, fz, 2)) continue;
+      const alongX = Math.random() < 0.5;
+      const f = new THREE.Mesh(new THREE.BoxGeometry(alongX ? 2.4 : 0.15, 1.6, alongX ? 0.15 : 2.4), fenceMat);
+      f.position.set(fx, 0.8, fz);
+      scene.add(f);
+      this.solids.push(alongX
+        ? { x: fx, z: fz, hx: 1.2, hz: 0.15, h: 1.6 }
+        : { x: fx, z: fz, hx: 0.15, hz: 1.2, h: 1.6 });
+      if (this.solids.length > 120) break;
+    }
+    // край дикого поля — те же граффити-стены целиком
+    const wallT = tex(edgeUrl, 5, 1);
+    const wallMat = new THREE.MeshStandardMaterial({ map: wallT, roughness: 0.85 });
+    const wallGeoH = new THREE.BoxGeometry(ARENA + 8, 14, 2);
+    const wallGeoV = new THREE.BoxGeometry(2, 14, ARENA + 8);
+    for (const [x, z, g] of [[0, -HALF - 1, wallGeoH], [0, HALF + 1, wallGeoH]] as Array<[number, number, THREE.BufferGeometry]>) {
+      const m = new THREE.Mesh(g, wallMat);
+      m.position.set(x, 7, z);
+      scene.add(m);
+    }
+    for (const [x, z, g] of [[-HALF - 1, 0, wallGeoV], [HALF + 1, 0, wallGeoV]] as Array<[number, number, THREE.BufferGeometry]>) {
+      const m = new THREE.Mesh(g, wallMat);
+      m.position.set(x, 7, z);
+      scene.add(m);
+    }
+    // спавн: юг поля, если занято — ищем свободное
+    const cand: Array<[number, number]> = [[0, 22], [0, 0], [-15, 15], [15, 15], [0, -22]];
+    for (const [qx, qz] of cand) {
+      if (!this.hitSolid(qx, qz, 1.5)) { this.px = qx; this.pz = qz; this.yaw = 0; return; }
+    }
+    for (let t = 0; t < 30; t++) {
+      const qx = R(-45, 45), qz = R(-45, 45);
+      if (!this.hitSolid(qx, qz, 1.5)) { this.px = qx; this.pz = qz; this.yaw = 0; return; }
+    }
+    this.px = 0; this.pz = 22; this.yaw = 0;
+  }
+
   private buildWorld(): void {
     if (this.map === 'duel') { this.buildDuel(); return; }
     if (this.map === 'backrooms') { this.buildBackrooms(); return; }
     if (this.map === 'custom') { this.buildCustom(); return; }
+    if (this.map === 'random') { this.buildRandom(); return; }
     this.buildCity(); return;
     const scene = this.scene;
     // светло: день вместо ночи
@@ -2069,7 +2307,7 @@ export class Game {
     }
     if (hits > 0) this.blip(440);
     this.pushHud();
-    if ((this.map === 'arena' || this.map === 'backrooms' || this.map === 'custom') && this.enemiesOn && this.enemies.length > 0 && this.enemies.every((e) => e.dead)) {
+    if ((this.map === 'arena' || this.map === 'backrooms' || this.map === 'custom' || this.map === 'random') && this.enemiesOn && this.enemies.length > 0 && this.enemies.every((e) => e.dead)) {
       this.wave++;
       this.hp = Math.min(this.maxhp, this.hp + 25);
       this.fantiki += 25;
@@ -2134,7 +2372,7 @@ export class Game {
     this.afterHit(best, best.g.position.x - cx, best.g.position.z - cz, Math.hypot(best.g.position.x - cx, best.g.position.z - cz), 0.8);
     this.blip(440);
     this.pushHud();
-    if ((this.map === 'arena' || this.map === 'backrooms' || this.map === 'custom') && this.enemiesOn && this.enemies.length > 0 && this.enemies.every((e) => e.dead)) {
+    if ((this.map === 'arena' || this.map === 'backrooms' || this.map === 'custom' || this.map === 'random') && this.enemiesOn && this.enemies.length > 0 && this.enemies.every((e) => e.dead)) {
       this.wave++;
       this.hp = Math.min(this.maxhp, this.hp + 25);
       this.fantiki += 25;

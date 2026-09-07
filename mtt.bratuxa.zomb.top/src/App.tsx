@@ -1446,7 +1446,7 @@ async function loadStats(): Promise<void> {
           {(roomId && !isOwner) || waiting ? (
             <button id="goBtn" disabled title="Ждём старта от создателя">⏳ ЖДУ СТАРТА…</button>
           ) : (
-            <button id="goBtn" onClick={go}>{(() => { const gm = roomId ? roomMode : mapChoice; return gm === 'duel' ? '⚔️ В ДУЭЛЬ' : gm === 'backrooms' ? '🟨 В БЭКРУМС' : gm === 'custom' ? '🧩 НА СВОЮ' : '▶️ ПОГНАЛИ'; })()}</button>
+            <button id="goBtn" onClick={go}>{(() => { const gm = roomId ? roomMode : mapChoice; return gm === 'duel' ? '⚔️ В ДУЭЛЬ' : gm === 'backrooms' ? '🟨 В БЭКРУМС' : gm === 'custom' ? '🧩 НА СВОЮ' : gm === 'random' ? '🎲 НА СЛУЧАЙНУЮ' : '▶️ ПОГНАЛИ'; })()}</button>
           )}
           </div>
           </div>

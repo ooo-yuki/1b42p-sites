@@ -821,13 +821,40 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await expect(page.locator('#nav-play.active')).toHaveCount(1);
   });
 
-  test('🗺️ выбор карты: три карточки, Бэкрумс выбирается', async ({ page }) => {
+  test('🗺️ выбор карты: четыре карточки, Случайная выбирается', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#nav-maps');
-    await expect(page.locator('#mapSec .mapCard')).toHaveCount(3);
-    await page.click('#map-backrooms');
-    await expect(page.locator('#map-backrooms.sel')).toHaveCount(1);
-    await expect(page.locator('#goBtn')).toContainText('БЭКРУМС');
+    await expect(page.locator('#mapSec .mapCard')).toHaveCount(4);
+    await page.click('#map-random');
+    await expect(page.locator('#map-random.sel')).toHaveCount(1);
+    await expect(page.locator('#goBtn')).toContainText('СЛУЧАЙНУЮ');
+  });
+
+  test('🎲 случайная карта: ландшафт новый, месы держат', async ({ page }) => {
+    await page.click('#guestBtn');
+    await page.click('#nav-maps');
+    await page.click('#map-random');
+    await page.click('#nav-play');
+    await page.click('#goBtn');
+    await page.waitForTimeout(1500);
+    type M = { map: () => string; ground: (x: number, z: number) => number; solids: () => Array<unknown>; pos: () => { x: number; z: number; enemies: number }; solidAt: (x: number, z: number, y: number) => boolean };
+    expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.map())).toBe('random');
+    // ландшафта много: десятки хитбоксов
+    expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solids().length)).toBeGreaterThan(35);
+    // враги пришли на дикое поле
+    expect((await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.pos())).enemies).toBeGreaterThan(0);
+    // спавн свободен
+    const p = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.pos());
+    const free = await page.evaluate(([x, z]: [number, number]) => (window as unknown as { __mtt: { solidAt: (x: number, z: number, y: number) => boolean } }).__mtt.solidAt(x, z, 0), [p.x, p.z]);
+    expect(free).toBe(false);
+    // месы есть: максимум опоры по сетке выше 2м
+    const mx = await page.evaluate(() => {
+      const m = (window as unknown as { __mtt: M }).__mtt;
+      let best = 0;
+      for (let x = -48; x <= 48; x += 6) for (let z = -48; z <= 48; z += 6) best = Math.max(best, m.ground(x, z));
+      return best;
+    });
+    expect(mx).toBeGreaterThanOrEqual(2);
   });
 
   test('🟨 Бэкрумс: лабиринт большой, стены на месте, случайный', async ({ page }) => {
