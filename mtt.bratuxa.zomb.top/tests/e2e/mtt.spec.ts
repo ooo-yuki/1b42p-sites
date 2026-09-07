@@ -857,6 +857,55 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     expect(mx).toBeGreaterThanOrEqual(2);
   });
 
+  test('💬 чат глушит кнопки: печатаешь — стоишь, подсказок нет', async ({ page }) => {
+    await page.click('#guestBtn');
+    await page.click('#goBtn');
+    await page.waitForTimeout(1500);
+    await expect(page.locator('#hint')).toHaveCount(0);
+    type M = { pos: () => { x: number; z: number } };
+    const before = await page.evaluate(() => { const q = (window as unknown as { __mtt: M }).__mtt.pos(); return { x: q.x, z: q.z }; });
+    await page.keyboard.press('KeyT');
+    await expect(page.locator('#chatOv')).toHaveCount(1);
+    await page.keyboard.down('KeyW');
+    await page.keyboard.press('KeyJ');
+    await page.keyboard.press('Space');
+    await page.waitForTimeout(2500);
+    await page.keyboard.up('KeyW');
+    const after = await page.evaluate(() => { const q = (window as unknown as { __mtt: M }).__mtt.pos(); return { x: q.x, z: q.z }; });
+    expect(after).toEqual(before);
+  });
+
+  test('🎲 реролл: перезаход — новая случайная карта', async ({ page }) => {
+    await page.click('#guestBtn');
+    type M = { map: () => string; solids: () => Array<unknown> };
+    const sig = async (): Promise<string> => {
+      await page.click('#menuBtn');
+      await page.waitForTimeout(500);
+      await page.click('#nav-maps');
+      await page.click('#map-random');
+      await page.click('#nav-play');
+      await page.click('#goBtn');
+      await page.waitForTimeout(1500);
+      return await page.evaluate(() => {
+        const m = (window as unknown as { __mtt: M }).__mtt;
+        return m.map() + ':' + m.solids().length + ':' + JSON.stringify(m.solids().slice(0, 5));
+      });
+    };
+    await page.click('#nav-maps');
+    await page.click('#map-random');
+    await page.click('#nav-play');
+    await page.click('#goBtn');
+    await page.waitForTimeout(1500);
+    const s1 = await page.evaluate(() => {
+      const m = (window as unknown as { __mtt: M }).__mtt;
+      return m.map() + ':' + m.solids().length + ':' + JSON.stringify(m.solids().slice(0, 5));
+    });
+    expect(s1.startsWith('random:')).toBe(true);
+    const s2 = await sig();
+    expect(s2.startsWith('random:')).toBe(true);
+    expect(s2).not.toBe(s1);
+  });
+
   test('🟨 Бэкрумс: лабиринт большой, стены на месте, случайный', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#nav-maps');

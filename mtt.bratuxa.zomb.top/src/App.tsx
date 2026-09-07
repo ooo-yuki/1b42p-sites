@@ -326,6 +326,15 @@ async function loadStats(): Promise<void> {
   const [chatLog, setChatLog] = useState<Array<{ nick: string; text: string; t: number }>>([]);
   const [chatText, setChatText] = useState('');
   const chatLast = useRef(0);
+  const chatOpenRef = useRef(false);
+  // чат открыт — персонаж глух: сбрасываем залипшие кнопки
+  useEffect(() => {
+    chatOpenRef.current = chatOpen;
+    if (chatOpen) {
+      const g = gameRef.current;
+      if (g) { for (const k of Object.keys(g.input)) g.input[k] = false; }
+    }
+  }, [chatOpen]);
   // редактор карт: свои карты живут в localStorage, играют соло
   const CUSTOMS_KEY = 'mtt_customs_v1';
   const loadCustoms = (): Record<string, CustomMap> => {
@@ -443,7 +452,7 @@ async function loadStats(): Promise<void> {
   }, []);
 
   useEffect(() => {
-    if (!menu || !canvasRef.current) return;
+    if (!canvasRef.current) return;
     if (gameRef.current) { gameRef.current.destroy(); gameRef.current = null; }
     const game = new Game(canvasRef.current, null, {
       onHud: (h) => setHud(h),
@@ -499,6 +508,9 @@ async function loadStats(): Promise<void> {
       peaceful: () => !game.enemiesOn,
     };
     const kd = (e: KeyboardEvent) => {
+      // печатаешь в чат (или чат открыт) — персонаж не слушает кнопки
+      const t = e.target as HTMLElement | null;
+      if (chatOpenRef.current || (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA'))) return;
       game.input[e.code] = true;
       const hk = game.getKeys().hit;
       if (e.code === hk || e.code === 'KeyJ') e.preventDefault();
@@ -514,7 +526,7 @@ async function loadStats(): Promise<void> {
       delete (window as unknown as { __mtt?: object }).__mtt;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapChoice, noEnemies, customSel, customRev]);
+  }, [mapChoice, noEnemies, customSel, customRev, menu]);
 
   const go = useCallback(() => {
     try { localStorage.setItem(NICK_KEY, nick); } catch { /* noop */ }
@@ -1072,7 +1084,6 @@ async function loadStats(): Promise<void> {
           </div>
           <div id="hudRow">{noEnemies ? '🕊️ МИРНЫЙ РЕЖИМ · ' : `🌊 Волна ${hud.wave} · 👹 ${hud.enemies} · `}💀 {hud.kills} · 🏆 {hud.score}</div>
           <div id="hudRow2">🎟️ {hud.fantiki} · 💊 {hud.med}/3 · ⭐ {hud.lvl} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}{char === 'krysa' && (hud.kick > 0 ? ` · 🌀 ${hud.kick.toFixed(1)}с` : ' · 🌀 вол-кик готов')}</div>
-          <small id="hint">WASD — идти · Space — прыжок · клик/J — удар · Shift — бег · E — смена ствола · X — аптечка · I — во весь экран · T — чат{char === 'mtt' ? ' · C — рывок (вверх — полёт)' : ' · стена + прыжок — вол-кик'}</small>
         </div>
       )}
       {!menu && (
