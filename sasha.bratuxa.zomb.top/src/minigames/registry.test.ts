@@ -53,4 +53,11 @@ describe('minigames registry', () => {
     expect(g?.mode).toBe('offline');
     expect(g?.test).toBe(false);
   });
+  test('фабрика зарегистрирована как боевая офлайн-игра', () => {
+    const g = getGame('fabrika');
+    expect(g).toBeDefined();
+    expect(g?.href).toBe('fabrika.html');
+    expect(g?.mode).toBe('offline');
+    expect(g?.test).toBe(false);
+  });
 });

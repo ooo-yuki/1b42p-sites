@@ -134,7 +134,7 @@ export class ShowEngine {
         this.notes.splice(m, 1);
         this.combo = 0;
         this.misses++;
-        this.ev.say(nt.raid ? '👹 Рейд-нота ушла!' : 'Пропустил ноту! 💨');
+        this.ev.say(nt.raid ? 'Рейд-нота ушла!' : 'Пропустил ноту!');
         this.ev.blip(180);
       }
     }
@@ -143,7 +143,7 @@ export class ShowEngine {
       if (this.raid.t <= 0) {
         this.raid = null;
         this.ev.raid(false);
-        this.ev.say('Рейд ушёл... держи обычный темп 🎤');
+        this.ev.say('Рейд ушёл... держи обычный темп');
       }
     }
     this.nextH -= dt;
@@ -165,7 +165,7 @@ export class ShowEngine {
         this.haters[k].view.remove();
         this.haters.splice(k, 1);
         this.combo = 0;
-        this.ev.say('Хейтер сорвал кусок шоу! −10% 😡');
+        this.ev.say('Хейтер сорвал кусок шоу! −10%');
         this.hype *= 0.9;
         this.ev.blip(200);
       }
@@ -194,7 +194,7 @@ export class ShowEngine {
     if (!silent) {
       const v = stBase(this.v, this.s) * 0.5;
       this.hype += v;
-      this.ev.say('Хейтер сброшен с полосы! +' + fmt(v) + ' 🔥');
+      this.ev.say('Хейтер сброшен с полосы! +' + fmt(v) + ' хайпа');
       this.ev.blip(660);
     }
   }
@@ -214,23 +214,23 @@ export class ShowEngine {
     if (!best || bestD > zw) {
       this.combo = 0;
       this.misses++;
-      this.ev.say('Мимо! Рано/поздно 💨');
+      this.ev.say('Мимо! Рано или поздно');
       this.ev.blip(200);
       return;
     }
     let j = judgeDist(bestD, zw);
     if (this.haters.length > 0 && j !== 'good') {
       j = j === 'perfect' || j === 'great' ? 'good' : j;
-      this.ev.say('😡 Хейтер глушит звук! Сбей его!');
+      this.ev.say('Хейтер глушит звук! Сбей его!');
     }
     best.hit = true;
     best.view.pop();
     const { val, doubled } = scoreHit(
       base, j, this.combo, stCritM(this.s), stComboStep(this.s), stDouble(this.s), this.rng,
     );
-    if (doubled) this.ev.say((j === 'perfect' ? '✨ ДВОЙНОЙ PERFECT! +' : '✨ ДВОЙНОЙ! +') + fmt(val));
-    else if (j === 'perfect') this.ev.say((this.combo + 1 >= 8 ? '🔥 ФИЕВЕР! PERFECT +' : '💯 PERFECT! +') + fmt(val));
-    else if (j === 'great' && this.combo + 1 >= 8) this.ev.say('🔥 ФИЕВЕР! +' + fmt(val));
+    if (doubled) this.ev.say((j === 'perfect' ? 'ДВОЙНОЙ PERFECT! +' : 'ДВОЙНОЙ! +') + fmt(val));
+    else if (j === 'perfect') this.ev.say((this.combo + 1 >= 8 ? 'ФИЕВЕР! PERFECT +' : 'PERFECT! +') + fmt(val));
+    else if (j === 'great' && this.combo + 1 >= 8) this.ev.say('ФИЕВЕР! +' + fmt(val));
     if (j === 'perfect') this.perfects++;
     else if (j === 'great') this.greats++;
     else this.goods++;
@@ -243,7 +243,7 @@ export class ShowEngine {
       this.raid.got++;
       if (this.raid.got >= this.raid.need) {
         this.hype += base * 10 * stCritM(this.s);
-        this.ev.say('👹 РЕЙД ОТБИТ! ×10!');
+        this.ev.say('РЕЙД ОТБИТ! ×10!');
         this.raid = null;
         this.ev.raid(false);
       }
@@ -256,7 +256,7 @@ export class ShowEngine {
     this.ev.raid(true);
     this.raidCd = 20;
     this.nextN = 0;
-    this.ev.say('👹 РЕЙД-БОСС! Поток нот — держи темп!');
+    this.ev.say('РЕЙД-БОСС! Поток нот — держи темп!');
     this.ev.blip(300);
   }
 }

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type JSX } from 'react';
+import { Angry, PartyPopper, Skull, Ticket } from 'lucide-react';
 import { ShowEngine, type HaterView, type NoteView, type ShowSummary } from './show';
+import { VENUE_ICONS } from './parts';
 import { fmt, stZone, type Save } from './formulas';
 import type { Venue } from './content';
 import { blip } from './audio';
@@ -92,7 +94,7 @@ export function ShowStage(props: {
       },
     );
     engine.current = sh;
-    setMsg('ноты летят справа — бей в зоне слева!');
+    setMsg('Ноты летят справа — бей в зоне слева!');
 
     let raf = 0;
     let last = Date.now();
@@ -104,10 +106,10 @@ export function ShowStage(props: {
       if (sh.over) return;
       sh.step(dt);
       if (sh.over) return;
-      setText('timer', `${Math.ceil(sh.t)}с · +${fmt(sh.hype)} 🔥`);
+      setText('timer', `${Math.ceil(sh.t)}с · +${fmt(sh.hype)} хайпа`);
       setText('tempo', `темп ×${sh.tempo().toFixed(2)} · нот ${sh.notes.length} · зона слева`);
       setText('rC', String(sh.combo));
-      if (sh.raid) setText('raidN', `${sh.raid.got}/${sh.raid.need} держи темп!`);
+      if (sh.raid) setText('raidN', `${sh.raid.got}/${sh.raid.need} — держи темп!`);
     };
     raf = requestAnimationFrame(frame);
     return () => {
@@ -119,11 +121,12 @@ export function ShowStage(props: {
   }, [props.venue.id]);
 
   const zw = stZone(props.venue, props.save);
+  const VenueIcon = VENUE_ICONS[props.venue.id] ?? Ticket;
 
   return (
     <div data-slot="card" className="show-card" id="showCard">
       <h3 id="showName">
-        {props.venue.em} {props.venue.n}
+        <VenueIcon data-icon="inline-start" aria-hidden size={16} /> {props.venue.n}
       </h3>
       <div id="timer">30</div>
       <div
@@ -162,8 +165,9 @@ export function ShowStage(props: {
             }}
             className={n.raid ? 'note raidnote' + (n.popped ? ' hit' : '') : 'note' + (n.popped ? ' hit' : '')}
             style={{ left: '105%' }}
+            aria-hidden
           >
-            {n.raid ? '👹' : '🍾'}
+            {n.raid ? <Skull size={30} /> : <Ticket size={30} />}
           </div>
         ))}
         {haters.map((h) => (
@@ -185,25 +189,26 @@ export function ShowStage(props: {
               }
             }}
           >
-            😡
+            <Angry size={34} />
           </div>
         ))}
         <div id="raid" style={{ display: raidOn ? 'flex' : 'none' }}>
-          👹 РЕЙД-БОСС!
-          <br />
+          <span>
+            <Skull data-icon="inline-start" aria-hidden size={22} /> РЕЙД-БОСС!
+          </span>
           <span id="raidN"></span>
         </div>
       </div>
       <div id="tempo"></div>
       <button className="big" id="btnZavoz" onClick={() => engine.current?.zavoz()}>
-        ЗАВОЗ! 🍾
+        <PartyPopper data-icon="inline-start" aria-hidden size={18} /> ЗАВОЗ!
       </button>
       <button
         className="buy raid-btn"
         id="btnRaid"
         onClick={() => engine.current?.callRaid()}
       >
-        👹 Вызвать рейд-босса
+        <Skull data-icon="inline-start" aria-hidden size={16} /> Вызвать рейд-босса
       </button>
       <div id="msg">{msg}</div>
     </div>

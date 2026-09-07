@@ -16,7 +16,7 @@ export function judgeDist(d: number, zw: number): Judge {
 
 export function fmt(n: number): string {
   n = Math.floor(n);
-  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+  if (n >= 999950) return (n / 1e6).toFixed(2) + 'M';
   if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
   return String(n);
 }
@@ -95,7 +95,7 @@ export type Unlock = { ok: boolean; buy?: boolean; why?: string };
 
 export function unlocked(s: Save, v: { id: string; cost: number; need: string }): Unlock {
   if (s.un.indexOf(v.id) >= 0) return { ok: true };
-  if (s.h < v.cost) return { ok: false, why: 'Нужно ' + fmt(v.cost) + ' 🔥' };
+  if (s.h < v.cost) return { ok: false, why: 'Нужно ' + fmt(v.cost) + ' хайпа' };
   if (v.need === 'jacket' && s.look.jacket < 1) return { ok: false, why: 'Нужен зеркальный пиджак' };
   if (v.need === 'mantle+sneakers' && (s.look.mantle < 1 || s.look.sneakers < 1)) {
     return { ok: false, why: 'Нужны мантия и кроссовки' };

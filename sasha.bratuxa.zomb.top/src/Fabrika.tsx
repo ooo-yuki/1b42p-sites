@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
+import { Crown, Mic, PartyPopper, Tent, Trophy, Users, type LucideIcon } from 'lucide-react';
 import { useBeacon } from './hooks';
 import './fabrika.css';
 import { Masthead, Shop, Venues } from './fabrika/parts';
@@ -17,11 +18,11 @@ const REDUCED =
 
 type Tab = 'stage' | 'team' | 'boss' | 'land';
 
-const TABS: Array<{ id: Tab; label: string }> = [
-  { id: 'stage', label: '🎤 Сцена' },
-  { id: 'team', label: '🧑‍🤝‍🧑 Команда' },
-  { id: 'boss', label: '🕺 Босс' },
-  { id: 'land', label: '🎪 ФрикЛенд' },
+const TABS: Array<{ id: Tab; label: string; icon: LucideIcon }> = [
+  { id: 'stage', label: 'Сцена', icon: Mic },
+  { id: 'team', label: 'Команда', icon: Users },
+  { id: 'boss', label: 'Босс', icon: Crown },
+  { id: 'land', label: 'ФрикЛенд', icon: Tent },
 ];
 
 /* Фабрика Хайпа 42 у Саши: продюсируй Пятёрку, качай команду и выйди на SLAY.
@@ -56,6 +57,10 @@ export default function Fabrika(): JSX.Element {
   useEffect(() => {
     if (!winOpen || REDUCED) return;
     gsap.from('#winBox', { scale: 0.9, opacity: 0, duration: 0.35, ease: 'back.out(1.6)' });
+    return () => {
+      gsap.killTweensOf('#winBox');
+      gsap.set('#winBox', { clearProps: 'opacity,visibility,transform' });
+    };
   }, [winOpen]);
 
   const startShow = (v: Venue): void => {
@@ -77,7 +82,7 @@ export default function Fabrika(): JSX.Element {
   const endShow = (sum: ShowSummary): void => {
     setShow(null);
     setLastShow(
-      `Шоу окончено: +${fmt(sum.hype)} 🔥 · 💯${sum.perfects} 👏${sum.greats} 🆗${sum.goods} · мимо ${sum.misses} · комбо ${sum.best}`,
+      `Шоу окончено: +${fmt(sum.hype)} хайпа · точно ${sum.perfects} · хорошо ${sum.greats} · норм ${sum.goods} · мимо ${sum.misses} · комбо ${sum.best}`,
     );
     blip(990);
     setSave((p) => {
@@ -99,12 +104,12 @@ export default function Fabrika(): JSX.Element {
     if (lv >= 3) return;
     const c = lvlCost(o.base, lv);
     if (isF && s.f < c) {
-      setHint('Не хватает фантиков! 🎟️');
+      setHint('Не хватает фантиков — качай ФрикЛенд и жми ноты');
       blip(200);
       return;
     }
     if (!isF && s.h < c) {
-      setHint('Не хватает хайпа! 🔥');
+      setHint('Не хватает хайпа — выступи на площадке');
       blip(200);
       return;
     }
@@ -122,18 +127,22 @@ export default function Fabrika(): JSX.Element {
       <Masthead h={save.h} f={save.f} fans={fans(save.total)} />
       <div id="tabs" role="tablist" aria-label="Сцены фабрики">
         <div data-slot="tabs-list">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              role="tab"
-              aria-selected={tab === t.id}
-              data-state={tab === t.id ? 'active' : 'inactive'}
-              data-slot="tabs-trigger"
-              onClick={() => setTab(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
+          {TABS.map((t) => {
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.id}
+                role="tab"
+                aria-selected={tab === t.id}
+                data-state={tab === t.id ? 'active' : 'inactive'}
+                data-slot="tabs-trigger"
+                onClick={() => setTab(t.id)}
+              >
+                <Icon data-icon="inline-start" aria-hidden size={16} />
+                {t.label}
+              </button>
+            );
+          })}
         </div>
         {hint ? (
           <div className="shop-hint" role="status">
@@ -157,7 +166,9 @@ export default function Fabrika(): JSX.Element {
         {tab === 'team' && (
           <div id="tab-team" role="tabpanel">
             <div data-slot="card">
-              <h3>🧑‍🤝‍🧑 Команда Батальона</h3>
+              <h3>
+                <Users data-icon="inline-start" aria-hidden size={16} /> Команда Батальона
+              </h3>
               <Shop id="team" items={TEAM} lvls={save.team} isF onBuy={(k) => buy('team', k)} />
             </div>
           </div>
@@ -165,7 +176,9 @@ export default function Fabrika(): JSX.Element {
         {tab === 'boss' && (
           <div id="tab-boss" role="tabpanel">
             <div data-slot="card">
-              <h3>🕺 Прокачка Пятёрки</h3>
+              <h3>
+                <Crown data-icon="inline-start" aria-hidden size={16} /> Прокачка Пятёрки
+              </h3>
               <Shop id="looks" items={LOOKS} lvls={save.look} isF={false} onBuy={(k) => buy('look', k)} />
             </div>
           </div>
@@ -173,14 +186,16 @@ export default function Fabrika(): JSX.Element {
         {tab === 'land' && (
           <div id="tab-land" role="tabpanel">
             <div data-slot="card">
-              <h3>🎪 ФрикЛенд</h3>
+              <h3>
+                <Tent data-icon="inline-start" aria-hidden size={16} /> ФрикЛенд
+              </h3>
               <Shop id="builds" items={BUILDS} lvls={save.bld} isF onBuy={(k) => buy('bld', k)} />
-              <p className="hint">Каждый объект даёт перманентный буст. Мы уже победили 🏆</p>
+              <p className="hint">Каждый объект даёт перманентный буст. Мы уже победили.</p>
             </div>
           </div>
         )}
-        <p className="hint" style={{ textAlign: 'center' }}>
-          <a href="minigames.html">← Зал автоматов</a> · <a href="index.html">Саша ⁴² — на главную</a>
+        <p className="fab-home">
+          <a href="minigames.html">Зал автоматов</a> · <a href="index.html">Саша ⁴² — на главную</a>
         </p>
       </div>
 
@@ -193,7 +208,7 @@ export default function Fabrika(): JSX.Element {
           style={{
             position: 'fixed', inset: 0, zIndex: 50, display: 'flex',
             alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(5,2,10,.92)', padding: 20,
+            background: 'rgba(4,6,14,.92)', padding: 20,
           }}
         >
           <div
@@ -203,9 +218,9 @@ export default function Fabrika(): JSX.Element {
             style={{ padding: 26, maxWidth: 440 }}
           >
             <div data-slot="dialog-title" style={{ fontWeight: 800, fontSize: 20 }}>
-              🏆 ТРИУМФ НА SLAY 2026! 🏆{' '}
+              <Trophy data-icon="inline-start" aria-hidden size={20} /> ТРИУМФ НА SLAY 2026{' '}
               <span data-slot="badge" className="lvl">
-                {fmt(save.total)} 🔥
+                {fmt(save.total)} хайпа
               </span>
             </div>
             <p>
@@ -214,10 +229,10 @@ export default function Fabrika(): JSX.Element {
               Босс поднял статуэтку: <b>1 БАТАЛЬОН 42 ПРОПАГАНДЫ — СНОВА ПЕРВЫЕ!</b>
               <br />
               <br />
-              Мы уже победили 🏆
+              Мы уже победили.
             </p>
             <button className="big" onClick={() => setWinOpen(false)}>
-              Кайфовать дальше 🍾
+              <PartyPopper data-icon="inline-start" aria-hidden size={18} /> Кайфовать дальше
             </button>
           </div>
         </div>
