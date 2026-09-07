@@ -55,6 +55,14 @@ const GAMES: MiniGame[] = [
     mode: 'offline',
     test: false,
   },
+  {
+    id: 'fabrika',
+    title: 'Фабрика Хайпа 42',
+    desc: 'Продюсируй Пятёрку: жми ноты в зоне, качай команду и выйди на главную сцену SLAY.',
+    href: 'fabrika.html',
+    mode: 'offline',
+    test: false,
+  },
 ];
 
 /** Все записи витрины по порядку завоза. */

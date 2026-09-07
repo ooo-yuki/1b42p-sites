@@ -1,0 +1,227 @@
+import { useEffect, useRef, useState } from 'react';
+import gsap from 'gsap';
+import { useBeacon } from './hooks';
+import './fabrika.css';
+import { Masthead, Shop, Venues } from './fabrika/parts';
+import { ShowStage } from './fabrika/ShowStage';
+import { BUILDS, LOOKS, TEAM, WIN_GOAL, type Venue } from './fabrika/content';
+import { fans, fmt, lvlCost, unlocked, type Save } from './fabrika/formulas';
+import { loadSave, storeSave } from './fabrika/save';
+import type { ShowSummary } from './fabrika/show';
+import { blip } from './fabrika/audio';
+
+const REDUCED =
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+type Tab = 'stage' | 'team' | 'boss' | 'land';
+
+const TABS: Array<{ id: Tab; label: string }> = [
+  { id: 'stage', label: '🎤 Сцена' },
+  { id: 'team', label: '🧑‍🤝‍🧑 Команда' },
+  { id: 'boss', label: '🕺 Босс' },
+  { id: 'land', label: '🎪 ФрикЛенд' },
+];
+
+/* Фабрика Хайпа 42 у Саши: продюсируй Пятёрку, качай команду и выйди на SLAY.
+   Движок 1:1 с brohacho (тот же баланс, те же сейвы brohacho42_v1). */
+export default function Fabrika(): JSX.Element {
+  const [save, setSave] = useState<Save>(() => loadSave(localStorage));
+  const [show, setShow] = useState<{ v: Venue; key: number } | null>(null);
+  const [tab, setTab] = useState<Tab>('stage');
+  const [winOpen, setWinOpen] = useState(false);
+  const [hint, setHint] = useState('');
+  const [lastShow, setLastShow] = useState('');
+  const saveRef = useRef(save);
+  saveRef.current = save;
+
+  useBeacon();
+
+  useEffect(() => {
+    storeSave(localStorage, save);
+  }, [save]);
+
+  /* Фантики капают каждую секунду 1:1 с legacy. */
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const s = saveRef.current;
+      const inc = fans(s.total) * 0.05 * (1 + 0.5 * s.bld.banka);
+      if (inc > 0) setSave((p) => ({ ...p, f: p.f + inc }));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  /* Поп победы: пружинный скейл модалки. Вход мачты — CSS rise. */
+  useEffect(() => {
+    if (!winOpen || REDUCED) return;
+    gsap.from('#winBox', { scale: 0.9, opacity: 0, duration: 0.35, ease: 'back.out(1.6)' });
+  }, [winOpen]);
+
+  const startShow = (v: Venue): void => {
+    const s = saveRef.current;
+    const u = unlocked(s, v);
+    if (!u.ok) {
+      blip(200);
+      setHint(u.why ?? '');
+      return;
+    }
+    if (u.buy) {
+      setSave((p) => ({ ...p, h: p.h - v.cost, un: [...p.un, v.id] }));
+    }
+    setShow((p) => ({ v, key: (p?.key ?? 0) + 1 }));
+    setHint('');
+    blip(700);
+  };
+
+  const endShow = (sum: ShowSummary): void => {
+    setShow(null);
+    setLastShow(
+      `Шоу окончено: +${fmt(sum.hype)} 🔥 · 💯${sum.perfects} 👏${sum.greats} 🆗${sum.goods} · мимо ${sum.misses} · комбо ${sum.best}`,
+    );
+    blip(990);
+    setSave((p) => {
+      const h = p.h + sum.hype;
+      const total = p.total + sum.hype;
+      const win = p.win || total >= WIN_GOAL;
+      if (!p.win && total >= WIN_GOAL) setWinOpen(true);
+      return { ...p, h, total, win };
+    });
+  };
+
+  const buy = (section: 'team' | 'look' | 'bld', key: string): void => {
+    const table = section === 'team' ? TEAM : section === 'look' ? LOOKS : BUILDS;
+    const isF = section !== 'look';
+    const o = table[key];
+    if (!o) return;
+    const s = saveRef.current;
+    const lv = s[section][key] ?? 0;
+    if (lv >= 3) return;
+    const c = lvlCost(o.base, lv);
+    if (isF && s.f < c) {
+      setHint('Не хватает фантиков! 🎟️');
+      blip(200);
+      return;
+    }
+    if (!isF && s.h < c) {
+      setHint('Не хватает хайпа! 🔥');
+      blip(200);
+      return;
+    }
+    setHint('');
+    setSave((p) => ({
+      ...p,
+      ...(isF ? { f: p.f - c } : { h: p.h - c }),
+      [section]: { ...p[section], [key]: (p[section][key] ?? 0) + 1 },
+    }));
+    blip(760);
+  };
+
+  return (
+    <>
+      <Masthead h={save.h} f={save.f} fans={fans(save.total)} />
+      <div id="tabs" role="tablist" aria-label="Сцены фабрики">
+        <div data-slot="tabs-list">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={tab === t.id}
+              data-state={tab === t.id ? 'active' : 'inactive'}
+              data-slot="tabs-trigger"
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {hint ? (
+          <div className="shop-hint" role="status">
+            {hint}
+          </div>
+        ) : null}
+      </div>
+      <div id="main">
+        {tab === 'stage' && (
+          <div id="tab-stage" role="tabpanel">
+            <Venues save={save} onShow={startShow} />
+            {show ? (
+              <ShowStage key={show.key} venue={show.v} save={saveRef.current} onEnd={endShow} />
+            ) : lastShow ? (
+              <div id="lastShow" aria-live="polite">
+                {lastShow}
+              </div>
+            ) : null}
+          </div>
+        )}
+        {tab === 'team' && (
+          <div id="tab-team" role="tabpanel">
+            <div data-slot="card">
+              <h3>🧑‍🤝‍🧑 Команда Батальона</h3>
+              <Shop id="team" items={TEAM} lvls={save.team} isF onBuy={(k) => buy('team', k)} />
+            </div>
+          </div>
+        )}
+        {tab === 'boss' && (
+          <div id="tab-boss" role="tabpanel">
+            <div data-slot="card">
+              <h3>🕺 Прокачка Пятёрки</h3>
+              <Shop id="looks" items={LOOKS} lvls={save.look} isF={false} onBuy={(k) => buy('look', k)} />
+            </div>
+          </div>
+        )}
+        {tab === 'land' && (
+          <div id="tab-land" role="tabpanel">
+            <div data-slot="card">
+              <h3>🎪 ФрикЛенд</h3>
+              <Shop id="builds" items={BUILDS} lvls={save.bld} isF onBuy={(k) => buy('bld', k)} />
+              <p className="hint">Каждый объект даёт перманентный буст. Мы уже победили 🏆</p>
+            </div>
+          </div>
+        )}
+        <p className="hint" style={{ textAlign: 'center' }}>
+          <a href="minigames.html">← Зал автоматов</a> · <a href="index.html">Саша ⁴² — на главную</a>
+        </p>
+      </div>
+
+      {winOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Триумф на SLAY 2026"
+          onClick={() => setWinOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 50, display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(5,2,10,.92)', padding: 20,
+          }}
+        >
+          <div
+            id="winBox"
+            className="win-box"
+            onClick={(e) => e.stopPropagation()}
+            style={{ padding: 26, maxWidth: 440 }}
+          >
+            <div data-slot="dialog-title" style={{ fontWeight: 800, fontSize: 20 }}>
+              🏆 ТРИУМФ НА SLAY 2026! 🏆{' '}
+              <span data-slot="badge" className="lvl">
+                {fmt(save.total)} 🔥
+              </span>
+            </div>
+            <p>
+              Пятёрка в слезах, ФрикЛенд ликует, хейтеры удалены из чата.
+              <br />
+              Босс поднял статуэтку: <b>1 БАТАЛЬОН 42 ПРОПАГАНДЫ — СНОВА ПЕРВЫЕ!</b>
+              <br />
+              <br />
+              Мы уже победили 🏆
+            </p>
+            <button className="big" onClick={() => setWinOpen(false)}>
+              Кайфовать дальше 🍾
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
