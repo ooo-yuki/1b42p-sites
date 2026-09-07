@@ -50,9 +50,9 @@ function bladeTexture(): THREE.CanvasTexture {
   } else {
     ctx.strokeStyle = '#b8dd7a';
   }
-  ctx.lineWidth = 6; ctx.lineCap = 'round';
-  for (let i = 0; i < 12; i++) {
-    const x = 4 + i * 10 + Math.random() * 4;
+  ctx.lineWidth = 4; ctx.lineCap = 'round';
+  for (let i = 0; i < 14; i++) {
+    const x = 4 + i * 8.6 + Math.random() * 3;
     ctx.beginPath(); ctx.moveTo(x, 128);
     ctx.quadraticCurveTo(x + (Math.random() * 16 - 8), 64, x + (Math.random() * 24 - 12), 8 + Math.random() * 20);
     ctx.stroke();
@@ -68,9 +68,9 @@ export function buildGrass(map: MapId, seed: number): GrassRig {
   const def = MAPS[map];
   const high = map === 'neon' ? GRASS_HIGH_NEON : GRASS_HIGH;
   const low = map === 'neon' ? GRASS_LOW_NEON : GRASS_LOW;
-  // Куст: 2 скрещенных квада, по щиколотку (~0.3 м), не джунгли.
-  const quad = new THREE.PlaneGeometry(0.7, 0.3);
-  quad.translate(0, 0.15, 0);
+  // Куст: 2 скрещенных квада, низкая поросль (~0.25 м), не джунгли.
+  const quad = new THREE.PlaneGeometry(0.55, 0.25);
+  quad.translate(0, 0.125, 0);
   const quad2 = quad.clone();
   quad2.rotateY(Math.PI / 2);
   const geo = mergeTwo(quad, quad2);
@@ -84,7 +84,7 @@ export function buildGrass(map: MapId, seed: number): GrassRig {
   mat.onBeforeCompile = (sh: THREE.WebGLProgramParametersWithUniforms) => {
     sh.uniforms.uTime = uTime;
     sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
-      float swayH = pow(clamp(position.y / 0.30, 0.0, 1.0), 2.0);
+      float swayH = pow(clamp(position.y / 0.25, 0.0, 1.0), 2.0);
       vec4 iwpos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
       transformed.x += swayH * (0.12 * sin(uTime * 1.6 + iwpos.x * 0.5 + iwpos.z * 0.3) + 0.05 * sin(uTime * 3.7 + iwpos.z * 0.8));`);
   };
