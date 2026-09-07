@@ -1145,21 +1145,6 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     expect(peak).toBeGreaterThan(4);
   });
 
-  test('🌬️ инерция: в полёте несёт без кнопок', async ({ page }) => {
-    await page.click('#guestBtn');
-    await page.click('#goBtn');
-    // разбег, прыжок, отпустить всё — тело должно лететь по импульсу
-    await page.keyboard.down('w');
-    await page.waitForTimeout(900);
-    await page.keyboard.press('Space');
-    await page.keyboard.up('w');
-    const p0 = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { x: number; z: number } } }).__mtt.pos());
-    await page.waitForTimeout(1500);
-    const p1 = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { x: number; z: number } } }).__mtt.pos());
-    const drift = Math.hypot(p1.x - p0.x, p1.z - p0.z);
-    expect(drift).toBeGreaterThan(1.0);
-  });
-
   test.afterEach(async () => {
     // ожидаемый 403 админки для чужих — не баг, в отчёт не идёт
     const real = errors.filter((e) => !e.includes('/api/admin/stats'));

@@ -335,9 +335,6 @@ export class Game {
   private bobPhase = 0;
   private py = 0;
   private pvy = 0;
-  // импульс полёта: горизонтальная скорость живёт и без кнопок (в воздухе трение слабое)
-  private vx = 0;
-  private vz = 0;
   private keyMap: KeyMap = { ...DEFAULT_KEYS };
   private remotes: Remote[] = [];
   private half: number = HALF;
@@ -2570,15 +2567,16 @@ export class Game {
     }
     if (hits > 0) this.blip(440);
     // рокет-джамп только от поверхности: луч упёрся в землю/крышу/стену рядом —
-    // стрельба в воздух не подбрасывает. Вверх на 6м + отброс назад импульсом.
+    // стрельба в воздух не подбрасывает. Вверх на 6м + отброс назад рывком.
     if (dy < -0.45 && this.shotHitsSurface(cx, cy, cz, dx, dy, dz)) {
       // рокет-джамп: чем круче вниз, тем выше (максимум 12 → ровно 6м);
-      // отброс — тоже импульсом: летит назад даже без кнопок
+      // отброс назад — коротким рывком против выстрела
       const k = Math.min(1, (-dy - 0.45) / 0.44);
       this.pvy = 12 * k;
       const hl = Math.hypot(dx, dz) || 1;
-      this.vx -= (dx / hl) * 7 * k;
-      this.vz -= (dz / hl) * 7 * k;
+      const bx = this.px - (dx / hl) * 2.2 * k, bz = this.pz - (dz / hl) * 2.2 * k;
+      if (!this.hitSolid(bx, this.pz, 0.9, this.py)) this.px = this.clamp(bx);
+      if (!this.hitSolid(this.px, bz, 0.9, this.py)) this.pz = this.clamp(bz);
       this.burst(this.px, 0.3, this.pz, 16);
       this.blip(300);
     }
@@ -2985,34 +2983,12 @@ export class Game {
       const len = Math.hypot(f, r);
       this.moving = len > 0.15;
       if (this.moving) this.bobPhase += dt * 11;
-      const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
-      const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
-      // желаемая скорость по кнопкам (резкая, как была)
-      let wishX = 0, wishZ = 0;
       if (len > 0.01) {
         const nf = f / Math.max(1, len), nr = r / Math.max(1, len);
-        wishX = (fx * nf + rx * nr) * sp;
-        wishZ = (fz * nf + rz * nr) * sp;
-      }
-      // ИМПУЛЬС (слабый): на земле скорость = кнопки (резко), в полёте скорость
-      // чуть живёт — кнопки дают небольшое ускорение, трение заметное
-      const grounded = this.py <= this.groundAt(this.px, this.pz) + 0.01;
-      if (grounded) {
-        if (this.moving) { this.vx = wishX; this.vz = wishZ; }
-        else { const fr = Math.max(0, 1 - 8 * dt); this.vx *= fr; this.vz *= fr; }
-      } else {
-        const AIR_K = 1.2, AIR_DRAG = 1.8, MAXA = 11;
-        this.vx += wishX * AIR_K * dt;
-        this.vz += wishZ * AIR_K * dt;
-        const dr = Math.max(0, 1 - AIR_DRAG * dt);
-        this.vx *= dr; this.vz *= dr;
-        const asl = Math.hypot(this.vx, this.vz);
-        if (asl > MAXA) { this.vx = this.vx / asl * MAXA; this.vz = this.vz / asl * MAXA; }
-      }
-      // едем: на земле по кнопкам (как было), иначе по импульсу (в полёте — всегда)
-      if (len > 0.01 || !grounded || Math.hypot(this.vx, this.vz) > 0.05) {
-        const nx = this.px + (this.moving && grounded ? wishX * dt : this.vx * dt);
-        const nz = this.pz + (this.moving && grounded ? wishZ * dt : this.vz * dt);
+        const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
+        const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
+        const nx = this.px + (fx * nf + rx * nr) * sp * dt;
+        const nz = this.pz + (fz * nf + rz * nr) * sp * dt;
         // стена: запоминаем нормаль (толчок от стены для вол-кика Крысы).
         // невысокий порог (ступень ≤1.1м) перешагиваем автоматом — так лезем по лестницам на крыши
         if (this.hitSolid(nx, this.pz, 0.9, this.py)) {
@@ -3055,9 +3031,6 @@ export class Game {
         if (!this.hitSolid(this.px, nz, 0.9, this.py)) this.pz = this.clamp(nz);
         this.py = Math.max(0, this.py + this.dashDy * dspd * dt);
         this.pvy = 0;
-        // рывок разогнал — импульс остаётся и летит дальше даже без кнопок
-        this.vx = this.dashDx * dspd;
-        this.vz = this.dashDz * dspd;
         if (!this.moving) this.bobPhase += dt * 11;
       } else {
         this.pvy -= 12 * dt;
