@@ -1080,6 +1080,14 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
 
   test('🎰 кейсы: Стейси закрыта, МТТ базовый, кейс открывается', async ({ page }) => {
     await page.click('#guestBtn');
+    // баланс виден в правом верхнем углу меню
+    await expect(page.locator('#menuBalance')).toBeVisible();
+    await expect(page.locator('#menuBalance')).toContainText('🎟️');
+    const box = await page.locator('#menuBalance').boundingBox();
+    const vp = page.viewportSize();
+    expect(box).not.toBeNull();
+    expect(box!.x + box!.width).toBeGreaterThan((vp?.width ?? 1280) * 0.8);
+    expect(box!.y).toBeLessThan(60);
     // вкладка кейсов на месте
     await page.click('#nav-cases');
     await expect(page.locator('#caseSec')).toBeVisible();

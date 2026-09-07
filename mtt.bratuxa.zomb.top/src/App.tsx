@@ -1311,6 +1311,7 @@ async function loadStats(): Promise<void> {
       )}
       {menu && (
         <div id="menu" className="twd">
+          <div id="menuBalance" title="Твои фантики">🎟️ {hud.fantiki}</div>
           <div id="menuNav">
             <h1>👊 42 LIVE 💥</h1>
             {([['play', '▶ ИГРАТЬ'], ['fighter', '🎭 БОЕЦ'], ['cases', '🎰 КЕЙСЫ'], ['maps', '🗺️ КАРТЫ'], ['editor', '🧩 РЕДАКТОР'], ['rooms', '🌐 КОМНАТЫ'], ['servers', '🖥️ СЕРВЕРА'], ['settings', '⚙️ НАСТРОЙКИ'], ['tops', '🏆 ТОПЫ']] as Array<[TabId, string]>).map(([id, label]) => (
