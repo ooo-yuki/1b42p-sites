@@ -418,7 +418,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
           active: true,
           round: room.round,
           lastWinner: room.lastWinner,
-          foe: { nick: foe.nick, login: foe.login, char: foe.char, x: foe.x, z: foe.z, hp: Math.round(foe.duelHp) },
+          foe: { nick: foe.nick, login: foe.login, char: foe.char, x: foe.x, z: foe.z, hp: Math.round(foe.duelHp), weapon: foe.weapon, py: foe.py, atk: foe.atk, dead: foe.dead },
           myHp: Math.round(me.duelHp),
           myWins: me.wins,
           foeWins: foe.wins,

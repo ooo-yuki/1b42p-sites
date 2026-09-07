@@ -60,6 +60,10 @@ interface DuelFoe {
   x: number;
   z: number;
   hp: number;
+  weapon?: string;
+  py?: number;
+  atk?: number;
+  dead?: boolean;
 }
 
 interface DuelInfo {
@@ -852,7 +856,7 @@ async function loadStats(): Promise<void> {
         const all = [...plist];
         if (d.duel && d.duel.active && d.duel.foe) {
           const f = d.duel.foe;
-          all.push({ nick: f.nick, login: f.login, char: f.char, x: f.x, z: f.z, hp: f.hp, score: 0, kills: 0, wave: 1 });
+          all.push({ nick: f.nick, login: f.login, char: f.char, x: f.x, z: f.z, hp: f.hp, score: 0, kills: 0, wave: 1, weapon: f.weapon, py: f.py, atk: f.atk, dead: f.dead });
         }
         g.setRemotes(all);
         // чат: добираем только новое по метке времени
@@ -1270,7 +1274,7 @@ async function loadStats(): Promise<void> {
               🌐 {roomId} · {mates.length + 1}
               <button id="roomLeave" onClick={leaveRoom}>✕</button>
               {mates.length > 0 && (
-                <div id="roomMates">{mates.map((m) => `${m.nick}${m.login ? `(@${m.login})` : ''} ${m.score}🏆`).join(' · ')}</div>
+                <div id="roomMates">{mates.map((m) => `${WEAPONS.find((w) => w.id === m.weapon)?.name ?? '👊'} ${m.nick}${m.login ? `(@${m.login})` : ''} ${m.score}🏆`).join(' · ')}</div>
               )}
             </div>
           )}
@@ -1759,14 +1763,14 @@ async function loadStats(): Promise<void> {
             <h3>🌐 Комнаты</h3>
             {roomId ? (
               <>
-                <div>Сидишь в <b>{roomName || roomId}</b> ({roomId}) {roomMode === 'duel' ? '⚔️ ДУЭЛЬ 1×1' : roomMode === 'backrooms' ? '🟨 БЭКРУМС' : roomMode === 'custom' ? '🧩 СВОЯ' : '🌍 Арена'}{isOwner ? ' · 👑 ты создатель' : ''} — сокомнатники появятся на карте призраками.</div>
+                <div>Сидишь в <b>{roomName || roomId}</b> ({roomId}) {roomMode === 'duel' ? '⚔️ ДУЭЛЬ 1×1' : roomMode === 'backrooms' ? '🟨 БЭКРУМС' : roomMode === 'custom' ? '🧩 СВОЯ' : '🌍 Арена'}{isOwner ? ' · 👑 ты создатель' : ''} — сокомнатники на карте полными телами: виден ствол, удары, прыжки.</div>
                 {(lobby?.players?.length ?? 0) > 0 && (
                   <div id="lobbyList">
                     <b>👥 В комнате ({(lobby?.players?.length ?? 0) + 1}):</b>
                     <div>👑 {nick} (ты)</div>
                     {(lobby?.players ?? []).map((m, i) => (
                       <div className="srow" key={i}>
-                        <span>{m.char === 'krysa' ? '🐀' : '🕶️'} {m.nick}{m.login ? `(@${m.login})` : ''} · {m.score}🏆</span>
+                        <span>{m.char === 'krysa' ? '🐀' : '🕶️'} {m.nick}{m.login ? `(@${m.login})` : ''} · {WEAPONS.find((w) => w.id === m.weapon)?.name ?? '👊 Кулаки'} · {m.score}🏆</span>
                         {isOwner && <button className="wclose" id={`kick-${i}`} onClick={() => lobbyAct('kick', (m as RoomMate & { sid?: string }).sid ?? '')}>КИК</button>}
                       </div>
                     ))}
