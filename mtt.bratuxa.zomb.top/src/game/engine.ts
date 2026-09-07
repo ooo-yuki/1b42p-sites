@@ -335,6 +335,11 @@ export class Game {
   private bobPhase = 0;
   private py = 0;
   private pvy = 0;
+  // бросок от дробовика: короткий видимый полёт против выстрела (не импульс —
+  // живёт только сам бросок, кнопки в полёте не несут)
+  private blastT = 0;
+  private blastDx = 0;
+  private blastDz = 0;
   private keyMap: KeyMap = { ...DEFAULT_KEYS };
   private remotes: Remote[] = [];
   private half: number = HALF;
@@ -2567,35 +2572,27 @@ export class Game {
     }
     if (hits > 0) this.blip(440);
     // СТЕНА + дробовик = катапульта: луч первым упёрся в стену (≤12м) —
-    // швыряет на 13м против выстрела (шагами, стены уважает) + подброс.
+    // швыряет на ~13м против выстрела видимым полётом (стены тормозят) + подброс.
     // Иначе классика: круто вниз в землю рядом (≤3.5м) — рокет-джамп 6м вверх.
     const surf = this.shotFirstSurface(cx, cy, cz, dx, dy, dz);
     if (surf && surf.kind === 'wall') {
       const hl = Math.hypot(dx, dz) || 1;
-      const bx = -dx / hl, bz = -dz / hl;
-      let moved = 0;
-      for (let s = 0; s < 26 && moved < 13; s++) {
-        const step = Math.min(0.5, 13 - moved);
-        const nx = this.px + bx * step;
-        if (this.hitSolid(nx, this.pz, 0.9, this.py)) break;
-        this.px = this.clamp(nx);
-        const nz = this.pz + bz * step;
-        if (this.hitSolid(this.px, nz, 0.9, this.py)) break;
-        this.pz = this.clamp(nz);
-        moved += step;
-      }
-      this.pvy = Math.max(this.pvy, 5);
+      this.blastDx = (-dx / hl) * 11.5;
+      this.blastDz = (-dz / hl) * 11.5;
+      this.blastT = 1.15;
+      this.pvy = Math.max(this.pvy, 6.5);
+      this.shakeT = 0.4;
       this.burst(this.px, 1.0, this.pz, 20);
       this.blip(140);
     } else if (dy < -0.45 && surf && surf.kind === 'ground' && surf.dist <= 3.5) {
       // рокет-джамп: чем круче вниз, тем выше (максимум 12 → ровно 6м);
-      // отброс назад — коротким рывком против выстрела
+      // отброс назад — коротким видимым броском против выстрела
       const k = Math.min(1, (-dy - 0.45) / 0.44);
       this.pvy = 12 * k;
       const hl = Math.hypot(dx, dz) || 1;
-      const bx = this.px - (dx / hl) * 2.2 * k, bz = this.pz - (dz / hl) * 2.2 * k;
-      if (!this.hitSolid(bx, this.pz, 0.9, this.py)) this.px = this.clamp(bx);
-      if (!this.hitSolid(this.px, bz, 0.9, this.py)) this.pz = this.clamp(bz);
+      this.blastDx = (-dx / hl) * 6 * k;
+      this.blastDz = (-dz / hl) * 6 * k;
+      this.blastT = 0.35;
       this.burst(this.px, 0.3, this.pz, 16);
       this.blip(300);
     }
@@ -2997,6 +2994,8 @@ export class Game {
       let r = (this.input[km.right] ? 1 : 0) - (this.input[km.left] ? 1 : 0) + this.joy.x;
       f = Math.max(-1, Math.min(1, f));
       r = Math.max(-1, Math.min(1, r));
+      // бросок летит сам: кнопки на время полёта глушим
+      if (this.blastT > 0) { f = 0; r = 0; }
       const run = this.input[km.run] || this.input.ShiftLeft || this.input.ShiftRight;
       const sp = (run ? 8.2 : 5.6) * this.charSpd;
       const len = Math.hypot(f, r);
@@ -3052,13 +3051,25 @@ export class Game {
         this.pvy = 0;
         if (!this.moving) this.bobPhase += dt * 11;
       } else {
+        // бросок от дробовика: видимый полёт против выстрела (гравитация работает),
+        // в стену вмазался — бросок кончился, камера тряхнула
+        if (this.blastT > 0) {
+          this.blastT -= dt;
+          const bnx = this.px + this.blastDx * dt;
+          if (this.hitSolid(bnx, this.pz, 0.9, this.py)) { this.blastT = 0; this.blastDx = 0; this.blastDz = 0; this.shakeT = 0.35; }
+          else this.px = this.clamp(bnx);
+          const bnz = this.pz + this.blastDz * dt;
+          if (this.hitSolid(this.px, bnz, 0.9, this.py)) { this.blastT = 0; this.blastDx = 0; this.blastDz = 0; this.shakeT = 0.35; }
+          else this.pz = this.clamp(bnz);
+          if (this.blastT <= 0) { this.blastDx = 0; this.blastDz = 0; }
+        }
         this.pvy -= 12 * dt;
         this.py += this.pvy * dt;
         // Бэкрумс: потолок 3м — головой не пробивать (глаза 1.7м + прыжок)
         if (this.map === 'backrooms' && this.py > 1.2) { this.py = 1.2; this.pvy = Math.min(0, this.pvy); }
-        // приземление на опору под ногами: земля, крыша, мост, ступень
+        // приземление на опору под ногами: земля, крыша, мост, ступень (бросок гасим)
         const g = this.groundAt(this.px, this.pz);
-        if (this.py <= g) { this.py = g; this.pvy = 0; }
+        if (this.py <= g) { this.py = g; this.pvy = 0; this.blastT = 0; this.blastDx = 0; this.blastDz = 0; }
       }
       // враги идут к игроку и бьют в упор
       for (const e of this.enemies) {
