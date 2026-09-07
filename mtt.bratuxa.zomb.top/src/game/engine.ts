@@ -131,7 +131,7 @@ export const WEAPONS: WeaponDef[] = [
   { id: 'bat', name: '🏏 Бита', desc: 'Длиннее и злее', dmg: 48, range: 4.3, cd: 0.6, price: 300, minWave: 2 },
   { id: 'axe', name: '🪓 Секира', desc: 'Тяжёлый аргумент', dmg: 70, range: 4.6, cd: 0.85, price: 800, minWave: 3 },
   { id: 'pistol', name: '🔫 Пистолет', desc: 'Бьёт далеко — целься прицелом', dmg: 45, range: 30, cd: 0.7, price: 1200, minWave: 4, ranged: true },
-  { id: 'shotgun', name: '💥 Дробовик', desc: 'Дробь веером: в упор сносит, вдаль щекочет · выстрел под ноги швыряет вверх на 6м', dmg: 110, range: 20, cd: 1.1, price: 1500, minWave: 5, ranged: true, spread: true },
+  { id: 'shotgun', name: '💥 Дробовик', desc: 'Дробь веером: в упор сносит, вдаль щекочет · выстрел в землю/стену под ногами швыряет вверх на 6м (от воздуха — нет)', dmg: 110, range: 20, cd: 1.1, price: 1500, minWave: 5, ranged: true, spread: true },
 ];
 
 export interface KeyMap {
@@ -2531,6 +2531,17 @@ export class Game {
     }
   }
 
+  // луч выстрела упёрся в поверхность рядом (земля/крыша/стена ≤3.5м)?
+  // Нет поверхности — нет рокет-джампа: от воздуха не отпрыгнуть.
+  private shotHitsSurface(cx: number, cy: number, cz: number, dx: number, dy: number, dz: number): boolean {
+    for (let t = 0.25; t <= 3.5; t += 0.25) {
+      const x = cx + dx * t, y = cy + dy * t, z = cz + dz * t;
+      if (y <= this.groundAt(x, z) + 0.15) return true;
+      if (this.hitSolid(x, z, 0.5, y)) return true;
+    }
+    return false;
+  }
+
   // 💥 дробовик: 8 дробин веером (~30°). В упор — полный урон, вдаль — щекотка:
   // урон = база × затухание с дистанцией (^1.6) × попадание по центру веера.
   // Выстрел себе под ноги (круто вниз) — рокет-джамп: швыряет против выстрела,
@@ -2558,7 +2569,9 @@ export class Game {
       hits++;
     }
     if (hits > 0) this.blip(440);
-    if (dy < -0.45) {
+    // рокет-джамп только от поверхности: луч упёрся в землю/крышу/стену рядом —
+    // стрельба в воздух не подбрасывает. Вверх на 6м + отброс назад импульсом.
+    if (dy < -0.45 && this.shotHitsSurface(cx, cy, cz, dx, dy, dz)) {
       // рокет-джамп: чем круче вниз, тем выше (максимум 12 → ровно 6м);
       // отброс — тоже импульсом: летит назад даже без кнопок
       const k = Math.min(1, (-dy - 0.45) / 0.44);
@@ -2981,14 +2994,14 @@ export class Game {
         wishX = (fx * nf + rx * nr) * sp;
         wishZ = (fz * nf + rz * nr) * sp;
       }
-      // ИМПУЛЬС: на земле скорость = кнопки (резко), в полёте скорость живёт —
-      // кнопки дают ускорение, трение слабое: отпустил, а тело летит
+      // ИМПУЛЬС (слабый): на земле скорость = кнопки (резко), в полёте скорость
+      // чуть живёт — кнопки дают небольшое ускорение, трение заметное
       const grounded = this.py <= this.groundAt(this.px, this.pz) + 0.01;
       if (grounded) {
         if (this.moving) { this.vx = wishX; this.vz = wishZ; }
         else { const fr = Math.max(0, 1 - 8 * dt); this.vx *= fr; this.vz *= fr; }
       } else {
-        const AIR_K = 3, AIR_DRAG = 0.4, MAXA = 16;
+        const AIR_K = 1.2, AIR_DRAG = 1.8, MAXA = 11;
         this.vx += wishX * AIR_K * dt;
         this.vz += wishZ * AIR_K * dt;
         const dr = Math.max(0, 1 - AIR_DRAG * dt);
