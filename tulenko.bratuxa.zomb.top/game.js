@@ -1018,13 +1018,13 @@ const SONG_DAY =
   "stack(note('<[a2 a2] [d3 d3] [e3 e3] [a2 a2]>').sound('sawtooth').lpf(1200).vib(4).gain(.5)," +
   "note('<[a4 c5 e5 a5] [d5 f5 a5 d6] [e5 g5 b5 e6] [a4 c5 e5 a5]>*2').sound('square').lpf(2500).gain(.22).delay(.3).room(.4)," +
   "note('c2*4').sound('sine').gain(.7)," +
-  "sound('white*8').decay(.04).gain(.25)).play()";
+  "sound('white*8').decay(.04).gain(.25)).cpm(34).play()";
 const SONG_NIGHT =
   "stack(note('[a3 ~ e4 ~] [~ d4 ~ c4]').sound('triangle').delay(.5).room(.8).gain(.4)," +
-  "note('a1*2').sound('sine').gain(.5)).play()";
+  "note('a1*2').sound('sine').gain(.5)).cpm(24).play()";
 const SONG_ALARM =
   "stack(note('[a2 a2 a2 a2]*4').sound('sawtooth').lpf(2000).gain(.5)," +
-  "sound('white*16').decay(.03).gain(.3)).play()";
+  "sound('white*16').decay(.03).gain(.3)).cpm(46).play()";
 // --- music.js ---
 
 
@@ -1054,7 +1054,7 @@ function music(kind) {
     if (!e || !ready) return;
     e.stop();
     const code = kind === "day" ? SONG_DAY : kind === "night" ? SONG_NIGHT : SONG_ALARM;
-    e.play("setcpm(" + (kind === "day" ? SONG_CPM.day : kind === "night" ? SONG_CPM.night : SONG_CPM.alarm) + ");" + code);
+    e.play(code);
   } catch {
     // без звука — молча дальше
   }

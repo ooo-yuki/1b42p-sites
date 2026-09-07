@@ -26,7 +26,7 @@ export function music(kind: Kind): void {
     if (!e || !ready) return;
     e.stop();
     const code = kind === "day" ? SONG_DAY : kind === "night" ? SONG_NIGHT : SONG_ALARM;
-    e.play("setcpm(" + (kind === "day" ? SONG_CPM.day : kind === "night" ? SONG_CPM.night : SONG_CPM.alarm) + ");" + code);
+    e.play(code);
   } catch {
     // без звука — молча дальше
   }
