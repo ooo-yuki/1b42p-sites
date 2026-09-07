@@ -53,9 +53,12 @@ function rock(r: number, x: number, z: number, seed: number): THREE.BufferGeomet
   return g;
 }
 
-/** Локальные canvas-текстуры (не из общего кэша getTex): забор с щелями, вода с рябью. */
+/** Локальные canvas-текстуры (не из общего кэша getTex): забор, вода, трафарет, неон-текст, тень. */
 let fenceTex: THREE.CanvasTexture | null = null;
 let waterTex: THREE.CanvasTexture | null = null;
+let stencilTex: THREE.CanvasTexture | null = null;
+let neonTextTex: THREE.CanvasTexture | null = null;
+let shadowTex: THREE.CanvasTexture | null = null;
 
 function getFenceTex(): THREE.CanvasTexture {
   if (fenceTex) return fenceTex;
@@ -110,6 +113,126 @@ function getWaterTex(): THREE.CanvasTexture {
   return waterTex;
 }
 
+/** Трафарет «42» — белый знак на прозрачном фоне, для бортов ящиков. */
+function getStencilTex(): THREE.CanvasTexture {
+  if (stencilTex) return stencilTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const ctx = c.getContext('2d')!;
+  ctx.clearRect(0, 0, 128, 128);
+  ctx.strokeStyle = 'rgba(240,235,220,0.9)';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(10, 10, 108, 108);
+  ctx.fillStyle = 'rgba(240,235,220,0.92)';
+  ctx.font = 'bold 64px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('42', 64, 68);
+  stencilTex = new THREE.CanvasTexture(c);
+  stencilTex.colorSpace = THREE.SRGBColorSpace;
+  return stencilTex;
+}
+
+/** Неон-текст «ШТУРМ-43 ★ 42 ★» — светящаяся вывеска (map + emissiveMap). */
+function getNeonTextTex(): THREE.CanvasTexture {
+  if (neonTextTex) return neonTextTex;
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 256;
+  const ctx = c.getContext('2d')!;
+  ctx.fillStyle = '#05060a';
+  ctx.fillRect(0, 0, 512, 256);
+  ctx.strokeStyle = '#00f0ff';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(12, 12, 488, 232);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = '#00f0ff';
+  ctx.shadowBlur = 24;
+  ctx.fillStyle = '#aef7ff';
+  ctx.font = 'bold 72px sans-serif';
+  ctx.fillText('ШТУРМ-43', 256, 92);
+  ctx.shadowColor = '#ff00e5';
+  ctx.shadowBlur = 22;
+  ctx.fillStyle = '#ffd7f7';
+  ctx.font = 'bold 56px sans-serif';
+  ctx.fillText('★ 42 ★', 256, 182);
+  neonTextTex = new THREE.CanvasTexture(c);
+  neonTextTex.colorSpace = THREE.SRGBColorSpace;
+  return neonTextTex;
+}
+
+/** Тёмное радиальное пятно для AO-подложек под пропсами. */
+function getShadowTex(): THREE.CanvasTexture {
+  if (shadowTex) return shadowTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const ctx = c.getContext('2d')!;
+  const g = ctx.createRadialGradient(64, 64, 8, 64, 64, 62);
+  g.addColorStop(0, 'rgba(0,0,0,0.55)');
+  g.addColorStop(0.7, 'rgba(0,0,0,0.28)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  shadowTex = new THREE.CanvasTexture(c);
+  return shadowTex;
+}
+
+/**
+ * Ящик: корпус (wood) + 4 угловые рейки (trim) + трафарет «42» на 2 гранях (stencil).
+ * Пушит геометрии в переданные массивы — каждый материал мержится в 1 draw call.
+ */
+function crate(
+  wood: THREE.BufferGeometry[], trim: THREE.BufferGeometry[], stencil: THREE.BufferGeometry[],
+  x: number, z: number, s: number, ry = 0, y0 = 0,
+): void {
+  const body = new THREE.BoxGeometry(s, s, s);
+  body.rotateY(ry);
+  body.translate(x, y0 + s / 2, z);
+  wood.push(body);
+  // 4 угловые рейки: крутим смещение на ry вручную (rotateY вокруг origin сдвинул бы планку).
+  const h = s / 2;
+  const cos = Math.cos(ry);
+  const sin = Math.sin(ry);
+  for (const [sx, sz] of [[-h, -h], [h, -h], [-h, h], [h, h]] as Array<[number, number]>) {
+    const rail = new THREE.BoxGeometry(0.14, s + 0.04, 0.14);
+    const dx = sx * cos + sz * sin;
+    const dz = -sx * sin + sz * cos;
+    rail.translate(x + dx, y0 + s / 2, z + dz);
+    trim.push(rail);
+  }
+  // Трафарет на гранях +z и +x.
+  const ts = s * 0.7;
+  const p1 = new THREE.PlaneGeometry(ts, ts);
+  p1.translate(0, 0, s / 2 + 0.012);
+  p1.rotateY(ry);
+  p1.translate(x, y0 + s / 2, z);
+  stencil.push(p1);
+  const p2 = new THREE.PlaneGeometry(ts, ts);
+  p2.rotateY(Math.PI / 2);
+  p2.translate(s / 2 + 0.012, 0, 0);
+  p2.rotateY(ry);
+  p2.translate(x, y0 + s / 2, z);
+  stencil.push(p2);
+}
+
+/** Мешок с песком — капсула лёжа. Без map: тёмная fabric-map множила цвет в черноту. */
+function sandbag(x: number, y: number, z: number, ry = 0): THREE.BufferGeometry {
+  const g = new THREE.CapsuleGeometry(0.28, 0.7, 4, 10);
+  g.rotateZ(Math.PI / 2);
+  if (ry) g.rotateY(ry);
+  g.translate(x, y, z);
+  return g;
+}
+
+/** AO-подложка: круг с радиальной тенью. */
+function aoDisc(x: number, z: number, r: number, y = 0.06): THREE.BufferGeometry {
+  const g = new THREE.CircleGeometry(r, 20);
+  g.rotateX(-Math.PI / 2);
+  g.translate(x, y, z);
+  return g;
+}
+
 function mergedMesh(
   parts: THREE.BufferGeometry[],
   mat: THREE.Material,
@@ -130,7 +253,7 @@ export function buildMapVisual(map: MapId): THREE.Group {
   const half = def.size / 2;
   const group = new THREE.Group();
   group.name = `map-${map}`;
-  group.userData.localTex = [getFenceTex(), getWaterTex()];
+  group.userData.localTex = [getFenceTex(), getWaterTex(), getStencilTex(), getNeonTextTex(), getShadowTex()];
 
   // Земля — отдельный меш (принимает тени).
   const groundMat = new THREE.MeshStandardMaterial({ color: GROUND_COLOR[map], roughness: 1 });
@@ -163,6 +286,15 @@ export function buildMapVisual(map: MapId): THREE.Group {
   const matWood = new THREE.MeshStandardMaterial({ map: getTex('wood'), roughness: 0.65 });
   const matDark = new THREE.MeshStandardMaterial({ color: 0x2a2d33, roughness: 0.7, metalness: 0.3 });
   const matRubber = new THREE.MeshStandardMaterial({ color: 0x1a1a1c, roughness: 0.95 });
+  // Новые материалы Task 4.
+  const matSteel = new THREE.MeshStandardMaterial({ color: 0x8a93a0, roughness: 0.35, metalness: 0.9 });
+  const matTrim = new THREE.MeshStandardMaterial({ color: 0x4a3520, roughness: 0.8 });
+  const matStencil = new THREE.MeshStandardMaterial({
+    map: getStencilTex(), transparent: true, alphaTest: 0.3,
+    side: THREE.DoubleSide, roughness: 0.8,
+  });
+  const matAO = new THREE.MeshBasicMaterial({ map: getShadowTex(), transparent: true, depthWrite: false });
+  const matSand = new THREE.MeshStandardMaterial({ color: 0xa89468, roughness: 1 });
   const add = (m: THREE.Mesh | null) => { if (m) group.add(m); };
 
   // Круги коллизий из sim — визуальные столбики, как раньше (проходимость не меняем).
@@ -189,25 +321,59 @@ export function buildMapVisual(map: MapId): THREE.Group {
       posts.push(cyl(0.09, 0.12, 2.6, half + 0.5, 1.3, x, 8));
     }
     add(mergedMesh(posts, matWood));
-    // Будка в углу.
+    // Будка в углу (-14,-13): корпус + крыша + дверь с рамой + светящееся окно.
     const shed: THREE.BufferGeometry[] = [
       box(3.2, 2.4, 2.6, -14, 1.2, -13),
       box(3.8, 0.18, 3.2, -14, 2.55, -13),
     ];
     add(mergedMesh(shed, matWood));
     add(mergedMesh([box(0.9, 1.8, 0.1, -14, 0.95, -11.65)], matDark, false));
-    // Покрышки-баррикады: стопки торов.
-    const tires: THREE.BufferGeometry[] = [
-      torus(0.55, 0.22, 8, 0.24, -6), torus(0.55, 0.22, 8, 0.66, -6), torus(0.55, 0.22, 8, 1.08, -6),
-      torus(0.55, 0.22, 10.5, 0.24, -4.5), torus(0.55, 0.22, 10.5, 0.66, -4.5),
-      torus(0.55, 0.22, -2, 0.24, 14), torus(0.55, 0.22, -2, 0.66, 14),
-    ];
-    add(mergedMesh(tires, matRubber));
-    // Ящики.
+    // Рама двери: 2 стойки + перекладина.
     add(mergedMesh([
-      box(1.2, 1.2, 1.2, 12, 0.6, 10), box(0.9, 0.9, 0.9, 12.1, 1.65, 10, 0.3),
-      box(1, 1, 1, 6, 0.5, 12.5, 0.15), box(1.1, 1.1, 1.1, -12, 0.55, 2, 0.4),
-    ], matWood));
+      box(0.12, 1.9, 0.12, -14.51, 0.95, -11.63),
+      box(0.12, 1.9, 0.12, -13.49, 0.95, -11.63),
+      box(1.14, 0.12, 0.12, -14, 1.92, -11.63),
+    ], matTrim, false));
+    // Светящееся окно будки (тёплый свет внутри).
+    const winMat = new THREE.MeshStandardMaterial({
+      color: 0x2a2018, emissive: 0xffc873, emissiveIntensity: 1.8, roughness: 0.4,
+    });
+    const win = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.7), winMat);
+    win.position.set(-12.9, 1.5, -11.69);
+    group.add(win);
+    // Покрышки-баррикады в точках коллайдеров: шины + ступица + стальной обод.
+    const tireSpots: Array<[number, number, number]> = [[8, -6, 3], [10.5, -4.5, 2], [-2, 14, 2]];
+    const tires: THREE.BufferGeometry[] = [];
+    const hubs: THREE.BufferGeometry[] = [];
+    const rims: THREE.BufferGeometry[] = [];
+    for (const [tx, tz, n] of tireSpots) {
+      for (let i = 0; i < n; i++) {
+        const y = 0.24 + i * 0.42;
+        tires.push(torus(0.55, 0.22, tx, y, tz));
+        hubs.push(cyl(0.22, 0.22, 0.4, tx, y, tz, 12));
+        rims.push(torus(0.32, 0.06, tx, y, tz));
+      }
+    }
+    add(mergedMesh(tires, matRubber));
+    add(mergedMesh(hubs, matDark));
+    add(mergedMesh(rims, matSteel));
+    // Ящики с рейками и трафаретом: (12,10) — верхний на нижнем, (6,12.5), (-12,2).
+    const crateWood: THREE.BufferGeometry[] = [];
+    const crateTrim: THREE.BufferGeometry[] = [];
+    const crateStencil: THREE.BufferGeometry[] = [];
+    crate(crateWood, crateTrim, crateStencil, 12, 10, 1.2, 0);
+    crate(crateWood, crateTrim, crateStencil, 12.1, 10, 0.9, 0.3, 1.2);
+    crate(crateWood, crateTrim, crateStencil, 6, 12.5, 1.0, 0.15);
+    crate(crateWood, crateTrim, crateStencil, -12, 2, 1.1, 0.4);
+    add(mergedMesh(crateWood, matWood));
+    add(mergedMesh(crateTrim, matTrim));
+    add(mergedMesh(crateStencil, matStencil, false));
+    // AO-пятна под шинами, ящиками, будкой.
+    add(mergedMesh([
+      aoDisc(8, -6, 1.4), aoDisc(10.5, -4.5, 1.2), aoDisc(-2, 14, 1.2),
+      aoDisc(12, 10, 1.6), aoDisc(6, 12.5, 1.2), aoDisc(-12, 2, 1.2),
+      aoDisc(-14, -13, 2.6),
+    ], matAO, false));
     // Лужи — глянец.
     const puddleMat = new THREE.MeshStandardMaterial({
       color: 0x9fc4d8, roughness: 0.1, metalness: 0.1,
@@ -260,12 +426,38 @@ export function buildMapVisual(map: MapId): THREE.Group {
       emissive: 0x1d3d1d, emissiveIntensity: 0.25,
     });
     add(mergedMesh(crowns, crownMat));
-    // Камни-додекаэдры.
+    // Камни-додекаэдры (координаты = коллайдеры Task 2).
+    const rocks: Array<[number, number, number, number]> = [
+      [1.2, 8, 4, 1], [0.9, -6, -4, 2], [1.5, 12, -8, 3],
+      [1.1, -12, 8, 4], [0.8, 4, 18, 5], [1.0, -4, -18, 6],
+    ];
     const matStone = new THREE.MeshStandardMaterial({ map: getTex('stone'), color: 0xcfc9bd, roughness: 1 });
-    add(mergedMesh([
-      rock(1.2, 8, 4, 1), rock(0.9, -6, -4, 2), rock(1.5, 12, -8, 3),
-      rock(1.1, -12, 8, 4), rock(0.8, 4, 18, 5), rock(1.0, -4, -18, 6),
-    ], matStone));
+    add(mergedMesh(rocks.map(([r, x, z, s]) => rock(r, x, z, s)), matStone));
+    // Мешки: 3 колонны × (2 внизу + 1 сверху) у (0,4) — точки коллайдеров (-1.5/0/1.5, 4).
+    const bags: THREE.BufferGeometry[] = [];
+    for (const cx of [-1.5, 0, 1.5]) {
+      bags.push(sandbag(cx - 0.35, 0.28, 4, 0.2));
+      bags.push(sandbag(cx + 0.35, 0.28, 4, -0.3));
+      bags.push(sandbag(cx, 0.8, 4, 0.9));
+    }
+    add(mergedMesh(bags, matSand));
+    // 2 ящика с трафаретом: (-10,0), (14,10).
+    const iWood: THREE.BufferGeometry[] = [];
+    const iTrim: THREE.BufferGeometry[] = [];
+    const iStencil: THREE.BufferGeometry[] = [];
+    crate(iWood, iTrim, iStencil, -10, 0, 1.1, 0.2);
+    crate(iWood, iTrim, iStencil, 14, 10, 1.1, -0.35);
+    add(mergedMesh(iWood, matWood));
+    add(mergedMesh(iTrim, matTrim));
+    add(mergedMesh(iStencil, matStencil, false));
+    // AO под камнями, пальмами, мешками, ящиками.
+    const aoParts: THREE.BufferGeometry[] = [
+      ...rocks.map(([r, x, z]) => aoDisc(x, z, r * 1.4)),
+      ...palms.map(([x, z]) => aoDisc(x, z, 1.0)),
+      aoDisc(-1.5, 4, 1.1), aoDisc(0, 4, 1.1), aoDisc(1.5, 4, 1.1),
+      aoDisc(-10, 0, 1.4), aoDisc(14, 10, 1.4),
+    ];
+    add(mergedMesh(aoParts, matAO, false));
     // Вода-кольцо по краю с анимацией скролла текстуры.
     const wtex = getWaterTex();
     const waterMat = new THREE.MeshStandardMaterial({
@@ -311,6 +503,60 @@ export function buildMapVisual(map: MapId): THREE.Group {
       box(6, 3, 0.3, 0, 6.5, 22, Math.PI),
     ];
     add(mergedMesh(boards, boardMat, false));
+    // Текст-вывеска 6×3 «ШТУРМ-43 ★ 42 ★» перед центральным щитом — ловит bloom.
+    const neonTex = getNeonTextTex();
+    const neonSignMat = new THREE.MeshStandardMaterial({
+      map: neonTex, emissive: 0xffffff, emissiveMap: neonTex,
+      emissiveIntensity: 1.1, color: 0x111111, roughness: 0.5,
+      side: THREE.DoubleSide,
+    });
+    const neonSign = new THREE.Mesh(new THREE.PlaneGeometry(6, 3), neonSignMat);
+    neonSign.position.set(0, 6.5, 21.7);
+    neonSign.rotation.y = Math.PI;
+    group.add(neonSign);
+    // Бочки в точках коллайдеров: корпус + 2 обруча + крышка, ржавые/бирюзовые через одну.
+    const barrels: Array<[number, number]> = [[-12, -4], [-11, -3], [-12.6, -2.8], [10, 12], [11, 12.5]];
+    const rustBodies: THREE.BufferGeometry[] = [];
+    const tealBodies: THREE.BufferGeometry[] = [];
+    const hoops: THREE.BufferGeometry[] = [];
+    const lids: THREE.BufferGeometry[] = [];
+    barrels.forEach(([bx, bz], i) => {
+      const body = cyl(0.4, 0.4, 0.9, bx, 0.45, bz, 14);
+      ((i % 2 === 0) ? rustBodies : tealBodies).push(body);
+      const h1 = new THREE.TorusGeometry(0.41, 0.03, 8, 20);
+      h1.rotateX(Math.PI / 2);
+      h1.translate(bx, 0.25, bz);
+      hoops.push(h1);
+      const h2 = new THREE.TorusGeometry(0.41, 0.03, 8, 20);
+      h2.rotateX(Math.PI / 2);
+      h2.translate(bx, 0.7, bz);
+      hoops.push(h2);
+      lids.push(cyl(0.42, 0.42, 0.06, bx, 0.93, bz, 14));
+    });
+    const matRust = new THREE.MeshStandardMaterial({ map: getTex('rust'), roughness: 0.6, metalness: 0.4 });
+    const matTeal = new THREE.MeshStandardMaterial({ color: 0x1fa8a8, roughness: 0.45, metalness: 0.6 });
+    add(mergedMesh(rustBodies, matRust));
+    add(mergedMesh(tealBodies, matTeal));
+    add(mergedMesh(hoops, matDark));
+    add(mergedMesh(lids, matSteel));
+    // Контейнер (-5,15): корпус + приоткрытая крышка + колёса.
+    add(mergedMesh([box(3, 1.5, 1.6, -5, 0.75, 15, 0.2)], matTeal));
+    const lidGeo = new THREE.BoxGeometry(3, 0.1, 1.6);
+    lidGeo.rotateX(-0.3);
+    lidGeo.rotateY(0.2);
+    lidGeo.translate(-5, 1.62, 15);
+    add(mergedMesh([lidGeo], matSteel, false));
+    const wheels: THREE.BufferGeometry[] = [];
+    for (const [wx, wz] of [[-6.2, 14.4], [-3.8, 14.4], [-6.2, 15.6], [-3.8, 15.6]] as Array<[number, number]>) {
+      wheels.push(cyl(0.25, 0.25, 0.2, wx, 0.25, wz, 12, Math.PI / 2, 0));
+    }
+    add(mergedMesh(wheels, matDark));
+    // AO под бочками, контейнером, стойками.
+    add(mergedMesh([
+      ...barrels.map(([bx, bz]) => aoDisc(bx, bz, 0.9)),
+      aoDisc(-5, 15, 2.4),
+      aoDisc(-18, -18, 0.8), aoDisc(18, 16, 0.8), aoDisc(0, 22, 0.8),
+    ], matAO, false));
     // Голограммы — аддитивные плоскости, парят (bob через onBeforeRender).
     const holoCols = [0x00f0ff, 0xff00e5, 0x7cff00];
     const holoPos: Array<[number, number, number, number]> = [
@@ -356,6 +602,24 @@ export function buildMapVisual(map: MapId): THREE.Group {
     light.position.set(p.x, 4.6, p.z);
     group.add(light);
   });
+  // Световые лужи у фонарей: аддитив по цвету лампы, поверх AO (renderOrder=2).
+  const poolsByColor = new Map<number, THREE.BufferGeometry[]>();
+  lampPos.forEach((p, i) => {
+    const color = colors[i % colors.length];
+    if (!poolsByColor.has(color)) poolsByColor.set(color, []);
+    poolsByColor.get(color)!.push(flat(3, p.x, p.z, 0.08));
+  });
+  for (const [color, parts] of poolsByColor) {
+    const poolMat = new THREE.MeshBasicMaterial({
+      color, transparent: true, opacity: 0.28,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const pool = mergedMesh(parts, poolMat, false);
+    if (pool) {
+      pool.renderOrder = 2;
+      group.add(pool);
+    }
+  }
 
   return group;
 }
@@ -374,4 +638,7 @@ export function disposeMapVisual(scene: THREE.Scene, group: THREE.Group): void {
   for (const t of (group.userData.localTex as THREE.Texture[] | undefined) ?? []) t.dispose();
   fenceTex = null;
   waterTex = null;
+  stencilTex = null;
+  neonTextTex = null;
+  shadowTex = null;
 }

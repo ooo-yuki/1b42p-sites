@@ -24,6 +24,8 @@ export interface CamPose {
   z: number;
   yaw: number;
   pitch?: number;
+  /** Присед: глаз 1-го лица ниже, голова-цель 3-го лица ниже. Без флага — как раньше. */
+  crouch?: boolean;
 }
 
 export interface CamCollider {
@@ -115,12 +117,13 @@ export function updateCamera(camera: THREE.PerspectiveCamera, p: CamPose, opts?:
   camera.rotation.order = 'YXZ';
   const pitch = THREE.MathUtils.clamp(p.pitch ?? 0, -1.2, 1.2);
   if (view === 'first') {
-    camera.position.set(p.x, 1.62, p.z);
+    camera.position.set(p.x, p.crouch ? 1.02 : 1.62, p.z);
     camera.rotation.set(pitch, p.yaw, 0);
     smoothed = null;
     return;
   }
-  const head = new THREE.Vector3(p.x, HEAD_H, p.z);
+  const headH = p.crouch ? 0.95 : HEAD_H;
+  const head = new THREE.Vector3(p.x, headH, p.z);
   const want = collideEye(head, thirdEye(p), opts?.colliders ?? [], opts?.half ?? 21);
   const dt = opts?.dt;
   if (dt === undefined || dt <= 0 || !smoothed) {

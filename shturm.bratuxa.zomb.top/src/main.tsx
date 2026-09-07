@@ -12,7 +12,7 @@ import { makeTracerPool, makeBoomPool, makeBloodPool, makeSparkPool, makeRocketT
 import { buildMapVisual, disposeMapVisual } from './three/mapsVisual';
 import { buildGrass, type GrassRig } from './three/grass';
 import { setView, getView, updateCamera, snapCamera } from './three/cameraRig';
-import { createPlayer, movePlayer, MAX_HP, type PlayerState } from './sim/player';
+import { createPlayer, movePlayer, MAX_HP, DODGE_H, type PlayerState } from './sim/player';
 import { WEAPONS, fireShot, type Slot } from './sim/weapons';
 import { ENEMIES, ATTACK_RANGE } from './sim/enemies';
 import { makeWave } from './sim/waves';
@@ -430,7 +430,7 @@ function hurtPlayer(amount: number, ex: number, ez: number) {
   view: (v: 'first' | 'third') => setView(v),
   wave: (n: number) => startWave(n),
   get: () => gameStore.get(),
-  dbg: () => ({ t: sim.timeSec, acc, fps: fpsAvg, n: tickCount, frames: frameCount, enemies: sim.enemies.length, queue: sim.spawnQueue.length, px: sim.player.x, pz: sim.player.z, yaw: sim.player.yaw, cam: [camera.position.x, camera.position.y, camera.position.z], roll: camera.rotation.z, view: getView(), meds: sim.pickups.filter((m) => !m.taken).length }),
+  dbg: () => ({ t: sim.timeSec, acc, fps: fpsAvg, n: tickCount, frames: frameCount, enemies: sim.enemies.length, queue: sim.spawnQueue.length, px: sim.player.x, pz: sim.player.z, yaw: sim.player.yaw, cam: [camera.position.x, camera.position.y, camera.position.z], roll: camera.rotation.z, view: getView(), meds: sim.pickups.filter((m) => !m.taken).length, py: sim.player.y, crouch: sim.player.crouch }),
   /** Приёмка камеры: yaw, телепорт (тест стен), обзор правым стиком. */
   setYaw: (y: number) => { sim.player.yaw = y; },
   tp: (x: number, z: number) => { sim.player.x = x; sim.player.z = z; snapCamera(); },
@@ -502,7 +502,8 @@ function tick(dt: number) {
 
   // Движение WASD/джойстик.
   const sprint = (window as unknown as { __sprint?: boolean }).__sprint === true || sprintKey;
-  movePlayer(p, { fwd: inputBus.move.y, strafe: inputBus.move.x, sprint, dt }, dt);
+  movePlayer(p, { fwd: inputBus.move.y, strafe: inputBus.move.x, sprint, dt, jump: inputBus.jump, crouch: inputBus.crouch }, dt);
+  inputBus.jump = false; // разовый флаг — съеден тиком
   // Обзор: разовый (мышь/совместимость) + удерживаемый с правого стика.
   // Held крутит постоянно, пока палец отклонён, — камера и движение идут одновременно.
   p.yaw -= inputBus.look.dx * dt * 2;
@@ -655,13 +656,16 @@ function tick(dt: number) {
       }
     } else if (d <= reach && e.cd <= 0) {
       e.cd = e.type === 'tank' ? 2.5 : e.type === 'boss' ? 1.2 : 0.8;
-      hurtPlayer(base.dmg * DIFF_MULT[difficulty] * sim.balanceMult, e.x, e.z);
-      // Отброс танка/босса — ОТ моба (было: знак минус швырял игрока В моба,
-      // камера прыгала на 1.5м прямо в пасть).
-      if (e.type === 'tank' || e.type === 'boss') {
-        p.x += (dx / d) * 1.5;
-        p.z += (dz / d) * 1.5;
-        resolveCircle(p, 0.4, mapId);
+      // Уворот прыжком: выше DODGE_H мили бьёт мимо (без урона и без отброса).
+      if (p.y <= DODGE_H) {
+        hurtPlayer(base.dmg * DIFF_MULT[difficulty] * sim.balanceMult, e.x, e.z);
+        // Отброс танка/босса — ОТ моба (было: знак минус швырял игрока В моба,
+        // камера прыгала на 1.5м прямо в пасть).
+        if (e.type === 'tank' || e.type === 'boss') {
+          p.x += (dx / d) * 1.5;
+          p.z += (dz / d) * 1.5;
+          resolveCircle(p, 0.4, mapId);
+        }
       }
       pushHud();
     }
@@ -761,7 +765,8 @@ function step(now: number) {
 
   const p = sim.player;
   const speed = Math.hypot(inputBus.move.x, inputBus.move.y) * 7;
-  playerRoot.position.set(p.x, 0, p.z);
+  playerRoot.position.set(p.x, p.y, p.z);
+  playerRoot.scale.set(1, p.crouch ? 0.72 : 1, 1); // присед — сквош модели
   playerRoot.rotation.y = p.yaw;
   if (shuba) shuba.update(speed, false, gameStore.get().phase === 'lost', dt);
   // Task 4: контроллер анима мобов. Скорость — из прошлого кадра (px/pz),
@@ -827,8 +832,8 @@ function step(now: number) {
   const def = MAPS[mapId];
   updateCamera(
     camera,
-    { x: p.x, z: p.z, yaw: p.yaw, pitch: p.pitch ?? 0 },
-    { dt, colliders: def.obstacles, half: def.size / 2 },
+    { x: p.x, z: p.z, yaw: p.yaw, pitch: p.pitch ?? 0, crouch: p.crouch },
+    { dt, colliders: [...def.obstacles, ...def.props], half: def.size / 2 },
   );
   // Тряска при входящем уроне: случайный сдвиг + лёгкий крен, затухание ~0.3с.
   if (sim.shake > 0.003) {
@@ -859,7 +864,7 @@ function step(now: number) {
   } else {
     // 3-е лицо: ствол на правом плече — та же сторона, что и камера рига.
     // Было левое плечо: ствол прятался за героем и выглядел «боком».
-    gunMesh.position.set(p.x + Math.cos(p.yaw) * 0.35, 1.25, p.z - Math.sin(p.yaw) * 0.35);
+    gunMesh.position.set(p.x + Math.cos(p.yaw) * 0.35, 1.25 + p.y, p.z - Math.sin(p.yaw) * 0.35);
     // Task 6: та же причина — ствол смотрит по курсу, а не вбок.
     gunMesh.rotation.set(0, p.yaw, 0);
     gunMesh.visible = true;

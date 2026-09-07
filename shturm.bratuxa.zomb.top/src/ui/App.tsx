@@ -15,6 +15,8 @@ export const inputBus = {
   fire: false, // огонь удерживается
   aim: false, // прицел удерживается
   reload: false, // разовый флаг перезарядки (цикл сбрасывает)
+  jump: false, // разовый флаг прыжка (цикл сбрасывает)
+  crouch: false, // присед удерживается
 };
 
 const AMMO_FULL: Record<Slot, number> = { pistol: 12, auto: 30, shotgun: 6 };
@@ -163,11 +165,14 @@ export function App() {
       if (e.code === 'Digit2') emit('shturm:slot', 'auto' satisfies Slot);
       if (e.code === 'Digit3') emit('shturm:slot', 'shotgun' satisfies Slot);
       if (e.code === 'KeyR') inputBus.reload = true;
+      if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) inputBus.jump = true; }
+      if (e.code === 'KeyC' || e.code === 'ControlLeft' || e.code === 'ControlRight') inputBus.crouch = true;
       if (e.code === 'Escape' && gameStore.get().phase === 'playing') emit('shturm:pause');
       pollKeys();
     };
     const up = (e: KeyboardEvent) => {
       keys.current.delete(e.code);
+      if (e.code === 'KeyC' || e.code === 'ControlLeft' || e.code === 'ControlRight') inputBus.crouch = false;
       if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
         (window as unknown as { __sprint?: boolean }).__sprint = false;
       }
@@ -188,6 +193,7 @@ export function App() {
       inputBus.lookHeld = { x: 0, y: 0 };
       inputBus.fire = false;
       inputBus.aim = false;
+      inputBus.crouch = false;
     };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
@@ -260,7 +266,12 @@ export function App() {
           {/* Стик вверх = взгляд вверх, как мышь; held — камера крутится пока держишь. */}
           <Stick side="right" compact={compact} onMove={(x, y) => { inputBus.lookHeld = { x, y }; }} />
           {/* Огонь — справа над стиком, прицел/перезарядка — слева над стиком: центр не перекрываем. */}
-          <div style={{ position: 'fixed', right: compact ? 14 : 36, bottom: compact ? 142 : 180, zIndex: 10 }}>
+          <div style={{ position: 'fixed', right: compact ? 14 : 36, bottom: compact ? 142 : 180, zIndex: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button
+              onTouchStart={() => { inputBus.jump = true; }}
+              onMouseDown={() => { inputBus.jump = true; }}
+              title="Прыжок"
+              style={compact ? btnSm : btn}>▲</button>
             <button
               onTouchStart={() => { inputBus.fire = true; }} onTouchEnd={() => { inputBus.fire = false; }}
               onTouchCancel={() => { inputBus.fire = false; }}
@@ -278,6 +289,13 @@ export function App() {
               title="Прицел"
               style={compact ? btnSm : btn}>🎯</button>
             <button onClick={() => { inputBus.reload = true; }} title="Перезарядка" style={compact ? btnSm : btn}>⟳</button>
+            <button
+              onTouchStart={() => { inputBus.crouch = true; }} onTouchEnd={() => { inputBus.crouch = false; }}
+              onTouchCancel={() => { inputBus.crouch = false; }}
+              onMouseDown={() => { inputBus.crouch = true; }} onMouseUp={() => { inputBus.crouch = false; }}
+              onMouseLeave={() => { inputBus.crouch = false; }}
+              title="Присесть"
+              style={compact ? btnSm : btn}>▼</button>
           </div>
         </>
       )}
@@ -317,7 +335,7 @@ export function App() {
             <div style={{ marginTop: 12, fontSize: 13, opacity: 0.8 }}>📱 игра сама попросит ландшафт — просто поверни телефон</div>
           )}
           <div style={{ marginTop: 16, fontSize: 12, opacity: 0.7 }}>
-            WASD — движение • мышь — обзор • ЛКМ — огонь • V — 1/3 лицо • {AMMO_FULL.auto} патронов в автомате
+            WASD — движение • мышь — обзор • ЛКМ — огонь • V — 1/3 лицо • Space — прыжок • C — присесть • {AMMO_FULL.auto} патронов в автомате
           </div>
         </div>
       )}

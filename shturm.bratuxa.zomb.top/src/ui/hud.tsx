@@ -276,7 +276,7 @@ export function Hud(p: HudProps) {
             background: 'rgba(0,0,0,0.4)', padding: '5px 10px', borderRadius: 8,
           }}
         >
-          V 👁 • 1/2/3 🔫 • R ⟳ • Shift ⚡
+          V 👁 • 1/2/3 🔫 • R ⟳ • Space ⤒ • C ⤓ • Shift ⚡
         </div>
       )}
     </div>
