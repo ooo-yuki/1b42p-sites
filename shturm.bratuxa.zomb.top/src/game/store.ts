@@ -24,6 +24,12 @@ export interface Snapshot {
   timeSec: number;
   accuracy: number;
   message: string;
+  /** Момент последнего входящего урона (performance.now, мс) — триггер красной вспышки. */
+  hurtAt: number;
+  /** Откуда прилетело: относительный угол, 0 — спереди, + — справа. Радианы. */
+  hurtDir: number;
+  /** Момент последнего хила — триггер зелёной вспышки. */
+  healAt: number;
 }
 
 const initial: Snapshot = {
@@ -44,6 +50,9 @@ const initial: Snapshot = {
   timeSec: 0,
   accuracy: 0,
   message: '',
+  hurtAt: 0,
+  hurtDir: 0,
+  healAt: 0,
 };
 
 let snap: Snapshot = { ...initial };

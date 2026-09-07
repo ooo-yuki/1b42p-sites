@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Hud } from './hud';
+import { Wiki } from './wiki';
 import { setView, getView } from '../three/cameraRig';
 import { deadzone } from '../sim/touch';
 import type { Slot } from '../sim/weapons';
@@ -120,6 +121,7 @@ export function App() {
   const [snap, setSnap] = useState(gameStore.get);
   const [map, setMap] = useState<MapId>('yard');
   const [diff, setDiff] = useState<Difficulty>('veteran');
+  const [wiki, setWiki] = useState(false);
   const keys = useRef<Set<string>>(new Set());
 
   useEffect(() => gameStore.subscribe(() => setSnap({ ...gameStore.get() })), []);
@@ -192,9 +194,11 @@ export function App() {
     <>
       {inGame && (
         <Hud
-          hp={snap.hp} wave={snap.wave} ammo={snap.mag} slot={snap.slot}
-          reserve={snap.reserve} kills={snap.kills} enemies={snap.enemiesLeft}
+          hp={snap.hp} maxHp={snap.maxHp} stamina={snap.stamina}
+          wave={snap.wave} slot={snap.slot}
+          mag={snap.mag} reserve={snap.reserve} kills={snap.kills} enemies={snap.enemiesLeft}
           fps={snap.fps} map={snap.map} message={snap.message}
+          hurtAt={snap.hurtAt} hurtDir={snap.hurtDir} healAt={snap.healAt}
         />
       )}
       {phase === 'playing' && !isTouch && !locked && (
@@ -216,7 +220,8 @@ export function App() {
               onTouchCancel={() => { inputBus.fire = false; }}
               onMouseDown={() => { inputBus.fire = true; }} onMouseUp={() => { inputBus.fire = false; }}
               onMouseLeave={() => { inputBus.fire = false; }}
-              style={btnFire}>Огонь</button>
+              title="Огонь"
+              style={btnFire}>🔥</button>
           </div>
           <div style={{ position: 'fixed', left: 36, bottom: 180, display: 'flex', gap: 10, zIndex: 10 }}>
             <button
@@ -224,8 +229,9 @@ export function App() {
               onTouchCancel={() => { inputBus.aim = false; }}
               onMouseDown={() => { inputBus.aim = true; }} onMouseUp={() => { inputBus.aim = false; }}
               onMouseLeave={() => { inputBus.aim = false; }}
-              style={btn}>Прицел</button>
-            <button onClick={() => { inputBus.reload = true; }} style={btn}>Перезарядка</button>
+              title="Прицел"
+              style={btn}>🎯</button>
+            <button onClick={() => { inputBus.reload = true; }} title="Перезарядка" style={btn}>⟳</button>
           </div>
         </>
       )}
@@ -247,6 +253,7 @@ export function App() {
             ))}
           </div>
           <button onClick={() => emit('shturm:start', { map, difficulty: diff })} style={btnBig}>В бой!</button>
+          <button onClick={() => setWiki(true)} style={{ ...btn, marginTop: 12 }}>📖 Вики: оружие и враги</button>
           <div style={{ marginTop: 16, fontSize: 12, opacity: 0.7 }}>
             WASD — движение • мышь — обзор • ЛКМ — огонь • V — 1/3 лицо • {AMMO_FULL.auto} патронов в автомате
           </div>
@@ -259,6 +266,7 @@ export function App() {
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => emit('shturm:resume')} style={btnBig}>Продолжить</button>
             <button onClick={() => emit('shturm:restart')} style={btn}>Заново</button>
+            <button onClick={() => setWiki(true)} style={btn}>📖 Вики</button>
           </div>
         </div>
       )}
@@ -284,6 +292,8 @@ export function App() {
           </div>
         </div>
       )}
+
+      {wiki && <Wiki onClose={() => setWiki(false)} />}
     </>
   );
 }

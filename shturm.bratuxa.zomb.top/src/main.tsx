@@ -77,6 +77,8 @@ const sim = {
   deaths: 0,
   lowHpStreak: 0,
   balanceMult: 1,
+  /** Тряска камеры при входящем уроне (0..1, затухает в step). */
+  shake: 0,
   /** Приёмка камеры: мобы бьют и толкают, но не убивают (замер без смерти). */
   god: false,
   /** Task 2: локальный сид травы — обновляется в startGame, мир не трогает. */
@@ -332,6 +334,7 @@ function startGame(map: MapId, diff: Difficulty) {
   sim.deaths = 0;
   sim.balanceMult = 1;
   sim.intermission = 0;
+  sim.shake = 0;
   for (const e of sim.enemies) scene.remove(e.mesh);
   sim.enemies = [];
   gameStore.reset(map, diff);
@@ -379,7 +382,7 @@ function resumeGame() {
   lockPointer(); // реванш/продолжить — клик по кнопке, лок берём явно
 }
 
-function pushHud(message?: string) {
+function pushHud(message?: string, fx?: { hurtDir?: number; heal?: boolean }) {
   const s = gameStore.get();
   gameStore.set({
     hp: Math.max(0, Math.round(sim.player.hp)),
@@ -395,7 +398,26 @@ function pushHud(message?: string) {
     timeSec: Math.round(sim.timeSec),
     accuracy: sim.shots ? Math.round((sim.hits / sim.shots) * 100) : 0,
     ...(message !== undefined ? { message: s.phase === 'playing' ? message : s.message } : {}),
+    ...(fx?.hurtDir !== undefined ? { hurtAt: performance.now(), hurtDir: fx.hurtDir } : {}),
+    ...(fx?.heal ? { healAt: performance.now() } : {}),
   });
+}
+
+/** Входящий урон: hp + тряска + кровь у камеры + красный флеш с направлением. */
+function hurtDirTo(ex: number, ez: number): number {
+  const p = sim.player;
+  const world = Math.atan2(-(ex - p.x), -(ez - p.z));
+  let rel = world - p.yaw;
+  while (rel > Math.PI) rel -= Math.PI * 2;
+  while (rel < -Math.PI) rel += Math.PI * 2;
+  return rel;
+}
+function hurtPlayer(amount: number, ex: number, ez: number) {
+  const p = sim.player;
+  if (!sim.god) p.hp -= amount;
+  sim.shake = Math.min(1, sim.shake + 0.55);
+  bloodPool.fire(new THREE.Vector3(p.x, 1.2, p.z));
+  pushHud(undefined, { hurtDir: hurtDirTo(ex, ez) });
 }
 
 // Тест-хук для браузер-приёмки: window.__shturm.
@@ -493,7 +515,7 @@ function tick(dt: number) {
   const healed = updatePickups(sim.pickups, p.x, p.z, dt);
   if (healed > 0) {
     p.hp = Math.min(MAX_HP, p.hp + healed);
-    pushHud(`Аптечка +${healed} 🏥`);
+    pushHud(`Аптечка +${healed} 🏥`, { heal: true });
   }
 
   // Оружие: кулдаун, огонь, перезарядка.
@@ -571,7 +593,7 @@ function tick(dt: number) {
               pushHud('Дроп: патроны + 🏆');
             } else {
               p.hp = Math.min(MAX_HP, p.hp + 25);
-              pushHud('Дроп: аптечка +25 HP 🏆');
+              pushHud('Дроп: аптечка +25 HP 🏆', { heal: true });
             }
           } else pushHud();
           if (best.type === 'boss') {
@@ -629,12 +651,11 @@ function tick(dt: number) {
     if (e.type === 'shooter') {
       if (d < ATTACK_RANGE.shooter && e.cd <= 0) {
         e.cd = 1.5;
-        if (!sim.god) p.hp -= base.dmg * DIFF_MULT[difficulty] * sim.balanceMult;
-        pushHud();
+        hurtPlayer(base.dmg * DIFF_MULT[difficulty] * sim.balanceMult, e.x, e.z);
       }
     } else if (d <= reach && e.cd <= 0) {
       e.cd = e.type === 'tank' ? 2.5 : e.type === 'boss' ? 1.2 : 0.8;
-      if (!sim.god) p.hp -= base.dmg * DIFF_MULT[difficulty] * sim.balanceMult;
+      hurtPlayer(base.dmg * DIFF_MULT[difficulty] * sim.balanceMult, e.x, e.z);
       // Отброс танка/босса — ОТ моба (было: знак минус швырял игрока В моба,
       // камера прыгала на 1.5м прямо в пасть).
       if (e.type === 'tank' || e.type === 'boss') {
@@ -809,6 +830,16 @@ function step(now: number) {
     { x: p.x, z: p.z, yaw: p.yaw, pitch: p.pitch ?? 0 },
     { dt, colliders: def.obstacles, half: def.size / 2 },
   );
+  // Тряска при входящем уроне: случайный сдвиг + лёгкий крен, затухание ~0.3с.
+  if (sim.shake > 0.003) {
+    const s = sim.shake;
+    camera.position.x += (Math.random() - 0.5) * 0.35 * s;
+    camera.position.y += (Math.random() - 0.5) * 0.25 * s;
+    camera.rotation.z += (Math.random() - 0.5) * 0.035 * s;
+    sim.shake *= Math.exp(-6 * dt);
+  } else {
+    sim.shake = 0;
+  }
   if (inputBus.aim) {
     camera.fov = 45;
     camera.updateProjectionMatrix();
