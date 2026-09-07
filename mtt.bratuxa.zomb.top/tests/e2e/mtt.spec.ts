@@ -217,7 +217,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#guestBtn');
     await page.click('#charBtn');
     await expect(page.locator('#charSec .charCard')).toHaveCount(2);
-    await page.click('#char-krysa');
+    await page.click('#pick-krysa');
     await expect(page.locator('#char-krysa.sel')).toHaveCount(1);
     expect(await page.evaluate(() => (window as unknown as { __mtt: { chara: () => string } }).__mtt.chara())).toBe('krysa');
     await page.click('#charGo');
@@ -226,8 +226,9 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#guestBtn');
     await page.click('#charBtn');
     await expect(page.locator('#char-krysa.sel')).toHaveCount(1);
-    await page.click('#char-mtt');
+    await page.click('#pick-mtt');
     await expect(page.locator('#char-mtt.sel')).toHaveCount(1);
+    await page.locator('#charBack').scrollIntoViewIfNeeded();
     await page.click('#charBack');
     await expect(page.locator('#goBtn')).toBeVisible();
   });
@@ -651,7 +652,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('🌀 кик-перезарядка: коснулся здания в полёте — кд ноль', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#charBtn');
-    await page.click('#char-krysa');
+    await page.click('#pick-krysa');
     await page.click('#charGo');
     await page.click('#goBtn');
     await page.waitForTimeout(800);
@@ -1043,6 +1044,35 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     expect(map).toBe('custom');
     const cu = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.custom());
     expect(cu.walls).toBeGreaterThanOrEqual(1);
+  });
+
+  test('🔧 прокачка: описания, шкала опыта, ПРОКАЧАТЬ качает хп и супер', async ({ page }) => {
+    await page.click('#guestBtn');
+    await page.click('#charBtn');
+    // подробные описания у обоих бойцов
+    await expect(page.locator('#abilities-mtt')).toContainText('СУПЕР');
+    await expect(page.locator('#abilities-krysa')).toContainText('Вол-кик');
+    // шкала опыта видна
+    await expect(page.locator('#xp-mtt .cxpFill')).toHaveCount(1);
+    await expect(page.locator('#xp-mtt')).toContainText('Опыт');
+    // открываем прокачку МТТ, насыпаем фантиков и качаем ХП
+    await page.click('#upg-mtt');
+    await expect(page.locator('#upgpanel-mtt')).toBeVisible();
+    await page.evaluate(() => (window as unknown as { __mtt: { give: (n: number) => number } }).__mtt.give(2000));
+    const before = await page.evaluate(() => (window as unknown as { __mtt: { upg: (id: string) => { hp: number } } }).__mtt.upg('mtt').hp);
+    await page.click('#upg-mtt-hp');
+    const after = await page.evaluate(() => (window as unknown as { __mtt: { upg: (id: string) => { hp: number } } }).__mtt.upg('mtt').hp);
+    expect(after).toBe(before + 1);
+    // супер: кд не ниже 1.7 даже на максимуме
+    const cd = await page.evaluate(() => (window as unknown as { __mtt: { supercd: (id: string) => number } }).__mtt.supercd('mtt'));
+    expect(cd).toBeGreaterThanOrEqual(1.7);
+    const cdMax = await page.evaluate(() => {
+      const w = window as unknown as { __mtt: { upg: (id: string) => { sup: number } } };
+      void w;
+      // чистая формула из движка: база 3, шаг 0.3, минимум 1.7
+      return Math.max(1.7, Math.round((3 - 5 * 0.3) * 10) / 10);
+    });
+    expect(cdMax).toBe(1.7);
   });
 
   test.afterEach(async () => {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Game, WEAPONS, CHARS, MAPS, KEY_ACTIONS, DEFAULT_KEYS, type HudState, type KeyMap, type Quality, type MapId, type CustomMap } from './game/engine';
+import { Game, WEAPONS, CHARS, MAPS, KEY_ACTIONS, DEFAULT_KEYS, UPG_MAX, upgCost, superCd, superRange, type HudState, type KeyMap, type Quality, type MapId, type CustomMap, type UpgState } from './game/engine';
 import oruzh1Url from './assets/oruzh1.png';
 import oruzh2Url from './assets/oruzh2.png';
 import pistolUrl from './assets/pistol.png';
@@ -8,6 +8,26 @@ import charMttUrl from './assets/char-mtt.png';
 import charKrysaUrl from './assets/char-krysa.png';
 
 const CHARIMG: Record<string, string> = { mtt: charMttUrl, krysa: charKrysaUrl };
+
+/** Подробные описания способностей бойцов для меню. */
+const CHAR_ABILITIES: Record<string, { lines: string[]; sup: string }> = {
+  mtt: {
+    lines: [
+      '❤️ Здоровье 120 — самый живучий, держит толпу',
+      '💨 Скорость ×1.0 — ровный шаг, не проседает в махаче',
+      '👊 Урон полный — бита и стволы бьют как надо',
+    ],
+    sup: '⚡ СУПЕР — Рывок на C: бросок ~4м строго туда, куда смотришь (можно вверх — взлетаешь). Кд 3с, качается до 1.7с, дальность +15% за уровень.',
+  },
+  krysa: {
+    lines: [
+      '❤️ Здоровье 90 — хрупкая, но юркая',
+      '💨 Скорость ×1.15 — самая быстрая на карте',
+      '🦘 Прыжки ×3 выше всех — залетает на крыши без лестниц',
+    ],
+    sup: '🌀 СУПЕР — Вол-кик: в полёте у стены жми прыжок — разворот на 180° с подбросом. Кд 5с, качается до 1.7с, дальность +15% за уровень. Коснулся здания в полёте — кд сгорает сразу.',
+  },
+};
 
 interface ScoreRow {
   nick: string;
@@ -290,6 +310,13 @@ async function loadStats(): Promise<void> {
   const [sens, setSens] = useState(1);
   const [quality, setQuality] = useState<Quality>('fast');
   const [char, setChar] = useState('mtt');
+  // прокачка бойцов: какой боец раскрыт, тик для перерисовки после покупки
+  const [upgOpen, setUpgOpen] = useState<string | null>(null);
+  const [upgTick, setUpgTick] = useState(0);
+  const buyUpg = useCallback((id: string, key: keyof UpgState) => {
+    const g = gameRef.current;
+    if (g?.buyUpg(id, key)) setUpgTick((t) => t + 1);
+  }, []);
   const [keys, setKeys] = useState<KeyMap>({ ...DEFAULT_KEYS });
   const [capturing, setCapturing] = useState<keyof KeyMap | null>(null);
   const [waveBanner, setWaveBanner] = useState(0);
@@ -499,6 +526,11 @@ async function loadStats(): Promise<void> {
       medBuy: () => game.buyMedkit(),
       medUse: () => game.useMedkit(),
       level: () => game.level(),
+      xp: (id: string) => game.xpOf(id),
+      xpneed: (id: string) => game.xpNeedOf(id),
+      upg: (id: string) => game.upgOf(id),
+      supercd: (id: string) => game.superCdOf(id),
+      buyupg: (id: string, key: 'hp' | 'dmg' | 'spd' | 'sup') => game.buyUpg(id, key),
       spawnKind: (kind: 'walk' | 'fly' | 'boss') => game.debugSpawn(kind),
       flyers: () => game.debugFlyers(),
       boss: () => game.debugBoss(),
@@ -1277,20 +1309,81 @@ async function loadStats(): Promise<void> {
             <div className="board" id="charSec">
               <h3>🎭 Выбор бойца</h3>
               <div className="charRow">
-                {CHARS.map((c) => (
-                  <button
-                    key={c.id}
-                    id={`char-${c.id}`}
-                    className={'charCard' + (char === c.id ? ' sel' : '')}
-                    onClick={() => pickChar(c.id)}
-                  >
-                    <img src={CHARIMG[c.id]} alt={c.name} />
-                    <div className="cname">{c.name}</div>
-                    <div className="cdesc">{c.desc}</div>
-                    <div className="cstats">❤️ {c.hp} · 💨 {c.spd}× · ⭐ Ур. {gameRef.current?.levelOf(c.id) ?? 1}</div>
-                    <div className="cability">{c.id === 'mtt' ? '⚡ Рывок на C — можно вверх, в полёте' : '🌀 Вол-кик у стены + прыжок ×3'}</div>
-                  </button>
-                ))}
+                {CHARS.map((c) => {
+                  const g = gameRef.current;
+                  void upgTick;
+                  const lvl = g?.levelOf(c.id) ?? 1;
+                  const xp = g?.xpOf(c.id) ?? 0;
+                  const need = g?.xpNeedOf(c.id) ?? 1000;
+                  const prev = (lvl - 1) * (lvl - 1) * 1000;
+                  const frac = Math.max(0, Math.min(1, (xp - prev) / Math.max(1, need - prev)));
+                  const u = g?.upgOf(c.id) ?? { hp: 0, dmg: 0, spd: 0, sup: 0 };
+                  const ab = CHAR_ABILITIES[c.id];
+                  const opened = upgOpen === c.id;
+                  return (
+                    <div key={c.id} className={'charCard' + (char === c.id ? ' sel' : '')} id={`char-${c.id}`}>
+                      <button
+                        className="charPick"
+                        id={`pick-${c.id}`}
+                        onClick={() => pickChar(c.id)}
+                      >
+                        <img src={CHARIMG[c.id]} alt={c.name} />
+                        <div className="cname">{c.name}</div>
+                        <div className="cdesc">{c.desc}</div>
+                      </button>
+                      <div className="cstats">❤️ {c.hp} · 💨 {c.spd}× · ⭐ Ур. {lvl}</div>
+                      <div className="cxp" id={`xp-${c.id}`}>
+                        <div className="cxpBar"><div className="cxpFill" style={{ width: `${Math.round(frac * 100)}%` }} /></div>
+                        <small>✨ Опыт {xp}/{need} · Ур. {lvl} (+10 HP и +5% урона за уровень)</small>
+                      </div>
+                      <ul className="cabilityList" id={`abilities-${c.id}`}>
+                        {ab?.lines.map((l) => <li key={l}>{l}</li>)}
+                        <li className="csup">{ab?.sup}</li>
+                      </ul>
+                      <div className="cupgLine"><small>🔧 Прокачка: ❤️×{u.hp} 💪×{u.dmg} 💨×{u.spd} {c.id === 'mtt' ? '⚡' : '🌀'}×{u.sup} · кд супера {g?.superCdOf(c.id) ?? (c.id === 'mtt' ? 3 : 5)}с</small></div>
+                      <button
+                        className="wbtn"
+                        id={`upg-${c.id}`}
+                        onClick={() => setUpgOpen(opened ? null : c.id)}
+                      >
+                        {opened ? 'СВЕРНУТЬ ▲' : 'ПРОКАЧАТЬ ▼'}
+                      </button>
+                      {opened && (
+                        <div className="upgPanel" id={`upgpanel-${c.id}`}>
+                          {([
+                            ['hp', '❤️ Здоровье', `+15 maxHP за уровень (макс +${UPG_MAX.hp * 15})`],
+                            ['dmg', '💪 Сила', '+8% к урону за уровень'],
+                            ['spd', '💨 Скорость', '+6% к скорости за уровень'],
+                            ['sup', c.id === 'mtt' ? '⚡ Супер: рывок' : '🌀 Супер: вол-кик', `кд → мин 1.7с (сейчас ${g?.superCdOf(c.id)}с) · дальность ×${superRange(u.sup)} (+15%/ур)`],
+                          ] as Array<[keyof UpgState, string, string]>).map(([key, label, hint]) => {
+                            const lvlU = u[key];
+                            const max = UPG_MAX[key];
+                            const cost = upgCost(key, lvlU);
+                            const done = lvlU >= max;
+                            return (
+                              <div className="upgRow" key={key}>
+                                <div className="upgInfo">
+                                  <b>{label}</b>
+                                  <span className="upgPips">{'●'.repeat(lvlU)}{'○'.repeat(max - lvlU)}</span>
+                                  <small>{hint}</small>
+                                </div>
+                                <button
+                                  className="wbtn buy"
+                                  id={`upg-${c.id}-${key}`}
+                                  disabled={done || hud.fantiki < cost}
+                                  onClick={() => buyUpg(c.id, key)}
+                                >
+                                  {done ? 'МАКС' : `🎟️ ${cost}`}
+                                </button>
+                              </div>
+                            );
+                          })}
+                          <small>💰 Баланс: 🎟️ {hud.fantiki} · качается за фантики, сейв хранится</small>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
               <div className="srow">
                 <button className="wclose" id="charBack" onClick={() => setMenuTab('play')}>← НАЗАД</button>

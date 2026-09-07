@@ -22,6 +22,24 @@ import bossUrl from '../assets/boss.png';
 import charMttUrl from '../assets/char-mtt.png';
 import charKrysaUrl from '../assets/char-krysa.png';
 
+export interface UpgState { hp: number; dmg: number; spd: number; sup: number }
+export const UPG_MAX: UpgState = { hp: 5, dmg: 5, spd: 5, sup: 5 };
+/** Цена апгрейда: база × 3.5^ур (hp/dmg/spd — от 100, супер — от 150). */
+export function upgCost(key: keyof UpgState, lvl: number): number {
+  const base = key === 'sup' ? 150 : 100;
+  return Math.round(base * Math.pow(3.5, lvl));
+}
+/** Кд суперспособности с учётом прокачки, минимум 1.7с. */
+export function superCd(id: string, sup: number): number {
+  const base = id === 'krysa' ? 5 : 3;
+  const step = id === 'krysa' ? 0.7 : 0.3;
+  return Math.max(1.7, Math.round((base - sup * step) * 10) / 10);
+}
+/** Дальность суперспособности: +15% за уровень. */
+export function superRange(sup: number): number {
+  return Math.round((1 + sup * 0.15) * 100) / 100;
+}
+
 export interface CharDef {
   id: string;
   name: string;
@@ -216,6 +234,22 @@ export class Game {
   private owned: string[] = ['fists'];
   // аптечки и опыт бойцов (не сносить сейвы: merge поверх)
   private medkits = 0;
+  private upg: Record<string, UpgState> = (() => {
+    const blank = (): UpgState => ({ hp: 0, dmg: 0, spd: 0, sup: 0 });
+    try {
+      const d = JSON.parse(localStorage.getItem('mtt_upg_v1') ?? '{}') as Record<string, Partial<UpgState>>;
+      const clean = (p?: Partial<UpgState>): UpgState => ({
+        hp: Math.max(0, Math.min(UPG_MAX.hp, Math.floor(p?.hp ?? 0))),
+        dmg: Math.max(0, Math.min(UPG_MAX.dmg, Math.floor(p?.dmg ?? 0))),
+        spd: Math.max(0, Math.min(UPG_MAX.spd, Math.floor(p?.spd ?? 0))),
+        sup: Math.max(0, Math.min(UPG_MAX.sup, Math.floor(p?.sup ?? 0))),
+      });
+      return { mtt: clean(d.mtt), krysa: clean(d.krysa) };
+    } catch { return { mtt: blank(), krysa: blank() }; }
+  })();
+  private saveUpg(): void {
+    try { localStorage.setItem('mtt_upg_v1', JSON.stringify(this.upg)); } catch { /* noop */ }
+  }
   private xp: Record<string, number> = (() => {
     try {
       const d = JSON.parse(localStorage.getItem('mtt_xp_v1') ?? '{}') as Record<string, number>;
@@ -330,7 +364,7 @@ export class Game {
     this.applyLevel();
     const spec0 = charSpec(this.charId);
     this.hp = this.maxhp;
-    this.charSpd = spec0.spd;
+    this.charSpd = spec0.spd * (1 + (this.upg[this.charId]?.spd ?? 0) * 0.06);
     this.jumpVel = this.charId === 'krysa' ? 4.8 * Math.sqrt(3) : 4.8;
     this.renderer.setPixelRatio(this.quality === 'nice' ? Math.min(window.devicePixelRatio, 1.5) : 1);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -462,8 +496,39 @@ export class Game {
   }
 
   // прокачка бойца: опыт за фраги/волны, уровень = 1+sqrt(xp/1000); +10 maxHP и +5% урона за уровень
+  // плюс покупные апгрейды за фантики: hp +15 maxHP/ур, dmg +8%/ур, spd +6%/ур, sup — кд до 1.7с + дальность +15%/ур
   level(): number {
     return this.levelOf(this.charId);
+  }
+
+  xpOf(id: string): number { return Math.max(0, Math.floor(this.xp[charSpec(id).id] ?? 0)); }
+  /** Порог следующего уровня: lvl²×1000 (ур1: 0–999, ур2 с 1000, ур3 с 4000…). */
+  xpNeedOf(id: string): number {
+    const lvl = this.levelOf(charSpec(id).id);
+    return lvl * lvl * 1000;
+  }
+  upgOf(id: string): UpgState { return { ...(this.upg[charSpec(id).id] ?? { hp: 0, dmg: 0, spd: 0, sup: 0 }) }; }
+  superCdOf(id: string): number {
+    const cid = charSpec(id).id;
+    return superCd(cid, this.upg[cid]?.sup ?? 0);
+  }
+  /** Купить апгрейд за фантики. Возвращает true если куплено. */
+  buyUpg(id: string, key: keyof UpgState): boolean {
+    const cid = charSpec(id).id;
+    const cur = this.upg[cid] ?? { hp: 0, dmg: 0, spd: 0, sup: 0 };
+    if (cur[key] >= UPG_MAX[key]) return false;
+    const cost = upgCost(key, cur[key]);
+    if (this.fantiki < cost) return false;
+    this.fantiki -= cost;
+    this.upg[cid] = { ...cur, [key]: cur[key] + 1 };
+    this.saveUpg();
+    this.saveShop();
+    this.applyLevel();
+    const spec = charSpec(this.charId);
+    this.charSpd = spec.spd * (1 + (this.upg[this.charId]?.spd ?? 0) * 0.06);
+    this.blip(700);
+    this.pushHud();
+    return true;
   }
 
   levelOf(id: string): number {
@@ -478,12 +543,14 @@ export class Game {
 
   private applyLevel(): void {
     const spec = charSpec(this.charId);
-    this.maxhp = spec.hp + (this.level() - 1) * 10;
+    const u = this.upg[this.charId] ?? { hp: 0, dmg: 0, spd: 0, sup: 0 };
+    this.maxhp = spec.hp + (this.level() - 1) * 10 + u.hp * 15;
     this.hp = Math.min(this.hp, this.maxhp);
   }
 
   private dmgMul(): number {
-    return 1 + (this.level() - 1) * 0.05;
+    const u = this.upg[this.charId] ?? { hp: 0, dmg: 0, spd: 0, sup: 0 };
+    return 1 + (this.level() - 1) * 0.05 + u.dmg * 0.08;
   }
 
   buyWeapon(id: string): boolean {
@@ -531,7 +598,7 @@ export class Game {
     this.applyLevel();
     const spec = charSpec(this.charId);
     this.hp = this.maxhp;
-    this.charSpd = spec.spd;
+    this.charSpd = spec.spd * (1 + (this.upg[this.charId]?.spd ?? 0) * 0.06);
     // Крыса прыгает в 3 раза выше: высота ~ v², значит скорость ×√3
     this.jumpVel = this.charId === 'krysa' ? 4.8 * Math.sqrt(3) : 4.8;
     this.dashT = 0;
@@ -2397,7 +2464,7 @@ export class Game {
     }
   }
 
-  // рывок МТТ: строго в сторону взгляда, включая вверх/вниз (куда смотрит камера), кд 3с.
+  // рывок МТТ: строго в сторону взгляда, включая вверх/вниз (куда смотрит камера), кд 3с (качается до 1.7с).
   // Союзников (remotes) урон не трогает вовсе: attack() бьёт только enemies.
   dash(): boolean {
     if (!this.started || this.dead || this.dashCd > 0 || this.charId !== 'mtt') return false;
@@ -2406,7 +2473,7 @@ export class Game {
     this.dashDy = Math.sin(this.pitch);
     this.dashDz = -Math.cos(this.yaw) * cp;
     this.dashT = 0.18;
-    this.dashCd = 3;
+    this.dashCd = superCd('mtt', this.upg.mtt?.sup ?? 0);
     this.pvy = 0;
     this.burst(this.px, 0.4, this.pz, 12);
     this.blip(880);
@@ -2705,9 +2772,10 @@ export class Game {
           const mlen = Math.hypot(mx, mz);
           if (mlen < 0.15) { mx = -this.wallNx; mz = -this.wallNz; }
           else { mx = -mx / mlen; mz = -mz / mlen; }
-          // ...и толчок ровно против него
-          const kx = this.clamp(this.px + mx * 2.2);
-          const kz = this.clamp(this.pz + mz * 2.2);
+          // ...и толчок ровно против него (дальность качается: +15% за уровень супера)
+          const krange = 2.2 * superRange(this.upg.krysa?.sup ?? 0);
+          const kx = this.clamp(this.px + mx * krange);
+          const kz = this.clamp(this.pz + mz * krange);
           if (!this.hitSolid(kx, this.pz, 0.9, this.py)) this.px = kx;
           if (!this.hitSolid(this.px, kz, 0.9, this.py)) this.pz = kz;
           this.pvy = 7.5;
@@ -2720,7 +2788,7 @@ export class Game {
           this.kickTurnT = 0.3;
           this.kickAirT = 1.2;
           this.wallT = 0;
-          this.wallKickCd = 5;
+          this.wallKickCd = superCd('krysa', this.upg.krysa?.sup ?? 0);
           this.burst(this.px, 1.0, this.pz, 10);
           this.blip(700);
           this.pushHud();
@@ -2818,13 +2886,15 @@ export class Game {
         }
       }
       // рывок: бросок 22 м/с по взгляду (включая вверх), стены уважает, гравитация на паузе
+      // дальность качается: +15% за уровень супера
       if (this.dashT > 0) {
         this.dashT -= dt;
-        const nx = this.px + this.dashDx * 22 * dt;
-        const nz = this.pz + this.dashDz * 22 * dt;
+        const dspd = 22 * superRange(this.upg.mtt?.sup ?? 0);
+        const nx = this.px + this.dashDx * dspd * dt;
+        const nz = this.pz + this.dashDz * dspd * dt;
         if (!this.hitSolid(nx, this.pz, 0.9, this.py)) this.px = this.clamp(nx);
         if (!this.hitSolid(this.px, nz, 0.9, this.py)) this.pz = this.clamp(nz);
-        this.py = Math.max(0, this.py + this.dashDy * 22 * dt);
+        this.py = Math.max(0, this.py + this.dashDy * dspd * dt);
         this.pvy = 0;
         if (!this.moving) this.bobPhase += dt * 11;
       } else {

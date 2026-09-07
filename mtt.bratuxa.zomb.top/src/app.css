@@ -65,13 +65,27 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
  box-shadow:0 0 18px rgba(255,159,28,.18),4px 4px 0 #000}
 .board h3{margin:6px 0;color:#ff9f1c}
 .board ol{margin:6px 0;padding-left:22px;text-align:left;color:#e8edff}
-.charRow{display:flex;gap:10px;justify-content:center;margin:4px 0}
-.charCard{background:#141d33;border:2px solid #334155;border-radius:12px;padding:8px;width:134px;
- cursor:pointer;color:#e8edff;font-family:inherit}
+.charRow{display:flex;gap:10px;justify-content:center;margin:4px 0;flex-wrap:wrap}
+.charCard{background:#141d33;border:2px solid #334155;border-radius:12px;padding:8px;width:300px;
+ color:#e8edff;font-family:inherit}
 .charCard img{width:100%;height:112px;object-fit:contain;background:#05070f;border-radius:8px}
 .charCard .cname{font-weight:900;margin-top:4px}
-.charCard .cdesc{font-size:11px;color:#c6cdf2;min-height:30px}
-.charCard .cstats{font-size:12px;color:#ffd23f;font-weight:800}
+.charCard .cdesc{font-size:11px;color:#c6cdf2;min-height:18px}
+.charPick{background:none;border:none;color:inherit;font-family:inherit;cursor:pointer;width:100%;padding:0}
+.charCard .cstats{font-size:12px;color:#ffd23f;font-weight:800;margin-top:4px}
+.cxp{margin:6px 0;text-align:left}
+.cxpBar{background:#05070f;border:1px solid #334155;border-radius:6px;height:10px;overflow:hidden}
+.cxpFill{background:linear-gradient(90deg,#a855f7,#39d353);height:100%}
+.cxp small{font-size:10px;color:#c6cdf2}
+.cabilityList{margin:6px 0;padding-left:16px;text-align:left;font-size:11px;color:#e8edff}
+.cabilityList li{margin:2px 0}
+.cabilityList .csup{color:#ffd23f;font-weight:700}
+.cupgLine{margin:4px 0;text-align:left}
+.upgPanel{margin-top:6px;border-top:1px solid #334155;padding-top:6px;display:flex;flex-direction:column;gap:6px}
+.upgRow{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#0b1226;border-radius:8px;padding:6px}
+.upgInfo{text-align:left;font-size:11px}
+.upgInfo small{display:block;color:#c6cdf2}
+.upgPips{color:#39d353;font-size:11px;margin-left:6px}
 .charCard.sel{border-color:#39d353;box-shadow:0 0 16px rgba(57,211,83,.5),3px 3px 0 #000}
 #vig{position:fixed;inset:0;z-index:4;pointer-events:none;
  background:radial-gradient(ellipse at center,transparent 52%,rgba(2,2,12,.55) 100%)}
