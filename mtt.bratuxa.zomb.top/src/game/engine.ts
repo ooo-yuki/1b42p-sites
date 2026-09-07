@@ -2485,7 +2485,8 @@ export class Game {
     }
   }
 
-  // 🔫 выстрел: хитскан по прицелу — ближайший враг в конусе ~8°; урон тает с дистанцией
+  // 🔫 выстрел: хитскан строго по прицелу (конус ~2°) — без автонаводки;
+  // урон тает с дистанцией
   private shoot(baseDmg: number, range: number): number {
     this.blip(880);
     const cp = Math.cos(this.pitch);
@@ -2500,7 +2501,7 @@ export class Game {
       const dist = Math.hypot(vx, vy, vz);
       if (dist > range || dist < 0.5) continue;
       const cos = (vx * dx + vy * dy + vz * dz) / dist;
-      if (cos < 0.99) continue;
+      if (cos < 0.9995) continue;
       if (dist < bestD) { bestD = dist; best = e; }
     }
     if (!best) {
@@ -2544,8 +2545,8 @@ export class Game {
     return null;
   }
 
-  // 💥 дробовик: 8 дробин веером (~30°). В упор — полный урон, вдаль — щекотка:
-  // урон = база × затухание с дистанцией (^1.6) × попадание по центру веера.
+  // 💥 дробовик: 8 дробин честным веером (~4°). В упор — полный урон, вдаль — щекотка:
+  // урон = дробины × база/8 × затухание с дистанцией (^1.6). Без автонаводки.
   // Выстрел себе под ноги (круто вниз) — рокет-джамп: швыряет против выстрела,
   // вверх на 6м (pvy 12 при гравитации 12: 12²/24 = 6) + отброс назад.
   private shotgunFire(totalDmg: number, range: number): number {
@@ -2554,22 +2555,47 @@ export class Game {
     const dx = -Math.sin(this.yaw) * cp, dy = Math.sin(this.pitch), dz = -Math.cos(this.yaw) * cp;
     const cx = this.px, cy = 1.7 + this.py, cz = this.pz;
     this.burst(cx + dx * 2, cy + dy * 2, cz + dz * 2, 14);
-    let hits = 0;
-    for (const e of this.enemies) {
-      if (e.dead) continue;
-      const ty = e.kind === 'fly' ? 3.2 : 1.0 + e.ey;
-      const vx = e.g.position.x - cx, vy = ty - cy, vz = e.g.position.z - cz;
-      const dist = Math.hypot(vx, vy, vz);
-      if (dist > range || dist < 0.5) continue;
-      const cos = (vx * dx + vy * dy + vz * dz) / dist;
-      if (cos < 0.86) continue;
-      const fall = Math.pow(Math.max(0, 1 - dist / range), 1.6);
-      const center = Math.max(0, Math.min(1, (cos - 0.86) / 0.14));
-      e.hp -= totalDmg * fall * center * this.dmgMul() + Math.random() * 5;
-      this.tracer(cx, cy, cz, e.g.position.x, ty, e.g.position.z);
-      this.afterHit(e, vx, vz, Math.hypot(vx, vz), 2.2);
-      hits++;
+    // 8 дробин летят честным веером (~4° вокруг прицела): куда навёл — туда и ушло,
+    // никакой автонаводки — попадание считается по пересечению луча дробины с тушей
+    const PELLETS = 8, SPREAD = 0.07;
+    let rx = -dz, ry = 0, rz = dx;
+    let rl = Math.hypot(rx, ry, rz);
+    if (rl < 0.01) { rx = 1; ry = 0; rz = 0; rl = 1; }
+    rx /= rl; ry /= rl; rz /= rl;
+    const ux = ry * dz - rz * dy, uy = rz * dx - rx * dz, uz = rx * dy - ry * dx;
+    const perPellet = totalDmg / PELLETS;
+    const hitsBy = new Map<number, number>();
+    const hitPos = new Map<number, { x: number; y: number; z: number; hx: number; hz: number }>();
+    for (let pi = 0; pi < PELLETS; pi++) {
+      const ox = (Math.random() * 2 - 1) * SPREAD, oy = (Math.random() * 2 - 1) * SPREAD;
+      let pdx = dx + rx * ox + ux * oy, pdy = dy + ry * ox + uy * oy, pdz = dz + rz * ox + uz * oy;
+      const pl = Math.hypot(pdx, pdy, pdz) || 1;
+      pdx /= pl; pdy /= pl; pdz /= pl;
+      for (let ei = 0; ei < this.enemies.length; ei++) {
+        const e = this.enemies[ei];
+        if (e.dead) continue;
+        const ty = e.kind === 'fly' ? 3.2 : 1.0 + e.ey;
+        const ex = e.g.position.x - cx, ey = ty - cy, ez = e.g.position.z - cz;
+        const t = ex * pdx + ey * pdy + ez * pdz;
+        if (t < 0.5 || t > range) continue;
+        const dd = Math.sqrt(Math.max(0, ex * ex + ey * ey + ez * ez - t * t));
+        if (dd > 0.9) continue;
+        hitsBy.set(ei, (hitsBy.get(ei) ?? 0) + 1);
+        if (!hitPos.has(ei)) hitPos.set(ei, { x: e.g.position.x, y: ty, z: e.g.position.z, hx: ex, hz: ez });
+        this.tracer(cx, cy, cz, cx + pdx * t, cy + pdy * t, cz + pdz * t);
+      }
     }
+    let hits = 0;
+    hitsBy.forEach((count, ei) => {
+      const e = this.enemies[ei];
+      const hp = hitPos.get(ei);
+      if (!hp) return;
+      const dist = Math.hypot(hp.hx, hp.hz);
+      const fall = Math.pow(Math.max(0, 1 - dist / range), 1.6);
+      e.hp -= count * perPellet * fall * this.dmgMul() + Math.random() * 3;
+      this.afterHit(e, hp.hx, hp.hz, dist, 2.2);
+      hits++;
+    });
     if (hits > 0) this.blip(440);
     // СТЕНА + дробовик = катапульта: луч первым упёрся в стену (≤12м) —
     // швыряет на ~13м против выстрела видимым полётом (стены тормозят) + подброс.
