@@ -131,7 +131,7 @@ export const WEAPONS: WeaponDef[] = [
   { id: 'bat', name: '🏏 Бита', desc: 'Длиннее и злее', dmg: 48, range: 4.3, cd: 0.6, price: 300, minWave: 2 },
   { id: 'axe', name: '🪓 Секира', desc: 'Тяжёлый аргумент', dmg: 70, range: 4.6, cd: 0.85, price: 800, minWave: 3 },
   { id: 'pistol', name: '🔫 Пистолет', desc: 'Бьёт далеко — целься прицелом', dmg: 45, range: 30, cd: 0.7, price: 1200, minWave: 4, ranged: true },
-  { id: 'shotgun', name: '💥 Дробовик', desc: 'Дробь веером: в упор сносит, вдаль щекочет · выстрел в землю/стену под ногами швыряет вверх на 6м (от воздуха — нет)', dmg: 110, range: 20, cd: 1.1, price: 1500, minWave: 5, ranged: true, spread: true },
+  { id: 'shotgun', name: '💥 Дробовик', desc: 'Дробь веером: в упор сносит, вдаль щекочет · в стену — катапульта на 13м назад, в землю под ногами — вверх на 6м (от воздуха — нет)', dmg: 110, range: 20, cd: 1.1, price: 1500, minWave: 5, ranged: true, spread: true },
 ];
 
 export interface KeyMap {
@@ -2528,15 +2528,15 @@ export class Game {
     }
   }
 
-  // луч выстрела упёрся в поверхность рядом (земля/крыша/стена ≤3.5м)?
-  // Нет поверхности — нет рокет-джампа: от воздуха не отпрыгнуть.
-  private shotHitsSurface(cx: number, cy: number, cz: number, dx: number, dy: number, dz: number): boolean {
-    for (let t = 0.25; t <= 3.5; t += 0.25) {
+  // что первым встретит луч выстрела: стена или земля/крыша (дистанция — метры)?
+  // Нет поверхности рядом — от воздуха не оттолкнуться.
+  private shotFirstSurface(cx: number, cy: number, cz: number, dx: number, dy: number, dz: number): { kind: 'wall' | 'ground'; dist: number } | null {
+    for (let t = 0.25; t <= 12; t += 0.25) {
       const x = cx + dx * t, y = cy + dy * t, z = cz + dz * t;
-      if (y <= this.groundAt(x, z) + 0.15) return true;
-      if (this.hitSolid(x, z, 0.5, y)) return true;
+      if (this.hitSolid(x, z, 0.5, y)) return { kind: 'wall', dist: t };
+      if (y <= this.groundAt(x, z) + 0.15) return { kind: 'ground', dist: t };
     }
-    return false;
+    return null;
   }
 
   // 💥 дробовик: 8 дробин веером (~30°). В упор — полный урон, вдаль — щекотка:
@@ -2566,9 +2566,28 @@ export class Game {
       hits++;
     }
     if (hits > 0) this.blip(440);
-    // рокет-джамп только от поверхности: луч упёрся в землю/крышу/стену рядом —
-    // стрельба в воздух не подбрасывает. Вверх на 6м + отброс назад рывком.
-    if (dy < -0.45 && this.shotHitsSurface(cx, cy, cz, dx, dy, dz)) {
+    // СТЕНА + дробовик = катапульта: луч первым упёрся в стену (≤12м) —
+    // швыряет на 13м против выстрела (шагами, стены уважает) + подброс.
+    // Иначе классика: круто вниз в землю рядом (≤3.5м) — рокет-джамп 6м вверх.
+    const surf = this.shotFirstSurface(cx, cy, cz, dx, dy, dz);
+    if (surf && surf.kind === 'wall') {
+      const hl = Math.hypot(dx, dz) || 1;
+      const bx = -dx / hl, bz = -dz / hl;
+      let moved = 0;
+      for (let s = 0; s < 26 && moved < 13; s++) {
+        const step = Math.min(0.5, 13 - moved);
+        const nx = this.px + bx * step;
+        if (this.hitSolid(nx, this.pz, 0.9, this.py)) break;
+        this.px = this.clamp(nx);
+        const nz = this.pz + bz * step;
+        if (this.hitSolid(this.px, nz, 0.9, this.py)) break;
+        this.pz = this.clamp(nz);
+        moved += step;
+      }
+      this.pvy = Math.max(this.pvy, 5);
+      this.burst(this.px, 1.0, this.pz, 20);
+      this.blip(140);
+    } else if (dy < -0.45 && surf && surf.kind === 'ground' && surf.dist <= 3.5) {
       // рокет-джамп: чем круче вниз, тем выше (максимум 12 → ровно 6м);
       // отброс назад — коротким рывком против выстрела
       const k = Math.min(1, (-dy - 0.45) / 0.44);
