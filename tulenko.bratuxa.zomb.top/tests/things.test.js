@@ -18,10 +18,10 @@ function strip(src) {
 }
 
 const src = strip(readTS('../src/things.ts'));
-const js = src + '\nmodule.exports = { LOOT, RECIPES, FORBIDDEN, TRADER_PRICE, TRADER_PRICES, has, pick, craft, isForbidden, hasForbidden, deal };\n';
+const js = src + '\nmodule.exports = { LOOT, RECIPES, FORBIDDEN, TRADER_PRICE, TRADER_PRICES, BRIBE, has, pick, craft, isForbidden, hasForbidden, deal };\n';
 const m = new Module('things', module);
 m._compile(js, path.join(__dirname, '..', 'src', 'things.js'));
-const { LOOT, RECIPES, FORBIDDEN, TRADER_PRICE, TRADER_PRICES, has, pick, craft, isForbidden, hasForbidden, deal } = m.exports;
+const { LOOT, RECIPES, FORBIDDEN, TRADER_PRICE, TRADER_PRICES, BRIBE, has, pick, craft, isForbidden, hasForbidden, deal } = m.exports;
 
 // Шаг 1 брифа дословно (через жгут вместо game-src-things.js, которого нет в деле):
 // import { pick, craft, has } from '../game-src-things.js';
@@ -36,8 +36,8 @@ const { LOOT, RECIPES, FORBIDDEN, TRADER_PRICE, TRADER_PRICES, has, pick, craft,
   assert.ok(has(s, 'кляп'));
 }
 
-// Находки: тряпка, ложка, верёвка, мыло
-assert.deepEqual([...LOOT].sort(), ['верёвка', 'ложка', 'мыло', 'тряпка'].sort());
+// Находки: тряпка, ложка, верёвка, мыло, ружьё-детали, трава-отрава
+assert.deepEqual([...LOOT].sort(), ['верёвка', 'ложка', 'мыло', 'ружьё-детали', 'трава-отрава', 'тряпка'].sort());
 
 // Сборка спуска: верёвка плюс мыло
 {
@@ -134,6 +134,36 @@ assert.deepEqual(TRADER_PRICES, { 'ложка': 2, 'верёвка': 3, 'мыл�
   const s = { coins: 5, bag: [], night: true };
   assert.equal(deal(s, 'кляп'), false);
   assert.equal(s.coins, 5);
+}
+
+// Шаг 1 брифа Task 6 дословно (импорт через жгут выше):
+// import { pick, craft } from '../game-src-things.js';
+// const s = { bag: [], bench: true };
+// pick(s, 'ружьё-детали');
+// assert.equal(craft(s, 'ствол'), true);
+{
+  const s = { bag: [], bench: true };
+  pick(s, 'ружьё-детали');
+  assert.equal(craft(s, 'ствол'), true);
+}
+
+// Чертёж отрава: трава у котла; без котла нет; цена лапы 30
+assert.equal(BRIBE, 30);
+assert.deepEqual(RECIPES['ствол'], ['ружьё-детали']);
+assert.deepEqual(RECIPES['отрава'], ['трава-отрава']);
+{
+  const s = { bag: [], pot: true };
+  pick(s, 'трава-отрава');
+  assert.equal(craft(s, 'отрава'), true);
+  assert.ok(has(s, 'отрава'));
+}
+{
+  const s = { bag: [] };
+  pick(s, 'ружьё-детали');
+  assert.equal(craft(s, 'ствол'), false);
+  const s2 = { bag: [] };
+  pick(s2, 'трава-отрава');
+  assert.equal(craft(s2, 'отрава'), false);
 }
 
 console.log('things ok');

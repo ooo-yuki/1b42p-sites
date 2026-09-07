@@ -1,17 +1,22 @@
 // Вещи и сборка слоя 2. Ничего не берёт, даёт pick, craft, has,
-// находки (тряпка, ложка, верёвка, мыло), сборку (кляп, спуск) и торговца.
+// находки (тряпка, ложка, верёвка, мыло, ружьё-детали, трава-отрава),
+// сборку (кляп, спуск, ствол у верстака, отрава у котла) и торговца.
 
 export interface Sack {
   bag: string[];
   coins?: number;
   night?: boolean;
+  bench?: boolean;
+  pot?: boolean;
 }
 
-export const LOOT: string[] = ['тряпка', 'ложка', 'верёвка', 'мыло'];
+export const LOOT: string[] = ['тряпка', 'ложка', 'верёвка', 'мыло', 'ружьё-детали', 'трава-отрава'];
 
 export const RECIPES: Record<string, string[]> = {
   'кляп': ['ложка', 'тряпка'],
   'спуск': ['верёвка', 'мыло'],
+  'ствол': ['ружьё-детали'],
+  'отрава': ['трава-отрава'],
 };
 
 // Запретное для обысков: с ним в суме — карцер.
@@ -21,6 +26,9 @@ export const FORBIDDEN: string[] = ['ложка', 'кляп', 'спуск'];
 // Цены: ложка 2, верёвка 3, мыло 2. Днём торговца нет.
 export const TRADER_PRICES: Record<string, number> = { 'ложка': 2, 'верёвка': 3, 'мыло': 2 };
 export const TRADER_PRICE: number = 2;
+
+// Цена лапы (откуп начальнику): 30 монет.
+export const BRIBE: number = 30;
 
 export function has(S: Sack, id: string): boolean {
   if (!S || !S.bag) return false;
@@ -43,11 +51,14 @@ export function pick(S: Sack, id: string): void {
 }
 
 // Сборка: без нужного в суме не выходит, состав уходит в дело.
+// Ствол собирается только у верстака (bench), отрава — только у котла (pot).
 export function craft(S: Sack, id: string): boolean {
   if (!S || !S.bag) return false;
   const parts = RECIPES[id];
   if (!parts) return false;
   if (has(S, id)) return true;
+  if (id === 'ствол' && S.bench !== true) return false;
+  if (id === 'отрава' && S.pot !== true) return false;
   for (const p of parts) {
     if (!has(S, p)) return false;
   }
