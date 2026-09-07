@@ -23,13 +23,34 @@ function emit(name: string, detail?: unknown) {
   window.dispatchEvent(new CustomEvent(name, { detail }));
 }
 
-function Stick({ side, onMove }: { side: 'left' | 'right'; onMove: (x: number, y: number) => void }) {
+/** Автоландшафт на мобиле: fullscreen + orientation lock. Тихо сдаётся на десктопе/iOS. */
+async function tryLandscape() {
+  try {
+    if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+      await document.documentElement.requestFullscreen();
+    }
+  } catch { /* без fullscreen — покажем шторку поворота */ }
+  try {
+    const o = screen.orientation as unknown as { lock?: (o: string) => Promise<void> };
+    await o.lock?.('landscape');
+  } catch { /* десктоп/deny — шторка подстрахует */ }
+}
+function unlockOrientation() {
+  try {
+    const o = screen.orientation as unknown as { unlock?: () => void };
+    o.unlock?.();
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+  } catch { /* молча */ }
+}
+
+function Stick({ side, onMove, compact }: { side: 'left' | 'right'; onMove: (x: number, y: number) => void; compact?: boolean }) {
   const base = useRef<HTMLDivElement>(null);
   const id = useRef<number | null>(null);
   const moveRef = useRef(onMove);
   moveRef.current = onMove;
   const [knob, setKnob] = useState({ x: 0, y: 0 });
-  const R = 56;
+  const R = compact ? 44 : 56;
+  const SIZE = compact ? 116 : 132;
 
   const handle = (t: { clientX: number; clientY: number; identifier: number }, end: boolean) => {
     const el = base.current;
@@ -82,8 +103,8 @@ function Stick({ side, onMove }: { side: 'left' | 'right'; onMove: (x: number, y
     <div
       ref={base}
       style={{
-        position: 'fixed', bottom: 24, [side === 'left' ? 'left' : 'right']: 24,
-        width: 132, height: 132, borderRadius: '50%',
+        position: 'fixed', bottom: compact ? 10 : 24, [side === 'left' ? 'left' : 'right']: compact ? 10 : 24,
+        width: SIZE, height: SIZE, borderRadius: '50%',
         background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.25)',
         touchAction: 'none', zIndex: 10,
       }}
@@ -99,7 +120,7 @@ function Stick({ side, onMove }: { side: 'left' | 'right'; onMove: (x: number, y
       }}
     >
       <div style={{
-        position: 'absolute', left: 66 + knob.x - 26, top: 66 + knob.y - 26,
+        position: 'absolute', left: SIZE / 2 + knob.x - 26, top: SIZE / 2 + knob.y - 26,
         width: 52, height: 52, borderRadius: '50%', background: 'rgba(255,255,255,0.3)',
       }} />
     </div>
@@ -182,6 +203,30 @@ export function App() {
   const inGame = phase === 'playing' || phase === 'paused';
   // Тач-UI только на тачах — десктопу стики не нужны (мышь + WASD).
   const [isTouch] = useState(() => 'ontouchstart' in window || navigator.maxTouchPoints > 0);
+  // Вьюпорт живьём: от него зависят портрет/компакт-раскладка.
+  const [vp, setVp] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
+  useEffect(() => {
+    const upd = () => setVp({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', upd);
+    window.addEventListener('orientationchange', upd);
+    return () => {
+      window.removeEventListener('resize', upd);
+      window.removeEventListener('orientationchange', upd);
+    };
+  }, []);
+  const portrait = vp.h > vp.w;
+  const compact = isTouch && (Math.min(vp.w, vp.h) < 560 || vp.h < 500);
+  // Портрет посреди боя — на паузу с задержкой 1.5с: даём автоповороту шанс
+  // развернуть экран (успешный lock снимет portrait и отменит таймер).
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  useEffect(() => {
+    if (!(portrait && isTouch && phase === 'playing')) return;
+    const t = setTimeout(() => {
+      if (phaseRef.current === 'playing') emit('shturm:pause');
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [portrait, isTouch, phase]);
   // Подсказка лока: без pointer lock мышь не крутит — показываем, а не молчим.
   const [locked, setLocked] = useState(() => document.pointerLockElement !== null);
   useEffect(() => {
@@ -199,6 +244,7 @@ export function App() {
           mag={snap.mag} reserve={snap.reserve} kills={snap.kills} enemies={snap.enemiesLeft}
           fps={snap.fps} map={snap.map} message={snap.message}
           hurtAt={snap.hurtAt} hurtDir={snap.hurtDir} healAt={snap.healAt}
+          compact={compact}
         />
       )}
       {phase === 'playing' && !isTouch && !locked && (
@@ -210,30 +256,43 @@ export function App() {
       )}
       {phase === 'playing' && isTouch && (
         <>
-          <Stick side="left" onMove={(x, y) => { inputBus.move = { x: deadzone(x), y: deadzone(y) }; }} />
+          <Stick side="left" compact={compact} onMove={(x, y) => { inputBus.move = { x: deadzone(x), y: deadzone(y) }; }} />
           {/* Стик вверх = взгляд вверх, как мышь; held — камера крутится пока держишь. */}
-          <Stick side="right" onMove={(x, y) => { inputBus.lookHeld = { x, y }; }} />
+          <Stick side="right" compact={compact} onMove={(x, y) => { inputBus.lookHeld = { x, y }; }} />
           {/* Огонь — справа над стиком, прицел/перезарядка — слева над стиком: центр не перекрываем. */}
-          <div style={{ position: 'fixed', right: 36, bottom: 180, zIndex: 10 }}>
+          <div style={{ position: 'fixed', right: compact ? 14 : 36, bottom: compact ? 142 : 180, zIndex: 10 }}>
             <button
               onTouchStart={() => { inputBus.fire = true; }} onTouchEnd={() => { inputBus.fire = false; }}
               onTouchCancel={() => { inputBus.fire = false; }}
               onMouseDown={() => { inputBus.fire = true; }} onMouseUp={() => { inputBus.fire = false; }}
               onMouseLeave={() => { inputBus.fire = false; }}
               title="Огонь"
-              style={btnFire}>🔥</button>
+              style={compact ? btnFireSm : btnFire}>🔥</button>
           </div>
-          <div style={{ position: 'fixed', left: 36, bottom: 180, display: 'flex', gap: 10, zIndex: 10 }}>
+          <div style={{ position: 'fixed', left: compact ? 14 : 36, bottom: compact ? 142 : 180, display: 'flex', gap: 10, zIndex: 10 }}>
             <button
               onTouchStart={() => { inputBus.aim = true; }} onTouchEnd={() => { inputBus.aim = false; }}
               onTouchCancel={() => { inputBus.aim = false; }}
               onMouseDown={() => { inputBus.aim = true; }} onMouseUp={() => { inputBus.aim = false; }}
               onMouseLeave={() => { inputBus.aim = false; }}
               title="Прицел"
-              style={btn}>🎯</button>
-            <button onClick={() => { inputBus.reload = true; }} title="Перезарядка" style={btn}>⟳</button>
+              style={compact ? btnSm : btn}>🎯</button>
+            <button onClick={() => { inputBus.reload = true; }} title="Перезарядка" style={compact ? btnSm : btn}>⟳</button>
           </div>
         </>
+      )}
+      {/* Портрет на мобиле: шторка «поверни» поверх всего, бой уже на паузе. */}
+      {inGame && isTouch && portrait && (
+        <div style={rotateVeil}>
+          <div style={{ fontSize: 64 }}>📱🔄</div>
+          <h2 style={{ margin: '12px 0 6px' }}>Поверни телефон горизонтально</h2>
+          <div style={{ opacity: 0.85, marginBottom: 16 }}>
+            {phase === 'paused' ? 'Так видно всё поле боя. Игра на паузе 🏆' : 'Поворачиваем в ландшафт… 📱'}
+          </div>
+          {phase === 'paused' && (
+            <button onClick={() => { void tryLandscape(); emit('shturm:resume'); }} style={btnBig}>Продолжить</button>
+          )}
+        </div>
       )}
 
       {phase === 'menu' && (
@@ -252,8 +311,11 @@ export function App() {
               <button key={d.id} onClick={() => setDiff(d.id)} style={diff === d.id ? btnActive : btn}>{d.name}</button>
             ))}
           </div>
-          <button onClick={() => emit('shturm:start', { map, difficulty: diff })} style={btnBig}>В бой!</button>
+          <button onClick={() => { void tryLandscape(); emit('shturm:start', { map, difficulty: diff }); }} style={btnBig}>В бой!</button>
           <button onClick={() => setWiki(true)} style={{ ...btn, marginTop: 12 }}>📖 Вики: оружие и враги</button>
+          {isTouch && (
+            <div style={{ marginTop: 12, fontSize: 13, opacity: 0.8 }}>📱 игра сама попросит ландшафт — просто поверни телефон</div>
+          )}
           <div style={{ marginTop: 16, fontSize: 12, opacity: 0.7 }}>
             WASD — движение • мышь — обзор • ЛКМ — огонь • V — 1/3 лицо • {AMMO_FULL.auto} патронов в автомате
           </div>
@@ -263,9 +325,12 @@ export function App() {
       {phase === 'paused' && (
         <div style={overlay}>
           <h2>Пауза</h2>
+          {isTouch && portrait && (
+            <div style={{ marginBottom: 10, color: '#ffd166' }}>📱 поверни телефон горизонтально</div>
+          )}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => emit('shturm:resume')} style={btnBig}>Продолжить</button>
-            <button onClick={() => emit('shturm:restart')} style={btn}>Заново</button>
+            <button onClick={() => { void tryLandscape(); emit('shturm:resume'); }} style={btnBig}>Продолжить</button>
+            <button onClick={() => { void tryLandscape(); emit('shturm:restart'); }} style={btn}>Заново</button>
             <button onClick={() => setWiki(true)} style={btn}>📖 Вики</button>
           </div>
         </div>
@@ -276,8 +341,8 @@ export function App() {
           <h1>Мы уже победили 🏆</h1>
           <div>Время {snap.timeSec}с • kills {snap.kills} • точность {snap.accuracy}% • FPS {snap.fps}</div>
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-            <button onClick={() => emit('shturm:restart')} style={btnBig}>Ещё раз</button>
-            <button onClick={() => gameStore.set({ phase: 'menu' })} style={btn}>В меню</button>
+            <button onClick={() => { void tryLandscape(); emit('shturm:restart'); }} style={btnBig}>Ещё раз</button>
+            <button onClick={() => { unlockOrientation(); gameStore.set({ phase: 'menu' }); }} style={btn}>В меню</button>
           </div>
         </div>
       )}
@@ -287,8 +352,8 @@ export function App() {
           <h1>Шуба пала… но батальон помнит 🧥</h1>
           <div>Волна {snap.wave}/7 • kills {snap.kills} • точность {snap.accuracy}%</div>
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-            <button onClick={() => emit('shturm:restart')} style={btnBig}>Реванш</button>
-            <button onClick={() => gameStore.set({ phase: 'menu' })} style={btn}>В меню</button>
+            <button onClick={() => { void tryLandscape(); emit('shturm:restart'); }} style={btnBig}>Реванш</button>
+            <button onClick={() => { unlockOrientation(); gameStore.set({ phase: 'menu' }); }} style={btn}>В меню</button>
           </div>
         </div>
       )}
@@ -315,6 +380,20 @@ const btnActive: React.CSSProperties = {
 
 const btnFire: React.CSSProperties = {
   ...btn, fontSize: 20, padding: '18px 30px', background: '#b3261e', border: 'none',
+};
+
+const btnSm: React.CSSProperties = {
+  ...btn, fontSize: 18, padding: '10px 14px',
+};
+
+const btnFireSm: React.CSSProperties = {
+  ...btnFire, fontSize: 22, padding: '12px 20px',
+};
+
+const rotateVeil: React.CSSProperties = {
+  position: 'fixed', inset: 0, zIndex: 40,
+  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+  background: 'rgba(8,10,18,0.92)', color: '#fff', fontFamily: 'system-ui', textAlign: 'center', padding: 24,
 };
 
 const btnBig: React.CSSProperties = {

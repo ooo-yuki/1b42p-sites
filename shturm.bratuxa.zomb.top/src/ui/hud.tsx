@@ -39,11 +39,11 @@ export function GunIcon({ slot, size = 44 }: { slot: Slot; size?: number }) {
 }
 
 /** Патрон-иконка: гильза. Пустой магазин — тусклая. */
-function Bullet({ spent }: { spent?: boolean }) {
+function Bullet({ spent, small }: { spent?: boolean; small?: boolean }) {
   return (
     <svg
-      width="9"
-      height="20"
+      width={small ? 7 : 9}
+      height={small ? 15 : 20}
       viewBox="0 0 9 20"
       style={{ opacity: spent ? 0.22 : 1, filter: spent ? 'grayscale(1)' : 'drop-shadow(0 0 3px rgba(255,209,102,0.8))' }}
     >
@@ -70,6 +70,8 @@ export interface HudProps {
   hurtAt: number;
   hurtDir: number;
   healAt: number;
+  /** Мобильная раскладка: кластер по центру, всё мельче, без десктоп-подсказки. */
+  compact: boolean;
 }
 
 const uiFont = 'system-ui, sans-serif';
@@ -77,10 +79,17 @@ const uiFont = 'system-ui, sans-serif';
 export function Hud(p: HudProps) {
   const pct = Math.max(0, Math.min(1, p.hp / p.maxHp));
   const low = pct <= 0.3;
+  const compact = p.compact;
   const magSize = WEAPONS[p.slot].mag;
   const pips = Array.from({ length: magSize }, (_, i) => i < p.mag);
   const wavePips = Array.from({ length: 7 }, (_, i) => i < p.wave);
   const dmgDeg = (p.hurtDir * 180) / Math.PI;
+  // Компакт-геометрия (телефон-ландшафт): уже и мельче, стики по краям не задевают.
+  const HP_W = compact ? 220 : 300;
+  const SLOT_W = compact ? 62 : 92;
+  const GUN = compact ? 34 : 52;
+  const PIP_W = compact ? 220 : 300;
+  const FONT = compact ? 12 : 14;
 
   return (
     <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 5, fontFamily: uiFont }}>
@@ -143,54 +152,56 @@ export function Hud(p: HudProps) {
       )}
 
       {/* Верх-центр: волны • фраги • мобы */}
-      <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-        <div style={{ display: 'flex', gap: 4, background: 'rgba(0,0,0,0.5)', padding: '6px 10px', borderRadius: 10 }}>
+      <div style={{ position: 'absolute', top: compact ? 6 : 10, left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: compact ? 3 : 5 }}>
+        <div style={{ display: 'flex', gap: 4, background: 'rgba(0,0,0,0.5)', padding: compact ? '4px 8px' : '6px 10px', borderRadius: 10 }}>
           {wavePips.map((on, i) => (
             <div
               key={i}
               title={`Волна ${i + 1}`}
               style={{
-                width: 26, height: 8, borderRadius: 4,
+                width: compact ? 15 : 26, height: compact ? 6 : 8, borderRadius: 4,
                 background: on ? (i === 6 ? '#ff5252' : '#ffd166') : 'rgba(255,255,255,0.18)',
                 boxShadow: on ? '0 0 6px rgba(255,209,102,0.7)' : 'none',
               }}
             />
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: '#fff', fontSize: 14 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: '#fff', fontSize: FONT }}>
           <span style={{ background: 'rgba(0,0,0,0.5)', padding: '3px 10px', borderRadius: 8 }}>💀 {p.kills}</span>
           <span style={{ background: 'rgba(0,0,0,0.5)', padding: '3px 10px', borderRadius: 8 }}>👾 {p.enemies}</span>
-          <span style={{ background: 'rgba(0,0,0,0.5)', padding: '3px 10px', borderRadius: 8, fontSize: 12, opacity: 0.9 }}>
+          <span style={{ background: 'rgba(0,0,0,0.5)', padding: '3px 10px', borderRadius: 8, fontSize: compact ? 11 : 12, opacity: 0.9 }}>
             {p.fps} FPS • {p.map}
           </span>
         </div>
         {p.message && (
-          <div style={{ color: '#ffd166', fontSize: 14, background: 'rgba(0,0,0,0.55)', padding: '4px 12px', borderRadius: 8 }}>
+          <div style={{ color: '#ffd166', fontSize: FONT, background: 'rgba(0,0,0,0.55)', padding: '4px 12px', borderRadius: 8 }}>
             {p.message}
           </div>
         )}
       </div>
 
-      {/* Низ-справа: HP + патроны-иконки + инвентарь — как в фортнайте */}
-      <div style={{ position: 'absolute', right: 14, bottom: 14, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+      {/* Низ-справа (десктоп) / низ-центр (мобила): HP + патроны-иконки + инвентарь — как в фортнайте */}
+      <div style={compact
+        ? { position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }
+        : { position: 'absolute', right: 14, bottom: 14, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
         {/* Патроны иконками */}
         <div
           title="Магазин"
           style={{
             display: 'flex', gap: 3, alignItems: 'flex-end', flexWrap: 'wrap', justifyContent: 'flex-end',
-            maxWidth: 300, background: 'rgba(0,0,0,0.5)', padding: '8px 10px', borderRadius: 10,
+            maxWidth: PIP_W, background: 'rgba(0,0,0,0.5)', padding: compact ? '5px 8px' : '8px 10px', borderRadius: 10,
             border: p.mag === 0 ? '1px solid #ff5252' : '1px solid rgba(255,255,255,0.12)',
           }}
         >
           {p.mag === 0 && <span style={{ color: '#ff8a80', fontSize: 13, marginRight: 4 }}>R ⟳</span>}
           {pips.map((full, i) => (
-            <Bullet key={i} spent={!full} />
+            <Bullet key={i} spent={!full} small={compact} />
           ))}
-          <span style={{ color: '#fff', fontSize: 13, marginLeft: 6, opacity: 0.95 }}>📦 {p.reserve}</span>
+          <span style={{ color: '#fff', fontSize: FONT, marginLeft: 6, opacity: 0.95 }}>📦 {p.reserve}</span>
         </div>
 
         {/* Слоты оружия */}
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: compact ? 5 : 8 }}>
           {SLOT_ORDER.map((s) => {
             const active = s === p.slot;
             const m = WEAPON_META[s];
@@ -199,20 +210,20 @@ export function Hud(p: HudProps) {
                 key={s}
                 title={`${m.name} — ${WEAPONS[s].dmg} ур.`}
                 style={{
-                  width: 92,
+                  width: SLOT_W,
                   background: active ? 'linear-gradient(180deg, rgba(80,60,10,0.92), rgba(30,24,8,0.92))' : 'rgba(0,0,0,0.55)',
                   border: active ? '2px solid #ffd166' : '1px solid rgba(255,255,255,0.18)',
                   borderRadius: 10, color: active ? '#ffd166' : 'rgba(255,255,255,0.65)',
-                  padding: '6px 6px 5px', textAlign: 'center',
+                  padding: compact ? '4px 4px 3px' : '6px 6px 5px', textAlign: 'center',
                   transform: active ? 'translateY(-3px)' : 'none',
                   boxShadow: active ? '0 0 12px rgba(255,209,102,0.45)' : 'none',
                 }}
               >
-                <div style={{ fontSize: 10, opacity: 0.8, display: 'flex', justifyContent: 'space-between', padding: '0 2px' }}>
+                <div style={{ fontSize: compact ? 9 : 10, opacity: 0.8, display: 'flex', justifyContent: 'space-between', padding: '0 2px' }}>
                   <span style={{ border: '1px solid currentColor', borderRadius: 4, padding: '0 4px' }}>{m.key}</span>
                   <span>{m.short}</span>
                 </div>
-                <GunIcon slot={s} size={52} />
+                <GunIcon slot={s} size={GUN} />
                 <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)', marginTop: 2 }}>
                   <div
                     style={{
@@ -231,13 +242,13 @@ export function Hud(p: HudProps) {
         <div
           title="Здоровье"
           style={{
-            width: 300, background: 'rgba(0,0,0,0.55)', borderRadius: 12, padding: '8px 10px 9px',
+            width: HP_W, background: 'rgba(0,0,0,0.55)', borderRadius: 12, padding: compact ? '5px 8px 6px' : '8px 10px 9px',
             border: low ? '2px solid #ff5252' : '1px solid rgba(255,255,255,0.15)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 20 }}>{low ? '🆘' : '❤'}</span>
-            <div style={{ flex: 1, height: 16, borderRadius: 8, background: 'rgba(255,255,255,0.14)', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: compact ? 5 : 8 }}>
+            <span style={{ fontSize: compact ? 16 : 20 }}>{low ? '🆘' : '❤'}</span>
+            <div style={{ flex: 1, height: compact ? 13 : 16, borderRadius: 8, background: 'rgba(255,255,255,0.14)', overflow: 'hidden' }}>
               <div
                 style={{
                   width: `${pct * 100}%`, height: '100%', borderRadius: 8,
@@ -246,9 +257,9 @@ export function Hud(p: HudProps) {
                 }}
               />
             </div>
-            <span style={{ color: '#fff', fontSize: 17, fontWeight: 700, minWidth: 40, textAlign: 'right' }}>{Math.max(0, Math.round(p.hp))}</span>
+            <span style={{ color: '#fff', fontSize: compact ? 15 : 17, fontWeight: 700, minWidth: compact ? 32 : 40, textAlign: 'right' }}>{Math.max(0, Math.round(p.hp))}</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: compact ? 4 : 6 }}>
             <span style={{ fontSize: 12 }}>⚡</span>
             <div style={{ flex: 1, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.12)', overflow: 'hidden' }}>
               <div style={{ width: `${Math.min(100, (p.stamina / 43) * 100)}%`, height: '100%', background: '#4fc3f7', transition: 'width 0.25s ease' }} />
@@ -257,15 +268,17 @@ export function Hud(p: HudProps) {
         </div>
       </div>
 
-      {/* Низ-слева: компактная подсказка иконками */}
-      <div
-        style={{
-          position: 'absolute', left: 12, bottom: 12, color: 'rgba(255,255,255,0.75)', fontSize: 12,
-          background: 'rgba(0,0,0,0.4)', padding: '5px 10px', borderRadius: 8,
-        }}
-      >
-        V 👁 • 1/2/3 🔫 • R ⟳ • Shift ⚡
-      </div>
+      {/* Низ-слева: компактная подсказка иконками — только десктоп, на таче кнопки и так со значками */}
+      {!compact && (
+        <div
+          style={{
+            position: 'absolute', left: 12, bottom: 12, color: 'rgba(255,255,255,0.75)', fontSize: 12,
+            background: 'rgba(0,0,0,0.4)', padding: '5px 10px', borderRadius: 8,
+          }}
+        >
+          V 👁 • 1/2/3 🔫 • R ⟳ • Shift ⚡
+        </div>
+      )}
     </div>
   );
 }
