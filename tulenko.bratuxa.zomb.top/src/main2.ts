@@ -533,9 +533,19 @@ function render(now: number): void {
 
   // Люди вдвое крупнее клетки: центром по клетке, ноги на клетке.
   // Низ спрайта — на низ клетки (sy + TS/2), верх уходит на клетку выше.
+  // Герой с тонкой светлой обводкой — глаз цепляет даже в темноте.
   const PS = TS * 2;
   const py = (ey: number): number => sy(ey) + TS / 2 - PS;
   drawImg(TOP_SEAL[face], sx(S.seal.x) - TS, py(S.seal.y), PS, PS, '#dfe3e6');
+  try {
+    g2d.save();
+    g2d.strokeStyle = 'rgba(255,244,214,0.9)';
+    g2d.lineWidth = 1.5;
+    g2d.shadowColor = 'rgba(255,220,150,0.8)';
+    g2d.shadowBlur = 8;
+    g2d.strokeRect(sx(S.seal.x) - TS + 1, py(S.seal.y) + 1, PS - 2, PS - 2);
+    g2d.restore();
+  } catch (e) { try { g2d.restore(); } catch (_e) { /* без обводки идём дальше */ } }
   const frame = Math.floor(now / 300) % 2;
   for (const gd of seen) {
     drawImg(TOP_GUARD[frame], sx(gd.x) - TS, py(gd.y), PS, PS, '#3a5bd5');
@@ -546,7 +556,7 @@ function render(now: number): void {
   }
 
   if (isNight(S)) {
-    g2d.fillStyle = 'rgba(0,0,32,0.45)';
+    g2d.fillStyle = 'rgba(3,3,44,0.58)';
     g2d.fillRect(0, 0, W, H);
   }
   if (S.solitary) {
@@ -558,8 +568,9 @@ function render(now: number): void {
     g2d.fillText('карцер до утра', W / 2, H / 2);
   }
 
-  // Круг 32: день светлее, тёплое пятно вокруг тюленьки шире и сильнее,
-  // ночью на стенах горят огоньки-светильники ярче, с тёплым мерцанием (рисуем кодом).
+  // Круг 6: настроение света. Ночь глубже, факелы дышат силой и радиусом,
+  // тёплые лужи у огоньков шире; день с мягким верхним светом.
+  // Тёплое пятно вокруг тюленьки шире и сильнее.
   {
     const lightNight = isNight(S);
     const seX = sx(S.seal.x);
@@ -569,10 +580,12 @@ function render(now: number): void {
         const LP = LAMPS[i];
         const lx = sx(LP.x);
         const ly = sy(LP.y);
-        const fl = 0.85 + 0.15 * Math.sin(now / 140 + i * 1.9) + 0.05 * Math.sin(now / 47 + i * 3.1);
-        const lr2 = 46 * SCALE * fl;
+        const fl = 0.78 + 0.16 * Math.sin(now / 130 + i * 2.1) + 0.06 * Math.sin(now / 41 + i * 3.7);
+        const br = 1 + 0.14 * Math.sin(now / 170 + i * 1.3) + 0.06 * Math.sin(now / 53 + i * 2.3);
+        const lr2 = 58 * SCALE * fl * br;
         const lamp = g2d.createRadialGradient(lx, ly, 3, lx, ly, lr2);
-        lamp.addColorStop(0, 'rgba(255,200,130,' + (0.52 * fl).toFixed(3) + ')');
+        lamp.addColorStop(0, 'rgba(255,202,132,' + (0.62 * fl).toFixed(3) + ')');
+        lamp.addColorStop(0.35, 'rgba(255,186,110,' + (0.28 * fl).toFixed(3) + ')');
         lamp.addColorStop(1, 'rgba(255,180,100,0)');
         g2d.fillStyle = lamp;
         g2d.fillRect(lx - lr2, ly - lr2, lr2 * 2, lr2 * 2);
@@ -581,22 +594,31 @@ function render(now: number): void {
         const LP = LAMPS[i];
         const lx = sx(LP.x);
         const ly = sy(LP.y);
-        const dot = Math.max(4, 2.5 * SCALE);
+        const fl2 = 0.8 + 0.2 * Math.sin(now / 120 + i * 2.4);
+        const dot = Math.max(4, 2.5 * SCALE * (0.9 + 0.1 * fl2));
         g2d.fillStyle = '#3a2a18';
         g2d.fillRect(lx - dot / 2 - 1, ly - dot / 2 - 1, dot + 2, dot + 2);
         g2d.fillStyle = '#ffd694';
         g2d.fillRect(lx - dot / 2, ly - dot / 2, dot, dot);
       }
     }
-    const lr = 330;
+    const lr = 360;
     const glow = g2d.createRadialGradient(seX, seY, 10, seX, seY, lr);
-    glow.addColorStop(0, lightNight ? 'rgba(255,214,140,0.48)' : 'rgba(255,224,160,0.30)');
+    glow.addColorStop(0, lightNight ? 'rgba(255,214,140,0.55)' : 'rgba(255,224,160,0.32)');
     glow.addColorStop(1, 'rgba(255,210,130,0)');
     g2d.fillStyle = glow;
     g2d.fillRect(seX - lr, seY - lr, lr * 2, lr * 2);
+    if (!lightNight) {
+      const dl = g2d.createLinearGradient(0, 0, 0, H);
+      dl.addColorStop(0, 'rgba(255,246,220,0.14)');
+      dl.addColorStop(0.45, 'rgba(255,246,220,0.05)');
+      dl.addColorStop(1, 'rgba(255,246,220,0)');
+      g2d.fillStyle = dl;
+      g2d.fillRect(0, 0, W, H);
+    }
     const vg = g2d.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
     vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(1, lightNight ? 'rgba(0,0,20,0.42)' : 'rgba(0,0,20,0.10)');
+    vg.addColorStop(1, lightNight ? 'rgba(0,0,20,0.52)' : 'rgba(0,0,20,0.12)');
     g2d.fillStyle = vg;
     g2d.fillRect(0, 0, W, H);
   }
