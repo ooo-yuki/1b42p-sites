@@ -104,7 +104,7 @@ a {
   gap: 10px;
 }
 #top h1 .title-row svg {
-  color: #6db9f2;
+  color: var(--red);
   flex: none;
 }
 #top h1 .k {
@@ -150,6 +150,10 @@ a {
 }
 .pill svg {
   color: #6db9f2;
+}
+#res .pill:nth-child(1) svg,
+#res .pill:nth-child(4) svg {
+  color: var(--red);
 }
 
 /* ===== Табы-сцены ===== */
@@ -234,7 +238,7 @@ a {
   gap: 8px;
 }
 [data-slot='card'] h3 svg {
-  color: #6db9f2;
+  color: var(--red);
 }
 .frow {
   padding: 10px 2px;
@@ -252,6 +256,10 @@ a {
 .lock svg {
   display: inline-block;
   vertical-align: -3px;
+}
+.frow b svg,
+[data-slot='card'] h3 svg {
+  color: var(--red);
 }
 
 /* ===== Кнопки-пилюли ===== */
@@ -506,6 +514,9 @@ button.buy:active {
   color: var(--text);
   box-shadow: 0 0 60px var(--blue-glow);
   text-align: center;
+}
+.win-box [data-slot='dialog-title'] svg {
+  color: var(--red);
 }
 .win-box [data-slot='dialog-title'] {
   color: #fff;
