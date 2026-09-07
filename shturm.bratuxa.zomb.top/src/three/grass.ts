@@ -45,14 +45,14 @@ function bladeTexture(): THREE.CanvasTexture {
   // Градиент — опционально: в headless-стабе canvas (bun test) его нет, красим плоским.
   const g = (ctx as unknown as { createLinearGradient?: (...a: number[]) => CanvasGradient }).createLinearGradient?.(0, 128, 0, 0);
   if (g) {
-    g.addColorStop(0, '#3d5c22'); g.addColorStop(1, '#8fbf4d');
+    g.addColorStop(0, '#9fd66a'); g.addColorStop(1, '#e8f79a');
     ctx.strokeStyle = g;
   } else {
-    ctx.strokeStyle = '#5c7a30';
+    ctx.strokeStyle = '#b8dd7a';
   }
-  ctx.lineWidth = 5; ctx.lineCap = 'round';
-  for (let i = 0; i < 9; i++) {
-    const x = 8 + i * 13 + Math.random() * 5;
+  ctx.lineWidth = 6; ctx.lineCap = 'round';
+  for (let i = 0; i < 12; i++) {
+    const x = 4 + i * 10 + Math.random() * 4;
     ctx.beginPath(); ctx.moveTo(x, 128);
     ctx.quadraticCurveTo(x + (Math.random() * 16 - 8), 64, x + (Math.random() * 24 - 12), 8 + Math.random() * 20);
     ctx.stroke();
@@ -75,8 +75,9 @@ export function buildGrass(map: MapId, seed: number): GrassRig {
   quad2.rotateY(Math.PI / 2);
   const geo = mergeTwo(quad, quad2);
   const mat = new THREE.MeshLambertMaterial({ map: bladeTexture(), alphaTest: 0.45, side: THREE.DoubleSide });
+  // Материал белый: цвет идёт из текстуры × instance-цвет (иначе двойное умножение даёт черноту).
   const [c1, c2] = GRASS_TINT[map];
-  mat.color.set(c1).lerp(new THREE.Color(c2), 0.5);
+  const tintA = new THREE.Color(c1); const tintB = new THREE.Color(c2);
   if (map === 'neon') { mat.emissive.set(0x0a2a1a); mat.emissiveIntensity = 0.4; }
   const uTime = { value: 0 };
   // Аннотация типа — strict требует явного типа параметра (в брифе опущен).
@@ -110,8 +111,17 @@ export function buildGrass(map: MapId, seed: number): GrassRig {
     dummy.scale.set(s, s * (0.5 + rng() * 0.4), s);
     dummy.updateMatrix();
     mesh.setMatrixAt(placed, dummy.matrix);
+    mesh.setColorAt(placed, new THREE.Color().copy(tintA).lerp(tintB, rng()));
     order.push(placed);
     placed++;
+  }
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  // Хвост, если guard не добрал: схлопнуть в точку под землёй, иначе identity-кусты в origin.
+  for (let i = placed; i < high; i++) {
+    dummy.position.set(0, -10, 0); dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(0.0001, 0.0001, 0.0001); dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+    mesh.setColorAt(i, tintA);
   }
   // Перемешать: setLow срезает равномерно по всей карте.
   for (let i = order.length - 1; i > 0; i--) {
