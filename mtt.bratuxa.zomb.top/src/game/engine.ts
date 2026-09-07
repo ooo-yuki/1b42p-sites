@@ -177,6 +177,11 @@ export interface RemotePlayer {
   z: number;
   hp: number;
   char: string;
+  /** полное присутствие: ствол, высота, счётчик ударов, лежит ли */
+  weapon?: string;
+  py?: number;
+  atk?: number;
+  dead?: boolean;
 }
 
 interface Remote {
@@ -184,13 +189,23 @@ interface Remote {
   g: THREE.Group;
   cv: HTMLCanvasElement;
   tex: THREE.CanvasTexture;
+  gunCv: HTMLCanvasElement;
+  gunTex: THREE.CanvasTexture;
   x: number;
   z: number;
   tx: number;
   tz: number;
   hp: number;
   char: string;
+  weapon: string;
+  py: number;
+  atk: number;
+  flash: number;
+  dead: boolean;
 }
+
+/** Ствол сокомнатника текстом: эмодзи всегда чёткие, без боксов фона. */
+const GUNEMOJI: Record<string, string> = { fists: '👊', bat: '🏏', axe: '🪓', pistol: '🔫', shotgun: '💥' };
 
 interface Enemy {
   g: THREE.Group;
@@ -342,6 +357,8 @@ export class Game {
   private blastDz = 0;
   private keyMap: KeyMap = { ...DEFAULT_KEYS };
   private remotes: Remote[] = [];
+  /** Счётчик ударов для совместных комнат: каждый attack() +1, все видят замах. */
+  private atk = 0;
   private half: number = HALF;
   /** Мирный режим из меню: врагов нет, волны не идут. */
   readonly enemiesOn: boolean = true;
@@ -2435,6 +2452,7 @@ export class Game {
   attack(): number {
     if (!this.started || this.dead) return 0;
     if (this.atkCd > 0) return 0;
+    this.atk++;
     const W = Game.weapon(this.weaponId);
     this.atkCd = W.cd;
     this.swingT = 0.22;
@@ -2461,6 +2479,11 @@ export class Game {
     this.waveClearCheck();
     this.drawMM();
     return hits;
+  }
+
+  /** Пульс присутствия для комнаты: ствол, высота, счётчик ударов, смерть. */
+  presence(): { weapon: string; py: number; atk: number; dead: boolean } {
+    return { weapon: this.weaponId, py: Math.round(this.py * 10) / 10, atk: this.atk, dead: this.dead };
   }
 
   // общий итог попадания: отброс, полоса HP, частицы, фраг
@@ -2667,7 +2690,7 @@ export class Game {
     if (typeof yaw === 'number' && Number.isFinite(yaw)) this.yaw = yaw;
   }
   debugRemoteList(): RemotePlayer[] {
-    return this.remotes.map((m) => ({ nick: m.nick, char: m.char, x: m.x, z: m.z, hp: m.hp }));
+    return this.remotes.map((m) => ({ nick: m.nick, char: m.char, x: m.x, z: m.z, hp: m.hp, weapon: m.weapon, py: m.py, atk: m.atk, dead: m.dead }));
   }
 
   // круг (игрок/враг радиусом rad на высоте y) против окружения: коробка — точный AABB,
@@ -2766,21 +2789,31 @@ export class Game {
     return t;
   }
 
-  // сокомнатники: призраки в шкуре выбранного персонажа, с никами (позиции с сервера комнаты)
+  // сокомнатники: полноценные бойцы, а не призраки — тело в цвете, ствол в руках,
+  // удары вспышкой, прыжки высотой, смерти лежачими (позиции с сервера комнаты)
   setRemotes(list: RemotePlayer[]): void {
     const seen = new Set<string>();
     for (const p of list.slice(0, 8)) {
       const nick = String(p.nick ?? '').slice(0, 20) || 'Братуха';
       seen.add(nick);
       const char = p.char === 'krysa' ? 'krysa' : 'mtt';
+      const weapon = p.weapon === 'bat' || p.weapon === 'axe' || p.weapon === 'pistol' || p.weapon === 'shotgun' ? p.weapon : 'fists';
       let r: Remote | undefined = undefined;
       for (const q of this.remotes) if (q.nick === nick) { r = q; break; }
       if (!r) {
         const g = new THREE.Group();
-        const body = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.charTexture(char), transparent: true, color: 0x99ddff }));
+        const body = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.charTexture(char), transparent: true }));
         body.scale.set(1.4, 2.0, 1);
         body.position.set(0, 1.0, 0);
         g.add(body);
+        const gunCv = document.createElement('canvas');
+        gunCv.width = 64; gunCv.height = 64;
+        const gunTex = new THREE.CanvasTexture(gunCv);
+        const gun = new THREE.Sprite(new THREE.SpriteMaterial({ map: gunTex, depthTest: false, transparent: true }));
+        gun.scale.set(0.8, 0.8, 1);
+        gun.position.set(0.85, 0.7, 0);
+        gun.renderOrder = 5;
+        g.add(gun);
         const cv = document.createElement('canvas');
         cv.width = 128; cv.height = 48;
         const ltex = new THREE.CanvasTexture(cv);
@@ -2789,13 +2822,21 @@ export class Game {
         lab.position.set(0, 2.5, 0);
         g.add(lab);
         this.scene.add(g);
-        r = { nick, g, cv, tex: ltex, x: 0, z: 0, tx: 0, tz: 0, hp: 100, char };
+        r = { nick, g, cv, tex: ltex, gunCv, gunTex, x: 0, z: 0, tx: 0, tz: 0, hp: 100, char, weapon: '', py: 0, atk: 0, flash: 0, dead: false };
+        this.gunIcon(weapon, gunCv, gunTex);
+        r.weapon = weapon;
         this.remotes.push(r);
-      } else if (r.char !== char) {
-        r.char = char;
-        const body = r.g.children[0] as THREE.Sprite;
-        body.material.map = this.charTexture(char);
-        body.material.needsUpdate = true;
+      } else {
+        if (r.char !== char) {
+          r.char = char;
+          const body = r.g.children[0] as THREE.Sprite;
+          body.material.map = this.charTexture(char);
+          body.material.needsUpdate = true;
+        }
+        if (r.weapon !== weapon) {
+          r.weapon = weapon;
+          this.gunIcon(weapon, r.gunCv, r.gunTex);
+        }
       }
       const rr: Remote = r;
       // цели с сервера; рендер догоняет их плавно каждый кадр (без задержек и рывков)
@@ -2803,12 +2844,27 @@ export class Game {
       rr.tz = this.clamp(Number(p.z) || 0);
       if (rr.x === 0 && rr.z === 0 && (rr.tx !== 0 || rr.tz !== 0)) { rr.x = rr.tx; rr.z = rr.tz; }
       rr.hp = Math.max(0, Math.min(100, Number(p.hp) || 0));
+      rr.py = Math.max(0, Math.min(30, Number(p.py) || 0));
+      const atk = Math.max(0, Math.floor(Number(p.atk) || 0));
+      if (atk !== rr.atk) { rr.atk = atk; rr.flash = 0.3; }
+      rr.dead = p.dead === true;
       this.drawRemote(rr);
     }
     this.remotes = this.remotes.filter((r) => {
       if (!seen.has(r.nick)) { this.scene.remove(r.g); return false; }
       return true;
     });
+  }
+
+  /** Значок ствола сокомнатника: эмодзи на прозрачном — чётко и без боксов. */
+  private gunIcon(weapon: string, cv: HTMLCanvasElement, tex: THREE.CanvasTexture): void {
+    const g = cv.getContext('2d')!;
+    g.clearRect(0, 0, cv.width, cv.height);
+    g.font = '48px serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(GUNEMOJI[weapon] ?? '👊', 32, 34);
+    tex.needsUpdate = true;
   }
 
   private drawRemote(r: Remote): void {
@@ -2818,11 +2874,11 @@ export class Game {
     g.font = 'bold 17px monospace';
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    g.fillStyle = '#66ccff';
-    g.fillText(r.nick.slice(0, 12), 64, 13);
+    g.fillStyle = r.dead ? '#888888' : '#ffd23f';
+    g.fillText((r.dead ? '💀 ' : '') + (GUNEMOJI[r.weapon] ?? '') + ' ' + r.nick.slice(0, 10), 64, 13);
     g.fillStyle = '#000';
     g.fillRect(14, 26, 100, 14);
-    g.fillStyle = '#39d353';
+    g.fillStyle = r.dead ? '#555555' : '#39d353';
     g.fillRect(16, 28, 96 * (r.hp / 100), 10);
     r.tex.needsUpdate = true;
   }
@@ -3155,13 +3211,19 @@ export class Game {
       if (this.swingT > 0) this.swingT -= dt;
       if (this.shakeT > 0) this.shakeT -= dt;
       this.updateParts(dt);
-      // сокомнатники догоняют серверные цели плавно (интерполяция — без задержек и телепортов)
+      // сокомнатники догоняют серверные цели плавно (интерполяция — без задержек и телепортов);
+      // удары — вспышкой размера, прыжки — высотой, лежачие — серыми
       const rt = performance.now() / 600;
       const k = 1 - Math.exp(-10 * dt);
       for (const r of this.remotes) {
         r.x += (r.tx - r.x) * k;
         r.z += (r.tz - r.z) * k;
-        r.g.position.set(r.x, Math.abs(Math.sin(rt + r.x)) * 0.08, r.z);
+        if (r.flash > 0) r.flash -= dt;
+        const rbody = r.g.children[0] as THREE.Sprite;
+        const pop = r.flash > 0 ? 1 + r.flash : 1;
+        rbody.scale.set(1.4 * pop, 2.0 * pop, 1);
+        rbody.material.color.set(r.dead ? 0x777777 : 0xffffff);
+        r.g.position.set(r.x, r.py + Math.abs(Math.sin(rt + r.x)) * 0.08, r.z);
       }
       if (Math.floor(performance.now() / 200) !== Math.floor((performance.now() - dt * 1000) / 200)) {
         this.pushHud();

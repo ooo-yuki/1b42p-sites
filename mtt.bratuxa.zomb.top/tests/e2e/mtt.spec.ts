@@ -1145,6 +1145,39 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     expect(peak).toBeGreaterThan(4);
   });
 
+  test('🤝 совместная игра: полное присутствие — оружие, действия, тела', async ({ page }) => {
+    // протокол: сервер несёт оружие/высоту/удары/смерть сокомнатника
+    const mk = await page.request.post('/api/rooms', { data: { nick: 'ТестА', char: 'mtt', mode: 'arena' } });
+    expect(mk.ok()).toBe(true);
+    const { id, sid } = await mk.json();
+    await page.request.post(`/api/rooms/${id}/beat`, { data: { sid, char: 'mtt', x: 1, z: 2, yaw: 0, hp: 100, score: 0, kills: 0, wave: 1, weapon: 'shotgun', py: 0, atk: 3, dead: false } });
+    const jn = await page.request.post(`/api/rooms/${id}/join`, { data: { nick: 'ТестБ', char: 'krysa' } });
+    expect(jn.ok()).toBe(true);
+    const { sid: sidB } = await jn.json();
+    const ap = await page.request.post(`/api/rooms/${id}/approve`, { data: { sid, target: sidB } });
+    expect(ap.ok()).toBe(true);
+    const b2 = await page.request.post(`/api/rooms/${id}/beat`, { data: { sid: sidB, char: 'krysa', x: 5, z: 6, yaw: 1, hp: 90, score: 0, kills: 0, wave: 1, weapon: 'bat', py: 0, atk: 0, dead: false } });
+    expect(b2.ok()).toBe(true);
+    const seen = (await b2.json()) as { players: Array<{ nick: string; weapon?: string; py?: number; atk?: number; dead?: boolean }> };
+    const mate = seen.players.find((p) => p.nick === 'ТестА');
+    expect(mate).toBeTruthy();
+    expect(mate!.weapon).toBe('shotgun');
+    expect(mate!.atk).toBe(3);
+    expect(mate!.dead).toBe(false);
+    await page.request.post(`/api/rooms/${id}/leave`, { data: { sid } });
+    await page.request.post(`/api/rooms/${id}/leave`, { data: { sid: sidB } });
+    // рендер: тело сокомнатника несёт оружие/удары/смерть в движок
+    const got = await page.evaluate(() => {
+      const m = (window as unknown as { __mtt: { setRemotes: (l: object[]) => void; remoteList: () => Array<{ weapon?: string; atk?: number; dead?: boolean }> } }).__mtt;
+      m.setRemotes([{ nick: 'ТестА', char: 'mtt', x: 5, z: 5, hp: 80, weapon: 'pistol', py: 1, atk: 2, dead: false }]);
+      return m.remoteList();
+    });
+    const one = got.find((r) => (r as { nick?: string }).nick === 'ТестА') ?? got[0];
+    expect(one.weapon).toBe('pistol');
+    expect(one.atk).toBe(2);
+    expect(one.dead).toBe(false);
+  });
+
   test.afterEach(async () => {
     // ожидаемый 403 админки для чужих — не баг, в отчёт не идёт
     const real = errors.filter((e) => !e.includes('/api/admin/stats'));

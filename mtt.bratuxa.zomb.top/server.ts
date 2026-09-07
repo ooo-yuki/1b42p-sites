@@ -99,6 +99,11 @@ interface Member {
   score: number;
   kills: number;
   wave: number;
+  /** полное присутствие: ствол, высота прыжка, счётчик ударов, лежит ли */
+  weapon: string;
+  py: number;
+  atk: number;
+  dead: boolean;
   duelHp: number;
   wins: number;
   spawnIdx: number;
@@ -143,7 +148,7 @@ function cleanChar(v: unknown): string {
 }
 
 function pubList(m: Member): object {
-  return { nick: m.nick, login: m.login, char: m.char, x: m.x, z: m.z, hp: m.hp, score: m.score, kills: m.kills, wave: m.wave };
+  return { nick: m.nick, login: m.login, char: m.char, x: m.x, z: m.z, hp: m.hp, score: m.score, kills: m.kills, wave: m.wave, weapon: m.weapon, py: m.py, atk: m.atk, dead: m.dead };
 }
 
 // только для лобби создателя: sid нужен кнопкам ПРИНЯТЬ/КИК (beat его не отдаёт)
@@ -266,7 +271,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const sid = newSid();
     const sp = duelSpawn(0);
     const room: Room = { id, name, mode, created: Date.now(), round: 1, lastWinner: '', owner: sid, started: false, players: new Map(), pending: new Map(), chat: [] };
-    room.players.set(sid, { sid, nick, login, char: cleanChar(body.char), x: mode === 'duel' ? sp.x : 0, z: mode === 'duel' ? sp.z : 22, yaw: mode === 'duel' ? sp.yaw : 0, hp: 100, score: 0, kills: 0, wave: 1, duelHp: 100, wins: 0, spawnIdx: 0, ts: Date.now() });
+    room.players.set(sid, { sid, nick, login, char: cleanChar(body.char), x: mode === 'duel' ? sp.x : 0, z: mode === 'duel' ? sp.z : 22, yaw: mode === 'duel' ? sp.yaw : 0, hp: 100, score: 0, kills: 0, wave: 1, weapon: 'fists', py: 0, atk: 0, dead: false, duelHp: 100, wins: 0, spawnIdx: 0, ts: Date.now() });
     rooms.set(id, room);
     return Response.json({ id, sid, mode, spawn: mode === 'duel' ? sp : null });
   }
@@ -284,7 +289,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const nick = cleanNick(body.nick);
     const login = loginByToken(body.token);
     const sid = newSid();
-    room.pending.set(sid, { sid, nick, login, char: cleanChar(body.char), x: 0, z: 22, yaw: 0, hp: 100, score: 0, kills: 0, wave: 1, duelHp: 100, wins: 0, spawnIdx: room.players.size, ts: Date.now() });
+    room.pending.set(sid, { sid, nick, login, char: cleanChar(body.char), x: 0, z: 22, yaw: 0, hp: 100, score: 0, kills: 0, wave: 1, weapon: 'fists', py: 0, atk: 0, dead: false, duelHp: 100, wins: 0, spawnIdx: room.players.size, ts: Date.now() });
     return Response.json({ sid, name: room.name, mode: room.mode, pending: true });
   }
 
@@ -393,6 +398,12 @@ async function roomsApi(req: Request): Promise<Response | null> {
     me.score = Math.round(num(body.score, 0, 100000000));
     me.kills = Math.round(num(body.kills, 0, 1000000));
     me.wave = Math.round(num(body.wave, 1, 100, 1));
+    // полное присутствие: ствол строго из оружейки, высота/удары — числа, смерть — флаг
+    const w = String(body.weapon ?? '');
+    if (w === 'fists' || w === 'bat' || w === 'axe' || w === 'pistol' || w === 'shotgun') me.weapon = w;
+    me.py = Math.round(num(body.py, 0, 30) * 10) / 10;
+    me.atk = Math.round(num(body.atk, 0, 1000000000));
+    me.dead = body.dead === true;
     me.ts = Date.now();
     prune(room);
     const others: object[] = [];

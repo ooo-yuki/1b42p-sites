@@ -46,6 +46,11 @@ interface RoomMate {
   score: number;
   kills: number;
   wave: number;
+  /** полное присутствие с сервера: ствол, высота, удары, лежит ли */
+  weapon?: string;
+  py?: number;
+  atk?: number;
+  dead?: boolean;
 }
 
 interface DuelFoe {
@@ -832,16 +837,24 @@ async function loadStats(): Promise<void> {
       try {
         const p = g.debugPos();
         const h = hudRef.current;
+        const pr = g.presence();
         const r = await fetch(`/api/rooms/${id}/beat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sid, char: g.getChar(), x: p.x, z: p.z, yaw: p.yaw, hp: h.hp, score: h.score, kills: h.kills, wave: h.wave }),
+          body: JSON.stringify({ sid, char: g.getChar(), x: p.x, z: p.z, yaw: p.yaw, hp: h.hp, score: h.score, kills: h.kills, wave: h.wave, weapon: pr.weapon, py: pr.py, atk: pr.atk, dead: pr.dead }),
         });
         if (!r.ok) return;
         const d = (await r.json()) as { players: RoomMate[]; duel?: DuelInfo; chat?: Array<{ nick: string; text: string; t: number }> };
-        setMates(d.players ?? []);
-        matesRef.current = d.players ?? [];
-        g.setRemotes(d.players ?? []);
+        const plist = d.players ?? [];
+        setMates(plist);
+        matesRef.current = plist;
+        // сокомнатники + дуэлянт — все в одном строю, полными телами
+        const all = [...plist];
+        if (d.duel && d.duel.active && d.duel.foe) {
+          const f = d.duel.foe;
+          all.push({ nick: f.nick, login: f.login, char: f.char, x: f.x, z: f.z, hp: f.hp, score: 0, kills: 0, wave: 1 });
+        }
+        g.setRemotes(all);
         // чат: добираем только новое по метке времени
         if (d.chat && d.chat.length > 0) {
           setChatLog((prev) => {
