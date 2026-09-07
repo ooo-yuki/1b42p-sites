@@ -283,7 +283,6 @@ export class Game {
     if (this.ownedChars.includes(cid)) return false;
     this.ownedChars.push(cid);
     this.saveChars();
-    this.blip(880);
     this.pushHud();
     return true;
   }
@@ -386,7 +385,7 @@ export class Game {
     if (this.wallKickCd > 0) {
       this.wallKickCd = 0;
       this.kickAirT = 0;
-      this.blip(700);
+      this.sfx(wallkickUrl, 0.5);
       this.pushHud();
     }
   }
@@ -402,7 +401,6 @@ export class Game {
   // коробки — точный AABB, круглые — точный радиус. Пролететь/перепрыгнуть можно.
   // deck: настил (мост) — снизу проход свободный, сверху можно стоять.
   private solids: Array<{ x: number; z: number; hx: number; hz: number; h: number; deck?: boolean } | { x: number; z: number; r: number; h: number }> = [];
-  private AC: AudioContext | null = null;
   private lookPointer = -1;
   private lookLX = 0;
   private lookLY = 0;
@@ -579,7 +577,6 @@ export class Game {
     this.fantiki -= 150;
     this.medkits++;
     this.saveShop();
-    this.blip(700);
     this.pushHud();
     return true;
   }
@@ -589,7 +586,6 @@ export class Game {
     this.medkits--;
     this.hp = Math.min(this.maxhp, this.hp + 50);
     this.saveShop();
-    this.blip(600);
     this.burst(this.px, 1.0, this.pz, 8);
     this.pushHud();
     return true;
@@ -626,7 +622,6 @@ export class Game {
     this.applyLevel();
     const spec = charSpec(this.charId);
     this.charSpd = spec.spd * (1 + (this.upg[this.charId]?.spd ?? 0) * 0.06);
-    this.blip(700);
     this.pushHud();
     return true;
   }
@@ -662,7 +657,6 @@ export class Game {
     this.owned.push(w.id);
     this.weaponId = w.id;
     this.saveShop();
-    this.blip(700);
     this.pushHud();
     return true;
   }
@@ -671,7 +665,6 @@ export class Game {
     if (!this.owned.includes(id)) return false;
     this.weaponId = id;
     this.saveShop();
-    this.blip(500);
     this.pushHud();
     return true;
   }
@@ -685,7 +678,6 @@ export class Game {
     this.weaponId = ids[(i + 1) % ids.length];
     this.saveShop();
     this.pushHud();
-    this.blip(500);
     return this.weaponId;
   }
 
@@ -776,7 +768,7 @@ export class Game {
       e.g.position.x = clampArena(e.g.position.x + (dx / d) * 6);
       e.g.position.z = clampArena(e.g.position.z + (dz / d) * 6);
     }
-    this.blip(520);
+    this.sfx(hitUrl, 0.5);
     this.pushHud();
     this.drawMM();
     return true;
@@ -2432,7 +2424,6 @@ export class Game {
 
   start(): void {
     this.started = true;
-    this.blip(660);
   }
 
   stop(): void {
@@ -2462,8 +2453,6 @@ export class Game {
     this.ev.onSwing();
     if (W.spread) return this.shotgunFire(W.dmg, W.range);
     if (W.ranged) return this.shoot(W.dmg, W.range);
-    this.sfx(hitUrl);
-    this.blip(220);
     const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
     let hits = 0;
     for (const e of this.enemies) {
@@ -2478,7 +2467,7 @@ export class Game {
       this.afterHit(e, dx, dz, d, 1.6);
       hits++;
     }
-    if (hits > 0) this.blip(440);
+    if (hits > 0) this.sfx(hitUrl);
     this.pushHud();
     this.waveClearCheck();
     this.drawMM();
@@ -2508,7 +2497,6 @@ export class Game {
       this.fantiki += e.kind === 'boss' ? 100 : 10;
       this.addXp(e.kind === 'boss' ? 100 : 10);
       this.saveShop();
-      this.blip(520);
     }
   }
 
@@ -2516,7 +2504,6 @@ export class Game {
   // урон тает с дистанцией
   private shoot(baseDmg: number, range: number): number {
     this.sfx(shotUrl);
-    this.blip(880);
     const cp = Math.cos(this.pitch);
     const dx = -Math.sin(this.yaw) * cp, dy = Math.sin(this.pitch), dz = -Math.cos(this.yaw) * cp;
     const cx = this.px, cy = 1.7 + this.py, cz = this.pz;
@@ -2543,7 +2530,7 @@ export class Game {
     best.hp -= baseDmg * fall * this.dmgMul() + Math.random() * 5;
     this.tracer(cx, cy, cz, best.g.position.x, (best.kind === 'fly' ? 3.2 : 1.0 + best.ey), best.g.position.z);
     this.afterHit(best, best.g.position.x - cx, best.g.position.z - cz, Math.hypot(best.g.position.x - cx, best.g.position.z - cz), 0.8);
-    this.blip(440);
+    this.sfx(hitUrl);
     this.pushHud();
     this.waveClearCheck();
     this.drawMM();
@@ -2579,7 +2566,6 @@ export class Game {
   // вверх на 6м (pvy 12 при гравитации 12: 12²/24 = 6) + отброс назад.
   private shotgunFire(totalDmg: number, range: number): number {
     this.sfx(shotUrl);
-    this.blip(220);
     const cp = Math.cos(this.pitch);
     const dx = -Math.sin(this.yaw) * cp, dy = Math.sin(this.pitch), dz = -Math.cos(this.yaw) * cp;
     const cx = this.px, cy = 1.7 + this.py, cz = this.pz;
@@ -2625,7 +2611,7 @@ export class Game {
       this.afterHit(e, hp.hx, hp.hz, dist, 2.2);
       hits++;
     });
-    if (hits > 0) this.blip(440);
+    if (hits > 0) this.sfx(hitUrl);
     // СТЕНА + дробовик = катапульта: луч первым упёрся в стену (≤12м) —
     // швыряет на ~13м против выстрела видимым полётом (стены тормозят) + подброс.
     // Иначе классика: круто вниз в землю рядом (≤3.5м) — рокет-джамп 6м вверх.
@@ -2638,7 +2624,7 @@ export class Game {
       this.pvy = Math.max(this.pvy, 6.5);
       this.shakeT = 0.4;
       this.burst(this.px, 1.0, this.pz, 20);
-      this.blip(140);
+      this.sfx(shotUrl, 0.8);
     } else if (dy < -0.45 && surf && surf.kind === 'ground' && surf.dist <= 3.5) {
       // рокет-джамп: чем круче вниз, тем выше (максимум 12 → ровно 6м);
       // отброс назад — коротким видимым броском против выстрела
@@ -2649,7 +2635,7 @@ export class Game {
       this.blastDz = (-dz / hl) * 6 * k;
       this.blastT = 0.35;
       this.burst(this.px, 0.3, this.pz, 16);
-      this.blip(300);
+      this.sfx(shotUrl, 0.8);
     }
     this.pushHud();
     this.waveClearCheck();
@@ -2682,7 +2668,6 @@ export class Game {
     this.dashCd = superCd('mtt', this.upg.mtt?.sup ?? 0);
     this.pvy = 0;
     this.burst(this.px, 0.4, this.pz, 12);
-    this.blip(880);
     this.pushHud();
     return true;
   }
@@ -2720,22 +2705,6 @@ export class Game {
       }
     }
     return false;
-  }
-
-  private blip(f: number): void {
-    if (!this.soundOn) return;
-    try {
-      this.AC = this.AC || new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-      const o = this.AC.createOscillator();
-      const g = this.AC.createGain();
-      o.type = 'square';
-      o.frequency.value = f;
-      g.gain.value = 0.05;
-      o.connect(g);
-      g.connect(this.AC.destination);
-      o.start();
-      o.stop(this.AC.currentTime + 0.08);
-    } catch { /* noop */ }
   }
 
   /** Звуки МТТ (его файлы): выстрел, удар, отскок Крысы. Молчит при выключенном звуке. */
@@ -3047,7 +3016,6 @@ export class Game {
           this.wallKickCd = superCd('krysa', this.upg.krysa?.sup ?? 0);
           this.burst(this.px, 1.0, this.pz, 10);
           this.sfx(wallkickUrl);
-          this.blip(700);
           this.pushHud();
         }
       }
@@ -3195,7 +3163,7 @@ export class Game {
           this.hp -= e.kind === 'boss' ? 18 + Math.random() * 10 : 6 + Math.random() * 5;
           this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
           this.shakeT = 0.25;
-          this.blip(90);
+          this.sfx(hitUrl, 0.8);
           if (this.hp <= 0) {
             this.hp = 0;
             this.dead = true;
