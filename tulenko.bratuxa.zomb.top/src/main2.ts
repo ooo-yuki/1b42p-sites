@@ -520,6 +520,28 @@ function drawImg(src: string, x: number, y: number, w: number, h: number, fallba
   g2d.fillRect(x, y, w, h);
 }
 
+// Мерка 2, поворот: идёт влево — кадр зеркально, вправо — прямо.
+// Вверх/вниз ходят прямо, без зеркала. Нет картинки — тихо квадратом.
+function drawImgFlip(src: string, x: number, y: number, w: number, h: number, fallback: string): void {
+  if (!g2d) return;
+  const p = pics[src];
+  if (p && !p.broken && p.img) {
+    try {
+      crisp();
+      g2d.save();
+      g2d.translate(Math.round(x + w / 2), 0);
+      g2d.scale(-1, 1);
+      g2d.drawImage(p.img, Math.round(-w / 2), Math.round(y), Math.round(w), Math.round(h));
+      g2d.restore();
+      return;
+    } catch (e) {
+      try { g2d.restore(); } catch (_e) { /* квадратом */ }
+    }
+  }
+  g2d.fillStyle = fallback;
+  g2d.fillRect(x, y, w, h);
+}
+
 // Круг 10, имена: подпись и полоска над каждым человеком. Имя — мелко,
 // чётко, на тёмной подложке; под ним полоска 2 точки с тёмной окантовкой.
 // Тюленька «Тюленька» зелёная, стража «Страж» красная (мигает, когда видит),
@@ -670,14 +692,21 @@ function render(now: number): void {
     g2d.restore();
   } catch (e) { try { g2d.restore(); } catch (_e) { /* без обводки идём дальше */ } }
   const step = Math.floor(now / 150);
+  // Мерка 2, поворот: стража отзеркалена по стороне (влево зеркально,
+  // вправо прямо). Тюленька сторону уже берёт кадром — не трогаем.
   for (let gi = 0; gi < seen.length; gi++) {
     const gd = seen[gi];
-    drawImg(frameSrc(TOP_GUARD, step + gi), sx(gd.x) - TS, py(gd.y), PS, PS, '#3a5bd5');
+    const gsrc = frameSrc(TOP_GUARD, step + gi);
+    if (gd.dir < 0) drawImgFlip(gsrc, sx(gd.x) - TS, py(gd.y), PS, PS, '#3a5bd5');
+    else drawImg(gsrc, sx(gd.x) - TS, py(gd.y), PS, PS, '#3a5bd5');
   }
   // Сокамерники идут четырьмя кадрами, взгляд их не ловит.
+  // Вбок — отзеркалены по стороне, вверх/вниз — прямо.
   for (let mi = 0; mi < mates.length; mi++) {
     const md = mates[mi];
-    drawImg(frameSrc(TOP_MATE, step + mi), sx(md.x) - TS, py(md.y), PS, PS, '#b34a12');
+    const msrc = frameSrc(TOP_MATE, step + mi);
+    if (md.dir < 0) drawImgFlip(msrc, sx(md.x) - TS, py(md.y), PS, PS, '#b34a12');
+    else drawImg(msrc, sx(md.x) - TS, py(md.y), PS, PS, '#b34a12');
   }
 
   if (isNight(S)) {
@@ -693,8 +722,8 @@ function render(now: number): void {
     g2d.fillText('карцер до утра', W / 2, H / 2);
   }
 
-  // Круг 9, свет: ночь живее — холодные тени глубже, тёплые лужи у ламп
-  // контрастнее: свет ядром с ореолом, а не мутным пятном.
+  // Мерка 3, мягкий свет: мерцание слабое (амплитуда вполовину),
+  // спад широкий и гладкий до прозрачности — видимого края круга нет.
   // День с мягким верхним светом. Тёплое пятно вокруг тюленьки шире и сильнее.
   {
     const lightNight = isNight(S);
@@ -705,19 +734,20 @@ function render(now: number): void {
         const LP = LAMPS[i];
         const lx = sx(LP.x);
         const ly = sy(LP.y);
-        const fl = 0.78 + 0.16 * Math.sin(now / 130 + i * 2.1) + 0.06 * Math.sin(now / 41 + i * 3.7);
-        const br = 1 + 0.14 * Math.sin(now / 170 + i * 1.3) + 0.06 * Math.sin(now / 53 + i * 2.3);
-        const haloR = 64 * SCALE * fl * br;
+        const fl = 0.78 + 0.08 * Math.sin(now / 130 + i * 2.1) + 0.03 * Math.sin(now / 41 + i * 3.7);
+        const br = 1 + 0.07 * Math.sin(now / 170 + i * 1.3) + 0.03 * Math.sin(now / 53 + i * 2.3);
+        const haloR = 84 * SCALE * fl * br;
         const halo = g2d.createRadialGradient(lx, ly, 3, lx, ly, haloR);
-        halo.addColorStop(0, 'rgba(255,200,130,' + (0.42 * fl).toFixed(3) + ')');
-        halo.addColorStop(0.55, 'rgba(255,186,110,' + (0.16 * fl).toFixed(3) + ')');
+        halo.addColorStop(0, 'rgba(255,200,130,' + (0.30 * fl).toFixed(3) + ')');
+        halo.addColorStop(0.4, 'rgba(255,186,110,' + (0.13 * fl).toFixed(3) + ')');
+        halo.addColorStop(0.7, 'rgba(255,182,105,' + (0.05 * fl).toFixed(3) + ')');
         halo.addColorStop(1, 'rgba(255,180,100,0)');
         g2d.fillStyle = halo;
         g2d.fillRect(lx - haloR, ly - haloR, haloR * 2, haloR * 2);
         const coreR = Math.max(8, haloR * 0.36);
         const core = g2d.createRadialGradient(lx, ly, 1, lx, ly, coreR);
-        core.addColorStop(0, 'rgba(255,242,208,' + (0.95 * fl).toFixed(3) + ')');
-        core.addColorStop(0.6, 'rgba(255,224,170,' + (0.55 * fl).toFixed(3) + ')');
+        core.addColorStop(0, 'rgba(255,242,208,' + (0.60 * fl).toFixed(3) + ')');
+        core.addColorStop(0.6, 'rgba(255,224,170,' + (0.32 * fl).toFixed(3) + ')');
         core.addColorStop(1, 'rgba(255,210,140,0)');
         g2d.fillStyle = core;
         g2d.fillRect(lx - coreR, ly - coreR, coreR * 2, coreR * 2);
@@ -726,7 +756,7 @@ function render(now: number): void {
         const LP = LAMPS[i];
         const lx = sx(LP.x);
         const ly = sy(LP.y);
-        const fl2 = 0.8 + 0.2 * Math.sin(now / 120 + i * 2.4);
+        const fl2 = 0.8 + 0.1 * Math.sin(now / 120 + i * 2.4);
         const dot = Math.max(4, 2.5 * SCALE * (0.9 + 0.1 * fl2));
         g2d.fillStyle = '#241708';
         g2d.fillRect(lx - dot / 2 - 1, ly - dot / 2 - 1, dot + 2, dot + 2);
@@ -737,6 +767,7 @@ function render(now: number): void {
     const lr = 360;
     const glow = g2d.createRadialGradient(seX, seY, 10, seX, seY, lr);
     glow.addColorStop(0, lightNight ? 'rgba(255,226,160,0.65)' : 'rgba(255,224,160,0.22)');
+    glow.addColorStop(0.5, lightNight ? 'rgba(255,220,150,0.28)' : 'rgba(255,224,160,0.10)');
     glow.addColorStop(1, 'rgba(255,210,130,0)');
     g2d.fillStyle = glow;
     g2d.fillRect(seX - lr, seY - lr, lr * 2, lr * 2);
@@ -750,6 +781,7 @@ function render(now: number): void {
     }
     const vg = g2d.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
     vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(0.5, lightNight ? 'rgba(0,0,20,0.20)' : 'rgba(0,0,20,0.08)');
     vg.addColorStop(1, lightNight ? 'rgba(0,0,20,0.52)' : 'rgba(0,0,20,0.22)');
     g2d.fillStyle = vg;
     g2d.fillRect(0, 0, W, H);
