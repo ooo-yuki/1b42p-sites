@@ -1009,10 +1009,60 @@ function tryGate(S) {
         return 'deny';
     return 'win';
 }
+// --- songs.js ---
+// Узоры тем: день, ночь, тревога. Только местные синты, без bank/gm_/samples.
+// Строки править на слух в Task 5.
+
+const SONG_CPM = { day: 34, night: 24, alarm: 46 };
+const SONG_DAY =
+  "stack(note('<[a2 a2] [d3 d3] [e3 e3] [a2 a2]>').sound('sawtooth').lpf(1200).vib(4).gain(.5)," +
+  "note('<[a4 c5 e5 a5] [d5 f5 a5 d6] [e5 g5 b5 e6] [a4 c5 e5 a5]>*2').sound('square').lpf(2500).gain(.22).delay(.3).room(.4)," +
+  "note('c2*4').sound('sine').gain(.7)," +
+  "sound('white*8').decay(.04).gain(.25)).play()";
+const SONG_NIGHT =
+  "stack(note('[a3 ~ e4 ~] [~ d4 ~ c4]').sound('triangle').delay(.5).room(.8).gain(.4)," +
+  "note('a1*2').sound('sine').gain(.5)).play()";
+const SONG_ALARM =
+  "stack(note('[a2 a2 a2 a2]*4').sound('sawtooth').lpf(2000).gain(.5)," +
+  "sound('white*16').decay(.03).gain(.3)).play()";
+// --- music.js ---
+
+
+let ready = false;
+let current = "";
+function engine() {
+  try {
+    const w = window;
+    return w.TulenkoMusic ?? null;
+  } catch {
+    return null;
+  }
+}
+function bootMusic() {
+  try {
+    const e = engine();
+    if (!e) return;
+    void e.boot().then(() => { ready = true; if (current) music(current); }).catch(() => {});
+  } catch {
+    // без звука — молча дальше
+  }
+}
+function music(kind) {
+  current = kind;
+  try {
+    const e = engine();
+    if (!e || !ready) return;
+    e.stop();
+    const code = kind === "day" ? SONG_DAY : kind === "night" ? SONG_NIGHT : SONG_ALARM;
+    e.play("setcpm(" + (kind === "day" ? SONG_CPM.day : kind === "night" ? SONG_CPM.night : SONG_CPM.alarm) + ");" + code);
+  } catch {
+    // без звука — молча дальше
+  }
+}
 // --- main2.js ---
 // Слой 2 (верх): склейка. Вид сверху, день, нить, работа, кара.
 // Берёт grid, maps, levels, doors, strong, actors, vision, clock,
-// work, things, quests, talk, search, paint, audio, endings.
+// work, things, quests, talk, search, paint, audio, music, endings.
 // Бок (main, logic) сюда не входит.
 // Склейка game.js режет import/export и клеит разделы подряд.
 // Имена WORLD_* даёт раздел levels (без export — иначе грубая
@@ -1258,9 +1308,18 @@ let lastMuster = '';
 let lastWork = '';
 let lastLine = '';
 let sndOn = true;
+let musicBooted = false;
+let lastTheme = '';
 function snd(kind) {
     if (!sndOn)
         return;
+    if (!musicBooted) {
+        musicBooted = true;
+        try {
+            bootMusic();
+        }
+        catch (e) { /* без звука идём дальше */ }
+    }
     try {
         blip(kind);
     }
@@ -1293,6 +1352,14 @@ function simStep(dt, input) {
         dt = 1;
     tick(S, dt);
     syncHeat();
+    const want = (S.wanted || 0) > 0 ? 'alarm' : (isNight(S) ? 'night' : 'day');
+    if (want !== lastTheme) {
+        lastTheme = want;
+        try {
+            music(want);
+        }
+        catch (e) { /* без звука идём дальше */ }
+    }
     const nowHour = Math.floor(S.t / 3600);
     const hc = hourCase(S);
     if (input && (input.dx !== 0 || input.dy !== 0)) {
@@ -2245,6 +2312,8 @@ ROOT.__hook = {
     WORLD_NAMES: WORLD_NAMES,
     WORLD_MAPS: WORLD_MAPS,
     worldMap: worldMap,
+    music: music,
+    bootMusic: bootMusic,
     get mode() { return mode; },
     get winEnd() { return winEnd; },
 };

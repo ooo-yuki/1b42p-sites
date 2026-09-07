@@ -1,6 +1,6 @@
 // Слой 2 (верх): склейка. Вид сверху, день, нить, работа, кара.
 // Берёт grid, maps, levels, doors, strong, actors, vision, clock,
-// work, things, quests, talk, search, paint, audio, endings.
+// work, things, quests, talk, search, paint, audio, music, endings.
 // Бок (main, logic) сюда не входит.
 // Склейка game.js режет import/export и клеит разделы подряд.
 // Имена WORLD_* даёт раздел levels (без export — иначе грубая
@@ -20,6 +20,7 @@ import { QUESTS, done } from './quests.js';
 import { talkFor, say, FACE } from './talk.js';
 import { search, leaveSolitary } from './search.js';
 import { blip } from './audio.js';
+import { bootMusic, music } from './music.js';
 import { tryRoof, tryGate } from './endings.js';
 // Фактура клеток 32х32: пол, стена, мебель картинками 32 в клетку TILE —
 // drawImage сам ужмёт, деталей станет больше. Цвета комнат держим
@@ -281,9 +282,17 @@ let lastMuster = '';
 let lastWork = '';
 let lastLine = '';
 let sndOn = true;
+let musicBooted = false;
+let lastTheme = '';
 
 function snd(kind: 'step' | 'pickup' | 'hit' | 'win' | 'lose'): void {
   if (!sndOn) return;
+  if (!musicBooted) {
+    musicBooted = true;
+    try {
+      bootMusic();
+    } catch (e) { /* без звука идём дальше */ }
+  }
   try {
     blip(kind);
   } catch (e) { /* без звука идём дальше */ }
@@ -315,6 +324,13 @@ export function simStep(dt: number, input?: { dx: number; dy: number }): void {
   if (dt > 1) dt = 1;
   tick(S, dt);
   syncHeat();
+  const want: 'day' | 'night' | 'alarm' = (S.wanted || 0) > 0 ? 'alarm' : (isNight(S) ? 'night' : 'day');
+  if (want !== lastTheme) {
+    lastTheme = want;
+    try {
+      music(want);
+    } catch (e) { /* без звука идём дальше */ }
+  }
   const nowHour = Math.floor(S.t / 3600);
   const hc = hourCase(S);
 
@@ -1207,6 +1223,8 @@ ROOT.__hook = {
   WORLD_NAMES: WORLD_NAMES,
   WORLD_MAPS: WORLD_MAPS,
   worldMap: worldMap,
+  music: music,
+  bootMusic: bootMusic,
   get mode() { return mode; },
   get winEnd() { return winEnd; },
 };
