@@ -20,20 +20,20 @@ import { tryRoof, tryGate } from './endings.js';
 // T стол, S душ, R крыша. P наши, E ворота. Остальное пол.
 const MAP: string[] = [
   '##############################',
-  '#BBB...D....TTT....JJJ...SSS#',
-  '#BBB........TTT....JJJ...SSS#',
-  '#BBB...D....TTT....JJJ...SSS#',
-  '#..........................#',
-  '#.....######D######....D...#',
-  '#.....#BBB..B..BBB#....#RRR#',
-  '#.....#BBB..B..BBB#....#RRR#',
-  '#.....######D######....#RRR#',
-  '#..........................#',
-  '#.TTT....D....JJJ....D...SSS#',
-  '#.TTT........JJJ........SSS#',
-  '#.TTT........JJJ........SSS#',
-  '#..........................#',
-  '#P........................E#',
+  '#BBB...D....TTT....JJJ...SSS.#',
+  '#BBB........TTT....JJJ...SSS.#',
+  '#BBB...D....TTT....JJJ...SSS.#',
+  '#............................#',
+  '#.....######D######....D.....#',
+  '#.....#BBB..B..BBB#....#RRR..#',
+  '#.....#BBB..B..BBB#....#RRR..#',
+  '#.....######D######....#RRR..#',
+  '#............................#',
+  '#.TTT....D....JJJ....D...SSS.#',
+  '#.TTT........JJJ........SSS..#',
+  '#.TTT........JJJ........SSS..#',
+  '#............................#',
+  '#P..........................E#',
   '##############################',
 ];
 
@@ -380,17 +380,24 @@ function crisp(): void {
 }
 crisp();
 
-// Экран во всю страницу: холст в размер окна, края обрезаются заливкой.
+// Экран в размер показанного места: холст мерим по своему месту на
+// странице, а не по окну целиком — иначе object-fit: contain даёт бока
+// цветом фона элемента. Плюс фон холста чёрный, синевы ноль.
+// Каждый кадр сверяем: место могло смениться без события resize.
 function fitScreen(): void {
   if (!canvas) return;
   try {
-    const w = (ROOT as any).innerWidth || canvas.width || 960;
-    const h = (ROOT as any).innerHeight || canvas.height || 540;
+    const box: any = canvas.parentElement;
+    let w = canvas.clientWidth || (box && box.clientWidth) || (ROOT as any).innerWidth || canvas.width || 960;
+    let h = canvas.clientHeight || (box && box.clientHeight) || (ROOT as any).innerHeight || canvas.height || 540;
+    w = Math.floor(w);
+    h = Math.floor(h);
     if (w > 0 && h > 0 && (canvas.width !== w || canvas.height !== h)) {
       canvas.width = w;
       canvas.height = h;
       crisp();
     }
+    if (canvas.style) canvas.style.background = '#000';
   } catch (e) { /* стоим как были */ }
 }
 fitScreen();
@@ -548,6 +555,7 @@ function paintCells(): void {
 function render(now: number): void {
   if (!g2d || !canvas) return;
   crisp();
+  fitScreen();
   const W = canvas.width;
   const H = canvas.height;
   updCam(W, H);
