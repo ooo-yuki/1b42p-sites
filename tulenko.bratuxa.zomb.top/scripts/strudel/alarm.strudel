@@ -1,0 +1,1 @@
+stack(note('[a2 a2 a2 a2]*4').sound('sawtooth').lpf(2000).gain(.5),sound('white*16').decay(.03).gain(.3)).cpm(46).play()

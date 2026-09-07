@@ -1,4 +1,4 @@
-import { SONG_DAY, SONG_NIGHT, SONG_ALARM, SONG_CPM } from "./songs.js";
+import { SONG_DAY, SONG_NIGHT, SONG_ALARM } from "./songs.js";
 type Kind = "day" | "night" | "alarm";
 let ready = false;
 let current: Kind | "" = "";

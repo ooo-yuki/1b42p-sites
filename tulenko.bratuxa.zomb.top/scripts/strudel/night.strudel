@@ -1,0 +1,1 @@
+stack(note('[a3 ~ e4 ~] [~ d4 ~ c4]').sound('triangle').delay(.5).room(.8).gain(.4),note('a1*2').sound('sine').gain(.5)).cpm(24).play()
