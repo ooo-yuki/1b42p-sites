@@ -9,7 +9,7 @@
 {"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js"}}
 </script>
 <style>
-:root{--concrete:#161a26;--asphalt:#0d1017;--chalk:#ece7d8;--spray:#ff6a00;--podezd:#1f7a4d;
+:root{--concrete:#161a26;--asphalt:#0d1017;--chalk:#ece7d8;--spray:#ff6a00;--podezd:#1f7a4d;--red:#e23b3b;
  --alarm:#e23b3b;--gold:#f5c518;--panel:#1c102e;--line:#3d2457;}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--asphalt);color:var(--chalk);
@@ -27,7 +27,7 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--asphal
 #msg{position:fixed;left:0;right:0;top:12%;text-align:center;color:var(--spray);font-weight:900;
  font-size:22px;text-shadow:0 2px 0 #000,0 0 18px rgba(255,106,0,.5);pointer-events:none;z-index:5;
  font-family:'Arial Black',system-ui,sans-serif;letter-spacing:1px}
-#wimg{position:fixed;right:14px;bottom:86px;width:min(34vw,170px);z-index:5;pointer-events:none;
+#wimg{position:fixed;right:14px;bottom:102px;width:min(34vw,170px);z-index:5;pointer-events:none;
  transform-origin:80% 90%;transition:transform .07s}
 #wimg.swing{transform:rotate(-38deg) translateY(-8px)}
 #atkBtn{position:fixed;right:16px;bottom:16px;width:76px;height:76px;border-radius:50%;
@@ -56,8 +56,9 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--asphal
 #over{position:fixed;inset:0;background:rgba(5,2,10,.92);display:none;align-items:center;justify-content:center;z-index:40;padding:20px}
 #overBox{background:var(--panel);border:3px solid var(--gold);border-radius:16px;padding:26px;max-width:440px;text-align:center}
 #overBox button{background:var(--gold);color:#181006;font-weight:800;font-size:18px;border:none;border-radius:12px;padding:14px 22px;cursor:pointer;width:100%;margin-top:8px}
-#rotate{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;
- background:rgba(5,2,10,.94);font-size:22px;font-weight:800;color:var(--gold);text-align:center;padding:20px}
+#rotate{position:fixed;left:12px;right:12px;bottom:12px;z-index:15;display:none;align-items:center;justify-content:center;
+ background:rgba(5,2,10,.85);font-size:15px;font-weight:800;color:var(--gold);text-align:center;padding:10px 14px;
+ border:1px solid var(--gold);border-radius:12px;pointer-events:none}
 @media (orientation:portrait){#rotate{display:flex}}
 .dmg{position:fixed;inset:0;pointer-events:none;z-index:7;opacity:0;background:radial-gradient(ellipse at center,transparent 55%,rgba(255,0,0,.55));transition:opacity .1s}
 </style>
@@ -90,7 +91,7 @@ WASD + мышь (клик — захват) / на телефоне — джой
 <p id="overP"></p>
 <button onclick="location.reload()">ЕЩЁ РАЗ 🎮</button>
 </div></div>
-<div id="rotate">🔄 Поверни устройство горизонтально — там война!</div>
+<div id="rotate">🔄 Совет: в горизонтальном режиме воевать удобнее!</div>
 <script type="module">
 import * as THREE from 'three';
 /* ============ 42 LAIV v2 — FPS, волны (ES-модули) ============ */
@@ -103,7 +104,7 @@ var S={best:0,fant:0};
 try{var sv=JSON.parse(localStorage.getItem(KEY)||'{}');if(sv.best)S.best=sv.best;if(sv.fant)S.fant=sv.fant;}catch(e){}
 function save(){try{localStorage.setItem(KEY,JSON.stringify({best:S.best,fant:S.fant}));}catch(e){}}
 var cv=document.getElementById('c');
-var P={x:0,z:18,yaw:0,hp:100,maxhp:100,dmg:12,rate:0.45,range:3.6,cd:0,axe:false};
+var P={x:0,z:18,yaw:0,pitch:0,hp:100,maxhp:100,dmg:12,rate:0.45,range:3.6,cd:0,axe:false};
 var G={wave:0,hype:0,foes:[],spawnQ:[],spawnT:0,breather:0,over:false,paused:false,shake:0,kills:0,started:false};
 var scene=null,camera=null,renderer=null,flash=null,texV1=null,texV2=null;
 /* ---------- ввод ---------- */
@@ -182,9 +183,11 @@ function initGL(){
  domTex.wrapS=domTex.wrapT=THREE.RepeatWrapping;domTex.repeat.set(3,2);
  domTex.colorSpace=THREE.SRGBColorSpace;
  var wallMat=new THREE.MeshStandardMaterial({map:domTex,roughness:.9});
+ SOLIDS=[];
  function wall(x,z,w,d,ry){
   var m=new THREE.Mesh(new THREE.BoxGeometry(w,12,d),wallMat);
-  m.position.set(x,6,z);m.rotation.y=ry||0;m.castShadow=true;m.receiveShadow=true;scene.add(m);}
+  m.position.set(x,6,z);m.rotation.y=ry||0;m.castShadow=true;m.receiveShadow=true;scene.add(m);
+  if(!ry&&(Math.abs(x)<ARENA-1&&Math.abs(z)<ARENA-1))SOLIDS.push({x:x,z:z,hw:w/2+0.6,hd:d/2+0.6});}
  wall(0,-ARENA,ARENA*2+8,2);wall(0,ARENA,ARENA*2+8,2);
  wall(-ARENA,0,2,ARENA*2+8);wall(ARENA,0,2,ARENA*2+8);
  wall(-18,-14,10,10);wall(20,10,12,10);wall(-4,26,10,8);
@@ -249,14 +252,15 @@ function killFoe(f){
 }
 function burst(x,z){
  if(!scene)return;
+ if(!G.parts)G.parts=[];
  for(var i=0;i<4;i++){
   var m=new THREE.Sprite(new THREE.SpriteMaterial({map:texV1,transparent:true,opacity:.7,color:0xff3b3b}));
   m.scale.set(.7,.7,1);m.position.set(x,1,z);scene.add(m);
   G.parts.push({sp:m,vx:(Math.random()-0.5)*8,vy:3+Math.random()*4,vz:(Math.random()-0.5)*8,t:.45});
  }
- if(!G.parts)G.parts=[];
 }
 G.parts=[];
+var SOLIDS=[];
 function attack(){
  if(!G.started||G.paused||G.over||P.cd>0)return;
  P.cd=P.rate;
@@ -346,6 +350,10 @@ function frame(){
  P.z+=(-mx*sn+mz*cs)*sp*dt;
  P.x=Math.max(-ARENA+2,Math.min(ARENA-2,P.x));
  P.z=Math.max(-ARENA+2,Math.min(ARENA-2,P.z));
+ for(var si=0;si<SOLIDS.length;si++){var s=SOLIDS[si];
+  var ox=P.x-s.x,oz=P.z-s.z;
+  var px=s.hw-Math.abs(ox),pz=s.hd-Math.abs(oz);
+  if(px>0&&pz>0){if(px<pz)P.x=s.x+(ox>=0?s.hw:-s.hw);else P.z=s.z+(oz>=0?s.hd:-s.hd);}}
  if(P.cd>0)P.cd-=dt;
  /* спавн */
  if(G.spawnQ.length){G.spawnT-=dt;
