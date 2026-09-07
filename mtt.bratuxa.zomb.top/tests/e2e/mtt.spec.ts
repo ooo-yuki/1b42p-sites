@@ -48,10 +48,28 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.evaluate(() => (window as unknown as { __mtt: { joy: (x: number, y: number) => void } }).__mtt.joy(0, 0));
     const p1 = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => object } }).__mtt.pos());
     expect(p1).not.toEqual(p0);
-    await page.click('#hitBtn');
+    // тач-кнопка на десктопе скрыта (display:none) — бьём тем же путём через хук атаки
+    await expect(page.locator('#hitBtn')).toBeHidden();
+    await page.evaluate(() => (window as unknown as { __mtt: { attack: () => void } }).__mtt.attack());
     await page.waitForTimeout(600);
     const hud = await page.locator('#hud').innerText();
     expect(hud).toMatch(/❤️ \d+/);
+  });
+
+  test('тач-панель: на десктопе скрыта, на тач-экране видна', async ({ page, browser }) => {
+    await page.click('#guestBtn');
+    await page.click('#goBtn');
+    await expect(page.locator('#joy')).toBeHidden();
+    await expect(page.locator('#hitBtn')).toBeHidden();
+    const touchCtx = await browser.newContext({ hasTouch: true, viewport: { width: 390, height: 844 } });
+    const tp = await touchCtx.newPage();
+    await tp.goto('/');
+    await expect(tp).toHaveTitle(/42 LIVE/);
+    await tp.click('#guestBtn');
+    await tp.click('#goBtn');
+    await expect(tp.locator('#joy')).toBeVisible({ timeout: 15000 });
+    await expect(tp.locator('#hitBtn')).toBeVisible({ timeout: 15000 });
+    await touchCtx.close();
   });
 
   test('HP игрока и враги на месте', async ({ page }) => {

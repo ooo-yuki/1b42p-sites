@@ -1291,6 +1291,7 @@ async function loadStats(): Promise<void> {
           <div
             id="joy"
             ref={joyRef}
+            style={typeof navigator !== 'undefined' && navigator.maxTouchPoints === 0 && !('ontouchstart' in window) ? { display: 'none' } : undefined}
             onPointerDown={joyStart}
             onPointerMove={joyMove}
             onPointerUp={joyEnd}
@@ -1300,6 +1301,7 @@ async function loadStats(): Promise<void> {
           </div>
           <button
             id="hitBtn"
+            style={typeof navigator !== 'undefined' && navigator.maxTouchPoints === 0 && !('ontouchstart' in window) ? { display: 'none' } : undefined}
             onPointerDown={() => { gameRef.current?.attack(); }}
           >
             👊<span>УДАР</span>

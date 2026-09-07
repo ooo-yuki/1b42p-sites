@@ -138,7 +138,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 .charCard.sel{border-color:#39d353;box-shadow:0 0 16px rgba(57,211,83,.5),3px 3px 0 #000}
 #vig{position:fixed;inset:0;z-index:4;pointer-events:none;
  background:radial-gradient(ellipse at center,transparent 52%,rgba(2,2,12,.55) 100%)}
-#hud{background:rgba(4,8,16,.55);border:1px solid rgba(255,159,28,.5);border-radius:12px;padding:6px 12px 8px}
+#hud{background:rgba(4,8,16,.55);border:1px solid rgba(255,159,28,.5);border-radius:12px;padding:8px 14px 10px}
 .wbtn:hover{filter:brightness(1.25)}
 #touch{position:fixed;inset:auto 0 0 0;z-index:5;display:none;justify-content:space-between;
  padding:0 12px 14px;pointer-events:none}
@@ -151,7 +151,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 #hpWrap{display:flex;align-items:center;gap:10px;font-size:17px}
 #hpBar{width:170px;height:14px;background:rgba(0,0,0,.65);border:2px solid #ff9f1c;border-radius:8px;overflow:hidden}
 #hpFill{height:100%;width:100%;background:linear-gradient(90deg,#39d353,#ff9f1c,#ff3b3b)}
-#hudRow{margin-top:2px}
+#hudRow{margin-top:5px}
 #joy{position:fixed;left:18px;bottom:24px;z-index:6;width:120px;height:120px;border-radius:50%;
  border:2px solid #ff9f1c;background:radial-gradient(circle at 50% 50%,rgba(255,159,28,.28),rgba(13,20,40,.55) 70%);touch-action:none}
 #joyKnob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;
@@ -201,8 +201,6 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 .mapCard .mname{font-size:15px;font-weight:900}
 .mapCard .mdesc{font-size:11px;color:#9aa3c0;margin-top:4px}
 #mapSec h3,#foeSec h3,#goSec h3{margin:0 0 8px}
-/* бейдж комнаты — слева, чтобы не перекрывать ⛶/меню справа */
-#roomBadge{top:170px;left:10px;right:auto}
 /* прицел по центру экрана: белый + difference — виден на любом фоне */
 #cross{position:fixed;left:50%;top:50%;width:22px;height:22px;transform:translate(-50%,-50%);z-index:5;pointer-events:none;opacity:1;mix-blend-mode:difference}
 #cross i{position:absolute;background:#fff;box-shadow:none}
@@ -231,7 +229,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 #roomSec{max-width:340px}
 #roomDraft{background:#141d33;color:#fff;border:1px solid #334155;border-radius:10px;
  padding:10px 12px;font-size:15px;width:55%}
-#roomBadge{position:fixed;top:108px;right:10px;z-index:6;font-size:15px;font-weight:800;
+#roomBadge{position:fixed;top:170px;left:10px;right:auto;z-index:6;font-size:15px;font-weight:800;
  border-radius:10px;border:2px solid #66ccff;background:rgba(13,20,40,.85);color:#66ccff;
  padding:8px 12px;font-family:'Courier New',Courier,monospace;box-shadow:4px 4px 0 #000;max-width:44vw}
 #roomLeave{margin-left:8px;background:transparent;border:1px solid #66ccff;color:#66ccff;
@@ -271,3 +269,13 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
  text-shadow:3px 3px 0 #4a0000,6px 6px 0 rgba(0,0,0,.55);letter-spacing:2px;
  animation:wavein 3s steps(12) forwards}
 @keyframes wavein{0%{opacity:0;transform:scale(.6)}12%{opacity:1;transform:scale(1.08)}22%{transform:scale(1)}78%{opacity:1}100%{opacity:0;transform:scale(1.05)}}
+/* тач-панель — только coarse-указателям: на десктопе с мышью джойстик и УДАР скрыты */
+@media (hover:hover) and (pointer:fine){#joy,#hitBtn{display:none}}
+/* широкий десктоп: меню шире (карты бойцов влезают без клипа), оружейка шире */
+@media (min-width:1100px){
+#menuBody{max-width:780px}
+#menu .board{max-width:420px}
+/* широкие секции — во всю ширину тела (карты бойцов/карт рядом, без клипа) */
+#menu .board#charSec,#menu .board#mapSec,#menu .board#editorSec{max-width:none}
+.sheet{max-width:480px}
+}
