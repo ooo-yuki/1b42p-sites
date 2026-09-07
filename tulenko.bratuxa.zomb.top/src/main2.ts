@@ -777,16 +777,17 @@ function render(now: number): void {
   let heat = '';
   for (let i = 0; i < 3; i++) heat += i < S.wanted ? '★' : '☆';
   g2d.fillText('◉ ' + S.coins + '   ' + heat, 12, 24);
-  g2d.textAlign = 'center';
+  g2d.textAlign = 'right';
   const hc = hourCase(S);
-  g2d.fillText(fmtTime() + '  день ' + S.day + '  ' + hc, W / 2, H - 34);
+  g2d.fillText(fmtTime() + '  день ' + S.day + '  ' + hc, W - 12, 24);
+  g2d.textAlign = 'center';
   const lines = talkFor(S);
   const show = lastLine || (lines.length > 0 ? lines[0].text : '');
   if (show) {
-    drawImg(FACE, W / 2 - 220, H - 96, 64, 64, '#cfe8ff');
+    drawImg(FACE, W / 2 - 220, H - 210, 64, 64, '#cfe8ff');
     g2d.textAlign = 'left';
     g2d.font = '16px sans-serif';
-    g2d.fillText(show.slice(0, 48), W / 2 - 148, H - 58);
+    g2d.fillText(show.slice(0, 48), W / 2 - 148, H - 172);
   }
   if (mode === 'win') {
     g2d.fillStyle = '#fff';
