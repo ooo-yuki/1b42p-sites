@@ -66,4 +66,69 @@ assert.equal(s.flags.m1, true);
   }
 }
 
+// Ветки Task 8: помощь открывает шаг, грубость даёт розыск
+{
+  const s = { flags: {}, heat: 0, opened: [] };
+  say(s, 'cook_help');
+  assert.ok(s.opened.includes('poison'));
+}
+{
+  const s = { flags: {}, heat: 0, opened: [] };
+  say(s, 'brig_help');
+  assert.ok(s.opened.includes('shift'));
+}
+{
+  const s = { flags: {}, heat: 0, opened: [] };
+  say(s, 'chief_help');
+  assert.ok(s.opened.includes('pass'));
+}
+{
+  const s = { flags: {}, heat: 0, opened: [] };
+  say(s, 'trade_help');
+  assert.ok(s.opened.includes('gag'));
+}
+{
+  const s = { flags: {}, heat: 0, opened: [] };
+  say(s, 'cell_help');
+  assert.ok(s.opened.includes('descent'));
+}
+{
+  const s = { flags: {}, heat: 0, opened: [] };
+  say(s, 'cook_rude');
+  assert.equal(s.heat, 1);
+}
+{
+  const s = { flags: {}, heat: 0, opened: [] };
+  say(s, 'brig_rude');
+  assert.equal(s.heat, 1);
+}
+{
+  const s = { flags: {}, heat: 0, opened: [] };
+  say(s, 'chief_rude');
+  assert.equal(s.heat, 1);
+}
+{
+  const s = { flags: {}, heat: 0, opened: [] };
+  say(s, 'trade_rude');
+  assert.equal(s.heat, 1);
+}
+{
+  const s = { flags: {}, heat: 0, opened: [] };
+  say(s, 'cell_rude');
+  assert.equal(s.heat, 1);
+}
+// Ветки видны в выдаче и уходят после ответа, лицо у всех строк
+{
+  const t = { flags: {}, heat: 0, opened: [] };
+  const ids = talkFor(t).map((l) => l.id);
+  for (const id of ['cook_help', 'brig_help', 'chief_help', 'trade_help', 'cell_help']) {
+    assert.ok(ids.includes(id), id);
+  }
+  say(t, 'cook_help');
+  assert.ok(!talkFor(t).some((l) => l.id === 'cook_help'));
+  for (const l of talkFor(t)) {
+    assert.ok(l.face === FACE);
+  }
+}
+
 console.log('talk ok');
