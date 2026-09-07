@@ -3,6 +3,7 @@ import { Game, WEAPONS, CHARS, MAPS, KEY_ACTIONS, DEFAULT_KEYS, UPG_MAX, upgCost
 import oruzh1Url from './assets/oruzh1.png';
 import oruzh2Url from './assets/oruzh2.png';
 import pistolUrl from './assets/pistol.png';
+import shotgunUrl from './assets/shotgun.png';
 import batUrl from './assets/bat.png';
 import charMttUrl from './assets/char-mtt.png';
 import charKrysaUrl from './assets/char-krysa.png';
@@ -102,7 +103,7 @@ async function loadRooms(): Promise<RoomInfo[]> {
   }
 }
 
-const WIMG: Record<string, string> = { fists: oruzh1Url, bat: batUrl, axe: oruzh2Url, pistol: pistolUrl };
+const WIMG: Record<string, string> = { fists: oruzh1Url, bat: batUrl, axe: oruzh2Url, pistol: pistolUrl, shotgun: shotgunUrl };
 
 const SID_KEY = 't42_sid';
 function sid(): string {
@@ -1248,7 +1249,7 @@ async function loadStats(): Promise<void> {
           >
             👊<span>УДАР</span>
           </button>
-          <div id="weapon" key={`weapon-${swingTick}`} ref={weaponRef} className={(hud.moving ? 'walk' : '') + (swingTick > 0 ? ' swing' : '') + (hud.weapon === 'pistol' ? ' pistol' : '')}>
+          <div id="weapon" key={`weapon-${swingTick}`} ref={weaponRef} className={(hud.moving ? 'walk' : '') + (swingTick > 0 ? ' swing' : '') + (hud.weapon === 'pistol' || hud.weapon === 'shotgun' ? ' ' + hud.weapon : '')}>
             <img src={WIMG[hud.weapon] ?? oruzh1Url} alt="оружие" />
           </div>
           {roomId && (

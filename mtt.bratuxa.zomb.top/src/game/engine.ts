@@ -122,6 +122,8 @@ export interface WeaponDef {
   minWave: number;
   /** Дальнобой: выстрел по прицелу, а не замах вокруг. */
   ranged?: boolean;
+  /** Дробь веером: урон тает с дистанцией круче, плюс рокет-джамп. */
+  spread?: boolean;
 }
 
 export const WEAPONS: WeaponDef[] = [
@@ -129,6 +131,7 @@ export const WEAPONS: WeaponDef[] = [
   { id: 'bat', name: '🏏 Бита', desc: 'Длиннее и злее', dmg: 48, range: 4.3, cd: 0.6, price: 300, minWave: 2 },
   { id: 'axe', name: '🪓 Секира', desc: 'Тяжёлый аргумент', dmg: 70, range: 4.6, cd: 0.85, price: 800, minWave: 3 },
   { id: 'pistol', name: '🔫 Пистолет', desc: 'Бьёт далеко — целься прицелом', dmg: 45, range: 30, cd: 0.7, price: 1200, minWave: 4, ranged: true },
+  { id: 'shotgun', name: '💥 Дробовик', desc: 'Дробь веером: в упор сносит, вдаль щекочет · выстрел под ноги швыряет вверх на 6м', dmg: 110, range: 20, cd: 1.1, price: 1500, minWave: 5, ranged: true, spread: true },
 ];
 
 export interface KeyMap {
@@ -332,6 +335,9 @@ export class Game {
   private bobPhase = 0;
   private py = 0;
   private pvy = 0;
+  // импульс полёта: горизонтальная скорость живёт и без кнопок (в воздухе трение слабое)
+  private vx = 0;
+  private vz = 0;
   private keyMap: KeyMap = { ...DEFAULT_KEYS };
   private remotes: Remote[] = [];
   private half: number = HALF;
@@ -2431,6 +2437,7 @@ export class Game {
     this.atkCd = W.cd;
     this.swingT = 0.22;
     this.ev.onSwing();
+    if (W.spread) return this.shotgunFire(W.dmg, W.range);
     if (W.ranged) return this.shoot(W.dmg, W.range);
     this.blip(220);
     const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
@@ -2449,14 +2456,7 @@ export class Game {
     }
     if (hits > 0) this.blip(440);
     this.pushHud();
-    if ((this.map === 'arena' || this.map === 'backrooms' || this.map === 'custom' || this.map === 'random') && this.enemiesOn && this.enemies.length > 0 && this.enemies.every((e) => e.dead)) {
-      this.wave++;
-      this.hp = Math.min(this.maxhp, this.hp + 25);
-      this.fantiki += 25;
-      this.addXp(50);
-      this.saveShop();
-      this.spawnWave();
-    }
+    this.waveClearCheck();
     this.drawMM();
     return hits;
   }
@@ -2514,6 +2514,13 @@ export class Game {
     this.afterHit(best, best.g.position.x - cx, best.g.position.z - cz, Math.hypot(best.g.position.x - cx, best.g.position.z - cz), 0.8);
     this.blip(440);
     this.pushHud();
+    this.waveClearCheck();
+    this.drawMM();
+    return 1;
+  }
+
+  // зачистка волны: +волна, +25HP, +25 фантиков, +50 опыта (один хелпер на все стволы)
+  private waveClearCheck(): void {
     if ((this.map === 'arena' || this.map === 'backrooms' || this.map === 'custom' || this.map === 'random') && this.enemiesOn && this.enemies.length > 0 && this.enemies.every((e) => e.dead)) {
       this.wave++;
       this.hp = Math.min(this.maxhp, this.hp + 25);
@@ -2522,8 +2529,50 @@ export class Game {
       this.saveShop();
       this.spawnWave();
     }
+  }
+
+  // 💥 дробовик: 8 дробин веером (~30°). В упор — полный урон, вдаль — щекотка:
+  // урон = база × затухание с дистанцией (^1.6) × попадание по центру веера.
+  // Выстрел себе под ноги (круто вниз) — рокет-джамп: швыряет против выстрела,
+  // вверх на 6м (pvy 12 при гравитации 12: 12²/24 = 6) + отброс назад.
+  private shotgunFire(totalDmg: number, range: number): number {
+    this.blip(220);
+    const cp = Math.cos(this.pitch);
+    const dx = -Math.sin(this.yaw) * cp, dy = Math.sin(this.pitch), dz = -Math.cos(this.yaw) * cp;
+    const cx = this.px, cy = 1.7 + this.py, cz = this.pz;
+    this.burst(cx + dx * 2, cy + dy * 2, cz + dz * 2, 14);
+    let hits = 0;
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      const ty = e.kind === 'fly' ? 3.2 : 1.0 + e.ey;
+      const vx = e.g.position.x - cx, vy = ty - cy, vz = e.g.position.z - cz;
+      const dist = Math.hypot(vx, vy, vz);
+      if (dist > range || dist < 0.5) continue;
+      const cos = (vx * dx + vy * dy + vz * dz) / dist;
+      if (cos < 0.86) continue;
+      const fall = Math.pow(Math.max(0, 1 - dist / range), 1.6);
+      const center = Math.max(0, Math.min(1, (cos - 0.86) / 0.14));
+      e.hp -= totalDmg * fall * center * this.dmgMul() + Math.random() * 5;
+      this.tracer(cx, cy, cz, e.g.position.x, ty, e.g.position.z);
+      this.afterHit(e, vx, vz, Math.hypot(vx, vz), 2.2);
+      hits++;
+    }
+    if (hits > 0) this.blip(440);
+    if (dy < -0.45) {
+      // рокет-джамп: чем круче вниз, тем выше (максимум 12 → ровно 6м);
+      // отброс — тоже импульсом: летит назад даже без кнопок
+      const k = Math.min(1, (-dy - 0.45) / 0.44);
+      this.pvy = 12 * k;
+      const hl = Math.hypot(dx, dz) || 1;
+      this.vx -= (dx / hl) * 7 * k;
+      this.vz -= (dz / hl) * 7 * k;
+      this.burst(this.px, 0.3, this.pz, 16);
+      this.blip(300);
+    }
+    this.pushHud();
+    this.waveClearCheck();
     this.drawMM();
-    return 1;
+    return hits;
   }
 
   // светящаяся линия выстрела от дула до точки попадания
@@ -2923,12 +2972,34 @@ export class Game {
       const len = Math.hypot(f, r);
       this.moving = len > 0.15;
       if (this.moving) this.bobPhase += dt * 11;
+      const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
+      const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
+      // желаемая скорость по кнопкам (резкая, как была)
+      let wishX = 0, wishZ = 0;
       if (len > 0.01) {
         const nf = f / Math.max(1, len), nr = r / Math.max(1, len);
-        const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
-        const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
-        const nx = this.px + (fx * nf + rx * nr) * sp * dt;
-        const nz = this.pz + (fz * nf + rz * nr) * sp * dt;
+        wishX = (fx * nf + rx * nr) * sp;
+        wishZ = (fz * nf + rz * nr) * sp;
+      }
+      // ИМПУЛЬС: на земле скорость = кнопки (резко), в полёте скорость живёт —
+      // кнопки дают ускорение, трение слабое: отпустил, а тело летит
+      const grounded = this.py <= this.groundAt(this.px, this.pz) + 0.01;
+      if (grounded) {
+        if (this.moving) { this.vx = wishX; this.vz = wishZ; }
+        else { const fr = Math.max(0, 1 - 8 * dt); this.vx *= fr; this.vz *= fr; }
+      } else {
+        const AIR_K = 3, AIR_DRAG = 0.4, MAXA = 16;
+        this.vx += wishX * AIR_K * dt;
+        this.vz += wishZ * AIR_K * dt;
+        const dr = Math.max(0, 1 - AIR_DRAG * dt);
+        this.vx *= dr; this.vz *= dr;
+        const asl = Math.hypot(this.vx, this.vz);
+        if (asl > MAXA) { this.vx = this.vx / asl * MAXA; this.vz = this.vz / asl * MAXA; }
+      }
+      // едем: на земле по кнопкам (как было), иначе по импульсу (в полёте — всегда)
+      if (len > 0.01 || !grounded || Math.hypot(this.vx, this.vz) > 0.05) {
+        const nx = this.px + (this.moving && grounded ? wishX * dt : this.vx * dt);
+        const nz = this.pz + (this.moving && grounded ? wishZ * dt : this.vz * dt);
         // стена: запоминаем нормаль (толчок от стены для вол-кика Крысы).
         // невысокий порог (ступень ≤1.1м) перешагиваем автоматом — так лезем по лестницам на крыши
         if (this.hitSolid(nx, this.pz, 0.9, this.py)) {
@@ -2971,6 +3042,9 @@ export class Game {
         if (!this.hitSolid(this.px, nz, 0.9, this.py)) this.pz = this.clamp(nz);
         this.py = Math.max(0, this.py + this.dashDy * dspd * dt);
         this.pvy = 0;
+        // рывок разогнал — импульс остаётся и летит дальше даже без кнопок
+        this.vx = this.dashDx * dspd;
+        this.vz = this.dashDz * dspd;
         if (!this.moving) this.bobPhase += dt * 11;
       } else {
         this.pvy -= 12 * dt;

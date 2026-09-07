@@ -165,6 +165,8 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 #weapon{position:fixed;left:0;right:0;bottom:-2.5vmin;margin:0 auto;z-index:5;width:min(78vmin,700px);pointer-events:none;transform-origin:bottom center;opacity:.95}
 #weapon img{width:100%;image-rendering:pixelated;filter:drop-shadow(0 0 18px rgba(255,159,28,.8))}
 #weapon.pistol img{width:50%;margin:0 auto;display:block}
+/* дробовик: спрайт на чёрном фоне — screen гасит чёрный, ствол висит над сценой */
+#weapon.shotgun img{width:62%;margin:0 auto;display:block;mix-blend-mode:screen;filter:none}
 #weapon.walk img{animation:wbob .38s steps(2) infinite}
 @keyframes wbob{0%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-10px) rotate(2deg)}100%{transform:translateY(0) rotate(-2deg)}}
 #weapon.swing{animation:wswing .25s ease-out}
