@@ -520,6 +520,40 @@ function drawImg(src: string, x: number, y: number, w: number, h: number, fallba
   g2d.fillRect(x, y, w, h);
 }
 
+// Круг 10, имена: подпись и полоска над каждым человеком. Имя — мелко,
+// чётко, на тёмной подложке; под ним полоска 2 точки с тёмной окантовкой.
+// Тюленька «Тюленька» зелёная, стража «Страж» красная (мигает, когда видит),
+// сокамерник «Свой» рыжая. Резкость и свет не трогаем — только подписи.
+function drawTag(px: number, top: number, name: string, color: string, frac: number, w: number, barOn: boolean): void {
+  if (!g2d) return;
+  try {
+    g2d.save();
+    g2d.textAlign = 'center';
+    g2d.font = '11px sans-serif';
+    let tw = 40;
+    try {
+      tw = g2d.measureText(name).width;
+    } catch (e) { tw = 40; }
+    const bw = Math.max(tw + 8, w);
+    const bx = Math.round(px - bw / 2);
+    const by = Math.round(top - 21);
+    g2d.fillStyle = 'rgba(0,0,0,0.65)';
+    g2d.fillRect(bx, by, Math.round(bw), 13);
+    g2d.fillStyle = '#fff';
+    g2d.fillText(name, Math.round(px), Math.round(top - 11));
+    if (barOn) {
+      const f = Math.max(0, Math.min(1, frac));
+      const rx = Math.round(px - w / 2);
+      const ry = Math.round(top - 6);
+      g2d.fillStyle = 'rgba(0,0,0,0.65)';
+      g2d.fillRect(rx - 1, ry - 1, Math.round(w) + 2, 4);
+      g2d.fillStyle = color;
+      g2d.fillRect(rx, ry, Math.round(w * f), 2);
+    }
+    g2d.restore();
+  } catch (e) { try { g2d.restore(); } catch (_e) { /* без имён идём дальше */ } }
+}
+
 // Клетки фактурой: пол/стена картинками вместо заливки, мебель картинкой
 // поверх пола, цвет комнаты подкрасом поверх с прозрачностью.
 // Стена с лицом: верх клетки top_wall.png, низ клетки полосой
@@ -719,6 +753,21 @@ function render(now: number): void {
     vg.addColorStop(1, lightNight ? 'rgba(0,0,20,0.52)' : 'rgba(0,0,20,0.12)');
     g2d.fillStyle = vg;
     g2d.fillRect(0, 0, W, H);
+  }
+
+  // Круг 10, имена и полоски вживую: поверх света, чтобы читались
+  // и днём, и ночью. Стража мигает полоской, когда видит тюленьку.
+  {
+    const tagW = TS * 2;
+    drawTag(sx(S.seal.x), py(S.seal.y), 'Тюленька', '#3ddc5f', 1, tagW, true);
+    for (const gd of seen) {
+      const alert = sees(gd, S.seal.x, S.seal.y, gd.dir);
+      const barOn = !alert || (Math.floor(now / 250) % 2 === 0);
+      drawTag(sx(gd.x), py(gd.y), 'Страж', '#e0393e', 1, tagW, barOn);
+    }
+    for (const md of mates) {
+      drawTag(sx(md.x), py(md.y), 'Свой', '#d97a1f', 1, tagW, true);
+    }
   }
 
   // Вверху слева монеты и розыск. Внизу полоса: время, день, дело часа.
