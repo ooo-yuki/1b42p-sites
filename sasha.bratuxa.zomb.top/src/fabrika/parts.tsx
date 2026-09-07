@@ -1,6 +1,6 @@
 import type { JSX } from 'react';
 import {
-  Crown, Database, Dumbbell, Flame, Footprints, Gamepad2, Globe, Headphones, Lock, Mic, Scissors,
+  Crown, Database, Dumbbell, Flame, Footprints, Headphones, Lock, Mic, Scissors,
   Shield, Shirt, Sparkles, Tent, Ticket, Trophy, Users, Warehouse, Wind, Zap,
   type LucideIcon,
 } from 'lucide-react';
@@ -34,21 +34,11 @@ export function Masthead(props: { h: number; f: number; fans: number }): JSX.Ele
     <div id="top">
       <h1>
         <span className="k">42 БРАТУХА</span>
-        ФАБРИКА ХАЙПА
-      </h1>
-      <div className="sub">
-        <span className="sub-tag">продюсер Пятёрки · дорога на SLAY 2026</span>
-        <span className="sub-links">
-          <a href="minigames.html">
-            <Gamepad2 data-icon="inline-start" aria-hidden size={13} />
-            Мини-игры
-          </a>
-          <a href="https://hub.bratuxa.zomb.top">
-            <Globe data-icon="inline-start" aria-hidden size={13} />
-            Хаб 1Б42П
-          </a>
+        <span className="title-row">
+          <Trophy data-icon="inline-start" aria-hidden size={30} />
+          ФАБРИКА ХАЙПА
         </span>
-      </div>
+      </h1>
       <div id="res">
         <span className="pill">
           <Flame data-icon="inline-start" aria-hidden /> Хайп: <b id="rH">{fmt(props.h)}</b>

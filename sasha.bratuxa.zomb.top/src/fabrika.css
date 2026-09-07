@@ -98,42 +98,21 @@ a {
   align-items: center;
   gap: 2px;
 }
+#top h1 .title-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+#top h1 .title-row svg {
+  color: #6db9f2;
+  flex: none;
+}
 #top h1 .k {
   display: block;
   font-size: 0.52em;
   letter-spacing: 0.34em;
   color: var(--silver);
   text-shadow: none;
-}
-#top .sub {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  text-align: center;
-  font-size: 12px;
-  color: var(--dim);
-  margin-top: 8px;
-  animation: rise 0.5s 0.08s ease-out backwards;
-}
-#top .sub .sub-links {
-  display: inline-flex;
-  align-items: center;
-  gap: 14px;
-}
-#top .sub .sub-links a {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: #9ec9f0;
-  font-size: 12px;
-  font-weight: 700;
-  text-decoration: none;
-}
-#top .sub .sub-links a:hover {
-  color: #fff;
-  text-decoration: underline;
-  text-underline-offset: 3px;
 }
 #res {
   display: flex;
