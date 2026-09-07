@@ -18,7 +18,7 @@ import { ENEMIES, ATTACK_RANGE } from './sim/enemies';
 import { makeWave } from './sim/waves';
 import { MAPS, resolveCircle, type MapId } from './sim/maps';
 import { spawnPickups, updatePickups, type Medkit } from './sim/pickups';
-import { heldTurnRate, nearestFlags } from './sim/touch';
+import { heldTurnRate, updateBeamBudget } from './sim/touch';
 import { gameStore, DIFF_MULT, type Difficulty } from './game/store';
 
 createRoot(document.getElementById('root')!).render(
@@ -763,13 +763,10 @@ function step(now: number) {
     e.mesh.rotation.y = Math.atan2(p.x - e.x, p.z - e.z);
   }
   // Бюджет фонарей: горят ≤3 ближайших стрелка, линзы emissive светят всегда — ночью разницы ноль.
-  {
-    const shooters = sim.enemies.filter((e) => e.beam && !e.anim.dying);
-    if (shooters.length > 0) {
-      const flags = nearestFlags(shooters.map((e) => Math.hypot(e.x - p.x, e.z - p.z)), 3);
-      shooters.forEach((e, i) => { if (e.beam) e.beam.visible = flags[i]; });
-    }
-  }
+  updateBeamBudget(
+    sim.enemies.map((e) => ({ beam: e.beam, x: e.x, z: e.z, dying: e.anim.dying })),
+    p.x, p.z,
+  );
   tracers.update(dt);
   grassRig.tick(dt); // Task 2: ветер по траве.
   skyRig.tick(dt); // Task 1: дрейф облаков на куполе.

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { deadzone, heldTurnRate, nearestFlags, TURN_MAX } from '../src/sim/touch';
+import { deadzone, heldTurnRate, nearestFlags, updateBeamBudget, TURN_MAX } from '../src/sim/touch';
 
 describe('тач-хелперы', () => {
   test('мёртвая зона: внутри 0, край перенормирован', () => {
@@ -21,5 +21,11 @@ describe('тач-хелперы', () => {
     expect(nearestFlags([5, 1, 3], 0)).toEqual([false, false, false]);
     expect(nearestFlags([5, 1, 3], 9)).toEqual([true, true, true]);
     expect(nearestFlags([], 3)).toEqual([]);
+  });
+  test('updateBeamBudget: горят 3 ближайших, мёртвые и без фонаря — мимо', () => {
+    const mk = (x: number, dying = false, beam = true) => ({ beam: beam ? { visible: true } : null, x, z: 0, dying });
+    const es = [mk(10), mk(1), mk(5), mk(2), mk(30, true), mk(0.5, false, false)];
+    updateBeamBudget(es, 0, 0);
+    expect(es.map((e) => (e.beam ? e.beam.visible : 'none'))).toEqual([false, true, true, true, true, 'none']);
   });
 });

@@ -26,3 +26,19 @@ export function nearestFlags(dists: number[], n: number): boolean[] {
   const on = new Set(order.slice(0, Math.max(0, n)));
   return dists.map((_, i) => on.has(i));
 }
+
+/** Минимальная форма врага для бюджета фонарей (структурно совпадает с Enemy из main). */
+export interface BeamEnemy {
+  beam: { visible: boolean } | null;
+  x: number;
+  z: number;
+  dying: boolean;
+}
+
+/** Гасим фонари всех стрелков кроме n ближайших (линзы emissive горят всегда). */
+export function updateBeamBudget(es: BeamEnemy[], px: number, pz: number, n = 3): void {
+  const shooters = es.filter((e) => e.beam && !e.dying);
+  if (shooters.length === 0) return;
+  const flags = nearestFlags(shooters.map((e) => Math.hypot(e.x - px, e.z - pz)), n);
+  shooters.forEach((e, i) => { if (e.beam) e.beam.visible = flags[i]; });
+}

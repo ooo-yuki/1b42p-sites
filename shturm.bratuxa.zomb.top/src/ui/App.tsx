@@ -87,8 +87,12 @@ function Stick({ side, onMove }: { side: 'left' | 'right'; onMove: (x: number, y
         touchAction: 'none', zIndex: 10,
       }}
       onTouchStart={(e) => {
-        const t = e.changedTouches[0];
         if (id.current !== null) return;
+        // Мультитач: берём палец внутри своей зоны, а не changedTouches[0] (там может быть чужой).
+        const r = base.current?.getBoundingClientRect();
+        const ts = Array.from(e.changedTouches);
+        const t = (r && ts.find((c) => c.clientX >= r.left && c.clientX <= r.right && c.clientY >= r.top && c.clientY <= r.bottom)) ?? ts[0];
+        if (!t) return;
         id.current = t.identifier;
         handle(t, false);
       }}
