@@ -28,6 +28,24 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await expect(page.locator('#hitBtn')).toBeAttached();
   });
 
+  test('загрузка: щит держит первый удар', async ({ page }) => {
+    await page.click('#guestBtn');
+    await page.click('#goBtn');
+    // оверлей — транзиент (на быстрых текстурах мелькает мимо кадра): его рисуем и смотрим глазами,
+    // автомат ловит durable-контракт: щит держит урон, первый выстрел его снимает
+    await expect(page.locator('#hudRow2')).toBeVisible({ timeout: 60000 });
+    await expect(page.locator('#loading')).toBeHidden({ timeout: 30000 });
+    type M = { hp: () => number; hurt: (n: number) => void; attack: () => number };
+    const hp = () => page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.hp());
+    const hp0 = await hp();
+    await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.hurt(30));
+    expect(await hp()).toBe(hp0);
+    await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.attack());
+    await page.waitForTimeout(300);
+    await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.hurt(30));
+    expect(await hp()).toBeLessThan(hp0);
+  });
+
   test('W идёт: позиция меняется (баг Саши)', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');

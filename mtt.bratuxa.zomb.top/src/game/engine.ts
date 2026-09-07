@@ -379,6 +379,8 @@ export class Game {
   // бросок от дробовика: короткий видимый полёт против выстрела (не импульс —
   // живёт только сам бросок, кнопки в полёте не несут)
   private blastT = 0;
+  /** Щит спавна: пока >0 урон не проходит; гасится движением/выстрелом. */
+  private shieldT = 0;
   private blastDx = 0;
   private blastDz = 0;
   private keyMap: KeyMap = { ...DEFAULT_KEYS };
@@ -802,6 +804,26 @@ export class Game {
     this.pushHud();
     this.drawMM();
     return true;
+  }
+
+  /** Щит спавна вкл/выкл (загрузка ставит вкл, движение/выстрел гасит). */
+  setShield(on: boolean): void { this.shieldT = on ? 1e9 : 0; }
+  shield(): boolean { return this.shieldT > 0; }
+
+  /** Предзагрузка текстур перед боем: греет кэш, отдаёт прогресс 0–100. */
+  async preload(onPct: (p: number) => void): Promise<void> {
+    const urls = [vrag1Url, vrag2Url, bossUrl, charMttUrl, charKrysaUrl, dom1Url, travaUrl, facadeUrl, panelUrl, shopUrl, roofUrl, roadUrl, walkUrl, plazaUrl, fenceUrl, skyUrl, edgeUrl, house2Url, brickUrl, brFloorUrl, brWallUrl, brCeilUrl];
+    if (urls.length === 0) { onPct(100); return; }
+    await new Promise<void>((resolve) => {
+      let done = 0;
+      const total = urls.length;
+      const man = new THREE.LoadingManager();
+      const step = () => { done++; onPct(Math.min(100, Math.round((done / total) * 100))); if (done >= total) resolve(); };
+      man.onLoad = () => { onPct(100); resolve(); };
+      const loader = new THREE.TextureLoader(man);
+      for (const u of urls) loader.load(u, step, undefined, step);
+    });
+    onPct(100);
   }
 
   addLook(dx: number, dy: number): void {
@@ -2486,6 +2508,7 @@ export class Game {
   attack(): number {
     if (!this.started || this.dead) return 0;
     if (this.atkCd > 0) return 0;
+    this.shieldT = 0;
     this.atk++;
     const W = Game.weapon(this.weaponId);
     this.atkCd = W.cd;
@@ -3155,6 +3178,7 @@ export class Game {
   debugGive(n: number): number { this.fantiki += n; this.saveShop(); this.pushHud(); return this.fantiki; }
   debugHurt(n: number): number {
     if (!this.started || this.dead) return Math.round(this.hp);
+    if (this.shieldT > 0) return Math.round(this.hp);
     this.hp -= n;
     if (this.hp <= 0) {
       this.hp = 0;
@@ -3327,7 +3351,7 @@ export class Game {
       const sp = (run ? 8.2 : 5.6) * this.charSpd;
       const len = Math.hypot(f, r);
       this.moving = len > 0.15;
-      if (this.moving) this.bobPhase += dt * 11;
+      if (this.moving) { this.shieldT = 0; this.bobPhase += dt * 11; }
       if (len > 0.01) {
         const nf = f / Math.max(1, len), nr = r / Math.max(1, len);
         const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
@@ -3415,7 +3439,7 @@ export class Game {
           const eyH = e.kind === 'fly' ? 3.2 : e.ey;
           if (!this.hitSolid(nx, e.g.position.z, 0.8, eyH)) e.g.position.x = clampArena(nx);
           if (!this.hitSolid(e.g.position.x, nz, 0.8, eyH)) e.g.position.z = clampArena(nz);
-        } else if (e.hitCd <= 0) {
+        } else if (e.hitCd <= 0 && this.shieldT <= 0) {
           e.hitCd = e.kind === 'boss' ? 1.2 : 0.95;
           // босс бьёт втрое злее
           this.hp -= e.kind === 'boss' ? 18 + Math.random() * 10 : 6 + Math.random() * 5;

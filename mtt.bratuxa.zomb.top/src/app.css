@@ -279,3 +279,10 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 #menu .board#charSec,#menu .board#mapSec,#menu .board#editorSec{max-width:none}
 .sheet{max-width:480px}
 }
+/* загрузка боя: оверлей поверх меню, пока греются текстуры */
+#loading{position:fixed;inset:0;z-index:12;display:flex;flex-direction:column;align-items:center;
+ justify-content:center;gap:14px;background:#0d1017;font-family:'Courier New',monospace;color:#ece7d8}
+#loadTitle{font-size:24px;font-weight:900;color:#ff9f1c;text-shadow:4px 4px 0 #000;letter-spacing:1px}
+#loadbar{width:min(70vw,380px);height:22px;background:#000;border:3px solid #ff9f1c;box-shadow:4px 4px 0 #000}
+#loadfill{height:100%;width:0;background:#ff9f1c}
+#loadHint{font-size:13px;color:#c6cdf2}
