@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { getTex } from './textures';
 
 export interface Shuba {
   model: THREE.Group;
@@ -14,7 +15,13 @@ export async function loadShuba(scene: THREE.Scene): Promise<Shuba> {
       loader.loadAsync(`/models/Meshy_AI_shuba_biped_Animation_${n}_withSkin.glb`))
   );
   const model = walk.scene; scene.add(model);
-  model.traverse(o => { if ((o as THREE.Mesh).isMesh) { o.castShadow = true; } });
+  // В GLB нет материалов (только геометрия+скелет+UV) — без этого шуба белая.
+  // Даём процедурный мех из наших текстур.
+  const furMat = new THREE.MeshStandardMaterial({ map: getTex('fur'), roughness: 0.9 });
+  model.traverse(o => {
+    const mesh = o as THREE.Mesh;
+    if (mesh.isMesh) { mesh.material = furMat; mesh.castShadow = true; }
+  });
   const mixer = new THREE.AnimationMixer(model);
   const walkA = mixer.clipAction(walk.animations[0]);
   const runA = mixer.clipAction(run.animations[0]);

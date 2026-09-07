@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { MAPS, type MapId } from '../sim/maps';
 
-export const GRASS_HIGH = 22000;
-export const GRASS_LOW = 7000;
-export const GRASS_HIGH_NEON = 12000;
-export const GRASS_LOW_NEON = 4000;
+export const GRASS_HIGH = 16000;
+export const GRASS_LOW = 5000;
+export const GRASS_HIGH_NEON = 9000;
+export const GRASS_LOW_NEON = 3000;
 
 const GRASS_TINT: Record<MapId, [number, number]> = {
   yard: [0x4a7a33, 0x6a9a3f], island: [0x7a8a3f, 0xa8a052], neon: [0x1d3a2a, 0x2a6a4a],
@@ -18,6 +18,23 @@ function mulberry32(seed: number): () => number {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+// Пятна растительности: гладкий value-noise 0..1 на сетке 3 м (детерминирован сидом).
+// Порог ~0.45 даёт куртины травы с проплешинами, а не сплошной ковёр.
+function hash2(ix: number, iz: number, seed: number): number {
+  const s = Math.sin(ix * 127.1 + iz * 311.7 + seed * 0.00013) * 43758.5453;
+  return s - Math.floor(s);
+}
+function patchNoise(x: number, z: number, seed: number): number {
+  const cell = 3;
+  const gx = x / cell; const gz = z / cell;
+  const ix = Math.floor(gx); const iz = Math.floor(gz);
+  let fx = gx - ix; let fz = gz - iz;
+  fx = fx * fx * (3 - 2 * fx); fz = fz * fz * (3 - 2 * fz);
+  const a = hash2(ix, iz, seed); const b = hash2(ix + 1, iz, seed);
+  const c = hash2(ix, iz + 1, seed); const d = hash2(ix + 1, iz + 1, seed);
+  return a + (b - a) * fx + (c - a) * fz + (a - b - c + d) * fx * fz;
 }
 
 function bladeTexture(): THREE.CanvasTexture {
@@ -51,9 +68,9 @@ export function buildGrass(map: MapId, seed: number): GrassRig {
   const def = MAPS[map];
   const high = map === 'neon' ? GRASS_HIGH_NEON : GRASS_HIGH;
   const low = map === 'neon' ? GRASS_LOW_NEON : GRASS_LOW;
-  // Куст: 2 скрещенных квада.
-  const quad = new THREE.PlaneGeometry(0.9, 0.55);
-  quad.translate(0, 0.275, 0);
+  // Куст: 2 скрещенных квада, по щиколотку (~0.3 м), не джунгли.
+  const quad = new THREE.PlaneGeometry(0.7, 0.3);
+  quad.translate(0, 0.15, 0);
   const quad2 = quad.clone();
   quad2.rotateY(Math.PI / 2);
   const geo = mergeTwo(quad, quad2);
@@ -66,7 +83,7 @@ export function buildGrass(map: MapId, seed: number): GrassRig {
   mat.onBeforeCompile = (sh: THREE.WebGLProgramParametersWithUniforms) => {
     sh.uniforms.uTime = uTime;
     sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
-      float swayH = pow(clamp(position.y / 0.55, 0.0, 1.0), 2.0);
+      float swayH = pow(clamp(position.y / 0.30, 0.0, 1.0), 2.0);
       vec4 iwpos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
       transformed.x += swayH * (0.12 * sin(uTime * 1.6 + iwpos.x * 0.5 + iwpos.z * 0.3) + 0.05 * sin(uTime * 3.7 + iwpos.z * 0.8));`);
   };
@@ -86,10 +103,11 @@ export function buildGrass(map: MapId, seed: number): GrassRig {
     if (def.obstacles.some((o) => Math.hypot(x - o.x, z - o.z) < o.r + 2)) continue;
     if (def.spawns.some((s) => Math.hypot(x - s.x, z - s.z) < 3)) continue;
     if (map === 'yard' && Math.hypot(x - 10, z + 2) < 5) continue; // пруд Task 4
+    if (patchNoise(x, z, seed) < 0.45) continue; // проплешины: куртины, не ковёр
     dummy.position.set(x, 0, z);
     dummy.rotation.y = rng() * Math.PI;
-    const s = 0.7 + rng() * 0.7;
-    dummy.scale.set(s, s * (0.8 + rng() * 0.5), s);
+    const s = 0.6 + rng() * 0.6;
+    dummy.scale.set(s, s * (0.5 + rng() * 0.4), s);
     dummy.updateMatrix();
     mesh.setMatrixAt(placed, dummy.matrix);
     order.push(placed);
