@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Log, parseStake, type Api } from './shared';
 import Bunker from './mines/Bunker';
 import Field from './mines/Field';
@@ -28,6 +28,9 @@ export default function Mines({ api }: { api: Api }): JSX.Element {
   const [stake, setStake] = useState(0);
   const [hist, setHist] = useState<MEntry[]>(() => loadMHist());
   const [seq, setSeq] = useState(() => Date.now());
+  const betLocked = useRef(false);
+  const releaseBet = (): void => { if (betLocked.current) { betLocked.current = false; api.unlockBet(); } };
+  useEffect(() => () => { releaseBet(); });
 
   useMemo(() => {
     const bad = validateMines();
@@ -50,6 +53,7 @@ export default function Mines({ api }: { api: Api }): JSX.Element {
     if (mfield && !mdead) return;
     const s = parseStake(mbet, MIN_STAKE, api);
     if (s === null) return;
+    api.lockBet(); betLocked.current = true;
     bunkerDoor();
     setStake(s);
     setMfield(placeMines(mmines));
@@ -69,6 +73,7 @@ export default function Mines({ api }: { api: Api }): JSX.Element {
       setBlast(i);
       if (!api.reduced) boomBlast();
       api.say('Мина! Ставка сгорела.', 'lose');
+      releaseBet();
       pushHist({ mines: mmines, stake, opened, ret: 0, profit: -stake, mult: mmult });
       return;
     }
@@ -87,6 +92,7 @@ export default function Mines({ api }: { api: Api }): JSX.Element {
     const win = cashout(stake, mmult);
     api.credit(win);
     setMfield(null);
+    releaseBet();
     cashPing();
     api.say(`Мины: ×${mmult.toFixed(2)}, +${win}!`, 'win');
     pushHist({ mines: mmines, stake, opened, ret: win, profit: win - stake, mult: mmult });

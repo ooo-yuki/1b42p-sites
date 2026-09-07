@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Log, parseStake, type Api } from './shared';
 import Table from './bj/Table';
 import BjHistory, { loadBjHist, saveBjHist, type BJEntry } from './bj/History';
@@ -28,6 +28,9 @@ export default function Bj({ api }: { api: Api }): JSX.Element {
   const [roundId, setRoundId] = useState(0);
   const [hist, setHist] = useState<BJEntry[]>(() => loadBjHist());
   const [seq, setSeq] = useState(() => Date.now());
+  const betLocked = useRef(false);
+  const releaseBet = (): void => { if (betLocked.current) { betLocked.current = false; api.unlockBet(); } };
+  useEffect(() => () => { releaseBet(); });
 
   useMemo(() => {
     const bad = validateBj();
@@ -52,6 +55,7 @@ export default function Bj({ api }: { api: Api }): JSX.Element {
     if (phase === 'player') return;
     const s = parseStake(bjbet, MIN_STAKE, api);
     if (s === null) return;
+    api.lockBet(); betLocked.current = true;
     chipPlace();
     if (!api.reduced) shuffleRiffle();
     setStake(s);
@@ -64,6 +68,7 @@ export default function Bj({ api }: { api: Api }): JSX.Element {
       const win = Math.floor(s * NATURAL_MULT);
       api.credit(win);
       setPhase('done');
+      releaseBet();
       show('Блэкджек с раздачи!', 'win');
       if (!api.reduced) playerWin(true);
       api.say(`БЛЭКДЖЕК! +${win}`, 'win');
@@ -79,6 +84,7 @@ export default function Bj({ api }: { api: Api }): JSX.Element {
     const d = dealerPlay(bjd);
     setBjd(d);
     setPhase('done');
+    releaseBet();
     const pv = handValue(bjp), dv = handValue(d);
     if (dv > 21 || pv > dv) {
       api.credit(stake * 2);
@@ -108,6 +114,7 @@ export default function Bj({ api }: { api: Api }): JSX.Element {
     const v = handValue(p);
     if (v > 21) {
       setPhase('done');
+      releaseBet();
       show('Перебор.', 'lose');
       if (!api.reduced) dealerWin();
       api.say(`Перебор: ${v}. Минус ${stake}`, 'lose');

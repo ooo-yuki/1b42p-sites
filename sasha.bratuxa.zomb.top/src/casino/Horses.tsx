@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Log, parseStake, type Api } from './shared';
 import Paddock from './horses/Paddock';
 import Track from './horses/Track';
@@ -30,6 +30,9 @@ export default function Horses({ api }: { api: Api }): JSX.Element {
   const [lines, setLines] = useState<string[]>([]);
   const [hist, setHist] = useState<HorseEntry[]>(() => loadHorseHist());
   const [seq, setSeq] = useState(() => Date.now());
+  const locked = useRef(false);
+  const release = (): void => { if (locked.current) { locked.current = false; api.unlockBet(); } };
+  useEffect(() => () => { release(); });
 
   useMemo(() => {
     const bad = validateHorses(HORSES);
@@ -46,6 +49,7 @@ export default function Horses({ api }: { api: Api }): JSX.Element {
     if (racing) return;
     const stake = parseStake(hbet, MIN_STAKE, api);
     if (stake === null) return;
+    api.lockBet(); locked.current = true;
     startBell();
     setRacing(true);
     setPos(HORSES.map(() => 0));
@@ -95,6 +99,7 @@ export default function Horses({ api }: { api: Api }): JSX.Element {
         setSeq(s => s + 1);
         setWinner(w);
         setRacing(false);
+        release();
       }
     }, api.reduced ? TICK_MS_REDUCED : TICK_MS);
   };

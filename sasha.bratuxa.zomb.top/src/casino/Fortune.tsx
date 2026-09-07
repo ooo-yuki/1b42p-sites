@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +28,9 @@ export default function Fortune({ api }: { api: Api }): JSX.Element {
   const [hist, setHist] = useState<WEntry[]>(() => loadWHist());
   const [seq, setSeq] = useState(() => Date.now());
   const timers = useRef<number[]>([]);
+  const locked = useRef(false);
+  const release = (): void => { if (locked.current) { locked.current = false; api.unlockBet(); } };
+  useEffect(() => () => { timers.current.forEach(t => window.clearTimeout(t)); release(); });
 
   useMemo(() => {
     const bad = validateWheel();
@@ -42,6 +45,7 @@ export default function Fortune({ api }: { api: Api }): JSX.Element {
     if (spinning) return;
     const stake = parseStake(raw, MIN_STAKE, api);
     if (stake === null) return;
+    api.lockBet(); locked.current = true;
     const s = spinSector();
     const target = angleFor(s) + Math.floor(angle / 360) * 360;
     setHit(null);
@@ -61,6 +65,7 @@ export default function Fortune({ api }: { api: Api }): JSX.Element {
   const finish = (stake: number, s: number): void => {
     timers.current.forEach(t => window.clearTimeout(t));
     timers.current = [];
+    release();
     const mult = settleSector(s);
     const ret = Math.floor(stake * mult);
     setHit(s);

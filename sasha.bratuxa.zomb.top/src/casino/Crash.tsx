@@ -166,6 +166,8 @@ export default function Crash({ api }: { api: Api }): JSX.Element {
   const [party, setParty] = useState(0);
   const [miles, setMiles] = useState<number[]>([]);
   const st = useRef({ live: false, m: 1, stake: 0, raf: 0, puffTimer: 0 });
+  const betLocked = useRef(false);
+  const releaseBet = (): void => { if (betLocked.current) { betLocked.current = false; api.unlockBet(); } };
   const cvRef = useRef<HTMLCanvasElement | null>(null);
   const stars = useMemo(() => makeStars(70, 42), []);
   const birds = useMemo(() => makeBirds(), []);
@@ -268,6 +270,7 @@ export default function Crash({ api }: { api: Api }): JSX.Element {
       if (s.m >= point) {
         s.live = false;
         window.clearInterval(s.puffTimer);
+        releaseBet();
         setMult(point); setPhase('dead');
         setHist(h => [point, ...h].slice(0, 12));
         bumpStat(prev => ({
@@ -293,6 +296,7 @@ export default function Crash({ api }: { api: Api }): JSX.Element {
     if (st.current.live || phase === 'ignite') return;
     const stake = parseStake(bet, 10, api);
     if (stake === null) return;
+    api.lockBet(); betLocked.current = true;
     const r = Math.random();
     /* Краш-поинт — классика Bustabit v2 с edge 3%: 3% мгновенный крэш 1.00,
        иначе 0.97/(1-r). Возврат 0.97 на любом выводе, медиана 1.94. */
@@ -309,6 +313,7 @@ export default function Crash({ api }: { api: Api }): JSX.Element {
     s.live = false;
     cancelAnimationFrame(s.raf);
     window.clearInterval(s.puffTimer);
+    releaseBet();
     const win = Math.floor(s.stake * s.m);
     const m = s.m;
     api.credit(win);
@@ -350,6 +355,7 @@ export default function Crash({ api }: { api: Api }): JSX.Element {
     cancelAnimationFrame(st.current.raf);
     window.clearInterval(st.current.puffTimer);
     window.clearTimeout(toastTimer.current);
+    releaseBet();
   }, []);
   useEffect(() => { draw(1, false); }, []);
 

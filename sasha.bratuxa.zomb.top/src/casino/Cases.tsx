@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Log, type Api } from './shared';
 import Vaults from './cases/Vaults';
 import Strip from './cases/Strip';
@@ -24,6 +24,9 @@ export default function Cases({ api }: { api: Api }): JSX.Element {
   const [winPrice, setWinPrice] = useState(0);
   const [hist, setHist] = useState<HistEntry[]>(() => loadHist());
   const [seq, setSeq] = useState(() => Date.now());
+  const betLocked = useRef(false);
+  const releaseBet = (): void => { if (betLocked.current) { betLocked.current = false; api.unlockBet(); } };
+  useEffect(() => () => { releaseBet(); });
 
   const sel: CaseDef = useMemo(
     () => CASES.find(c => c.id === selId) ?? CASES[0],
@@ -49,6 +52,7 @@ export default function Cases({ api }: { api: Api }): JSX.Element {
     if (busy) return;
     if (api.balance < c.price) { api.say(`На «${c.name}» не хватает: надо ${c.price}`); return; }
     if (!api.spend(c.price)) return;
+    api.lockBet(); betLocked.current = true;
     lockClick();
     setBusy(true);
     setWin(null);
@@ -60,7 +64,7 @@ export default function Cases({ api }: { api: Api }): JSX.Element {
   };
 
   const finish = (): void => {
-    if (!cells) { setBusy(false); return; }
+    if (!cells) { setBusy(false); releaseBet(); return; }
     const w = cells[HIT_INDEX] ?? cells[cells.length - 1];
     api.credit(w.amount);
     setWin(w);
@@ -75,6 +79,7 @@ export default function Cases({ api }: { api: Api }): JSX.Element {
     );
     pushHist({ caseName: sel.name, label: w.label, icon: w.icon, amount: w.amount, profit });
     setBusy(false);
+    releaseBet();
   };
 
   return (

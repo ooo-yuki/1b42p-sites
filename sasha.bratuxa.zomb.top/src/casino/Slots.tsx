@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Log, type Api } from './shared';
 import Cabinet from './slots/Cabinet';
 import Paytable from './slots/Paytable';
@@ -25,6 +25,9 @@ export default function Slots({ api }: { api: Api }): JSX.Element {
   const [lastKind, setLastKind] = useState<WinKind | null>(null);
   const [hist, setHist] = useState<SEntry[]>(() => loadSHist());
   const [seq, setSeq] = useState(() => Date.now());
+  const lockedRef = useRef(false);
+  const releaseBet = (): void => { if (lockedRef.current) { lockedRef.current = false; api.unlockBet(); } };
+  useEffect(() => () => { releaseBet(); });
 
   useMemo(() => {
     const bad = validateSlots();
@@ -35,6 +38,7 @@ export default function Slots({ api }: { api: Api }): JSX.Element {
     if (spinning) return;
     if (api.balance < COST) { api.say('Спин стоит 50. Возьми бонус'); return; }
     if (!api.spend(COST)) return;
+    api.lockBet(); lockedRef.current = true;
     leverClunk();
     setSpinning(true);
     setPulled(true);
@@ -56,6 +60,7 @@ export default function Slots({ api }: { api: Api }): JSX.Element {
       setReels([0, 1, 2].map(i => (ticks > LOCK_AT[i] ? final[i] : SLOT_ICONS[Math.floor(Math.random() * SLOT_ICONS.length)])));
       if (ticks > END_TICK) {
         window.clearInterval(timer);
+        releaseBet();
         setReels(final);
         setSpinning(false);
         setLocked(3);

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +28,9 @@ export default function Ladder({ api }: { api: Api }): JSX.Element {
   const [fallen, setFallen] = useState(false);
   const [hist, setHist] = useState<LEntry[]>(() => loadLHist());
   const [seq, setSeq] = useState(() => Date.now());
+  const betLocked = useRef(false);
+  const releaseBet = (): void => { if (betLocked.current) { betLocked.current = false; api.unlockBet(); } };
+  useEffect(() => () => { releaseBet(); });
 
   useMemo(() => {
     const bad = validateLadder();
@@ -49,6 +52,7 @@ export default function Ladder({ api }: { api: Api }): JSX.Element {
     if (phase === 'climb') return;
     const st = parseStake(raw, MIN_STAKE, api);
     if (st === null) return;
+    api.lockBet(); betLocked.current = true;
     setStake(st);
     setHeight(-1);
     setFallen(false);
@@ -67,6 +71,7 @@ export default function Ladder({ api }: { api: Api }): JSX.Element {
         const ret = Math.floor(stake * mult);
         api.credit(ret);
         setPhase('done');
+        releaseBet();
         if (!api.reduced) cashChime(h);
         api.say(`ВЕРШИНА! ×${mult} = +${ret}. Сигнал принят`, 'win');
         pushHist(h, mult, ret, stake);
@@ -76,6 +81,7 @@ export default function Ladder({ api }: { api: Api }): JSX.Element {
     } else {
       setFallen(true);
       setPhase('done');
+      releaseBet();
       if (!api.reduced) fallDown();
       api.say(height < 0
         ? 'Сорвался на первой. Ставка сгорела'
@@ -90,6 +96,7 @@ export default function Ladder({ api }: { api: Api }): JSX.Element {
     const ret = Math.floor(stake * mult);
     api.credit(ret);
     setPhase('done');
+    releaseBet();
     if (!api.reduced) cashChime(height);
     api.say(`Забрал со ступени ${height + 1}: ×${mult} = +${ret}`, 'win');
     pushHist(height, mult, ret, stake);

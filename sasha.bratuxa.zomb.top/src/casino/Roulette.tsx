@@ -29,10 +29,12 @@ export default function Roulette({ api }: { api: Api }): JSX.Element {
   const [hist, setHist] = useState<REntry[]>(() => loadRHist());
   const [seq, setSeq] = useState(() => Date.now());
   const timers = useRef<number[]>([]);
+  const locked = useRef(false);
+  const release = (): void => { if (locked.current) { locked.current = false; api.unlockBet(); } };
 
   useEffect(() => {
     const stash = timers.current;
-    return () => { stash.forEach(t => window.clearTimeout(t)); };
+    return () => { stash.forEach(t => window.clearTimeout(t)); release(); };
   }, []);
 
   useMemo(() => {
@@ -51,6 +53,7 @@ export default function Roulette({ api }: { api: Api }): JSX.Element {
   const finish = (n: number, stake: number): void => {
     setRnum(n);
     setSpinning(false);
+    release();
     const win = settle(rchoice, n, stake);
     const hit = win > 0;
     setWon(hit);
@@ -77,6 +80,7 @@ export default function Roulette({ api }: { api: Api }): JSX.Element {
     if (spinning) return;
     const stake = parseStake(rbet, MIN_STAKE, api);
     if (stake === null) return;
+    api.lockBet(); locked.current = true;
     const n = spinPocket();
     if (!api.reduced) chipClick();
     setSpinning(true);

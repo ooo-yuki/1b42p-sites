@@ -92,6 +92,10 @@ export default function Casino(): JSX.Element {
   const [user, setUser] = useState<BankUser | null>(null);
   const [token, setToken] = useState<string | null>(() => loadToken());
   const [guest, setGuest] = useState(false);
+  /* Замок сброса: пока ставка в игре, баланс трогать нельзя — иначе сброс
+     посреди раунда дарил бы 1000 поверх будущего выигрыша. */
+  const [betBusy, setBetBusy] = useState(false);
+  const betBusyRef = useRef(0);
   const balRef = useRef(balance);
   balRef.current = balance;
   const tokenRef = useRef(token);
@@ -122,6 +126,19 @@ export default function Casino(): JSX.Element {
     window.addEventListener('hashchange', onH);
     return () => window.removeEventListener('hashchange', onH);
   }, []);
+
+  /* Смена зала обрывает раунд: замок не должен висеть вечно. */
+  useEffect(() => {
+    betBusyRef.current = 0;
+    setBetBusy(false);
+    setConfirmReset(false);
+  }, [view]);
+
+  const lockBet = (): void => { betBusyRef.current++; setBetBusy(true); };
+  const unlockBet = (): void => {
+    betBusyRef.current = Math.max(0, betBusyRef.current - 1);
+    if (betBusyRef.current === 0) setBetBusy(false);
+  };
 
   const say = (t: string, tn: Tone = ''): void => { setMsg(t); setTone(tn); };
 
@@ -160,6 +177,10 @@ export default function Casino(): JSX.Element {
   };
 
   const resetBalance = (): void => {
+    if (betBusyRef.current > 0) {
+      say('Ставка в игре — дождись финиша, потом сброс');
+      return;
+    }
     if (!confirmReset) {
       setConfirmReset(true);
       say('Точно сбросить? Баланс станет 1000. Жми ещё раз');
@@ -194,7 +215,7 @@ export default function Casino(): JSX.Element {
     say('Вышел из кассы. Фишки фантики, азарт настоящий');
   };
 
-  const api = { balance, msg, tone, reduced, spend, credit, say };
+  const api = { balance, msg, tone, reduced, spend, credit, say, lockBet, unlockBet };
   const cur = VIEWS.find(v => v.id === view);
   const Game = view === 'lobby' ? null : GAMES[view];
 
@@ -221,9 +242,9 @@ export default function Casino(): JSX.Element {
           {user && <Badge variant="secondary">{user.nick}</Badge>}
           <span className="sp" />
           {user && <Button variant="outline" size="sm" onClick={exit} title="Выйти из кассы">Выйти</Button>}
-          <Button variant="outline" size="sm" onClick={resetBalance}
-            title="Сбросить баланс к стартовой тысяче">
-            <RotateCcw data-icon="inline-start" /> {confirmReset ? 'Точно сбросить?' : 'Сброс'}</Button>
+          <Button variant="outline" size="sm" onClick={resetBalance} disabled={betBusy}
+            title={betBusy ? 'Ставка в игре — сброс после финиша' : 'Сбросить баланс к стартовой тысяче'}>
+            <RotateCcw data-icon="inline-start" /> {betBusy ? 'Ставка в игре…' : confirmReset ? 'Точно сбросить?' : 'Сброс'}</Button>
         </div>
         {view === 'lobby' || !Game ? (
           <main className="lobby">

@@ -12,6 +12,9 @@ export type Api = {
   spend: (stake: number) => boolean;
   credit: (n: number) => void;
   say: (t: string, tn?: Tone) => void;
+  /** Блокировка сброса на время активной ставки: hold в начале раунда, free в финише. */
+  lockBet: () => void;
+  unlockBet: () => void;
 };
 
 /** Проверяет и списывает ставку. null — ставка не принята (причина уже в логе). */

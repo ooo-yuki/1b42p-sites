@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -31,6 +31,9 @@ export default function Plinko({ api }: { api: Api }): JSX.Element {
   const [hist, setHist] = useState<PEntry[]>(() => loadPHist());
   const [seq, setSeq] = useState(() => Date.now());
   const timer = useRef(0);
+  const locked = useRef(false);
+  const release = (): void => { if (locked.current) { locked.current = false; api.unlockBet(); } };
+  useEffect(() => () => { if (timer.current) window.clearInterval(timer.current); release(); });
 
   useMemo(() => {
     const bad = validatePlinko();
@@ -41,6 +44,7 @@ export default function Plinko({ api }: { api: Api }): JSX.Element {
     if (flying) return;
     const stake = parseStake(raw, MIN_STAKE, api);
     if (stake === null) return;
+    api.lockBet(); locked.current = true;
     if (timer.current) window.clearInterval(timer.current);
     const p = dropPath();
     setPath(p);
@@ -69,6 +73,7 @@ export default function Plinko({ api }: { api: Api }): JSX.Element {
 
   const finish = (stake: number, p: Step[]): void => {
     setStep(ROWS - 1);
+    release();
     const { bin, mult } = settle(p, risk);
     const ret = Math.floor(stake * mult);
     setHitBin(bin);
