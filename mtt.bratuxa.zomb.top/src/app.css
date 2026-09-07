@@ -101,6 +101,25 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 #caseResult.drop.char{color:#ffd23f;text-shadow:0 0 10px rgba(255,210,63,.7)}
 #caseResult.drop.fantiki,#caseResult.drop.xp,#caseResult.drop.med{color:#39d353}
 #caseResult.drop.empty{color:#ff5555}
+#caseResult.drop.spin{color:#ffd23f;animation:caseblink 1s steps(2) infinite}
+@keyframes caseblink{50%{opacity:.55}}
+#caseRoulette{position:relative;margin:10px auto 4px;max-width:460px}
+#casePointer{text-align:center;color:#ffd23f;font-size:20px;font-weight:900;text-shadow:2px 2px 0 #000;animation:caseblink 1s steps(2) infinite}
+#caseWin{overflow:hidden;border:2px solid #a855f7;border-radius:12px;background:#0b1226;box-shadow:4px 4px 0 #000,0 0 18px rgba(168,85,247,.35);padding:8px 0;position:relative}
+#caseWin::after{content:'';position:absolute;top:0;bottom:0;left:50%;width:2px;background:#ffd23f;box-shadow:0 0 10px #ffd23f;transform:translateX(-50%);pointer-events:none}
+#caseTrack{display:flex;gap:8px;padding:0 140px;width:max-content;transition-property:transform;transition-timing-function:cubic-bezier(.12,.8,.08,1)}
+.rcard{flex:0 0 104px;width:104px;height:128px;background:#141d33;border:2px solid #334155;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-family:'Courier New',Courier,monospace;box-shadow:3px 3px 0 #000}
+.rcard img{width:72px;height:56px;object-fit:contain;background:#05070f;border-radius:8px}
+.rcard .remo{font-size:34px;line-height:1}
+.rcard .rlabel{font-size:12px;font-weight:900;color:#e8edff}
+.rcard .rsub{font-size:10px;color:#9aa3c0}
+.rcard.char{border-color:#ffd23f}
+.rcard.char .rlabel{color:#ffd23f}
+.rcard.fantiki{border-color:#39d353}
+.rcard.xp{border-color:#a855f7}
+.rcard.med{border-color:#66ccff}
+.rcard.win{border-color:#ffd23f;border-width:3px;transform:scale(1.12);box-shadow:0 0 22px rgba(255,210,63,.9),3px 3px 0 #000;animation:winpulse .6s ease-in-out infinite alternate}
+@keyframes winpulse{from{box-shadow:0 0 12px rgba(255,210,63,.7),3px 3px 0 #000}to{box-shadow:0 0 28px rgba(255,210,63,1),3px 3px 0 #000}}
 .charCard.sel{border-color:#39d353;box-shadow:0 0 16px rgba(57,211,83,.5),3px 3px 0 #000}
 #vig{position:fixed;inset:0;z-index:4;pointer-events:none;
  background:radial-gradient(ellipse at center,transparent 52%,rgba(2,2,12,.55) 100%)}
