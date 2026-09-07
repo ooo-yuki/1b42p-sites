@@ -36,6 +36,8 @@ export default function Fabrika(): JSX.Element {
   const [lastShow, setLastShow] = useState('');
   const saveRef = useRef(save);
   saveRef.current = save;
+  const winScope = useRef<HTMLDivElement | null>(null);
+  const winBox = useRef<HTMLDivElement | null>(null);
 
   useBeacon();
 
@@ -53,14 +55,15 @@ export default function Fabrika(): JSX.Element {
     return () => window.clearInterval(id);
   }, []);
 
-  /* Поп победы: пружинный скейл модалки. Вход мачты — CSS rise. */
+  /* Победа: оверлей гаснет, коробка пружинит. Скоп на ноде, revert в cleanup. */
   useEffect(() => {
     if (!winOpen || REDUCED) return;
-    gsap.from('#winBox', { scale: 0.9, opacity: 0, duration: 0.35, ease: 'back.out(1.6)' });
-    return () => {
-      gsap.killTweensOf('#winBox');
-      gsap.set('#winBox', { clearProps: 'opacity,visibility,transform' });
-    };
+    const ctx = gsap.context(() => {
+      const tl = gsap.timeline({ defaults: { duration: 0.3, ease: 'power2.out' } });
+      tl.fromTo(winScope.current, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.2 }, 0)
+        .from(winBox.current, { scale: 0.9, autoAlpha: 0, ease: 'back.out(1.6)' }, '<0.05');
+    }, winScope);
+    return () => ctx.revert();
   }, [winOpen]);
 
   const startShow = (v: Venue): void => {
@@ -209,6 +212,7 @@ export default function Fabrika(): JSX.Element {
           role="dialog"
           aria-modal="true"
           aria-label="Триумф на SLAY 2026"
+          ref={winScope}
           onClick={() => setWinOpen(false)}
           style={{
             position: 'fixed', inset: 0, zIndex: 50, display: 'flex',
@@ -219,6 +223,7 @@ export default function Fabrika(): JSX.Element {
           <div
             id="winBox"
             className="win-box"
+            ref={winBox}
             onClick={(e) => e.stopPropagation()}
             style={{ padding: 26, maxWidth: 440 }}
           >

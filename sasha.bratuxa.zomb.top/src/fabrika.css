@@ -29,8 +29,8 @@ body {
 body {
   display: block !important;
   background:
-    radial-gradient(120% 90% at 15% 0%, rgba(227, 30, 37, 0.1), transparent 55%),
-    radial-gradient(120% 90% at 85% 100%, rgba(0, 96, 170, 0.14), transparent 55%),
+    radial-gradient(120% 90% at 15% 0%, rgba(227, 30, 37, 0.18), transparent 55%),
+    radial-gradient(120% 90% at 85% 100%, rgba(0, 96, 170, 0.22), transparent 55%),
     var(--bg);
 }
 
@@ -56,7 +56,7 @@ body {
   background: var(--bg);
 }
 ::-webkit-scrollbar-thumb {
-  background: #1c2a52;
+  background: linear-gradient(180deg, var(--red), var(--blue));
   border-radius: 999px;
   border: 2px solid var(--bg);
 }
@@ -72,7 +72,8 @@ a {
   top: 0;
   z-index: 5;
   background: linear-gradient(180deg, #0d1428 60%, #080d1d);
-  border-bottom: 2px solid var(--blue);
+  border-bottom: 2px solid;
+  border-image: linear-gradient(90deg, var(--red) 10%, var(--blue) 90%) 1;
   padding: 14px 12px 12px;
   overflow: hidden;
 }
@@ -80,7 +81,9 @@ a {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(60% 120% at 50% -20%, rgba(0, 96, 170, 0.22), transparent 70%);
+  background:
+    radial-gradient(60% 120% at 20% -20%, rgba(227, 30, 37, 0.16), transparent 60%),
+    radial-gradient(60% 120% at 80% -20%, rgba(0, 96, 170, 0.24), transparent 60%);
   pointer-events: none;
 }
 #top h1 {
@@ -91,7 +94,9 @@ a {
   line-height: 1.02;
   font-size: clamp(26px, 7.5vw, 44px);
   color: var(--text);
-  text-shadow: 0 0 26px rgba(0, 96, 170, 0.55);
+  text-shadow:
+    0 0 26px rgba(0, 96, 170, 0.55),
+    0 0 46px rgba(227, 30, 37, 0.28);
   animation: rise 0.5s ease-out backwards;
   display: flex;
   flex-direction: column;
@@ -280,7 +285,9 @@ button.big {
   width: 100%;
   margin-top: 8px;
   min-height: 52px;
-  box-shadow: 0 4px 22px var(--blue-glow);
+  box-shadow:
+    0 4px 22px var(--blue-glow),
+    0 0 34px rgba(227, 30, 37, 0.22);
 }
 button.big:disabled {
   opacity: 0.45;
@@ -366,6 +373,7 @@ button.buy:active {
   touch-action: none;
   box-shadow:
     0 0 26px rgba(0, 96, 170, 0.35),
+    0 0 46px rgba(227, 30, 37, 0.16),
     inset 0 0 30px rgba(0, 0, 0, 0.6);
   cursor: pointer;
 }
@@ -395,11 +403,12 @@ button.buy:active {
   top: -4px;
   bottom: -4px;
   width: 12px;
-  background: linear-gradient(180deg, #fff, #6db9f2 60%, #0060aa);
+  background: linear-gradient(180deg, #fff, #ff8a8e 55%, #0060aa);
   border: 2px solid #fff;
   border-radius: 6px;
   box-shadow:
-    0 0 14px var(--blue),
+    0 0 14px rgba(227, 30, 37, 0.8),
+    0 0 14px rgba(0, 96, 170, 0.8),
     0 0 5px #fff;
   pointer-events: none;
   z-index: 4;
@@ -512,7 +521,9 @@ button.buy:active {
   border: 3px solid var(--blue);
   border-radius: 16px;
   color: var(--text);
-  box-shadow: 0 0 60px var(--blue-glow);
+  box-shadow:
+    0 0 60px var(--blue-glow),
+    0 0 90px rgba(227, 30, 37, 0.25);
   text-align: center;
 }
 .win-box [data-slot='dialog-title'] svg {
