@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Game, WEAPONS, CHARS, MAPS, KEY_ACTIONS, DEFAULT_KEYS, UPG_MAX, upgCost, superCd, superRange, type HudState, type KeyMap, type Quality, type MapId, type CustomMap, type UpgState } from './game/engine';
+import { Game, WEAPONS, CHARS, MAPS, KEY_ACTIONS, DEFAULT_KEYS, UPG_MAX, upgCost, superCd, superRange, CASE_PRICE, type HudState, type KeyMap, type Quality, type MapId, type CustomMap, type UpgState, type CaseDrop } from './game/engine';
 import oruzh1Url from './assets/oruzh1.png';
 import oruzh2Url from './assets/oruzh2.png';
 import pistolUrl from './assets/pistol.png';
@@ -317,6 +317,17 @@ async function loadStats(): Promise<void> {
     const g = gameRef.current;
     if (g?.buyUpg(id, key)) setUpgTick((t) => t + 1);
   }, []);
+  // кейсы: результат последнего открытия, тик для перерисовки баланса
+  const [caseDrop, setCaseDrop] = useState<CaseDrop | null>(null);
+  const [caseTick, setCaseTick] = useState(0);
+  const openCase = useCallback(() => {
+    const g = gameRef.current;
+    if (!g) return;
+    const d = g.openCase();
+    setCaseDrop(d);
+    setCaseTick((t) => t + 1);
+    if (d.kind === 'char') setUpgTick((t) => t + 1);
+  }, []);
   const [keys, setKeys] = useState<KeyMap>({ ...DEFAULT_KEYS });
   const [capturing, setCapturing] = useState<keyof KeyMap | null>(null);
   const [waveBanner, setWaveBanner] = useState(0);
@@ -344,7 +355,7 @@ async function loadStats(): Promise<void> {
   const [profile, setProfile] = useState<{ login: string; games: number; best: number; coins: number } | null>(null);
   const [mapChoice, setMapChoice] = useState<MapId>('arena');
   // вкладки меню в стиле TWD: каждая кнопка слева — своя вкладка справа
-  type TabId = 'play' | 'fighter' | 'maps' | 'editor' | 'rooms' | 'servers' | 'settings' | 'tops';
+  type TabId = 'play' | 'fighter' | 'cases' | 'maps' | 'editor' | 'rooms' | 'servers' | 'settings' | 'tops';
   const [menuTab, setMenuTab] = useState<TabId>('play');
   // мирный режим: врагов нет, можно гулять по карте
   const [noEnemies, setNoEnemies] = useState(false);
@@ -521,7 +532,7 @@ async function loadStats(): Promise<void> {
       map: () => game.debugMap(),
       duelHp: (hp: number) => game.setDuelHp(hp),
       teleport: (x: number, z: number, yaw?: number) => game.debugTeleport(x, z, yaw),
-      charaSet: (id: string) => game.setChar(id),
+      charaSet: (id: string) => { game.unlockChar(id); return game.setChar(id); },
       switchW: () => game.switchWeapon(),
       medBuy: () => game.buyMedkit(),
       medUse: () => game.useMedkit(),
@@ -531,6 +542,9 @@ async function loadStats(): Promise<void> {
       upg: (id: string) => game.upgOf(id),
       supercd: (id: string) => game.superCdOf(id),
       buyupg: (id: string, key: 'hp' | 'dmg' | 'spd' | 'sup') => game.buyUpg(id, key),
+      unlock: (id: string) => game.unlockChar(id),
+      haschar: (id: string) => game.hasChar(id),
+      opencase: () => game.openCase(),
       spawnKind: (kind: 'walk' | 'fly' | 'boss') => game.debugSpawn(kind),
       flyers: () => game.debugFlyers(),
       boss: () => game.debugBoss(),
@@ -1299,7 +1313,7 @@ async function loadStats(): Promise<void> {
         <div id="menu" className="twd">
           <div id="menuNav">
             <h1>👊 42 LIVE 💥</h1>
-            {([['play', '▶ ИГРАТЬ'], ['fighter', '🎭 БОЕЦ'], ['maps', '🗺️ КАРТЫ'], ['editor', '🧩 РЕДАКТОР'], ['rooms', '🌐 КОМНАТЫ'], ['servers', '🖥️ СЕРВЕРА'], ['settings', '⚙️ НАСТРОЙКИ'], ['tops', '🏆 ТОПЫ']] as Array<[TabId, string]>).map(([id, label]) => (
+            {([['play', '▶ ИГРАТЬ'], ['fighter', '🎭 БОЕЦ'], ['cases', '🎰 КЕЙСЫ'], ['maps', '🗺️ КАРТЫ'], ['editor', '🧩 РЕДАКТОР'], ['rooms', '🌐 КОМНАТЫ'], ['servers', '🖥️ СЕРВЕРА'], ['settings', '⚙️ НАСТРОЙКИ'], ['tops', '🏆 ТОПЫ']] as Array<[TabId, string]>).map(([id, label]) => (
               <button key={id} id={`nav-${id}`} className={'tnav' + (menuTab === id ? ' active' : '')} onClick={() => setMenuTab(id)}>{label}</button>
             ))}
             <a id="hubLink" href="https://hub.bratuxa.zomb.top">← Хаб 1Б42П</a>
@@ -1320,18 +1334,25 @@ async function loadStats(): Promise<void> {
                   const u = g?.upgOf(c.id) ?? { hp: 0, dmg: 0, spd: 0, sup: 0 };
                   const ab = CHAR_ABILITIES[c.id];
                   const opened = upgOpen === c.id;
+                  const owned = g ? g.hasChar(c.id) : c.id === 'mtt';
+                  const locked = !owned;
                   return (
-                    <div key={c.id} className={'charCard' + (char === c.id ? ' sel' : '')} id={`char-${c.id}`}>
+                    <div key={c.id} className={'charCard' + (char === c.id ? ' sel' : '') + (locked ? ' locked' : '')} id={`char-${c.id}`}>
                       <button
                         className="charPick"
                         id={`pick-${c.id}`}
-                        onClick={() => pickChar(c.id)}
+                        onClick={() => { if (!locked) pickChar(c.id); }}
+                        disabled={locked}
                       >
                         <img src={CHARIMG[c.id]} alt={c.name} />
                         <div className="cname">{c.name}</div>
                         <div className="cdesc">{c.desc}</div>
                       </button>
                       <div className="cstats">❤️ {c.hp} · 💨 {c.spd}× · ⭐ Ур. {lvl}</div>
+                      <div className={'rarity ' + (c.rarity === 'Легендарный' ? 'leg' : 'base')} id={`rarity-${c.id}`}>
+                        {c.rarity === 'Легендарный' ? '🌟 Редкость: Легендарный' : '⚪ Редкость: Базовый'}
+                      </div>
+                      {locked && <div className="clocked" id={`locked-${c.id}`}>🔒 ЗАКРЫТ — выбей из 🎰 кейса</div>}
                       <div className="cxp" id={`xp-${c.id}`}>
                         <div className="cxpBar"><div className="cxpFill" style={{ width: `${Math.round(frac * 100)}%` }} /></div>
                         <small>✨ Опыт {xp}/{need} · Ур. {lvl} (+10 HP и +5% урона за уровень)</small>
@@ -1390,6 +1411,31 @@ async function loadStats(): Promise<void> {
                 <button className="wbtn" id="charGo" onClick={() => setMenuTab('play')}>ИГРАТЬ ЭТИМ ✔</button>
               </div>
             </div>
+          </div>
+          <div className={'mtab' + (menuTab === 'cases' ? ' show' : '')}>
+          <div className="board" id="caseSec">
+            <h3>🎰 Кейсы</h3>
+            <div className="caseCard" id="case-fighter">
+              <div className="mname">📦 КЕЙС БОЙЦА</div>
+              <div className="mdesc">Внутри — боец! Шанс выбить 🌟 Стейси Крысу (Легендарный) — 20%. Не повезло — утешительный приз: фантики, опыт или аптечка.</div>
+              <ul className="cabilityList">
+                <li>⚪ МТТ — у тебя уже есть (Базовый)</li>
+                <li>🌟 Стейси Крыса — только из кейса (Легендарный)</li>
+              </ul>
+              <div className="srow">
+                <button
+                  className="wbtn buy"
+                  id="caseOpen"
+                  disabled={hud.fantiki < CASE_PRICE}
+                  onClick={openCase}
+                >
+                  ОТКРЫТЬ ЗА 🎟️ {CASE_PRICE} (баланс {hud.fantiki})
+                </button>
+              </div>
+              {(() => { void caseTick; return null; })()}
+              {caseDrop && <div id="caseResult" className={'drop ' + caseDrop.kind}>{caseDrop.ok ? `🎉 ${caseDrop.text}` : `⛔ ${caseDrop.text}`}</div>}
+            </div>
+          </div>
           </div>
           <div className={'mtab' + (menuTab === 'play' ? ' show' : '')}>
           <p>Арена 42 LIVE от первого лица: машешься с волнами врагов, у каждого полоска HP.
@@ -1545,7 +1591,7 @@ async function loadStats(): Promise<void> {
             placeholder="Твой ник"
           />
           <button id="charBtn" className="wbtn" onClick={() => setMenuTab('fighter')}>
-            🎭 БОЕЦ: {char === 'krysa' ? '🐀 Крыса' : '🕶️ МТТ'} — ВЫБРАТЬ
+            🎭 БОЕЦ: {char === 'krysa' ? '🐀 Стейси' : '🕶️ МТТ'} — ВЫБРАТЬ
           </button>
           {(roomId && !isOwner) || waiting ? (
             <button id="goBtn" disabled title="Ждём старта от создателя">⏳ ЖДУ СТАРТА…</button>
@@ -1566,7 +1612,7 @@ async function loadStats(): Promise<void> {
                     <div>🎮 Игр сыграно: <b>{profile.games}</b></div>
                     <div>🏆 Лучший счёт: <b>{profile.best}</b></div>
                     <div>🎟️ Фантиков всего: <b>{profile.coins}</b></div>
-                    <div>🎭 Боец: {char === 'krysa' ? '🐀 Крыса' : '🕶️ МТТ'} · ⭐ Ур. {hud.lvl} · Ник: {nick}</div>
+                    <div>🎭 Боец: {char === 'krysa' ? '🐀 Стейси' : '🕶️ МТТ'} · ⭐ Ур. {hud.lvl} · Ник: {nick}</div>
                     <h3>🔑 Сменить пароль</h3>
                     <input
                       id="passOld"

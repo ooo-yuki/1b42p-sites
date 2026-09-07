@@ -215,13 +215,15 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
 
   test('выбор персонажа сохраняется', async ({ page }) => {
     await page.click('#guestBtn');
+    // Стейси по умолчанию закрыта — открываем через дебаг-выдачу (как из кейса)
+    await page.evaluate(() => (window as unknown as { __mtt: { unlock: (id: string) => boolean } }).__mtt.unlock('krysa'));
     await page.click('#charBtn');
     await expect(page.locator('#charSec .charCard')).toHaveCount(2);
     await page.click('#pick-krysa');
     await expect(page.locator('#char-krysa.sel')).toHaveCount(1);
     expect(await page.evaluate(() => (window as unknown as { __mtt: { chara: () => string } }).__mtt.chara())).toBe('krysa');
     await page.click('#charGo');
-    await expect(page.locator('#charBtn')).toContainText('Крыса');
+    await expect(page.locator('#charBtn')).toContainText('Стейси');
     await page.reload();
     await page.click('#guestBtn');
     await page.click('#charBtn');
@@ -651,6 +653,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
 
   test('🌀 кик-перезарядка: коснулся здания в полёте — кд ноль', async ({ page }) => {
     await page.click('#guestBtn');
+    await page.evaluate(() => (window as unknown as { __mtt: { unlock: (id: string) => boolean } }).__mtt.unlock('krysa'));
     await page.click('#charBtn');
     await page.click('#pick-krysa');
     await page.click('#charGo');
@@ -814,7 +817,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
 
   test('🧭 вкладки: каждая кнопка открывает свою', async ({ page }) => {
     await page.click('#guestBtn');
-    const tabs: Array<[string, string]> = [['fighter', '#charSec'], ['maps', '#mapSec'], ['editor', '#editorSec'], ['rooms', '#roomSec'], ['servers', '#serversSec'], ['settings', '#setSec'], ['tops', '#duelTop'], ['play', '#goSec']];
+    const tabs: Array<[string, string]> = [['fighter', '#charSec'], ['cases', '#caseSec'], ['maps', '#mapSec'], ['editor', '#editorSec'], ['rooms', '#roomSec'], ['servers', '#serversSec'], ['settings', '#setSec'], ['tops', '#duelTop'], ['play', '#goSec']];
     for (const [t, sel] of tabs) {
       await page.click(`#nav-${t}`);
       await expect(page.locator(sel)).toBeVisible();
@@ -1073,6 +1076,35 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
       return Math.max(1.7, Math.round((3 - 5 * 0.3) * 10) / 10);
     });
     expect(cdMax).toBe(1.7);
+  });
+
+  test('🎰 кейсы: Стейси закрыта, МТТ базовый, кейс открывается', async ({ page }) => {
+    await page.click('#guestBtn');
+    // вкладка кейсов на месте
+    await page.click('#nav-cases');
+    await expect(page.locator('#caseSec')).toBeVisible();
+    await expect(page.locator('#case-fighter')).toContainText('КЕЙС БОЙЦА');
+    // редкости: МТТ базовый, Стейси легендарная и закрыта по умолчанию
+    await page.click('#nav-fighter');
+    await expect(page.locator('#rarity-mtt')).toContainText('Базовый');
+    await expect(page.locator('#rarity-krysa')).toContainText('Легендарный');
+    await expect(page.locator('#char-krysa .cname')).toContainText('Стейси');
+    await expect(page.locator('#locked-krysa')).toHaveCount(1);
+    await expect(page.locator('#pick-krysa')).toBeDisabled();
+    // закрытого выбрать нельзя
+    const ch0 = await page.evaluate(() => (window as unknown as { __mtt: { chara: () => string } }).__mtt.chara());
+    expect(ch0).toBe('mtt');
+    // насыпаем фантиков, открываем кейс — выпадает результат
+    await page.evaluate(() => (window as unknown as { __mtt: { give: (n: number) => number } }).__mtt.give(2000));
+    await page.click('#nav-cases');
+    await page.click('#caseOpen');
+    await expect(page.locator('#caseResult')).toBeVisible();
+    // выдача как из кейса открывает Стейси и даёт выбрать
+    await page.evaluate(() => (window as unknown as { __mtt: { unlock: (id: string) => boolean } }).__mtt.unlock('krysa'));
+    await page.click('#nav-fighter');
+    await expect(page.locator('#locked-krysa')).toHaveCount(0);
+    await page.click('#pick-krysa');
+    await expect(page.locator('#char-krysa.sel')).toHaveCount(1);
   });
 
   test.afterEach(async () => {

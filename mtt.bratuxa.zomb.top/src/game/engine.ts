@@ -46,12 +46,22 @@ export interface CharDef {
   desc: string;
   hp: number;
   spd: number;
+  /** Редкость бойца: МТТ — Базовый, Стейси — Легендарный. */
+  rarity: string;
 }
 
 export const CHARS: CharDef[] = [
-  { id: 'mtt', name: '🕶️ МТТ', desc: 'Шуба, очки, золотые перчатки · +HP', hp: 120, spd: 1 },
-  { id: 'krysa', name: '🐀 Крыса', desc: 'Королева крыс · скорость, прыжки ×3, вол-кик', hp: 90, spd: 1.15 },
+  { id: 'mtt', name: '🕶️ МТТ', desc: 'Шуба, очки, золотые перчатки · +HP', hp: 120, spd: 1, rarity: 'Базовый' },
+  { id: 'krysa', name: '🐀 Стейси Крыса', desc: 'Королева крыс · скорость, прыжки ×3, вол-кик', hp: 90, spd: 1.15, rarity: 'Легендарный' },
 ];
+
+/** Кейс бойца: цена открытия в фантиках. */
+export const CASE_PRICE = 500;
+export interface CaseDrop {
+  ok: boolean;
+  kind: 'char' | 'fantiki' | 'xp' | 'med' | 'empty';
+  text: string;
+}
 
 export function charSpec(id: string): CharDef {
   return CHARS.find((c) => c.id === id) ?? CHARS[0];
@@ -232,6 +242,66 @@ export class Game {
   private weaponId = 'fists';
   private fantiki = 0;
   private owned: string[] = ['fists'];
+  // владение бойцами: по умолчанию только МТТ (Базовый), Стейси (Легендарный) — из кейса
+  private ownedChars: string[] = (() => {
+    try {
+      const d = JSON.parse(localStorage.getItem('mtt_chars_v1') ?? '["mtt"]') as string[];
+      const list = Array.isArray(d) ? d.filter((x) => CHARS.some((c) => c.id === x)) : [];
+      if (!list.includes('mtt')) list.unshift('mtt');
+      return list;
+    } catch { return ['mtt']; }
+  })();
+  private saveChars(): void {
+    try { localStorage.setItem('mtt_chars_v1', JSON.stringify(this.ownedChars)); } catch { /* noop */ }
+  }
+  charsOwned(): string[] { return [...this.ownedChars]; }
+  hasChar(id: string): boolean { return this.ownedChars.includes(charSpec(id).id); }
+  /** Выдать бойца (из кейса/дебага). true — если новый. */
+  unlockChar(id: string): boolean {
+    const cid = charSpec(id).id;
+    if (this.ownedChars.includes(cid)) return false;
+    this.ownedChars.push(cid);
+    this.saveChars();
+    this.blip(880);
+    this.pushHud();
+    return true;
+  }
+  /** Открыть кейс бойца за фантики. Шанс Стейси 20% (если ещё закрыта), иначе утешительный приз. */
+  openCase(): CaseDrop {
+    if (this.fantiki < CASE_PRICE) return { ok: false, kind: 'empty', text: 'Не хватает фантиков' };
+    this.fantiki -= CASE_PRICE;
+    const roll = Math.random();
+    // Стейси ещё закрыта — 20% на неё
+    if (!this.ownedChars.includes('krysa') && roll < 0.2) {
+      this.unlockChar('krysa');
+      this.addXp(100);
+      this.saveShop();
+      this.pushHud();
+      return { ok: true, kind: 'char', text: '🐀 СТЕЙСИ КРЫСА · Легендарный — твоя!' };
+    }
+    if (roll < 0.45) {
+      this.fantiki += 300;
+      this.saveShop();
+      this.pushHud();
+      return { ok: true, kind: 'fantiki', text: '+300 🎟️ фантиков' };
+    }
+    if (roll < 0.7) {
+      this.addXp(150);
+      this.saveShop();
+      this.pushHud();
+      return { ok: true, kind: 'xp', text: '+150 ✨ опыта бойцу' };
+    }
+    if (this.medkits < 3) {
+      this.medkits++;
+      this.saveShop();
+      this.pushHud();
+      return { ok: true, kind: 'med', text: '+1 💊 аптечка' };
+    }
+    this.fantiki += 300;
+    this.saveShop();
+    this.pushHud();
+    return { ok: true, kind: 'fantiki', text: '+300 🎟️ фантиков' };
+  }
   // аптечки и опыт бойцов (не сносить сейвы: merge поверх)
   private medkits = 0;
   private upg: Record<string, UpgState> = (() => {
@@ -361,6 +431,8 @@ export class Game {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
     this.loadQuality();
     this.loadChar();
+    // старый сейв мог держать закрытого бойца — откатываем на МТТ
+    if (!this.ownedChars.includes(this.charId)) this.charId = 'mtt';
     this.applyLevel();
     const spec0 = charSpec(this.charId);
     this.hp = this.maxhp;
@@ -593,7 +665,10 @@ export class Game {
   setSens(v: number): void { this.sens = Math.max(0.3, Math.min(2.5, v)); this.saveShop(); }
   getChar(): string { return this.charId; }
   setChar(id: string): string {
-    this.charId = charSpec(id).id;
+    const cid = charSpec(id).id;
+    // закрытого бойца выбрать нельзя — только из кейса
+    if (!this.ownedChars.includes(cid)) return this.charId;
+    this.charId = cid;
     try { localStorage.setItem('mtt_char_v1', this.charId); } catch { /* noop */ }
     this.applyLevel();
     const spec = charSpec(this.charId);
