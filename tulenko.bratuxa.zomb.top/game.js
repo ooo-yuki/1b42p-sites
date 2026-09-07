@@ -695,6 +695,10 @@ let mode = 'play';
 let winEnd = '';
 let face = 'right';
 let tired = 0;
+// Шаг ходьбы: тикает только пока тюленька идёт (шаги времени),
+// стоит — кадр 0. Стража и сокамерники тикают кадром времени в окне.
+let walkT = 0;
+let sealMoving = false;
 let lastMuster = '';
 let lastWork = '';
 let lastLine = '';
@@ -746,6 +750,9 @@ function simStep(dt, input) {
         else
             face = 'left';
     }
+    sealMoving = !!(input && (input.dx !== 0 || input.dy !== 0)) && !S.solitary;
+    if (sealMoving)
+        walkT += dt;
     if (S.solitary) {
         S.seal.x = SOL.x;
         S.seal.y = SOL.y;
@@ -939,9 +946,12 @@ const TOP_SEAL = {
     left: 'img/top_seal_left.png',
     right: 'img/top_seal_right.png',
 };
-const TOP_GUARD = ['img/top_guard_0.png', 'img/top_guard_1.png'];
+const TOP_GUARD = ['img/top_guard_0.png', 'img/top_guard_1.png', 'img/top_guard_2.png', 'img/top_guard_3.png'];
 const TOP_FLOOR = 'img/top_floor.png';
 const TOP_WALL = 'img/top_wall.png';
+// Лицо стены: низкая полоса низа клетки поверх верха. Файла нет —
+// стену держит один верх, лицо тихо пропускаем.
+const TOP_WALL_FACE = 'img/top_wall_face.png';
 // Мебель поверх пола: D дверь, B койка, T стол, S душ, J станок, R крыша.
 const TOP_FURN = {
     D: 'img/top_door.png',
@@ -951,9 +961,10 @@ const TOP_FURN = {
     J: 'img/top_bench.png',
     R: 'img/top_roof.png',
 };
-// Круг красоты 4: сокамерники в рыжих робах (два кадра шага),
+// Круг красоты 4: сокамерники в рыжих робах (четыре кадра шага),
 // полы по комнатам и вещи поверх (ящики, подносы, плакаты).
-const TOP_MATE = ['img/top_mate_0.png', 'img/top_mate_1.png'];
+// Недостающих кадров нет в деле — тихо держим кадр 0.
+const TOP_MATE = ['img/top_mate_0.png', 'img/top_mate_1.png', 'img/top_mate_2.png', 'img/top_mate_3.png'];
 const TOP_FLOOR_CELL = 'img/top_floor_cell.png';
 const TOP_FLOOR_FOOD = 'img/top_floor_food.png';
 const TOP_FLOOR_WASH = 'img/top_floor_wash.png';
@@ -972,12 +983,38 @@ function floorFor(ch) {
         return TOP_FLOOR_CELL;
     return TOP_FLOOR;
 }
+// Картинка вживую есть: гружена и не бита. Нет — тихо кадр 0/один верх.
+function hasPic(src) {
+    const p = pics[src];
+    return !!(p && !p.broken && p.img);
+}
+// Тюленька: кадр по шагам времени, стоит — кадр 0.
+// Второй кадр стороны top_seal_<dir>_1: файла нет — тихо держим сторону.
+function sealSrc(dir, idx) {
+    const base = TOP_SEAL[dir] || TOP_SEAL.right;
+    if (idx % 2 === 1) {
+        const alt = 'img/top_seal_' + dir + '_1.png';
+        if (hasPic(alt))
+            return alt;
+    }
+    return base;
+}
+// Стража и сокамерники: четыре кадра, недостающий — тихо кадр 0.
+function frameSrc(list, idx) {
+    const n = list.length;
+    const cand = list[((idx % n) + n) % n];
+    if (hasPic(cand))
+        return cand;
+    return list[0];
+}
 function loadPics() {
     if (!doc || typeof Image === 'undefined')
         return;
     const all = [TOP_SEAL.up, TOP_SEAL.down, TOP_SEAL.left, TOP_SEAL.right,
-        TOP_GUARD[0], TOP_GUARD[1], TOP_MATE[0], TOP_MATE[1], FACE,
-        TOP_FLOOR, TOP_FLOOR_CELL, TOP_FLOOR_FOOD, TOP_FLOOR_WASH, TOP_WALL,
+        'img/top_seal_up_1.png', 'img/top_seal_down_1.png', 'img/top_seal_left_1.png', 'img/top_seal_right_1.png',
+        TOP_GUARD[0], TOP_GUARD[1], TOP_GUARD[2], TOP_GUARD[3],
+        TOP_MATE[0], TOP_MATE[1], TOP_MATE[2], TOP_MATE[3], FACE,
+        TOP_FLOOR, TOP_FLOOR_CELL, TOP_FLOOR_FOOD, TOP_FLOOR_WASH, TOP_WALL, TOP_WALL_FACE,
         TOP_FURN.D, TOP_FURN.B, TOP_FURN.T, TOP_FURN.S, TOP_FURN.J, TOP_FURN.R,
         TOP_PROP.crate, TOP_PROP.food, TOP_PROP.poster];
     for (const src of all) {
@@ -1006,6 +1043,8 @@ function drawImg(src, x, y, w, h, fallback) {
 }
 // Клетки фактурой: пол/стена картинками вместо заливки, мебель картинкой
 // поверх пола, цвет комнаты подкрасом поверх с прозрачностью.
+// Стена с лицом: верх клетки top_wall.png, низ клетки полосой
+// top_wall_face.png; файла лица нет — стоит один верх.
 function paintCells() {
     if (!g2d)
         return;
@@ -1016,6 +1055,8 @@ function paintCells() {
             const py0 = y * TILE;
             if (ch === '#') {
                 drawImg(TOP_WALL, px0, py0, TILE, TILE, '#ffffff');
+                if (hasPic(TOP_WALL_FACE))
+                    drawImg(TOP_WALL_FACE, px0, py0 + TILE / 2, TILE, TILE / 2, '#ffffff');
                 continue;
             }
             drawImg(floorFor(ch), px0, py0, TILE, TILE, roomColor(ch));
@@ -1104,7 +1145,11 @@ function render(now) {
     // Герой с тонкой тёмной обводкой — звенит даже в темноте.
     const PS = TS * 2;
     const py = (ey) => sy(ey) + TS / 2 - PS;
-    drawImg(TOP_SEAL[face], sx(S.seal.x) - TS, py(S.seal.y), PS, PS, '#dfe3e6');
+    // Ходьба в четыре кадра: тюленька шагом времени (стоит — кадр 0),
+    // стража и сокамерники кадром времени со сдвигом, стоят — кадр 0.
+    // Недостающие файлы тихо держит кадр 0.
+    const sealIdx = sealMoving ? Math.floor(walkT / 0.15) % 4 : 0;
+    drawImg(sealSrc(face, sealIdx), sx(S.seal.x) - TS, py(S.seal.y), PS, PS, '#dfe3e6');
     try {
         g2d.save();
         g2d.strokeStyle = 'rgba(46,22,6,0.95)';
@@ -1120,13 +1165,15 @@ function render(now) {
         }
         catch (_e) { /* без обводки идём дальше */ }
     }
-    const frame = Math.floor(now / 300) % 2;
-    for (const gd of seen) {
-        drawImg(TOP_GUARD[frame], sx(gd.x) - TS, py(gd.y), PS, PS, '#3a5bd5');
+    const step = Math.floor(now / 150);
+    for (let gi = 0; gi < seen.length; gi++) {
+        const gd = seen[gi];
+        drawImg(frameSrc(TOP_GUARD, step + gi), sx(gd.x) - TS, py(gd.y), PS, PS, '#3a5bd5');
     }
-    // Сокамерники идут двумя кадрами, взгляд их не ловит.
-    for (const md of mates) {
-        drawImg(TOP_MATE[frame], sx(md.x) - TS, py(md.y), PS, PS, '#b34a12');
+    // Сокамерники идут четырьмя кадрами, взгляд их не ловит.
+    for (let mi = 0; mi < mates.length; mi++) {
+        const md = mates[mi];
+        drawImg(frameSrc(TOP_MATE, step + mi), sx(md.x) - TS, py(md.y), PS, PS, '#b34a12');
     }
     if (isNight(S)) {
         g2d.fillStyle = 'rgba(3,3,44,0.58)';
