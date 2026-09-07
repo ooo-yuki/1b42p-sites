@@ -34,10 +34,7 @@ export function Masthead(props: { h: number; f: number; fans: number }): JSX.Ele
     <div id="top">
       <h1>
         <span className="k">42 БРАТУХА</span>
-        <span className="title-row">
-          <Trophy data-icon="inline-start" aria-hidden size={30} />
-          ФАБРИКА ХАЙПА
-        </span>
+        ФАБРИКА ХАЙПА
       </h1>
       <div className="sub">
         <span className="sub-tag">продюсер Пятёрки · дорога на SLAY 2026</span>

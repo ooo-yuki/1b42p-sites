@@ -98,15 +98,6 @@ a {
   align-items: center;
   gap: 2px;
 }
-#top h1 .title-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-#top h1 .title-row svg {
-  color: #6db9f2;
-  flex: none;
-}
 #top h1 .k {
   display: block;
   font-size: 0.52em;
