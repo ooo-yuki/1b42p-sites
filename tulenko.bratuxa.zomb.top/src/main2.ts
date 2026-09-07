@@ -736,21 +736,21 @@ function render(now: number): void {
     }
     const lr = 360;
     const glow = g2d.createRadialGradient(seX, seY, 10, seX, seY, lr);
-    glow.addColorStop(0, lightNight ? 'rgba(255,226,160,0.65)' : 'rgba(255,232,176,0.40)');
+    glow.addColorStop(0, lightNight ? 'rgba(255,226,160,0.65)' : 'rgba(255,224,160,0.22)');
     glow.addColorStop(1, 'rgba(255,210,130,0)');
     g2d.fillStyle = glow;
     g2d.fillRect(seX - lr, seY - lr, lr * 2, lr * 2);
     if (!lightNight) {
       const dl = g2d.createLinearGradient(0, 0, 0, H);
-      dl.addColorStop(0, 'rgba(255,246,220,0.14)');
-      dl.addColorStop(0.45, 'rgba(255,246,220,0.05)');
-      dl.addColorStop(1, 'rgba(255,246,220,0)');
+      dl.addColorStop(0, 'rgba(255,233,190,0.07)');
+      dl.addColorStop(0.45, 'rgba(255,233,190,0.02)');
+      dl.addColorStop(1, 'rgba(255,233,190,0)');
       g2d.fillStyle = dl;
       g2d.fillRect(0, 0, W, H);
     }
     const vg = g2d.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
     vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(1, lightNight ? 'rgba(0,0,20,0.52)' : 'rgba(0,0,20,0.12)');
+    vg.addColorStop(1, lightNight ? 'rgba(0,0,20,0.52)' : 'rgba(0,0,20,0.22)');
     g2d.fillStyle = vg;
     g2d.fillRect(0, 0, W, H);
   }
