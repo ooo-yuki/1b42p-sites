@@ -84,6 +84,11 @@ class VHostHandler(SimpleHTTPRequestHandler):
             hv = self.headers.get(hk)
             if hv:
                 req.add_header(hk, hv)
+        # IP клиента — в тыл: трекер по первому IP цепочки отличает
+        # ботов с этого сервака от живых (Caddy пишет XFF сам).
+        xff = self.headers.get("X-Forwarded-For")
+        seen = (self.client_address[0] if self.client_address else "")
+        req.add_header("X-Forwarded-For", f"{xff}, {seen}" if xff else seen)
         try:
             with urllib.request.urlopen(req, timeout=15) as r:
                 data = r.read()

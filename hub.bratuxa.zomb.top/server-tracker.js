@@ -53,6 +53,14 @@ const server = http.createServer(async (req, res) => {
       const site = SITES.includes(b.site) ? b.site : null;
       const sid = /^[0-9a-f]{32}$/.test(String(b.sid || '')) ? String(b.sid) : null;
       if (!site || !sid) return send(res, 400, { error: 'bad' });
+      // Боты с этого сервака (пробы, health-чеки) в онлайн не пишутся:
+      // первый IP цепочки XFF — тот, кого увидел Caddy. Отвечаем 200,
+      // чтобы никого не ронять, но сессию не создаём.
+      const xff = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+      const sock = (req.socket && req.socket.remoteAddress) || '';
+      const ip = xff || sock;
+      const SELF = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1', '45.90.98.113', '2a0e:97c0:3e3:3aa::122']);
+      if (SELF.has(ip)) return send(res, 200, { ok: true });
       await pool.query(
         'INSERT INTO track_sessions (sid, site) VALUES ($1, $2) ' +
         'ON CONFLICT (sid) DO UPDATE SET site=$2, last_seen=NOW()',
