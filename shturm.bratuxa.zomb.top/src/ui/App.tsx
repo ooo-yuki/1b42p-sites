@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Hud } from './hud';
 import { setView, getView } from '../three/cameraRig';
+import { deadzone } from '../sim/touch';
 import type { Slot } from '../sim/weapons';
 import type { MapId } from '../sim/maps';
 import { gameStore, type Difficulty } from '../game/store';
@@ -8,7 +9,8 @@ import { gameStore, type Difficulty } from '../game/store';
 /** Единая шина ввода: читается игровым циклом (Task 10), пишется клавиатурой/тачем/кнопками. */
 export const inputBus = {
   move: { x: 0, y: 0 }, // левый джойстик / WASD: x — стрейф, y — вперёд
-  look: { dx: 0, dy: 0 }, // правый джойстик — дельта обзора за кадр
+  look: { dx: 0, dy: 0 }, // разовая дельта обзора (мышь/совместимость)
+  lookHeld: { x: 0, y: 0 }, // правый стик: удерживаемое отклонение -1..1, цикл интегрирует постоянно
   fire: false, // огонь удерживается
   aim: false, // прицел удерживается
   reload: false, // разовый флаг перезарядки (цикл сбрасывает)
@@ -23,8 +25,10 @@ function emit(name: string, detail?: unknown) {
 function Stick({ side, onMove }: { side: 'left' | 'right'; onMove: (x: number, y: number) => void }) {
   const base = useRef<HTMLDivElement>(null);
   const id = useRef<number | null>(null);
+  const moveRef = useRef(onMove);
+  moveRef.current = onMove;
   const [knob, setKnob] = useState({ x: 0, y: 0 });
-  const R = 48;
+  const R = 56;
 
   const handle = (t: { clientX: number; clientY: number; identifier: number }, end: boolean) => {
     const el = base.current;
@@ -32,7 +36,7 @@ function Stick({ side, onMove }: { side: 'left' | 'right'; onMove: (x: number, y
     if (end) {
       id.current = null;
       setKnob({ x: 0, y: 0 });
-      onMove(0, 0);
+      moveRef.current(0, 0);
       return;
     }
     const r = el.getBoundingClientRect();
@@ -43,43 +47,55 @@ function Stick({ side, onMove }: { side: 'left' | 'right'; onMove: (x: number, y
     dx = (dx / len) * cl;
     dy = (dy / len) * cl;
     setKnob({ x: dx, y: dy });
-    onMove(dx / R, -dy / R);
+    moveRef.current(dx / R, -dy / R);
   };
+
+  // Палец съехал с зоны стика — продолжаем рулить: трекинг по id на окне.
+  useEffect(() => {
+    const mv = (e: TouchEvent) => {
+      if (id.current === null) return;
+      for (const t of Array.from(e.changedTouches)) {
+        if (t.identifier === id.current) {
+          if (e.cancelable) e.preventDefault();
+          handle(t, false);
+        }
+      }
+    };
+    const up = (e: TouchEvent) => {
+      if (id.current === null) return;
+      for (const t of Array.from(e.changedTouches)) {
+        if (t.identifier === id.current) handle(t, true);
+      }
+    };
+    window.addEventListener('touchmove', mv, { passive: false });
+    window.addEventListener('touchend', up);
+    window.addEventListener('touchcancel', up);
+    return () => {
+      window.removeEventListener('touchmove', mv);
+      window.removeEventListener('touchend', up);
+      window.removeEventListener('touchcancel', up);
+    };
+  }, []);
 
   return (
     <div
       ref={base}
       style={{
         position: 'fixed', bottom: 24, [side === 'left' ? 'left' : 'right']: 24,
-        width: 120, height: 120, borderRadius: '50%',
+        width: 132, height: 132, borderRadius: '50%',
         background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.25)',
         touchAction: 'none', zIndex: 10,
       }}
       onTouchStart={(e) => {
         const t = e.changedTouches[0];
+        if (id.current !== null) return;
         id.current = t.identifier;
         handle(t, false);
       }}
-      onTouchMove={(e) => {
-        for (const t of Array.from(e.changedTouches)) if (t.identifier === id.current) handle(t, false);
-      }}
-      onTouchEnd={(e) => {
-        for (const t of Array.from(e.changedTouches)) if (t.identifier === id.current) handle(t, true);
-      }}
-      onTouchCancel={(e) => {
-        for (const t of Array.from(e.changedTouches)) if (t.identifier === id.current) handle(t, true);
-      }}
-      onMouseLeave={() => {
-        // Дешёвый минор Task 10: мышь ушла с джойстика — сброс.
-        if (id.current === null) {
-          setKnob({ x: 0, y: 0 });
-          onMove(0, 0);
-        }
-      }}
     >
       <div style={{
-        position: 'absolute', left: 60 + knob.x - 24, top: 60 + knob.y - 24,
-        width: 48, height: 48, borderRadius: '50%', background: 'rgba(255,255,255,0.3)',
+        position: 'absolute', left: 66 + knob.x - 26, top: 66 + knob.y - 26,
+        width: 52, height: 52, borderRadius: '50%', background: 'rgba(255,255,255,0.3)',
       }} />
     </div>
   );
@@ -142,6 +158,7 @@ export function App() {
       // Дешёвый минор Task 10: фокус ушёл — гасим залипшие флаги.
       keys.current.clear();
       inputBus.move = { x: 0, y: 0 };
+      inputBus.lookHeld = { x: 0, y: 0 };
       inputBus.fire = false;
       inputBus.aim = false;
     };
@@ -157,6 +174,8 @@ export function App() {
 
   const phase = snap.phase;
   const inGame = phase === 'playing' || phase === 'paused';
+  // Тач-UI только на тачах — десктопу стики не нужны (мышь + WASD).
+  const [isTouch] = useState(() => 'ontouchstart' in window || navigator.maxTouchPoints > 0);
 
   return (
     <>
@@ -167,18 +186,18 @@ export function App() {
           fps={snap.fps} map={snap.map} message={snap.message}
         />
       )}
-      {phase === 'playing' && (
+      {phase === 'playing' && isTouch && (
         <>
-          <Stick side="left" onMove={(x, y) => { inputBus.move = { x, y }; }} />
-          {/* Стик вверх = взгляд вверх, как мышь (было инвертировано). */}
-          <Stick side="right" onMove={(x, y) => { inputBus.look.dx = x * 4; inputBus.look.dy = -y * 4; }} />
+          <Stick side="left" onMove={(x, y) => { inputBus.move = { x: deadzone(x), y: deadzone(y) }; }} />
+          {/* Стик вверх = взгляд вверх, как мышь; held — камера крутится пока держишь. */}
+          <Stick side="right" onMove={(x, y) => { inputBus.lookHeld = { x, y }; }} />
           <div style={{ position: 'fixed', bottom: 40, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 12, zIndex: 10 }}>
             <button
               onTouchStart={() => { inputBus.fire = true; }} onTouchEnd={() => { inputBus.fire = false; }}
               onTouchCancel={() => { inputBus.fire = false; }}
               onMouseDown={() => { inputBus.fire = true; }} onMouseUp={() => { inputBus.fire = false; }}
               onMouseLeave={() => { inputBus.fire = false; }}
-              style={btn}>Огонь</button>
+              style={btnFire}>Огонь</button>
             <button
               onTouchStart={() => { inputBus.aim = true; }} onTouchEnd={() => { inputBus.aim = false; }}
               onTouchCancel={() => { inputBus.aim = false; }}
@@ -261,6 +280,10 @@ const btn: React.CSSProperties = {
 
 const btnActive: React.CSSProperties = {
   ...btn, border: '2px solid #ffd166', background: 'rgba(60,50,20,0.8)',
+};
+
+const btnFire: React.CSSProperties = {
+  ...btn, fontSize: 20, padding: '18px 30px', background: '#b3261e', border: 'none',
 };
 
 const btnBig: React.CSSProperties = {

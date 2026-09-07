@@ -18,6 +18,7 @@ import { ENEMIES, ATTACK_RANGE } from './sim/enemies';
 import { makeWave } from './sim/waves';
 import { MAPS, resolveCircle, type MapId } from './sim/maps';
 import { spawnPickups, updatePickups, type Medkit } from './sim/pickups';
+import { heldTurnRate, nearestFlags } from './sim/touch';
 import { gameStore, DIFF_MULT, type Difficulty } from './game/store';
 
 createRoot(document.getElementById('root')!).render(
@@ -44,6 +45,8 @@ interface Enemy {
   cd: number;
   mesh: THREE.Group;
   anim: { dying: boolean; dieT: number };
+  beam: THREE.SpotLight | null; // фонарь стрелка (кэш со спавна для бюджета света)
+  farTick?: boolean; // LOD миксеров: дальние обновляются каждый 2-й кадр
 }
 
 const MAG: Record<Slot, number> = { pistol: 12, auto: 30, shotgun: 6 };
@@ -272,11 +275,14 @@ function spawnOne() {
   const mesh = makeMob(kind);
   if (q.type === 'boss') mesh.scale.setScalar(2.2);
   if (lowDetail) setMobLightDetail(mesh, true);
+  // Фонарь стрелка ищем один раз при спавне (бюджет света в step, не traverse каждый кадр).
+  let beam: THREE.SpotLight | null = null;
+  mesh.traverse((o) => { if (!beam && (o as THREE.SpotLight).isSpotLight) beam = o as THREE.SpotLight; });
   mesh.position.set(x, 0, z);
   scene.add(mesh);
   sim.enemies.push({
     type: q.type, hp: base.hp * mult, maxHp: base.hp * mult, x, z, px: x, pz: z,
-    cd: 1, mesh, anim: { dying: false, dieT: 0 },
+    cd: 1, mesh, anim: { dying: false, dieT: 0 }, beam,
   });
 }
 
@@ -466,11 +472,14 @@ function tick(dt: number) {
   // Движение WASD/джойстик.
   const sprint = (window as unknown as { __sprint?: boolean }).__sprint === true || sprintKey;
   movePlayer(p, { fwd: inputBus.move.y, strafe: inputBus.move.x, sprint, dt }, dt);
-  // Обзор с правого стика (десктоп-мышь идёт через pointer-lock выше).
+  // Обзор: разовый (мышь/совместимость) + удерживаемый с правого стика.
+  // Held крутит постоянно, пока палец отклонён, — камера и движение идут одновременно.
   p.yaw -= inputBus.look.dx * dt * 2;
   p.pitch = THREE.MathUtils.clamp((p.pitch ?? 0) - inputBus.look.dy * dt * 2, -1.2, 1.2);
   inputBus.look.dx *= 0.8;
   inputBus.look.dy *= 0.8;
+  p.yaw -= heldTurnRate(inputBus.lookHeld.x) * dt;
+  p.pitch = THREE.MathUtils.clamp((p.pitch ?? 0) + heldTurnRate(inputBus.lookHeld.y) * dt, -1.2, 1.2);
   resolveCircle(p, 0.4, mapId);
   const healed = updatePickups(sim.pickups, p.x, p.z, dt);
   if (healed > 0) {
@@ -744,9 +753,22 @@ function step(now: number) {
     e.px = e.x;
     e.pz = e.z;
     const cdMax = ATK_CD[e.type] ?? 0.8;
-    updateMob(e.mesh, { speed: v, attacking: e.cd > cdMax - 0.45, dying: false, dt });
+    // LOD миксеров: дальние (>26м) — каждый 2-й кадр с dt×2, визуально то же, CPU вдвое меньше.
+    const distP = Math.hypot(e.x - p.x, e.z - p.z);
+    e.farTick = !e.farTick;
+    if (distP < 26 || e.farTick || e.cd > cdMax - 0.45) {
+      updateMob(e.mesh, { speed: v, attacking: e.cd > cdMax - 0.45, dying: false, dt: e.farTick && distP >= 26 ? dt * 2 : dt });
+    }
     e.mesh.position.set(e.x, 0, e.z);
     e.mesh.rotation.y = Math.atan2(p.x - e.x, p.z - e.z);
+  }
+  // Бюджет фонарей: горят ≤3 ближайших стрелка, линзы emissive светят всегда — ночью разницы ноль.
+  {
+    const shooters = sim.enemies.filter((e) => e.beam && !e.anim.dying);
+    if (shooters.length > 0) {
+      const flags = nearestFlags(shooters.map((e) => Math.hypot(e.x - p.x, e.z - p.z)), 3);
+      shooters.forEach((e, i) => { if (e.beam) e.beam.visible = flags[i]; });
+    }
   }
   tracers.update(dt);
   grassRig.tick(dt); // Task 2: ветер по траве.
