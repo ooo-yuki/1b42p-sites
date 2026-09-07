@@ -12,7 +12,8 @@ import { talkFor, say, FACE } from './talk.js';
 import { search, leaveSolitary } from './search.js';
 import { blip } from './audio.js';
 import { tryRoof, tryGate } from './endings.js';
-// Фактура клеток 16х16: пол, стена, мебель поверх пола. Цвета комнат держим
+// Фактура клеток 32х32: пол, стена, мебель картинками 32 в клетку TILE —
+// drawImage сам ужмёт, деталей станет больше. Цвета комнат держим
 // подкрасом поверх с прозрачностью.
 
 // Корпус значками из замысла: D дверь, J станок, B кровать,
@@ -37,8 +38,10 @@ const MAP: string[] = [
 ];
 
 const G = loadGrid(MAP);
-// Круг красоты 3: масштаб держит окно целиком — поле закрывает экран,
-// края режутся картой, а не чернотой. Люди крупнеют сами через SCALE.
+// Круг 32: масштаб держит окно целиком — поле закрывает экран,
+// края режутся картой, а не чернотой. Камера держит тюленьку.
+// Люди рисуются вдвое крупнее клетки (картинки 32): центром по клетке,
+// ноги на клетке. Клетки и мебель как были — drawImage ужмёт 32 в клетку.
 let SCALE = 2;
 let camX = 0;
 let camY = 0;
@@ -510,31 +513,36 @@ function render(now: number): void {
     else g2d.fillRect(gx - len, gy - hh, len, hh * 2);
   }
 
-  // Тени-овалы под ногами.
+  // Тени-овалы под ногами (люди вдвое крупнее клетки — тень у ног на клетке).
+  const feetY = TS / 2 - 2 * SCALE;
   g2d.fillStyle = 'rgba(0,0,0,0.35)';
   g2d.beginPath();
-  g2d.ellipse(sx(S.seal.x), sy(S.seal.y) + 6 * SCALE, 7 * SCALE, 2.5 * SCALE, 0, 0, Math.PI * 2);
+  g2d.ellipse(sx(S.seal.x), sy(S.seal.y) + feetY, 9 * SCALE, 3 * SCALE, 0, 0, Math.PI * 2);
   g2d.fill();
   for (const gd of seen) {
     g2d.beginPath();
-    g2d.ellipse(sx(gd.x), sy(gd.y) + 6 * SCALE, 7 * SCALE, 2.5 * SCALE, 0, 0, Math.PI * 2);
+    g2d.ellipse(sx(gd.x), sy(gd.y) + feetY, 9 * SCALE, 3 * SCALE, 0, 0, Math.PI * 2);
     g2d.fill();
   }
   // Сокамерникам тень положена, конуса нет.
   for (const md of mates) {
     g2d.beginPath();
-    g2d.ellipse(sx(md.x), sy(md.y) + 6 * SCALE, 7 * SCALE, 2.5 * SCALE, 0, 0, Math.PI * 2);
+    g2d.ellipse(sx(md.x), sy(md.y) + feetY, 9 * SCALE, 3 * SCALE, 0, 0, Math.PI * 2);
     g2d.fill();
   }
 
-  drawImg(TOP_SEAL[face], sx(S.seal.x) - TS / 2, sy(S.seal.y) - TS / 2, TS, TS, '#dfe3e6');
+  // Люди вдвое крупнее клетки: центром по клетке, ноги на клетке.
+  // Низ спрайта — на низ клетки (sy + TS/2), верх уходит на клетку выше.
+  const PS = TS * 2;
+  const py = (ey: number): number => sy(ey) + TS / 2 - PS;
+  drawImg(TOP_SEAL[face], sx(S.seal.x) - TS, py(S.seal.y), PS, PS, '#dfe3e6');
   const frame = Math.floor(now / 300) % 2;
   for (const gd of seen) {
-    drawImg(TOP_GUARD[frame], sx(gd.x) - TS / 2, sy(gd.y) - TS / 2, TS, TS, '#3a5bd5');
+    drawImg(TOP_GUARD[frame], sx(gd.x) - TS, py(gd.y), PS, PS, '#3a5bd5');
   }
   // Сокамерники идут двумя кадрами, взгляд их не ловит.
   for (const md of mates) {
-    drawImg(TOP_MATE[frame], sx(md.x) - TS / 2, sy(md.y) - TS / 2, TS, TS, '#b34a12');
+    drawImg(TOP_MATE[frame], sx(md.x) - TS, py(md.y), PS, PS, '#b34a12');
   }
 
   if (isNight(S)) {
@@ -550,8 +558,8 @@ function render(now: number): void {
     g2d.fillText('карцер до утра', W / 2, H / 2);
   }
 
-  // Круг красоты 3: день светлее, тёплое пятно вокруг тюленьки сильнее и шире,
-  // ночью на стенах горят огоньки-светильники с тёплым мерцанием (рисуем кодом).
+  // Круг 32: день светлее, тёплое пятно вокруг тюленьки шире и сильнее,
+  // ночью на стенах горят огоньки-светильники ярче, с тёплым мерцанием (рисуем кодом).
   {
     const lightNight = isNight(S);
     const seX = sx(S.seal.x);
@@ -562,9 +570,9 @@ function render(now: number): void {
         const lx = sx(LP.x);
         const ly = sy(LP.y);
         const fl = 0.85 + 0.15 * Math.sin(now / 140 + i * 1.9) + 0.05 * Math.sin(now / 47 + i * 3.1);
-        const lr2 = 30 * SCALE * fl;
-        const lamp = g2d.createRadialGradient(lx, ly, 2, lx, ly, lr2);
-        lamp.addColorStop(0, 'rgba(255,196,120,' + (0.34 * fl).toFixed(3) + ')');
+        const lr2 = 46 * SCALE * fl;
+        const lamp = g2d.createRadialGradient(lx, ly, 3, lx, ly, lr2);
+        lamp.addColorStop(0, 'rgba(255,200,130,' + (0.52 * fl).toFixed(3) + ')');
         lamp.addColorStop(1, 'rgba(255,180,100,0)');
         g2d.fillStyle = lamp;
         g2d.fillRect(lx - lr2, ly - lr2, lr2 * 2, lr2 * 2);
@@ -573,16 +581,16 @@ function render(now: number): void {
         const LP = LAMPS[i];
         const lx = sx(LP.x);
         const ly = sy(LP.y);
-        const dot = Math.max(3, 2 * SCALE);
+        const dot = Math.max(4, 2.5 * SCALE);
         g2d.fillStyle = '#3a2a18';
         g2d.fillRect(lx - dot / 2 - 1, ly - dot / 2 - 1, dot + 2, dot + 2);
-        g2d.fillStyle = '#ffca7a';
+        g2d.fillStyle = '#ffd694';
         g2d.fillRect(lx - dot / 2, ly - dot / 2, dot, dot);
       }
     }
-    const lr = 230;
+    const lr = 330;
     const glow = g2d.createRadialGradient(seX, seY, 10, seX, seY, lr);
-    glow.addColorStop(0, lightNight ? 'rgba(255,214,140,0.34)' : 'rgba(255,224,160,0.22)');
+    glow.addColorStop(0, lightNight ? 'rgba(255,214,140,0.48)' : 'rgba(255,224,160,0.30)');
     glow.addColorStop(1, 'rgba(255,210,130,0)');
     g2d.fillStyle = glow;
     g2d.fillRect(seX - lr, seY - lr, lr * 2, lr * 2);
