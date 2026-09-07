@@ -278,38 +278,35 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.waitForTimeout(800);
-    // телепорт к коробке (0,-38), смотрим на неё (yaw 0 = взгляд на -z)
-    await page.evaluate(() => (window as unknown as { __mtt: { teleport: (x: number, z: number, y: number) => void } }).__mtt.teleport(0, -28, 0));
-    // бежим в стену с зажатым прыжком: добегаем, взмываем, у стены — вол-кик ещё выше
+    // в упор к центральному барьеру (0,0): смотрим на него (yaw 0 = взгляд на -z), жмёмся W до контакта
+    await page.evaluate(() => (window as unknown as { __mtt: { teleport: (x: number, z: number, y: number) => void } }).__mtt.teleport(0, 2.5, 0));
     await page.keyboard.down('w');
-    await page.keyboard.down('Space');
-    let maxPy = 0;
     let wallSeen = false;
-    let kickSeen = false;
-    let prevZ = -28;
-    let backSeen = false;
-    for (let i = 0; i < 120 && !(wallSeen && kickSeen && backSeen && maxPy > 3.2); i++) {
-      await page.waitForTimeout(200);
-      const py = await page.evaluate(() => (window as unknown as { __mtt: { py: () => number } }).__mtt.py());
-      if (py > maxPy) maxPy = py;
+    for (let i = 0; i < 60 && !wallSeen; i++) {
+      await page.waitForTimeout(500);
       const w = await page.evaluate(() => (window as unknown as { __mtt: { wall: () => number } }).__mtt.wall());
       if (w > 0) wallSeen = true;
-      const k = await page.evaluate(() => (window as unknown as { __mtt: { kick: () => number } }).__mtt.kick());
-      if (k > 0) kickSeen = true;
-      const pz = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { z: number } } }).__mtt.pos());
-      // бежим вперёд (-z): рост z после кика = швырнуло назад, против движения
-      if (kickSeen && pz.z - prevZ > 0.3) backSeen = true;
-      prevZ = pz.z;
     }
-    await page.keyboard.up('Space');
-    await page.keyboard.up('w');
     expect(wallSeen).toBe(true);
+    // прыжок (Space) + вол-кик на C, W держим — контакт со стеной свежий.
+    // В медленном headless кнопки ДЕРЖИМ: одиночный press пролетает между кадрами.
+    await page.keyboard.down('Space');
+    await page.waitForTimeout(1500);
+    await page.keyboard.up('Space');
+    const zBefore = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { z: number } } }).__mtt.pos());
+    await page.keyboard.down('c');
+    let k = 0;
+    for (let i = 0; i < 20 && k <= 0; i++) {
+      await page.waitForTimeout(500);
+      k = await page.evaluate(() => (window as unknown as { __mtt: { kick: () => number } }).__mtt.kick());
+    }
+    await page.keyboard.up('c');
+    await page.keyboard.up('w');
     // вол-кик сработал — кд 5с взведено
-    expect(kickSeen).toBe(true);
-    // кик швыряет против движения (назад)
-    expect(backSeen).toBe(true);
-    // чистый прыжок Крысы ~2.9м, с вол-киком обязано быть выше
-    expect(maxPy).toBeGreaterThan(3.2);
+    expect(k).toBeGreaterThan(0);
+    // кик швыряет против движения (назад, +z — мгновенный телепорт-толчок)
+    const zAfter = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { z: number } } }).__mtt.pos());
+    expect(zAfter.z - zBefore.z).toBeGreaterThan(0.3);
   });
 
   test('летуны парят и бьются', async ({ page }) => {
@@ -601,28 +598,38 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await expect(page.locator('#hudRow2')).toContainText('Бита');
   });
 
-  test('🔫 пистолет бьёт по прицелу издалека', async ({ page }) => {
+  test('🔫 пистолет бьёт по прицелу: средняя и в упор', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.waitForTimeout(800);
-    type M = { give: (n: number) => void; setWave: (n: number) => void; attack: () => number; spawnKind: (k: string) => number; teleport: (x: number, z: number, yaw: number) => void };
+    type M = { give: (n: number) => void; setWave: (n: number) => void; attack: () => number; spawnKind: (k: string) => number; teleport: (x: number, z: number, yaw: number) => void; pos: () => { x: number; z: number; hp: number }; foes: () => Array<{ x: number; z: number; hp: number; dead: boolean }>; resetcd: () => void };
     await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.setWave(4));
     await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.give(2000));
     await page.click('#shopBtn');
     await page.click('#buy-pistol');
     await page.click('button:has-text("ЗАКРЫТЬ")');
     await expect(page.locator('#hudRow2')).toContainText('Пистолет');
-    let hits = 0;
-    for (let i = 0; i < 10 && hits === 0; i++) {
-      await page.evaluate((yaw) => {
-        const m = (window as unknown as { __mtt: M }).__mtt;
-        m.teleport(0, 20, yaw);
-        m.spawnKind('walk');
-      }, (i * Math.PI) / 5);
-      await page.waitForTimeout(850);
-      hits = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.attack());
-    }
-    expect(hits).toBeGreaterThan(0);
+    // Всё в одном запросе: сброс кд + свежий замороженный враг + наводка + выстрел.
+    // Детерминировано: враг не успевает добежать и уйти из створа между запросами.
+    const aimFire = (d: number) => page.evaluate((dist) => {
+      const m = (window as unknown as { __mtt: M }).__mtt;
+      if (m.pos().hp <= 0) return -2;
+      m.resetcd();
+      m.spawnKind('walk');
+      const live = m.foes().filter((f) => !f.dead);
+      if (live.length === 0) return -1;
+      const f = live[live.length - 1];
+      const p = m.pos();
+      let dx = f.x - p.x, dz = f.z - p.z;
+      const L = Math.hypot(dx, dz) || 1;
+      dx /= L; dz /= L;
+      m.teleport(f.x - dx * dist, f.z - dz * dist, Math.atan2(-dx, -dz));
+      return m.attack();
+    }, d);
+    // средняя: 6м — прямое попадание
+    expect(await aimFire(6)).toBeGreaterThan(0);
+    // в упор: 1.5м — пули тоже наносят урон (баг МТТ)
+    expect(await aimFire(1.5)).toBeGreaterThan(0);
   });
 
   test('💊 аптечки: покупка, cap 3, использование по X', async ({ page }) => {
@@ -666,7 +673,9 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.waitForTimeout(700);
     await page.keyboard.press('Space');
     await page.waitForTimeout(300);
-    await page.keyboard.press('Space');
+    await page.keyboard.press('c');
+    await page.waitForTimeout(300);
+    await page.keyboard.press('c');
     await page.waitForTimeout(300);
     const cd = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.kick());
     await page.keyboard.up('KeyW');

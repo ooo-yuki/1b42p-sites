@@ -26,7 +26,7 @@ const CHAR_ABILITIES: Record<string, { lines: string[]; sup: string }> = {
       '💨 Скорость ×1.15 — самая быстрая на карте',
       '🦘 Прыжки ×3 выше всех — залетает на крыши без лестниц',
     ],
-    sup: '🌀 СУПЕР — Вол-кик: в полёте у стены жми прыжок — разворот на 180° с подбросом. Кд 5с, качается до 1.7с, дальность +15% за уровень. Коснулся здания в полёте — кд сгорает сразу.',
+    sup: '🌀 СУПЕР — Вол-кик: в полёте у стены жми C — разворот на 180° с подбросом. Кд 5с, качается до 1.7с, дальность +15% за уровень. Коснулся здания в полёте — кд сгорает сразу.',
   },
 };
 
@@ -598,6 +598,8 @@ async function loadStats(): Promise<void> {
       chara: () => game.getChar(),
       quality: () => game.getQuality(),
       dash: () => game.debugDash(),
+      atkcd: () => game.debugAtkCd(),
+      resetcd: () => game.debugResetCd(),
       doDash: () => game.dash(),
       wall: () => game.debugWall(),
       kick: () => game.debugKick(),
@@ -618,6 +620,7 @@ async function loadStats(): Promise<void> {
       haschar: (id: string) => game.hasChar(id),
       opencase: () => game.openCase(),
       spawnKind: (kind: 'walk' | 'fly' | 'boss') => game.debugSpawn(kind),
+      foes: () => game.debugFoes(),
       flyers: () => game.debugFlyers(),
       boss: () => game.debugBoss(),
       remoteList: () => game.debugRemoteList(),

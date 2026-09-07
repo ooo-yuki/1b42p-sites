@@ -158,7 +158,7 @@ export const KEY_ACTIONS: Array<{ id: keyof KeyMap; label: string }> = [
   { id: 'hit', label: '👊 Удар' },
   { id: 'jump', label: '🐇 Прыжок' },
   { id: 'run', label: '💨 Бег' },
-  { id: 'ability', label: '⚡ Рывок (МТТ)' },
+  { id: 'ability', label: '⚡ Способность: рывок / вол-кик' },
   { id: 'switch', label: '🔫 Смена оружия' },
   { id: 'use', label: '💊 Аптечка' },
 ];
@@ -2513,11 +2513,12 @@ export class Game {
       if (e.dead) continue;
       const ty = e.kind === 'fly' ? 3.2 : 1.0 + e.ey;
       const vx = e.g.position.x - cx, vy = ty - cy, vz = e.g.position.z - cz;
-      const dist = Math.hypot(vx, vy, vz);
-      if (dist > range || dist < 0.5) continue;
-      const cos = (vx * dx + vy * dy + vz * dz) / dist;
-      if (cos < 0.9995) continue;
-      if (dist < bestD) { bestD = dist; best = e; }
+      // хитбокс-туша R~0.9м: сближение луча с центром — вплотную бьёт, вдаль строго
+      const t = vx * dx + vy * dy + vz * dz;
+      if (t > range || t < 0.15) continue;
+      const mx = vx - dx * t, my = vy - dy * t, mz = vz - dz * t;
+      if (Math.sqrt(mx * mx + my * my + mz * mz) > 0.9) continue;
+      if (t < bestD) { bestD = t; best = e; }
     }
     if (!best) {
       // мимо: пыль на излёте пули + трассер в никуда
@@ -2673,6 +2674,9 @@ export class Game {
   }
 
   debugDash(): number { return Math.round(this.dashCd * 10) / 10; }
+  debugAtkCd(): number { return Math.round(this.atkCd * 10) / 10; }
+  /** Отладка для тестов: сбросить кд атаки (детерминированный выстрел). */
+  debugResetCd(): void { this.atkCd = 0; }
   debugKick(): number { return Math.round(this.wallKickCd * 10) / 10; }
   debugWall(): number { return Math.round(this.wallT * 100) / 100; }
   debugTeleport(x: number, z: number, yaw?: number): void {
@@ -2682,6 +2686,10 @@ export class Game {
   }
   debugRemoteList(): RemotePlayer[] {
     return this.remotes.map((m) => ({ nick: m.nick, char: m.char, x: m.x, z: m.z, hp: m.hp, weapon: m.weapon, py: m.py, atk: m.atk, dead: m.dead }));
+  }
+  /** Отладка для тестов: живые враги с координатами (навести прицел точно). */
+  debugFoes(): Array<{ x: number; z: number; hp: number; dead: boolean; ey: number }> {
+    return this.enemies.filter((e) => !e.dead).map((e) => ({ x: e.g.position.x, z: e.g.position.z, hp: Math.round(e.hp), dead: e.dead, ey: Math.round(e.ey * 100) / 100 }));
   }
 
   // круг (игрок/враг радиусом rad на высоте y) против окружения: коробка — точный AABB,
@@ -2878,7 +2886,7 @@ export class Game {
   debugRemotes(): number { return this.remotes.length; }
 
   // хуки для тестов
-  debugPos(): { x: number; z: number; hp: number; enemies: number; kills: number; wave: number; yaw: number } {
+  debugPos(): { x: number; z: number; hp: number; enemies: number; kills: number; wave: number; yaw: number; py: number; pitch: number } {
     return {
       x: Math.round(this.px * 10) / 10,
       z: Math.round(this.pz * 10) / 10,
@@ -2887,6 +2895,8 @@ export class Game {
       kills: this.kills,
       wave: this.wave,
       yaw: Math.round(this.yaw * 100) / 100,
+      py: Math.round(this.py * 100) / 100,
+      pitch: Math.round(this.pitch * 100) / 100,
     };
   }
   private clamp(v: number): number {
@@ -2979,13 +2989,18 @@ export class Game {
         this.input.KeyJ = false;
         this.attack();
       }
-      // прыжок: с земли — вверх; Крыса в полёте у стены — вол-кик (кд 5с).
-      // Кик швыряет ПРОТИВ движения (разворот на 180°); если стоишь — толчок от стены.
+      // прыжок: с земли — вверх (с любой опоры: земля, крыша, мост).
+      // Вол-кик Крысы — на C (способность), не на прыжке.
       if (this.input[km.jump]) {
-        // прыжок с любой опоры: земля, крыша, мост
         if (this.py <= this.groundAt(this.px, this.pz) + 0.01) {
           this.pvy = this.jumpVel;
-        } else if (this.charId === 'krysa' && this.wallT > 0 && this.wallKickCd <= 0 && this.py > 0.05) {
+        }
+      }
+      // вол-кик Стейси Крысы на C: в полёте у стены — разворот с подбросом (кд 5с).
+      // Кик швыряет ПРОТИВ движения; если стоишь — толчок от стены.
+      if (this.input[km.ability] && this.charId === 'krysa') {
+        this.input[km.ability] = false;
+        if (this.wallT > 0 && this.wallKickCd <= 0 && this.py > 0.05) {
           let kf = (this.input[km.fwd] || this.input.ArrowUp ? 1 : 0) - (this.input[km.back] || this.input.ArrowDown ? 1 : 0) - this.joy.y;
           let kr = (this.input[km.right] ? 1 : 0) - (this.input[km.left] ? 1 : 0) + this.joy.x;
           kf = Math.max(-1, Math.min(1, kf));
@@ -3045,8 +3060,8 @@ export class Game {
         const e = 1 - t * t;
         this.yaw = this.kickTurnFrom + this.kickTurnDelta * e;
       }
-      // рывок МТТ на назначенной клавише (по умолчанию C)
-      if (this.input[km.ability]) {
+      // способность на C: Крыса — вол-кик (съедено выше), остальные — рывок МТТ
+      if (this.input[km.ability] && this.charId !== 'krysa') {
         this.input[km.ability] = false;
         this.dash();
       }
