@@ -21,6 +21,9 @@ import brCeilUrl from '../assets/br-ceil.jpg';
 import bossUrl from '../assets/boss.png';
 import charMttUrl from '../assets/char-mtt.png';
 import charKrysaUrl from '../assets/char-krysa.png';
+import shotUrl from '../assets/shot.mp3';
+import hitUrl from '../assets/hit.mp3';
+import wallkickUrl from '../assets/wallkick.mp3';
 
 export interface UpgState { hp: number; dmg: number; spd: number; sup: number }
 export const UPG_MAX: UpgState = { hp: 5, dmg: 5, spd: 5, sup: 5 };
@@ -2459,6 +2462,7 @@ export class Game {
     this.ev.onSwing();
     if (W.spread) return this.shotgunFire(W.dmg, W.range);
     if (W.ranged) return this.shoot(W.dmg, W.range);
+    this.sfx(hitUrl);
     this.blip(220);
     const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
     let hits = 0;
@@ -2511,6 +2515,7 @@ export class Game {
   // 🔫 выстрел: хитскан строго по прицелу (конус ~2°) — без автонаводки;
   // урон тает с дистанцией
   private shoot(baseDmg: number, range: number): number {
+    this.sfx(shotUrl);
     this.blip(880);
     const cp = Math.cos(this.pitch);
     const dx = -Math.sin(this.yaw) * cp, dy = Math.sin(this.pitch), dz = -Math.cos(this.yaw) * cp;
@@ -2573,6 +2578,7 @@ export class Game {
   // Выстрел себе под ноги (круто вниз) — рокет-джамп: швыряет против выстрела,
   // вверх на 6м (pvy 12 при гравитации 12: 12²/24 = 6) + отброс назад.
   private shotgunFire(totalDmg: number, range: number): number {
+    this.sfx(shotUrl);
     this.blip(220);
     const cp = Math.cos(this.pitch);
     const dx = -Math.sin(this.yaw) * cp, dy = Math.sin(this.pitch), dz = -Math.cos(this.yaw) * cp;
@@ -2729,6 +2735,23 @@ export class Game {
       g.connect(this.AC.destination);
       o.start();
       o.stop(this.AC.currentTime + 0.08);
+    } catch { /* noop */ }
+  }
+
+  /** Звуки МТТ (его файлы): выстрел, удар, отскок Крысы. Молчит при выключенном звуке. */
+  private sfxCache: Record<string, HTMLAudioElement> = {};
+  private sfx(url: string, vol = 0.7): void {
+    if (!this.soundOn) return;
+    try {
+      let a = this.sfxCache[url];
+      if (!a) {
+        a = new Audio(url);
+        a.preload = 'auto';
+        this.sfxCache[url] = a;
+      }
+      a.volume = vol;
+      a.currentTime = 0;
+      void a.play().catch(() => undefined);
     } catch { /* noop */ }
   }
 
@@ -3023,6 +3046,7 @@ export class Game {
           this.wallT = 0;
           this.wallKickCd = superCd('krysa', this.upg.krysa?.sup ?? 0);
           this.burst(this.px, 1.0, this.pz, 10);
+          this.sfx(wallkickUrl);
           this.blip(700);
           this.pushHud();
         }
