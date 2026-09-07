@@ -1,1 +1,1 @@
-stack(note('[a3 ~ e4 ~] [~ d4 ~ c4]').sound('triangle').delay(.5).room(.8).gain(.4),note('a1*2').sound('sine').gain(.5)).cpm(24).play()
+stack(note('<a1 e2 a2>').sound('sine').attack(.8).gain(.5).room(.8),note('[~ e4 ~ ~] [~ ~ a4 ~] [~ d4 ~ ~] [~ ~ c4 ~]').sound('triangle').delay(.6).room(.9).gain(.32),note('<a1 ~ c2 ~>').sound('triangle').lpf(400).gain(.3),note('e6*8').degradeBy(.8).sound('sine').delay(.5).room(.8).gain(.2)).cpm(24).play()

@@ -1,1 +1,1 @@
-stack(note('[a2 a2 a2 a2]*4').sound('sawtooth').lpf(2000).gain(.5),sound('white*16').decay(.03).gain(.3)).cpm(46).play()
+stack(note('<[e3 g3 a3 c4] ~ [d3 f3 a3 d4] ~>').sound('sawtooth').lpf(2200).gain(.45),note('<~ [e4 g4 a4 e5] ~ [d4 f4 a4 d5]>').sound('square').lpf(2600).gain(.33).delay(.25).room(.3),note('<[a2 a2 c3 c3] [d3 d3 e3 e3] [f3 f3 g3 g3] [a2 c3 e3 a3]>').slow('<1 1 1 2>').sound('sawtooth').lpf(1000).gain(.5),note('a1*4').sound('sine').gain(.6),sound('<white*4 ~ white*2 ~>').decay(.05).gain(.3)).cpm(46).play()
