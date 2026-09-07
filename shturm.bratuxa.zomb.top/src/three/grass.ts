@@ -59,6 +59,9 @@ function bladeTexture(): THREE.CanvasTexture {
   }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  // Тонкие штрихи: мипмапы размазали бы их в темноту — только линейная фильтрация.
+  t.generateMipmaps = false;
+  t.minFilter = THREE.LinearFilter;
   return t;
 }
 
@@ -76,9 +79,11 @@ export function buildGrass(map: MapId, seed: number): GrassRig {
   const geo = mergeTwo(quad, quad2);
   const mat = new THREE.MeshLambertMaterial({ map: bladeTexture(), alphaTest: 0.45, side: THREE.DoubleSide });
   // Материал белый: цвет идёт из текстуры × instance-цвет (иначе двойное умножение даёт черноту).
+  // Лёгкий emissive — травинки не уходят в черноту в тени.
   const [c1, c2] = GRASS_TINT[map];
-  const tintA = new THREE.Color(c1); const tintB = new THREE.Color(c2);
   if (map === 'neon') { mat.emissive.set(0x0a2a1a); mat.emissiveIntensity = 0.4; }
+  else { mat.emissive.set(0x1d3312); mat.emissiveIntensity = 0.35; }
+  const tintA = new THREE.Color(c1); const tintB = new THREE.Color(c2);
   const uTime = { value: 0 };
   // Аннотация типа — strict требует явного типа параметра (в брифе опущен).
   mat.onBeforeCompile = (sh: THREE.WebGLProgramParametersWithUniforms) => {
