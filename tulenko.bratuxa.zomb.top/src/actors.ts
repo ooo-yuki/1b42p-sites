@@ -14,6 +14,24 @@ export interface Guard {
   dir: 1 | -1;
 }
 
+export interface Cook {
+  x: number;
+  y: number;
+  dir: 1 | -1;
+}
+
+export interface Boss {
+  x: number;
+  y: number;
+  dir: 1 | -1;
+}
+
+export interface Warden {
+  x: number;
+  y: number;
+  dir: 1 | -1;
+}
+
 export interface StepInput {
   dx: number;
   dy: number;
@@ -65,4 +83,46 @@ export function stepGuard(g: Guard, grid: Grid): void {
     return;
   }
   g.x = nx;
+}
+
+export function newCook(x: number, y: number, dir: 1 | -1 = 1): Cook {
+  return { x: x, y: y, dir: dir };
+}
+
+export function newBoss(x: number, y: number, dir: 1 | -1 = 1): Boss {
+  return { x: x, y: y, dir: dir };
+}
+
+export function newWarden(x: number, y: number, dir: 1 | -1 = 1): Warden {
+  return { x: x, y: y, dir: dir };
+}
+
+export function stepCook(c: Cook, grid: Grid): void {
+  const nx = c.x + c.dir * CFG.guardSpeed * CFG.step;
+  if (wallAt(grid, Math.floor(nx), Math.floor(c.y))) {
+    if (c.dir > 0) c.dir = -1;
+    else c.dir = 1;
+    return;
+  }
+  c.x = nx;
+}
+
+export function stepBoss(b: Boss, grid: Grid): void {
+  const nx = b.x + b.dir * CFG.guardSpeed * CFG.step;
+  if (wallAt(grid, Math.floor(nx), Math.floor(b.y))) {
+    if (b.dir > 0) b.dir = -1;
+    else b.dir = 1;
+    return;
+  }
+  b.x = nx;
+}
+
+export function stepWarden(w: Warden, grid: Grid): void {
+  const nx = w.x + w.dir * CFG.guardSpeed * CFG.step;
+  if (wallAt(grid, Math.floor(nx), Math.floor(w.y))) {
+    if (w.dir > 0) w.dir = -1;
+    else w.dir = 1;
+    return;
+  }
+  w.x = nx;
 }

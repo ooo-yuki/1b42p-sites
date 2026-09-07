@@ -14,6 +14,9 @@ function strip(src) {
     .replace(/:\s*StepInput/g, '')
     .replace(/:\s*Seal/g, '')
     .replace(/:\s*Guard/g, '')
+    .replace(/:\s*Cook/g, '')
+    .replace(/:\s*Boss/g, '')
+    .replace(/:\s*Warden/g, '')
     .replace(/grid\?: Grid/g, 'grid')
     .replace(/night\?: boolean/g, 'night')
     .replace(/:\s*Grid/g, '')
@@ -53,10 +56,10 @@ function wallAt(g, x, y) {
 let actors = strip(readTS('../src/actors.ts'));
 
 const js = cfg + '\n' + gridSrc + '\n' + actors
-  + '\nmodule.exports = { newSeal, stepSeal, newGuard, stepGuard, loadGrid, wallAt, CFG };\n';
+  + '\nmodule.exports = { newSeal, stepSeal, newGuard, stepGuard, newCook, stepCook, newBoss, stepBoss, newWarden, stepWarden, loadGrid, wallAt, CFG };\n';
 const m = new Module('actors', module);
 m._compile(js, path.join(__dirname, '..', 'src', 'actors.js'));
-const { newSeal, stepSeal, newGuard, stepGuard, loadGrid, CFG } = m.exports;
+const { newSeal, stepSeal, newGuard, stepGuard, newCook, stepCook, newBoss, stepBoss, newWarden, stepWarden, loadGrid, CFG } = m.exports;
 
 // Шаг 1 из приказа: ходьба двигает тюленьку
 {
@@ -122,6 +125,33 @@ const { newSeal, stepSeal, newGuard, stepGuard, loadGrid, CFG } = m.exports;
   assert.equal(gd.dir, -1);
   for (let i = 0; i < 2000; i++) stepGuard(gd, g);
   assert.ok(gd.x >= 1 && gd.x < 6);
+}
+
+// Люди корпусов: повар, бригадир, смотритель — точка, ходят по полу как стража
+{
+  const c = newCook(5, 5);
+  assert.equal(typeof c.x, 'number');
+  const b = newBoss(5, 5);
+  assert.equal(typeof b.x, 'number');
+  const w = newWarden(5, 5);
+  assert.equal(typeof w.x, 'number');
+}
+
+// Шаг патруля: скорость из баланса, разворот у стены, без конуса взгляда
+{
+  const g = loadGrid(['#######', '#     #', '#######']);
+  for (const [mk, st] of [[newCook, stepCook], [newBoss, stepBoss], [newWarden, stepWarden]]) {
+    const a = mk(1, 1, 1);
+    const x0 = a.x;
+    st(a, g);
+    assert.ok(a.x > x0);
+    assert.ok(Math.abs(a.x - (x0 + CFG.guardSpeed * CFG.step)) < 1e-9);
+    assert.equal(typeof a.sees, 'undefined');
+    for (let i = 0; i < 500 && a.dir === 1; i++) st(a, g);
+    assert.equal(a.dir, -1);
+    for (let i = 0; i < 2000; i++) st(a, g);
+    assert.ok(a.x >= 1 && a.x < 6);
+  }
 }
 
 console.log('actors ok');
