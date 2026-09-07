@@ -2749,8 +2749,8 @@ export class Game {
     return this.remotes.map((m) => ({ nick: m.nick, char: m.char, x: m.x, z: m.z, hp: m.hp, weapon: m.weapon, py: m.py, atk: m.atk, dead: m.dead }));
   }
   /** Отладка для тестов: живые враги с координатами (навести прицел точно). */
-  debugFoes(): Array<{ x: number; z: number; hp: number; dead: boolean; ey: number }> {
-    return this.enemies.filter((e) => !e.dead).map((e) => ({ x: e.g.position.x, z: e.g.position.z, hp: Math.round(e.hp), dead: e.dead, ey: Math.round(e.ey * 100) / 100 }));
+  debugFoes(): Array<{ id: number; x: number; z: number; hp: number; dead: boolean; ey: number }> {
+    return this.enemies.filter((e) => !e.dead).map((e) => ({ id: e.mobId, x: e.g.position.x, z: e.g.position.z, hp: Math.round(e.hp), dead: e.dead, ey: Math.round(e.ey * 100) / 100 }));
   }
 
   /** Гость общей комнаты: локальную симуляцию гасим, мобы едут со сервера. */
@@ -2860,6 +2860,38 @@ export class Game {
     this.pushHud();
     this.drawMM();
     return true;
+  }
+
+  /** Хост общей комнаты: слепок сервера сказал, что гости добили, — гасим
+      локальные копии без награды (награда ушла убийце через freshKill) и
+      тянем полосы к серверному пулу вниз. Иначе хост бьёт труп, а волна встаёт. */
+  applyHostKills(list: RemoteMob[]): void {
+    if (this.netSync) return;
+    let changed = false;
+    for (const m of list.slice(0, 60)) {
+      const id = Math.floor(Number(m.id));
+      if (!Number.isFinite(id)) continue;
+      const e = this.enemies.find((q) => !q.net && q.mobId === id && !q.dead);
+      if (!e) continue;
+      if (m.dead === true || Math.max(0, Math.round(Number(m.hp) || 0)) <= 0) {
+        e.dead = true;
+        this.burst(e.g.position.x, 1.2, e.g.position.z, 10);
+        this.scene.remove(e.g);
+        changed = true;
+        continue;
+      }
+      const sh = Math.max(0, Math.round(Number(m.hp) || 0));
+      if (sh < e.hp) {
+        e.hp = sh;
+        this.updateHpBar(e);
+        changed = true;
+      }
+    }
+    if (!changed) return;
+    this.waveClearCheck();
+    this.enemies = this.enemies.filter((e) => !e.dead);
+    this.pushHud();
+    this.drawMM();
   }
 
   // круг (игрок/враг радиусом rad на высоте y) против окружения: коробка — точный AABB,

@@ -932,6 +932,8 @@ async function loadStats(): Promise<void> {
               body: JSON.stringify({ sid, mobs: g.debugMobs() }),
             });
           } catch { /* noop */ }
+          // хост тоже читает слепок: фраги гостей гаснут локально, полосы едут к серверному пулу
+          if (Array.isArray(d.mobs)) g.applyHostKills(d.mobs);
         } else if (inGame && mobMap && !amOwner && Array.isArray(d.mobs)) {
           g.setRemoteMobs(d.mobs);
         }

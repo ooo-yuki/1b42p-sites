@@ -8,6 +8,11 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     page.on('console', (m) => {
       if (m.type() === 'error') errors.push('console: ' + m.text().slice(0, 200));
     });
+    // url ответов — отдельно: хром пишет «Failed to load resource» без url в тексте,
+    // и фильтр benign-урлов иначе не срабатывает
+    page.on('response', (r) => {
+      if (r.status() >= 400) errors.push('http ' + r.status() + ' ' + r.url());
+    });
     await page.goto('/');
     await expect(page).toHaveTitle(/42 LIVE/);
   });
@@ -1231,7 +1236,9 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('.sheet .wclose');
     const hud2 = await page.locator('#hudRow2').innerText();
     expect(hud2).toMatch(/Дробовик/);
-    // выстрел себе под ноги — подброс: ловим пик высоты за 3 секунды
+    // выстрел себе под ноги — подброс: ловим пик высоты.
+    // Под SwiftShader кадры редкие, а физика идёт клампом 50мс — полёт 2с тянется
+    // ~14с реалтайма: опрашиваем до 12с с ранним выходом (порог тот же — не ослабление).
     const peak = await page.evaluate(() => new Promise<number>((resolve) => {
       const m = (window as unknown as { __mtt: { look: (dx: number, dy: number) => void; attack: () => number; py: () => number } }).__mtt;
       m.look(0, 400);
@@ -1240,7 +1247,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
       let n = 0;
       const t = window.setInterval(() => {
         best = Math.max(best, m.py());
-        if (++n >= 30) { window.clearInterval(t); resolve(Math.round(best * 100) / 100); }
+        if (best > 4 || ++n >= 120) { window.clearInterval(t); resolve(Math.round(best * 100) / 100); }
       }, 100);
     }));
     expect(peak).toBeGreaterThan(4);
@@ -1280,8 +1287,16 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test.afterEach(async () => {
-    // ожидаемый 403 админки для чужих — не баг, в отчёт не идёт
-    const real = errors.filter((e) => !e.includes('/api/admin/stats'));
+    // ожидаемый 403 админки для чужих — не баг, в отчёт не идёт.
+    // Каждый такой 403 гасит ровно одну безликую «Failed to load resource…403»
+    // из консоли (url там нет, сверяем по счётчику http-записей) — прочие ошибки видны.
+    const benignHttp = errors.filter((e) => e.startsWith('http ') && e.includes('/api/admin/stats')).length;
+    let swallow = benignHttp;
+    const real = errors.filter((e) => {
+      if (e.startsWith('http ')) return !e.includes('/api/admin/stats');
+      if (swallow > 0 && e.startsWith('console: Failed to load resource') && e.includes(' 403')) { swallow--; return false; }
+      return true;
+    });
     expect(real, 'ошибки браузера: ' + real.join(' | ').slice(0, 500)).toEqual([]);
   });
 });
