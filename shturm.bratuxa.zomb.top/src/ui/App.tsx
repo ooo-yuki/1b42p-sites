@@ -195,13 +195,16 @@ export function App() {
           <Stick side="left" onMove={(x, y) => { inputBus.move = { x: deadzone(x), y: deadzone(y) }; }} />
           {/* Стик вверх = взгляд вверх, как мышь; held — камера крутится пока держишь. */}
           <Stick side="right" onMove={(x, y) => { inputBus.lookHeld = { x, y }; }} />
-          <div style={{ position: 'fixed', bottom: 40, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 12, zIndex: 10 }}>
+          {/* Огонь — справа над стиком, прицел/перезарядка — слева над стиком: центр не перекрываем. */}
+          <div style={{ position: 'fixed', right: 36, bottom: 180, zIndex: 10 }}>
             <button
               onTouchStart={() => { inputBus.fire = true; }} onTouchEnd={() => { inputBus.fire = false; }}
               onTouchCancel={() => { inputBus.fire = false; }}
               onMouseDown={() => { inputBus.fire = true; }} onMouseUp={() => { inputBus.fire = false; }}
               onMouseLeave={() => { inputBus.fire = false; }}
               style={btnFire}>Огонь</button>
+          </div>
+          <div style={{ position: 'fixed', left: 36, bottom: 180, display: 'flex', gap: 10, zIndex: 10 }}>
             <button
               onTouchStart={() => { inputBus.aim = true; }} onTouchEnd={() => { inputBus.aim = false; }}
               onTouchCancel={() => { inputBus.aim = false; }}
