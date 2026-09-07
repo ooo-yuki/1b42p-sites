@@ -38,8 +38,9 @@ const MAP: string[] = [
 ];
 
 const G = loadGrid(MAP);
-// Круг 32: масштаб держит окно целиком — поле закрывает экран,
-// края режутся картой, а не чернотой. Камера держит тюленьку.
+// Круг 9, рамка: карта всегда закрывает окно целиком — если поле зрения
+// шире карты, растим SCALE пока бока не закроются картой, черноты ноль.
+// Камера держит тюленьку.
 // Люди рисуются вдвое крупнее клетки (картинки 32): центром по клетке,
 // ноги на клетке. Клетки и мебель как были — drawImage ужмёт 32 в клетку.
 let SCALE = 2;
@@ -47,7 +48,14 @@ let camX = 0;
 let camY = 0;
 function updCam(W: number, H: number): void {
   const need = Math.max(W / (G.w * TILE), H / (G.h * TILE));
-  SCALE = Math.max(2, Math.ceil(need));
+  SCALE = Math.max(2, need);
+  let coverW = G.w * TILE * SCALE;
+  let coverH = G.h * TILE * SCALE;
+  while (coverW < W || coverH < H) {
+    SCALE += 0.25;
+    coverW = G.w * TILE * SCALE;
+    coverH = G.h * TILE * SCALE;
+  }
   const mapW = G.w * TILE * SCALE;
   const mapH = G.h * TILE * SCALE;
   const cx = S.seal.x * TILE * SCALE - W / 2;
@@ -424,6 +432,21 @@ const TOP_PROP: Record<string, string> = {
   food: 'img/top_prop_food.png',
   poster: 'img/top_prop_poster.png',
 };
+// Круг 9, вещи не клоны: ящики и плакаты рядами по месту.
+// Недостающих файлов нет — пропускаем тихо, держим базу.
+const TOP_PROP_CRATE: string[] = ['img/top_prop_crate.png', 'img/top_prop_crate_1.png', 'img/top_prop_crate_2.png'];
+const TOP_PROP_POSTER: string[] = ['img/top_prop_poster.png', 'img/top_prop_poster_1.png'];
+function propSrc(kind: string, x: number, y: number): string {
+  if (kind === 'crate' || kind === 'poster') {
+    const row = kind === 'crate' ? TOP_PROP_CRATE : TOP_PROP_POSTER;
+    const k = row.length;
+    const n = (((Math.floor(x) + Math.floor(y) * 7) % k) + k) % k;
+    const cand = row[n];
+    if (hasPic(cand)) return cand;
+    if (hasPic(row[0])) return row[0];
+  }
+  return TOP_PROP[kind] || TOP_PROP.crate;
+}
 // Пол по комнате: столовая ест свой, душ свой, камера свой, остальное старый.
 function floorFor(ch: string): string {
   if (ch === 'T') return TOP_FLOOR_FOOD;
@@ -465,7 +488,8 @@ function loadPics(): void {
     TOP_MATE[0], TOP_MATE[1], TOP_MATE[2], TOP_MATE[3], FACE,
     TOP_FLOOR, TOP_FLOOR_CELL, TOP_FLOOR_FOOD, TOP_FLOOR_WASH, TOP_WALL, TOP_WALL_FACE,
     TOP_FURN.D, TOP_FURN.B, TOP_FURN.T, TOP_FURN.S, TOP_FURN.J, TOP_FURN.R,
-    TOP_PROP.crate, TOP_PROP.food, TOP_PROP.poster];
+    TOP_PROP.crate, TOP_PROP.food, TOP_PROP.poster,
+    TOP_PROP_CRATE[1], TOP_PROP_CRATE[2], TOP_PROP_POSTER[1]];
   for (const src of all) {
     try {
       const im = new Image();
@@ -541,9 +565,10 @@ function render(now: number): void {
     g2d.fillRect(sx(L.x) - ms / 2, sy(L.y) - ms / 2, ms, ms);
   }
 
-  // Вещи: ящики, подносы, плакаты — картинками поверх, проход держат полом.
+  // Вещи: ящики и плакаты рядами по месту, подносы как были — картинками
+  // поверх, проход держат полом. Недостающих файлов нет — тихо база.
   for (const P of PROPS) {
-    const src = TOP_PROP[P.kind] || TOP_PROP.crate;
+    const src = propSrc(P.kind, P.x, P.y);
     drawImg(src, sx(P.x) - TS / 2, sy(P.y) - TS / 2, TS, TS, '#c9a227');
   }
 
@@ -614,7 +639,7 @@ function render(now: number): void {
   }
 
   if (isNight(S)) {
-    g2d.fillStyle = 'rgba(3,3,44,0.58)';
+    g2d.fillStyle = 'rgba(2,4,34,0.66)';
     g2d.fillRect(0, 0, W, H);
   }
   if (S.solitary) {
@@ -626,9 +651,9 @@ function render(now: number): void {
     g2d.fillText('карцер до утра', W / 2, H / 2);
   }
 
-  // Круг 6: настроение света. Ночь глубже, факелы дышат силой и радиусом,
-  // тёплые лужи у огоньков шире; день с мягким верхним светом.
-  // Тёплое пятно вокруг тюленьки шире и сильнее.
+  // Круг 9, свет: ночь живее — холодные тени глубже, тёплые лужи у ламп
+  // контрастнее: свет ядром с ореолом, а не мутным пятном.
+  // День с мягким верхним светом. Тёплое пятно вокруг тюленьки шире и сильнее.
   {
     const lightNight = isNight(S);
     const seX = sx(S.seal.x);
@@ -640,13 +665,20 @@ function render(now: number): void {
         const ly = sy(LP.y);
         const fl = 0.78 + 0.16 * Math.sin(now / 130 + i * 2.1) + 0.06 * Math.sin(now / 41 + i * 3.7);
         const br = 1 + 0.14 * Math.sin(now / 170 + i * 1.3) + 0.06 * Math.sin(now / 53 + i * 2.3);
-        const lr2 = 58 * SCALE * fl * br;
-        const lamp = g2d.createRadialGradient(lx, ly, 3, lx, ly, lr2);
-        lamp.addColorStop(0, 'rgba(255,214,150,' + (0.74 * fl).toFixed(3) + ')');
-        lamp.addColorStop(0.35, 'rgba(255,198,126,' + (0.36 * fl).toFixed(3) + ')');
-        lamp.addColorStop(1, 'rgba(255,180,100,0)');
-        g2d.fillStyle = lamp;
-        g2d.fillRect(lx - lr2, ly - lr2, lr2 * 2, lr2 * 2);
+        const haloR = 64 * SCALE * fl * br;
+        const halo = g2d.createRadialGradient(lx, ly, 3, lx, ly, haloR);
+        halo.addColorStop(0, 'rgba(255,200,130,' + (0.42 * fl).toFixed(3) + ')');
+        halo.addColorStop(0.55, 'rgba(255,186,110,' + (0.16 * fl).toFixed(3) + ')');
+        halo.addColorStop(1, 'rgba(255,180,100,0)');
+        g2d.fillStyle = halo;
+        g2d.fillRect(lx - haloR, ly - haloR, haloR * 2, haloR * 2);
+        const coreR = Math.max(8, haloR * 0.36);
+        const core = g2d.createRadialGradient(lx, ly, 1, lx, ly, coreR);
+        core.addColorStop(0, 'rgba(255,242,208,' + (0.95 * fl).toFixed(3) + ')');
+        core.addColorStop(0.6, 'rgba(255,224,170,' + (0.55 * fl).toFixed(3) + ')');
+        core.addColorStop(1, 'rgba(255,210,140,0)');
+        g2d.fillStyle = core;
+        g2d.fillRect(lx - coreR, ly - coreR, coreR * 2, coreR * 2);
       }
       for (let i = 0; i < LAMPS.length; i++) {
         const LP = LAMPS[i];
