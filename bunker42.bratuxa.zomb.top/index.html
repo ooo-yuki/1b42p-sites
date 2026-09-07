@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>БУНКЕР 42 ☢️</title>
+<style>
+:root{--cob:#0060AA;--red:#E31E25;--gold:#ffd23f}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at 50% 0%,#1a0f2e 0%,#070b18 65%);color:#fff;font-family:system-ui,Segoe UI,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center}
+h1{margin:14px 0 2px;font-size:32px;font-weight:900;text-shadow:0 0 18px var(--cob)}
+.sub{color:var(--gold);font-weight:800;margin-bottom:8px}
+#hist{color:#8a93b2;font-size:13px;margin-bottom:8px}
+.screen{display:none;width:min(94vw,680px);background:rgba(13,20,40,.92);border:2px solid var(--cob);border-radius:18px;padding:16px;margin-bottom:14px}
+.screen.on{display:block}
+.holo{border:2px solid transparent;border-radius:14px;background:linear-gradient(#0d1428,#0d1428) padding-box,linear-gradient(135deg,var(--cob),var(--gold),var(--red)) border-box;padding:12px;margin:8px 0;animation:holo 3s linear infinite}
+@keyframes holo{to{filter:hue-rotate(360deg)}}
+.holo b{color:var(--gold)}
+.pills{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.pill{background:#141d33;border:2px solid #334155;border-radius:999px;padding:8px 14px;font-weight:800}
+.pill small{color:var(--gold)}
+.pill.dead{opacity:.35;text-decoration:line-through}
+button{background:linear-gradient(180deg,#ffd23f,#ff9f1c);border:none;border-radius:12px;padding:12px 22px;font-size:16px;font-weight:900;color:#231a00;cursor:pointer;margin:6px 4px}
+button.ghost{background:transparent;border:2px solid var(--cob);color:#fff}
+input{background:#0d1428;border:1px solid var(--cob);border-radius:10px;color:#fff;padding:9px 12px;font-size:15px;margin:4px}
+#timer{font-size:56px;font-weight:900;color:var(--gold);text-shadow:0 0 22px var(--red);text-align:center;animation:pulse 1s infinite}
+@keyframes pulse{50%{transform:scale(1.06)}}
+#chat{background:#05070f;border:1px solid var(--cob);border-radius:12px;height:150px;overflow-y:auto;padding:8px;font-size:14px;margin:8px 0}
+#chat .sys{color:var(--gold)}
+#kick{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;z-index:60;background:rgba(20,0,10,.8);font-size:30px;font-weight:900;color:var(--gold);text-align:center;padding:20px}
+.note{color:#9aa3c0;font-size:13px}
+.big{font-size:56px;text-align:center}
+</style>
+</head>
+<body>
+<h1>☢️ БУНКЕР 42</h1>
+<div class="sub">Кто не брат — тот вылетает. Мы уже победили 🏆</div>
+<div id="hist"></div>
+
+<div class="screen on" id="s-setup">
+  <h3>🚪 Заявка в бункер (останется 42% состава)</h3>
+  <div class="row"><input id="nm" placeholder="Твоё имя" maxlength="16" value="Братуха">
+  <span>Соперников-ИИ:</span><input id="aic" type="number" min="2" max="7" value="5" style="width:64px">
+  <button id="go">СПУСТИТЬСЯ ☢️</button></div>
+  <div class="note">ИИ блефуют рандомно. Ничья — вылетает меньшее братство.</div>
+</div>
+
+<div class="screen" id="s-game">
+  <h3 id="round">Раунд 1</h3>
+  <div class="holo" id="mycard"></div>
+  <div><b>👥 Живые в бункере:</b></div>
+  <div class="pills" id="alive"></div>
+  <div id="timer">42</div>
+  <div id="chat"></div>
+  <div class="row"><input id="def" placeholder="Твоя защита (42 сек)…" style="flex:1;min-width:200px"><button id="defGo">ЗАЩИТА 🛡️</button></div>
+  <div class="row"><input id="vot" placeholder="Свиток: имя кандидата…" style="flex:1;min-width:200px"><button id="votGo">СВИТОК 📜</button></div>
+</div>
+
+<div class="screen" id="s-end">
+  <div class="big" id="endB"></div>
+  <h3 style="text-align:center" id="endT"></h3>
+  <div style="text-align:center"><button onclick="location.reload()">🔄 НОВЫЙ БУНКЕР</button></div>
+</div>
+
+<div id="kick"><div style="font-size:76px">💥</div><div>42-й ВЫЛЕТ</div><div id="kickWho" style="font-size:20px"></div></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const PROF=['Брат-программист','Брат-механик','Брат-врач','Брат-повар','Брат-сапёр','Брат-криптоанархист'];
+const HOB=['паяет антенны','варит самогон','читает 42 книги','кормит крыс','майнит на калькуляторе','чинит всё скотчем','пишет рэп про бункер'];
+const SEC=['Я сдал братву','У меня карта выхода','Я — робот Пятерки','Моё число 42'];
+const WHY=['съел общий паёк','спал на посту','топил за выход наружу','шептался с роботом','прятал тушёнку'];
+const AIN=['Шеф','Бандюган','Крот','Тихий','Проф','Гром'];
+let P=[],round=0,startN=0,defT=null,myVote=null,aiVotes={};
+let H=[];try{H=JSON.parse(localStorage.getItem('b42_hist')||'[]')}catch(e){}
+function snd(f,d){try{const a=new (window.AudioContext||window.webkitAudioContext)();const o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=f;o.type='sawtooth';g.gain.value=.1;o.start();g.gain.exponentialRampToValueAtTime(.001,a.currentTime+d);o.stop(a.currentTime+d)}catch(e){}}
+function hist(){$('hist').textContent=H.length?('Прошлые спуски: '+H.slice(-5).map(h=>h.win?'🏆':'💥').join(' ')):'Первый спуск, братуха!'}
+hist();
+function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));$(id).classList.add('on')}
+function chat(t,sys){const c=$('chat');c.innerHTML+=`<div class="${sys?'sys':''}">${t}</div>`;c.scrollTop=1e6}
+function mkCard(name,me){
+  return {name,me:!!me,prof:PROF[Math.floor(Math.random()*PROF.length)],hob:HOB[Math.floor(Math.random()*HOB.length)],bro:1+Math.floor(Math.random()*10),sec:SEC[Math.floor(Math.random()*SEC.length)],alive:true};
+}
+$('go').onclick=()=>{
+  const name=($('nm').value||'Братуха').slice(0,16);
+  const n=Math.max(2,Math.min(7,+$('aic').value||5));
+  P=[mkCard(name,true)];
+  const pool=[...AIN].sort(()=>Math.random()-.5);
+  for(let i=0;i<n;i++)P.push(mkCard(pool[i%n]+(i>=AIN.length?' '+(i+1):'')));
+  startN=P.length;round=0;show('s-game');nextRound();
+};
+function cardHTML(p,full){
+  return `<div>🎴 <b>${p.name}</b> · ${p.prof}</div><div>🎣 ${p.hob} · 🤝 братство <b>${p.bro}</b></div>`+(full?`<div>🤫 секрет: <b>${p.sec}</b></div>`:'');
+}
+function nextRound(){
+  round++;
+  const alive=P.filter(p=>p.alive);
+  const need=Math.max(1,Math.round(startN*0.42));
+  if(alive.length<=need){finish(alive.some(p=>p.me));return}
+  $('round').textContent=`Раунд ${round} · живых ${alive.length} → останется ${need}`;
+  const me=P[0];$('mycard').innerHTML=cardHTML(me,true);
+  $('alive').innerHTML='';alive.forEach(p=>{const d=document.createElement('div');d.className='pill';d.innerHTML=`${p.name} <small>${p.prof} · 🤝${p.bro}</small>`;$('alive').appendChild(d)});
+  myVote=null;aiVotes={};
+  // ИИ базарят и кидают свитки
+  alive.filter(p=>!p.me).forEach(p=>{
+    chat(`🗣️ <b>${p.name}</b>: ${p.hob}, ${p.prof.toLowerCase()} — я нужен бункеру!`);
+    const foes=alive.filter(q=>q!==p);
+    const tgt=foes[Math.floor(Math.random()*foes.length)];
+    aiVotes[tgt.name]=(aiVotes[tgt.name]||0)+1;
+  });
+  chat('📜 Свитки ИИ уже в чате. Пиши защиту и свой свиток!','sys');
+  let t=42;$('timer').textContent=t;
+  clearInterval(defT);defT=setInterval(()=>{t--;$('timer').textContent=t;if(t<=0){clearInterval(defT);tally()}},1000);
+}
+$('defGo').onclick=()=>{const v=$('def').value.trim().slice(0,120);if(!v)return;chat(`🛡️ <b>${P[0].name}</b>: ${v}`);$('def').value='';snd(520,.12)};
+$('votGo').onclick=()=>{
+  const v=$('vot').value.trim();if(!v||myVote)return;
+  const tgt=P.find(p=>p.alive&&p.name.toLowerCase()===v.toLowerCase());
+  if(!tgt){chat('📜 Такого в бункере нет, братуха.','sys');return}
+  myVote=tgt.name;chat(`📜 <b>${P[0].name}</b> пишет в свитке: <b>${tgt.name}</b>`,'sys');$('vot').value='';snd(660,.12);
+};
+function tally(){
+  clearInterval(defT);
+  const votes={...aiVotes};
+  if(myVote)votes[myVote]=(votes[myVote]||0)+1;
+  let best=null,bn=0,tie=false;
+  for(const k in votes){if(votes[k]>bn){bn=votes[k];best=k;tie=false}else if(votes[k]===bn){tie=true}}
+  let out=null;
+  if(best&&!tie)out=P.find(p=>p.name===best);
+  else if(best){
+    // ничья — вылетает меньшее братство
+    const top=Object.keys(votes).filter(k=>votes[k]===bn).map(k=>P.find(p=>p.name===k));
+    top.sort((a,b)=>a.bro-b.bro);out=top[0];
+    chat(`⚖️ Ничья! Братство решает: ${out.name} (🤝${out.bro}) слабее.`,'sys');
+  }
+  if(!out){chat('⚖️ Все молчат — никто не вылетает.','sys');setTimeout(nextRound,2000);return}
+  out.alive=false;
+  const me=P[0];
+  $('kickWho').innerHTML=`${out.name} · ${out.prof}<br>🤫 ${out.sec}<br>📌 ${WHY[Math.floor(Math.random()*WHY.length)]}`;
+  $('kick').style.display='flex';snd(110,.5);
+  chat(`💥 <b>${out.name}</b> вылетел! Секрет: ${out.sec}`,'sys');
+  setTimeout(()=>{$('kick').style.display='none';
+    if(!me.alive){finish(false)}else nextRound();
+  },2600);
+}
+function finish(win){
+  H.push({t:Date.now(),win});H=H.slice(-10);
+  try{localStorage.setItem('b42_hist',JSON.stringify(H))}catch(e){}
+  hist();show('s-end');
+  $('endB').textContent=win?'🏆':'💥';
+  $('endT').textContent=win?'ТЫ В 42%! Бункер твой, братуха!':'Ты вылетел, но 42 помнит тебя.';
+  snd(win?880:160,.4);
+}
+</script>
+</body>
+</html>

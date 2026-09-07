@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>МАФИЯ 42 👊</title>
+<style>
+:root{--cob:#0060AA;--red:#E31E25;--gold:#ffd23f;--bg:#070b18}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at 50% 0%,#101a3a 0%,var(--bg) 60%);color:#fff;font-family:system-ui,Segoe UI,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center}
+h1{margin:14px 0 2px;font-size:34px;font-weight:900;letter-spacing:2px;text-shadow:0 0 18px var(--red)}
+.sub{color:var(--gold);font-weight:800;margin-bottom:10px}
+#stats{color:#8a93b2;font-size:13px;margin-bottom:8px}
+.screen{display:none;width:min(94vw,640px);background:rgba(13,20,40,.92);border:2px solid var(--cob);border-radius:18px;padding:16px;box-shadow:0 0 24px rgba(0,96,170,.4)}
+.screen.on{display:block}
+.pills{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.pill{background:#141d33;border:2px solid #334155;border-radius:999px;padding:8px 14px;font-weight:800;cursor:pointer;user-select:none}
+.pill small{color:var(--gold)}
+.pill.dead{opacity:.35;text-decoration:line-through;cursor:default}
+.pill.sel{border-color:var(--gold);box-shadow:0 0 14px var(--gold)}
+.ava{display:inline-block;width:26px;height:26px;border-radius:50%;text-align:center;line-height:26px;font-size:14px;margin-right:6px;color:#000;font-weight:900}
+button{background:linear-gradient(180deg,#ffd23f,#ff9f1c);border:none;border-radius:12px;padding:12px 22px;font-size:16px;font-weight:900;color:#231a00;cursor:pointer;margin:6px 4px}
+button.ghost{background:transparent;border:2px solid var(--cob);color:#fff}
+input,select{background:#0d1428;border:1px solid var(--cob);border-radius:10px;color:#fff;padding:9px 12px;font-size:15px;margin:4px}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:4px 0}
+#timer{font-size:64px;font-weight:900;color:var(--red);text-shadow:0 0 22px var(--red);text-align:center}
+#timer.blue{color:#4da3ff;text-shadow:0 0 22px var(--cob)}
+#knuckle{font-size:60px;position:fixed;z-index:50;pointer-events:none;transition:all .5s ease-in;display:none;filter:drop-shadow(0 0 12px var(--gold))}
+#boom{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;z-index:60;background:rgba(20,0,0,.72);font-size:34px;font-weight:900;color:var(--gold);text-shadow:0 0 30px var(--red)}
+#ticker{position:fixed;bottom:0;left:0;right:0;background:#0d1428;border-top:2px solid var(--gold);color:var(--gold);font-weight:700;white-space:nowrap;overflow:hidden;padding:8px}
+#ticker span{display:inline-block;padding-left:100%;animation:tick 18s linear infinite}
+@keyframes tick{to{transform:translateX(-100%)}}
+.big{font-size:60px;text-align:center}
+.note{color:#9aa3c0;font-size:13px}
+.vote42{color:var(--gold);font-weight:900}
+</style>
+</head>
+<body>
+<h1>👊 МАФИЯ 42</h1>
+<div class="sub">Мы уже победили 🏆</div>
+<div id="stats"></div>
+
+<div class="screen on" id="s-setup">
+  <h3>🤝 Сходка: кто в деле? (4–10)</h3>
+  <div class="row"><span>Братух:</span><input id="cnt" type="number" min="4" max="10" value="6" style="width:70px"><button id="mk">СОБРАТЬ</button></div>
+  <div id="names"></div>
+  <button id="start">🎲 РАЗДАТЬ РОЛИ</button>
+  <div class="note">Пятерка — титул только для топ-1 по стате. Каждый 42-й кастет в мире удваивается.</div>
+</div>
+
+<div class="screen" id="s-deal">
+  <h3 id="dealT">📱 Передай телефон</h3>
+  <div class="big" id="dealB">?</div>
+  <div style="text-align:center"><button id="dealNext">СМОТРЮ ТОЛЬКО Я 👀</button></div>
+</div>
+
+<div class="screen" id="s-night">
+  <h3 id="nightT">🌙 Ночь. Город спит…</h3>
+  <div class="note" id="nightH"></div>
+  <div class="pills" id="nightP"></div>
+  <div style="text-align:center"><button id="nightGo">ПОДТВЕРДИТЬ 🤫</button></div>
+</div>
+
+<div class="screen" id="s-day">
+  <h3 id="dayT">☀️ День. Разбор!</h3>
+  <div id="timer">42</div>
+  <div class="pills" id="dayP"></div>
+  <div style="text-align:center"><button id="dayGo">ДАЛЬШЕ ➡️</button></div>
+</div>
+
+<div class="screen" id="s-end">
+  <div class="big" id="endB"></div>
+  <h3 style="text-align:center" id="endT"></h3>
+  <div style="text-align:center"><button onclick="location.reload()">🔄 ЕЩЁ СХОДКА</button></div>
+</div>
+
+<div id="knuckle">👊</div>
+<div id="boom"><div style="font-size:80px">💥</div><div>42 — СУДЬБА</div><div id="boomWho"></div></div>
+<div id="ticker"><span id="tickT">42, братуха! • Кемеровская область! • Спокойно, мяу! • </span></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const COLORS=['#ffd23f','#4da3ff','#ff6b6b','#39d353','#c084fc','#ff9f1c','#66ccff'];
+let P=[],phase='',turn=0,victim=null,healed=null,votes={},voteN=+(localStorage.getItem('m42_votes')||0);
+let S={games:0,mafia:0,bro:0};try{Object.assign(S,JSON.parse(localStorage.getItem('m42_stats')||'{}'))}catch(e){}
+function snd(f,d){try{const a=new (window.AudioContext||window.webkitAudioContext)();const o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=f;o.type='square';g.gain.value=.12;o.start();g.gain.exponentialRampToValueAtTime(.001,a.currentTime+d);o.stop(a.currentTime+d)}catch(e){}}
+function stats(){$('stats').textContent=`Сходок: ${S.games} · Мафия: ${S.mafia} · Братухи: ${S.bro} · Кастетов всего: ${voteN}`}
+function log(t){$('tickT').textContent+=' • '+t}
+function ava(p){return `<span class="ava" style="background:${p.color}">${p.name[0]||'?'}</span>${p.name} <small>${p.title}</small>`}
+function pills(el,arr,fn,sel){const e=$(el);e.innerHTML='';arr.forEach(p=>{const d=document.createElement('div');d.className='pill'+(p.alive?'':' dead')+((sel&&sel===p)?' sel':'');d.innerHTML=ava(p);if(p.alive&&fn)d.onclick=()=>fn(p);e.appendChild(d)})}
+stats();
+// --- setup ---
+$('mk').onclick=()=>{const n=Math.max(4,Math.min(10,+$('cnt').value||6));let h='';for(let i=0;i<n;i++)h+=`<div class="row"><input id="nm${i}" placeholder="Братуха ${i+1}" maxlength="16" value="Братуха ${i+1}"><select id="tt${i}"><option>Брат</option><option>Крёстный</option><option>Бандюган</option><option>Шеф</option><option>Пятерка</option></select></div>`;$('names').innerHTML=h};
+$('mk').onclick();
+$('start').onclick=()=>{
+  const n=$('names').querySelectorAll('input').length;
+  P=[];for(let i=0;i<n;i++)P.push({name:($('nm'+i).value||('Братуха '+(i+1))).slice(0,16),title:$('tt'+i).value,alive:true,role:'',color:COLORS[i%COLORS.length]});
+  const nm=n>=9?3:(n>=7?2:1),roles=[];
+  for(let i=0;i<nm;i++)roles.push('Браток');
+  if(n>=5){roles.push('Крёстный');roles.push('Стрелок')}
+  while(roles.length<n)roles.push('Братуха');
+  roles.sort(()=>Math.random()-.5);P.forEach((p,i)=>p.role=roles[i]);
+  turn=0;show('s-deal');deal();
+};
+function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));$(id).classList.add('on')}
+const RNAME={'Браток':'🔪 БРАТОК (мафия)','Крёстный':'💚 КРЁСТНЫЙ (доктор)','Стрелок':'🔫 СТРЕЛОК (комиссар)','Братуха':'🤝 БРАТУХА (мирный)'};
+// --- deal ---
+function deal(){
+  if(turn>=P.length){turn=0;night('Браток');return}
+  const p=P[turn];$('dealT').textContent=`📱 ${p.name}, смотри только ты!`;
+  $('dealB').textContent='🙈';$('dealNext').textContent='СМОТРЮ ТОЛЬКО Я 👀';
+  $('dealNext').onclick=()=>{
+    if($('dealB').textContent==='🙈'){$('dealB').textContent=RNAME[p.role];$('dealNext').textContent='ЗАПОМНИЛ, ДАЛЬШЕ ➡️';snd(660,.15)}
+    else{turn++;deal()}
+  };
+}
+// --- night ---
+let nightStep='';
+function night(step){
+  nightStep=step;victim=victim;show('s-night');
+  const alive=P.filter(p=>p.alive);
+  if(step==='Браток'){
+    const maf=alive.filter(p=>p.role==='Браток');
+    if(!maf.length){night('Крёстный');return}
+    $('nightT').textContent='🌙 Братки, кого валим?';$('nightH').textContent='Передай телефон братку. Остальные отвернулись.';
+    pills('nightP',P,p=>{victim=p;night('Крёстный')});
+  }else if(step==='Крёстный'){
+    if(!alive.some(p=>p.role==='Крёстный')){night('Стрелок');return}
+    $('nightT').textContent='💚 Крёстный, кого лечим?';$('nightH').textContent='Спокойно, мяу!';
+    pills('nightP',P,p=>{healed=p;night('Стрелок')});
+  }else if(step==='Стрелок'){
+    const c=alive.find(p=>p.role==='Стрелок');
+    if(!c){dawn();return}
+    $('nightT').textContent='🔫 Стрелок, кого проверить?';$('nightH').textContent='Проверка покажет: браток или нет.';
+    pills('nightP',P,p=>{alert(p.name+': '+(p.role==='Браток'?'🔪 БРАТОК!':'🤝 не браток'));snd(p.role==='Браток'?180:520,.2);dawn()});
+  }
+}
+$('nightGo').onclick=()=>{if(nightStep==='Браток'&&!victim)return;night(nightStep==='Браток'?'Крёстный':(nightStep==='Крёстный'?'Стрелок':'Стрелок'))};
+// --- dawn ---
+function dawn(){
+  show('s-day');victim=victim;
+  if(victim&&victim!==healed){
+    victim.alive=false;boom(victim.name+' вывезли. 42 — судьба');
+    log('💥 '+victim.name+' ('+victim.role+') — 42, судьба');
+  }else if(victim){log('💚 Крёстный отмазал '+victim.name);gesture('Крёстный в деле! ✌️🖖')}
+  else log('🌙 Ночь тихая');
+  victim=null;healed=null;
+  if(win())return;
+  dayDiscuss();
+}
+function boom(t){$('boomWho').textContent=t;$('boom').style.display='flex';snd(120,.5);setTimeout(()=>$('boom').style.display='none',2200)}
+function gesture(t){log(t)}
+function win(){
+  const maf=P.filter(p=>p.alive&&p.role==='Браток').length,ok=P.filter(p=>p.alive&&p.role!=='Браток').length;
+  if(maf===0||maf>=ok){
+    const mw=maf>0;S.games++;mw?S.mafia++:S.bro++;
+    try{localStorage.setItem('m42_stats',JSON.stringify(S))}catch(e){}
+    stats();show('s-end');
+    $('endB').textContent=mw?'🔪✌️🖖':'🤝🏆';
+    $('endT').textContent=mw?'МАФИЯ ЗАБРАЛА ГОРОД! 42, братуха!':'БРАТУХИ ПОБЕДИЛИ! Мы уже победили 🏆';
+    log(mw?'🔪 Мафия победила! ✌️🖖':'🏆 Братухи победили!');
+    snd(mw?200:880,.4);return true;
+  }return false;
+}
+// --- day ---
+let dtimer=null;
+function dayDiscuss(){
+  $('dayT').textContent='☀️ День. Разбор полётов!';votes={};
+  pills('dayP',P.filter(p=>p.alive),null);
+  $('dayGo').textContent='К ГОЛОСОВАНИЮ ➡️';
+  runTimer(42,()=>dayVote());
+  $('dayGo').onclick=()=>{clearInterval(dtimer);dayVote()};
+}
+function dayVote(){
+  const alive=P.filter(p=>p.alive);
+  $('dayT').textContent='👊 Кидай кастет!';votes={};turn=0;
+  $('dayGo').textContent='ПРОПУСТИТЬ';
+  castVote(alive);
+  runTimer(42,()=>tally(alive));
+  $('dayGo').onclick=()=>{turn++;if(turn>=alive.length){clearInterval(dtimer);tally(alive)}else castVote(alive)};
+}
+function castVote(alive){
+  const v=alive[turn];if(!v||!v.alive){turn++;return}
+  $('dayT').textContent=`👊 Кидает: ${v.name}`;
+  pills('dayP',alive,t=>{
+    voteN++;try{localStorage.setItem('m42_votes',voteN)}catch(e){}
+    const dbl=(voteN%42===0);
+    votes[t.name]=(votes[t.name]||0)+(dbl?2:1);
+    flyKnuckle(v.name,t.name);
+    log(`👊 ${v.name} → ${t.name}${dbl?' (42-й! ×2)':''}`);snd(dbl?990:440,.15);stats();
+    turn++;if(turn>=alive.length){clearInterval(dtimer);setTimeout(()=>tally(alive),600)}else castVote(alive);
+  });
+}
+function flyKnuckle(a,b){
+  const k=$('knuckle');k.style.display='block';
+  k.style.left='10%';k.style.top='40%';k.textContent='👊';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{k.style.left='80%';k.style.top='20%';k.style.transform='rotate(360deg)'}));
+  setTimeout(()=>{k.style.display='none';k.style.transform=''},550);
+}
+function runTimer(s,cb){
+  clearInterval(dtimer);const t=$('timer');t.classList.remove('blue');
+  t.textContent=s;let n=s;
+  dtimer=setInterval(()=>{n--;t.textContent=n;if(n<=10)t.classList.add('blue');if(n<=0){clearInterval(dtimer);cb()}},1000);
+}
+function tally(alive){
+  clearInterval(dtimer);
+  let best=null,bn=0,tie=false;
+  for(const k in votes){if(votes[k]>bn){bn=votes[k];best=k;tie=false}else if(votes[k]===bn){tie=true}}
+  if(best&&!tie){
+    const p=P.find(x=>x.name===best);p.alive=false;
+    boom(best+' выгнали. Кемеровская область!');
+    log(`⚖️ ${best} (${p.role}) выгнан голосованием`);
+  }else log('⚖️ Голоса размазали — все живы');
+  if(win())return;
+  setTimeout(()=>{show('s-day');night('Браток')},2400);
+}
+</script>
+</body>
+</html>
