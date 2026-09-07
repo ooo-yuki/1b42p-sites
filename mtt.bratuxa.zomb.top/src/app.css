@@ -104,6 +104,21 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 #caseResult.drop.spin{color:#ffd23f;animation:caseblink 1s steps(2) infinite}
 @keyframes caseblink{50%{opacity:.55}}
 #caseRoulette{position:relative;margin:10px auto 4px;max-width:460px}
+#caseOverlay{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(2,4,10,.9);padding:14px;animation:ovin .3s ease-out}
+@keyframes ovin{from{opacity:0}to{opacity:1}}
+#caseFull{width:min(94vw,760px);max-height:94vh;overflow-y:auto;background:#0d1428;border:3px solid #a855f7;border-radius:18px;padding:20px 18px 18px;text-align:center;box-shadow:0 0 44px rgba(168,85,247,.5),6px 6px 0 #000;font-family:'Courier New',Courier,monospace}
+#caseFull h3{margin:0 0 8px;color:#ffd23f;letter-spacing:2px;font-size:24px;text-shadow:2px 2px 0 #000}
+#caseFull #caseRoulette{max-width:none;margin:8px auto}
+#caseFull #casePointer{font-size:28px}
+#caseFull #caseWin{padding:12px 0}
+#caseFull .rcard{flex:0 0 120px;width:120px;height:150px}
+#caseFull .rcard img{width:88px;height:68px}
+#caseFull .rcard .remo{font-size:42px}
+#caseFull .rcard .rlabel{font-size:14px}
+#caseFull #caseResult{font-size:18px;margin-top:12px}
+#caseClose{display:block;width:100%;margin-top:14px;padding:16px;font-size:20px;font-weight:900;letter-spacing:2px;border:none;border-radius:14px;cursor:pointer;background:linear-gradient(180deg,#ffd23f,#ff9f1c 60%,#e07b00);color:#231a00;box-shadow:0 0 24px rgba(255,159,28,.55),4px 4px 0 #000;font-family:'Courier New',Courier,monospace}
+#caseClose:active{transform:scale(.97)}
+.cfullHint{margin-top:12px;color:#9aa3c0;font-size:13px}
 #casePointer{text-align:center;color:#ffd23f;font-size:20px;font-weight:900;text-shadow:2px 2px 0 #000;animation:caseblink 1s steps(2) infinite}
 #caseWin{overflow:hidden;border:2px solid #a855f7;border-radius:12px;background:#0b1226;box-shadow:4px 4px 0 #000,0 0 18px rgba(168,85,247,.35);padding:8px 0;position:relative}
 #caseWin::after{content:'';position:absolute;top:0;bottom:0;left:50%;width:2px;background:#ffd23f;box-shadow:0 0 10px #ffd23f;transform:translateX(-50%);pointer-events:none}

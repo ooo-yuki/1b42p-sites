@@ -322,7 +322,7 @@ async function loadStats(): Promise<void> {
   interface ReelItem { kind: CaseDrop['kind']; label: string; sub: string; }
   const REEL_N = 42;
   const REEL_WIN = 34;
-  const CARD_W = 112; // карточка 104 + gap 8 — синхронно с CSS .rcard
+  const CARD_W = 128; // карточка 120 + gap 8 — синхронно с CSS #caseFull .rcard
   const reelLabel = (kind: CaseDrop['kind']): { label: string; sub: string } => {
     if (kind === 'char') return { label: '🐀 СТЕЙСИ', sub: 'Легендарный' };
     if (kind === 'fantiki') return { label: '+300 🎟️', sub: 'фантики' };
@@ -348,13 +348,19 @@ async function loadStats(): Promise<void> {
   const [spin, setSpin] = useState(false);
   const [spinX, setSpinX] = useState(0);
   const [winOn, setWinOn] = useState(false);
+  const [overlayOpen, setOverlayOpen] = useState(false);
   const spinTimer = useRef(0);
+  const overTimer = useRef(0);
+  const closeOverlay = useCallback(() => {
+    window.clearTimeout(overTimer.current);
+    setOverlayOpen(false);
+  }, []);
   const openCase = useCallback(() => {
     const g = gameRef.current;
     if (!g || spin) return;
     const d = g.openCase();
     if (!d.ok && d.kind === 'empty') { setCaseDrop(d); return; }
-    // барабан: филлер + реальный дроп строго под прицелом
+    // барабан: филлер + реальный дроп строго под прицелом — на весь экран
     const items: ReelItem[] = Array.from({ length: REEL_N }, () => {
       const k = fillerKind();
       const v = reelLabel(k);
@@ -365,21 +371,25 @@ async function loadStats(): Promise<void> {
     setCaseDrop(null);
     setWinOn(false);
     setSpin(true);
+    setOverlayOpen(true);
     setSpinX(0);
     // два кадра — дать DOM встать, потом едем справа налево
     requestAnimationFrame(() => requestAnimationFrame(() => {
       setSpinX(REEL_WIN * CARD_W - 140 + CARD_W / 2);
     }));
     window.clearTimeout(spinTimer.current);
+    window.clearTimeout(overTimer.current);
     spinTimer.current = window.setTimeout(() => {
       setWinOn(true);
       setSpin(false);
       setCaseDrop(d);
       setCaseTick((t) => t + 1);
       if (d.kind === 'char') setUpgTick((t) => t + 1);
+      // выиграл — полюбовался — оверлей сам уходит, результат остаётся во вкладке
+      overTimer.current = window.setTimeout(() => setOverlayOpen(false), 8000);
     }, 4500);
   }, [spin]);
-  useEffect(() => () => window.clearTimeout(spinTimer.current), []);
+  useEffect(() => () => { window.clearTimeout(spinTimer.current); window.clearTimeout(overTimer.current); }, []);
   const [keys, setKeys] = useState<KeyMap>({ ...DEFAULT_KEYS });
   const [capturing, setCapturing] = useState<keyof KeyMap | null>(null);
   const [waveBanner, setWaveBanner] = useState(0);
@@ -1485,34 +1495,43 @@ async function loadStats(): Promise<void> {
                   {spin ? '🎰 КРУТИТСЯ…' : `ОТКРЫТЬ ЗА 🎟️ ${CASE_PRICE} (баланс ${hud.fantiki})`}
                 </button>
               </div>
-              {reel.length > 0 && (
-                <div id="caseRoulette">
-                  <div id="casePointer">▼</div>
-                  <div id="caseWin">
-                    <div
-                      id="caseTrack"
-                      style={{ transform: `translateX(${-spinX}px)`, transitionDuration: spin || !winOn ? '4.2s' : '0.3s' }}
-                    >
-                      {reel.map((it, i) => (
+              {(() => { void caseTick; return null; })()}
+              {!overlayOpen && caseDrop && <div id="caseResult" className={'drop ' + caseDrop.kind}>{caseDrop.ok ? `🎉 ${caseDrop.text}` : `⛔ ${caseDrop.text}`}</div>}
+              {overlayOpen && reel.length > 0 && (
+                <div id="caseOverlay" onClick={() => { if (winOn) closeOverlay(); }}>
+                  <div id="caseFull" onClick={(e) => e.stopPropagation()}>
+                    <h3>🎰 КЕЙС БОЙЦА</h3>
+                    <div id="caseRoulette">
+                      <div id="casePointer">▼</div>
+                      <div id="caseWin">
                         <div
-                          key={i}
-                          className={'rcard ' + it.kind + (winOn && i === REEL_WIN ? ' win' : '')}
-                          id={winOn && i === REEL_WIN ? 'caseWinCard' : undefined}
+                          id="caseTrack"
+                          style={{ transform: `translateX(${-spinX}px)`, transitionDuration: spin || !winOn ? '4.2s' : '0.3s' }}
                         >
-                          {it.kind === 'char'
-                            ? <img src={CHARIMG.krysa} alt="Стейси" />
-                            : <div className="remo">{it.label.split(' ')[0]}</div>}
-                          <div className="rlabel">{it.label}</div>
-                          <div className="rsub">{it.sub}</div>
+                          {reel.map((it, i) => (
+                            <div
+                              key={i}
+                              className={'rcard ' + it.kind + (winOn && i === REEL_WIN ? ' win' : '')}
+                              id={winOn && i === REEL_WIN ? 'caseWinCard' : undefined}
+                            >
+                              {it.kind === 'char'
+                                ? <img src={CHARIMG.krysa} alt="Стейси" />
+                                : <div className="remo">{it.label.split(' ')[0]}</div>}
+                              <div className="rlabel">{it.label}</div>
+                              <div className="rsub">{it.sub}</div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      </div>
                     </div>
+                    {spin && <div id="caseResult" className="drop spin">🎰 Барабан крутится… лоты летят справа налево!</div>}
+                    {!spin && caseDrop && <div id="caseResult" className={'drop ' + caseDrop.kind}>{caseDrop.ok ? `🎉 ${caseDrop.text}` : `⛔ ${caseDrop.text}`}</div>}
+                    {winOn
+                      ? <button id="caseClose" onClick={closeOverlay}>ЗАБРАТЬ ✔</button>
+                      : <div className="cfullHint">Смотри, куда едет… 👁️</div>}
                   </div>
                 </div>
               )}
-              {(() => { void caseTick; return null; })()}
-              {spin && <div id="caseResult" className="drop spin">🎰 Барабан крутится… лоты летят справа налево!</div>}
-              {caseDrop && <div id="caseResult" className={'drop ' + caseDrop.kind}>{caseDrop.ok ? `🎉 ${caseDrop.text}` : `⛔ ${caseDrop.text}`}</div>}
             </div>
           </div>
           </div>
