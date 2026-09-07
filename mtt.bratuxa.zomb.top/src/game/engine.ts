@@ -10,6 +10,7 @@ import roofUrl from '../assets/city-roof.jpg';
 import roadUrl from '../assets/city-road.jpg';
 import walkUrl from '../assets/city-walk.jpg';
 import plazaUrl from '../assets/city-plaza.jpg';
+import fenceUrl from '../assets/fence.jpg';
 import skyUrl from '../assets/sky.jpg';
 import edgeUrl from '../assets/edge.png';
 import house2Url from '../assets/house2.png';
@@ -43,7 +44,7 @@ export type MapId = 'arena' | 'duel' | 'backrooms' | 'custom';
 
 /** Карты для выбора в меню: id, название, описание. */
 export const MAPS: Array<{ id: MapId; name: string; desc: string }> = [
-  { id: 'arena', name: '🌍 Арена', desc: 'Новый город: витрины, площадь с фонтаном, парк, парковка' },
+  { id: 'arena', name: '🌍 Арена', desc: 'Новый город: витрины, переулки, Г/П-дома, площадь с фонтаном' },
   { id: 'duel', name: '⚔️ Дуэль', desc: 'Ночной двор 1×1 для разборок' },
   { id: 'backrooms', name: '🟨 Бэкрумс', desc: 'Случайный лабиринт — новый каждый раз' },
 ];
@@ -966,16 +967,24 @@ export class Game {
     const roofMat0 = new THREE.MeshStandardMaterial({ map: roofT0, roughness: 0.95 });
     const parapMat = new THREE.MeshStandardMaterial({ color: 0x7a6a58, roughness: 0.9 });
     const acMat = new THREE.MeshStandardMaterial({ color: 0xb9c2cc, roughness: 0.6, metalness: 0.3 });
-    type B = { x: number; z: number; w: number; d: number; up: number; tint: number; top: 'tank' | 'antenna' | 'garden' | 'ac' };
+    type B = { x: number; z: number; w: number; d: number; up: number; tint: number; top: 'tank' | 'antenna' | 'garden' | 'ac' | 'flat'; sign: number };
     const homes: B[] = [
-      { x: 20, z: -19, w: 12, d: 10, up: 9, tint: 0xf2e2c4, top: 'ac' },
-      { x: 39, z: -21, w: 8, d: 8, up: 7, tint: 0xe8d4b0, top: 'tank' },
-      { x: 22, z: -39, w: 10, d: 8, up: 11, tint: 0xdfc9a2, top: 'garden' },
-      { x: -20, z: 19, w: 12, d: 10, up: 8, tint: 0xf5e6cc, top: 'garden' },
-      { x: -39, z: 23, w: 9, d: 9, up: 12, tint: 0xe3cda4, top: 'antenna' },
-      { x: 18, z: 41, w: 11, d: 9, up: 9, tint: 0xefdcba, top: 'ac' },
-      { x: 41, z: 33, w: 8, d: 8, up: 6, tint: 0xe8d0a8, top: 'tank' },
+      { x: 20, z: -19, w: 12, d: 10, up: 9, tint: 0xf2e2c4, top: 'ac', sign: 0 },
+      { x: 39, z: -21, w: 8, d: 8, up: 7, tint: 0xe8d4b0, top: 'tank', sign: 1 },
+      { x: 22, z: -39, w: 10, d: 8, up: 11, tint: 0xdfc9a2, top: 'garden', sign: 2 },
+      { x: -20, z: 19, w: 12, d: 10, up: 8, tint: 0xf5e6cc, top: 'garden', sign: 3 },
+      { x: -39, z: 23, w: 9, d: 9, up: 12, tint: 0xe3cda4, top: 'antenna', sign: 4 },
+      { x: 18, z: 41, w: 11, d: 9, up: 9, tint: 0xefdcba, top: 'ac', sign: 5 },
+      { x: 41, z: 33, w: 8, d: 8, up: 6, tint: 0xe8d0a8, top: 'tank', sign: 6 },
+      { x: -32, z: -32, w: 10, d: 9, up: 8, tint: 0xe9d2ac, top: 'ac', sign: 7 },
+      { x: -17, z: -37, w: 8, d: 8, up: 6, tint: 0xf0ddb8, top: 'flat', sign: 0 },
+      { x: 36, z: -38, w: 10, d: 9, up: 12, tint: 0xdec39c, top: 'tank', sign: 1 },
+      { x: -44, z: -8, w: 8, d: 8, up: 7, tint: 0xe5cba0, top: 'antenna', sign: 2 },
+      { x: 8, z: -18, w: 6, d: 5, up: 0, tint: 0xffffff, top: 'flat', sign: 3 },
+      { x: -8, z: 18, w: 6, d: 5, up: 0, tint: 0xffffff, top: 'flat', sign: 4 },
+      { x: 13, z: -34, w: 6, d: 5, up: 4, tint: 0xefe0c0, top: 'flat', sign: 5 },
     ];
+    const signCols = [0xc23b3b, 0x2b6cb0, 0x2f9e44, 0xe8c547, 0x6c5ce7, 0xe07b39, 0x9b59b6, 0x1abc9c];
     for (const b of homes) {
       const shopT = shopT0.clone();
       shopT.repeat.set(Math.max(2, Math.round(b.w / 4)), 1);
@@ -987,17 +996,35 @@ export class Game {
       gnd.position.set(b.x, 1.75, b.z);
       gnd.castShadow = true; gnd.receiveShadow = true;
       scene.add(gnd);
-      const panelT = panelT0.clone();
-      panelT.repeat.set(Math.max(1, Math.round(b.w / 8)), Math.max(1, Math.round(b.up / 8)));
-      panelT.needsUpdate = true;
-      const up = new THREE.Mesh(
-        new THREE.BoxGeometry(b.w, b.up, b.d),
-        new THREE.MeshStandardMaterial({ map: panelT, roughness: 0.85, color: b.tint }),
-      );
-      up.position.set(b.x, 3.5 + b.up / 2, b.z);
-      up.castShadow = true; up.receiveShadow = true;
-      scene.add(up);
       const H = 3.5 + b.up;
+      if (b.up > 0) {
+        // верхние этажи — панелька, повтор под размер коробки
+        const panelT = panelT0.clone();
+        panelT.repeat.set(Math.max(1, Math.round(b.w / 8)), Math.max(1, Math.round(b.up / 8)));
+        panelT.needsUpdate = true;
+        const up = new THREE.Mesh(
+          new THREE.BoxGeometry(b.w, b.up, b.d),
+          new THREE.MeshStandardMaterial({ map: panelT, roughness: 0.85, color: b.tint }),
+        );
+        up.position.set(b.x, 3.5 + b.up / 2, b.z);
+        up.castShadow = true; up.receiveShadow = true;
+        scene.add(up);
+        // карниз между витринами и панелькой — здание читается объёмом
+        const cor = new THREE.Mesh(new THREE.BoxGeometry(b.w + 0.5, 0.3, b.d + 0.5), parapMat);
+        cor.position.set(b.x, 3.6, b.z);
+        scene.add(cor);
+        // балконы на обе стороны (только у высоких — мелочь жрёт draw calls)
+        const nb = b.up >= 7 ? (b.w >= 10 ? 2 : 1) : 0;
+        for (const bs of [-1, 1]) {
+          for (let k = 0; k < nb; k++) {
+            const bx2 = b.x + (nb === 1 ? 0 : (k === 0 ? -b.w / 4 : b.w / 4));
+            const bz2 = b.z + bs * (b.d / 2 + 0.45);
+            const sl = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.15, 0.9), parapMat);
+            sl.position.set(bx2, 3.5 + b.up * 0.55, bz2);
+            scene.add(sl);
+          }
+        }
+      }
       const slab = new THREE.Mesh(new THREE.BoxGeometry(b.w + 0.4, 0.35, b.d + 0.4), roofMat0);
       slab.position.set(b.x, H + 0.17, b.z);
       slab.castShadow = true;
@@ -1009,10 +1036,17 @@ export class Game {
         p.position.set(b.x + ox, H + 0.35 + ph / 2, b.z + oz);
         scene.add(p);
       }
+      // вывеска магазина над витринами — у каждого свой цвет
+      const sign = new THREE.Mesh(
+        new THREE.BoxGeometry(Math.min(b.w - 1.5, 4.5), 1, 0.25),
+        new THREE.MeshStandardMaterial({ color: signCols[b.sign % signCols.length], roughness: 0.6 }),
+      );
+      sign.position.set(b.x, 2.7, b.z + b.d / 2 + 0.15);
+      scene.add(sign);
       if (b.top === 'tank') {
         const t = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 2, 10), parapMat);
         t.position.set(b.x + b.w / 4, H + 1.3, b.z);
-        t.castShadow = true;
+        t.castShadow = false;
         scene.add(t);
       } else if (b.top === 'antenna') {
         const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 5, 6), parapMat);
@@ -1030,7 +1064,7 @@ export class Game {
         for (let k = -1; k <= 1; k++) {
           const ac = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.8, 0.9), acMat);
           ac.position.set(b.x + k * 2.4, H + 0.75, b.z + b.d / 4);
-          ac.castShadow = true;
+          ac.castShadow = false;
           scene.add(ac);
         }
       }
@@ -1042,6 +1076,83 @@ export class Game {
       }
       this.solids.push({ x: b.x, z: b.z, hx: b.w / 2, hz: b.d / 2, h: H + 0.4 });
     }
+
+    // КОРПУС: отдельное крыло сложной формы (Г/П-дома собираются из крыльев).
+    const block = (x: number, z: number, w: number, d: number, H: number, si: number): void => {
+      const shopT = shopT0.clone();
+      shopT.repeat.set(Math.max(2, Math.round(w / 4)), 1);
+      shopT.needsUpdate = true;
+      const gnd = new THREE.Mesh(
+        new THREE.BoxGeometry(w, 3.5, d),
+        new THREE.MeshStandardMaterial({ map: shopT, roughness: 0.7 }),
+      );
+      gnd.position.set(x, 1.75, z);
+      gnd.castShadow = true; gnd.receiveShadow = true;
+      scene.add(gnd);
+      const upH = H - 3.5;
+      if (upH > 0) {
+        const panelT = panelT0.clone();
+        panelT.repeat.set(Math.max(1, Math.round(w / 8)), Math.max(1, Math.round(upH / 8)));
+        panelT.needsUpdate = true;
+        const up = new THREE.Mesh(
+          new THREE.BoxGeometry(w, upH, d),
+          new THREE.MeshStandardMaterial({ map: panelT, roughness: 0.85 }),
+        );
+        up.position.set(x, 3.5 + upH / 2, z);
+        up.castShadow = true; up.receiveShadow = true;
+        scene.add(up);
+      }
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(w + 0.4, 0.35, d + 0.4), roofMat0);
+      slab.position.set(x, H + 0.17, z);
+      scene.add(slab);
+      const ph2 = 0.55, pt2 = 0.28;
+      for (const [w2, d2, ox, oz] of [[w + 0.4, pt2, 0, -(d + 0.4) / 2], [w + 0.4, pt2, 0, (d + 0.4) / 2], [pt2, d + 0.4, -(w + 0.4) / 2, 0], [pt2, d + 0.4, (w + 0.4) / 2, 0]] as Array<[number, number, number, number]>) {
+        const pp = new THREE.Mesh(new THREE.BoxGeometry(w2, ph2, d2), parapMat);
+        pp.position.set(x + ox, H + 0.35 + ph2 / 2, z + oz);
+        scene.add(pp);
+      }
+      const sign = new THREE.Mesh(
+        new THREE.BoxGeometry(Math.min(w - 1.5, 4.5), 1, 0.25),
+        new THREE.MeshStandardMaterial({ color: signCols[si % signCols.length], roughness: 0.6 }),
+      );
+      sign.position.set(x, 2.7, z + d / 2 + 0.15);
+      scene.add(sign);
+      this.solids.push({ x, z, hx: w / 2, hz: d / 2, h: H + 0.4 });
+    };
+    // ПЕРЕУЛОК ВОСТОЧНЫЙ: два ряда узких домов, между ними lane 2м с фонарями
+    block(30, -8, 5, 6, 11, 0);
+    block(30, -15, 5, 6, 9, 1);
+    block(37, -8, 5, 6, 10, 2);
+    block(37, -15, 5, 6, 12, 3);
+    const laneGlow = new THREE.MeshBasicMaterial({ color: 0xfff2c4 });
+    for (const [alx, alz] of [[33.5, -5], [33.5, -12], [33.5, -19]] as Array<[number, number]>) {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.17, 5, 7), parapMat);
+      pole.position.set(alx, 2.5, alz);
+      scene.add(pole);
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.26, 8, 8), laneGlow);
+      bulb.position.set(alx, 5.1, alz);
+      scene.add(bulb);
+      this.solids.push({ x: alx, z: alz, r: 0.2, h: 5 });
+    }
+    // западный дом + северные киоски
+    block(-44, -22, 6, 6, 9, 4);
+    block(-8, -46, 5, 4, 6.5, 5);
+    block(8, -46, 5, 4, 7.5, 6);
+    // Г-ДОМ: два крыла уголком
+    block(-8, 31, 6, 10, 12, 7);
+    block(-8, 35, 8, 6, 12, 0);
+    // П-ДОМ: планка + два крыла, внутри дворик с клумбой
+    block(-36, 11, 5, 14, 13, 1);
+    block(-32, 6.5, 8, 5, 10, 2);
+    block(-32, 15.5, 8, 5, 10, 3);
+    const yardBed = new THREE.Mesh(
+      new THREE.CircleGeometry(1.6, 20),
+      new THREE.MeshStandardMaterial({ color: 0xff5d8f, roughness: 1 }),
+    );
+    yardBed.rotation.x = -Math.PI / 2;
+    yardBed.position.set(-31, 0.03, 11);
+    scene.add(yardBed);
+
 
     // ПЛОЩАДЬ с фонтаном (ЮВ): брусчатка со своей текстурой
     const plazaT = tex(plazaUrl, 6, 6);
@@ -1087,33 +1198,54 @@ export class Game {
     glass.rotation.y = Math.PI;
     scene.add(glass);
     this.solids.push({ x: 7.5, z: 12, hx: 2.5, hz: 0.3, h: 2.7 });
+    // вторая остановка — на западной стороне
+    const shRoof2 = new THREE.Mesh(new THREE.BoxGeometry(5, 0.25, 2), roofMat0);
+    shRoof2.position.set(-7.5, 2.7, 24);
+    scene.add(shRoof2);
+    for (const ox of [-2.2, 2.2]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 2.7, 6), parapMat);
+      post.position.set(-7.5 + ox, 1.35, 24);
+      scene.add(post);
+    }
+    const glass2 = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 1.6), glassMat);
+    glass2.position.set(-7.5, 1.6, 24.9);
+    scene.add(glass2);
+    this.solids.push({ x: -7.5, z: 24, hx: 2.5, hz: 0.3, h: 2.7 });
 
-    // деревья: ствол + два яруса кроны (свободные точки, в дома не врём)
-    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3d22, roughness: 1 });
-    const leafA = new THREE.MeshStandardMaterial({ color: 0x2f7a3d, roughness: 1 });
-    const leafB = new THREE.MeshStandardMaterial({ color: 0x46a04f, roughness: 1 });
-    const trees: Array<[number, number]> = [
-      [-7.5, -24], [-7.5, -36], [7.5, -26], [7.5, -38], [-7.5, 24], [-7.5, 38], [7.5, 26], [7.5, 40],
-      [-24, 7.5], [-36, 7.5], [24, -7.5], [36, -7.5], [14, 24], [-14, -14],
-      [-40, -22], [-22, -40], [-38, -36], [-24, -24], [48, 12], [-48, -8],
-    ];
-    let ti = 0;
-    for (const [tx, tz] of trees) {
-      if (this.hitSolid(tx, tz, 1)) continue;
-      const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.34, 2.4, 7), trunkMat);
-      tr.position.set(tx, 1.2, tz);
-      tr.castShadow = true;
-      scene.add(tr);
-      const lm = ti % 2 === 0 ? leafA : leafB;
-      const c1 = new THREE.Mesh(new THREE.ConeGeometry(1.7, 2.8, 8), lm);
-      c1.position.set(tx, 3.5, tz);
-      c1.castShadow = true;
-      scene.add(c1);
-      const c2 = new THREE.Mesh(new THREE.ConeGeometry(1.15, 1.9, 8), lm);
-      c2.position.set(tx, 5, tz);
-      scene.add(c2);
-      this.solids.push({ x: tx, z: tz, r: 0.3, h: 4 });
-      ti++;
+
+    // деревьев больше нет — вместо них плотная инфраструктура: рынок и урны
+    const stallWood = new THREE.MeshStandardMaterial({ color: 0x8a5a2e, roughness: 0.9 });
+    const stallCols = [0xc23b3b, 0xe8e2d4, 0x2b6cb0, 0xe8e2d4];
+    [-25, -21.5, -18, -14.5].forEach((sx, i) => {
+      if (this.hitSolid(sx, -24, 1.6)) return;
+      const box = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1.1, 2), stallWood);
+      box.position.set(sx, 0.55, -24);
+      box.castShadow = false;
+      scene.add(box);
+      const awn = new THREE.Mesh(
+        new THREE.BoxGeometry(2.8, 0.15, 2.4),
+        new THREE.MeshStandardMaterial({ color: stallCols[i % stallCols.length], roughness: 0.8 }),
+      );
+      awn.position.set(sx, 2.2, -24);
+      awn.castShadow = false;
+      scene.add(awn);
+      for (const ox of [-1.2, 1.2]) {
+        for (const oz of [-1, 1]) {
+          const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.2, 6), parapMat);
+          pole.position.set(sx + ox, 1.1, -24 + oz);
+          scene.add(pole);
+        }
+      }
+      this.solids.push({ x: sx, z: -24, hx: 1.25, hz: 1, h: 1.1 });
+    });
+    const binMat = new THREE.MeshStandardMaterial({ color: 0x3d5a3d, roughness: 0.8, metalness: 0.3 });
+    for (const [ux, uz] of [[6, 6], [-6, 6], [6, -6], [-6, -6], [12, 8], [-12, -8], [30, 20], [-30, -20]] as Array<[number, number]>) {
+      if (this.hitSolid(ux, uz, 0.7)) continue;
+      const bin = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.35, 1, 10), binMat);
+      bin.position.set(ux, 0.5, uz);
+      bin.castShadow = false;
+      scene.add(bin);
+      this.solids.push({ x: ux, z: uz, r: 0.4, h: 1 });
     }
     // детская площадка в парке: две стойки + перекладина + качель
     const playMat = new THREE.MeshStandardMaterial({ color: 0xd84a4a, roughness: 0.7 });
@@ -1146,11 +1278,7 @@ export class Game {
         this.solids.push({ x: lx, z: lz, r: 0.2, h: 6 });
       }
     }
-    for (const [fx, fz] of [[-44, -44], [44, -44], [-44, 44], [44, 44]] as Array<[number, number]>) {
-      const pl = new THREE.PointLight(0xffd88a, 0.5, 46);
-      pl.position.set(fx, 9, fz);
-      scene.add(pl);
-    }
+    // день: угловых прожекторов нет — хватает солнца и полусферы (FPS дороже)
 
     // парковка (ЮЗ): тёмный асфальт + разметка + 6 цветных машин
     const parkT = tex(roadUrl, 6, 3);
@@ -1171,6 +1299,30 @@ export class Game {
     const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111318, roughness: 1 });
     carCols.forEach((cc, i) => {
       const cx = -36.3 + i * 3.3, cz = 40;
+      if (this.hitSolid(cx, cz, 1.6)) return;
+      const body = new THREE.Mesh(new THREE.BoxGeometry(2, 0.85, 4.2), new THREE.MeshStandardMaterial({ color: cc, roughness: 0.35, metalness: 0.4 }));
+      body.position.set(cx, 0.85, cz);
+      body.castShadow = true;
+      scene.add(body);
+      const cab = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.7, 2), winMat);
+      cab.position.set(cx, 1.55, cz - 0.2);
+      scene.add(cab);
+      for (const [ox, oz] of [[-0.95, 1.4], [0.95, 1.4], [-0.95, -1.4], [0.95, -1.4]] as Array<[number, number]>) {
+        const w = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.3, 10), wheelMat);
+        w.rotation.z = Math.PI / 2;
+        w.position.set(cx + ox, 0.38, cz + oz);
+        scene.add(w);
+      }
+      this.solids.push({ x: cx, z: cz, hx: 1, hz: 2.1, h: 1.9 });
+    });
+    // вторая парковка (СВ): тот же асфальт, 4 машины
+    const lot2 = new THREE.Mesh(new THREE.PlaneGeometry(16, 8), new THREE.MeshStandardMaterial({ map: parkT, roughness: 1 }));
+    lot2.rotation.x = -Math.PI / 2;
+    lot2.position.set(38, 0.025, 8);
+    lot2.receiveShadow = true;
+    scene.add(lot2);
+    [0xd8d8d8, 0x8e44ad, 0x16a085, 0xd35400].forEach((cc, i) => {
+      const cx = 33.5 + i * 3, cz = 8;
       if (this.hitSolid(cx, cz, 1.6)) return;
       const body = new THREE.Mesh(new THREE.BoxGeometry(2, 0.85, 4.2), new THREE.MeshStandardMaterial({ color: cc, roughness: 0.35, metalness: 0.4 }));
       body.position.set(cx, 0.85, cz);
@@ -1227,12 +1379,26 @@ export class Game {
       scene.add(bed);
     });
 
-    // стройка у северного дома: забор + ящики
-    const fenceMat = new THREE.MeshStandardMaterial({ color: 0xe07b39, roughness: 0.9 });
+    // стройка у северного дома: оранжевый забор с текстурой МТТ + хитбоксы
+    const fenceT = tex(fenceUrl, 1, 1);
+    const fenceMat = new THREE.MeshStandardMaterial({ map: fenceT, roughness: 0.9 });
     for (let k = -2; k <= 2; k++) {
+      const fx = 22 + k * 2.5;
       const f = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.6, 0.15), fenceMat);
-      f.position.set(22 + k * 2.5, 0.8, -32.5);
+      f.position.set(fx, 0.8, -32.5);
+      f.castShadow = false;
       scene.add(f);
+      this.solids.push({ x: fx, z: -32.5, hx: 1.2, hz: 0.15, h: 1.6 });
+    }
+    // зелёный забор вдоль западной стройки — та же текстура, свой оттенок
+    const fenceGreen = new THREE.MeshStandardMaterial({ map: fenceT, color: 0x51c46b, roughness: 0.9 });
+    for (let k = 0; k < 8; k++) {
+      const gz = -30 + k * 2.5;
+      const g = new THREE.Mesh(new THREE.BoxGeometry(0.15, 1.6, 2.4), fenceGreen);
+      g.position.set(-40, 0.8, gz);
+      g.castShadow = false;
+      scene.add(g);
+      this.solids.push({ x: -40, z: gz, hx: 0.15, hz: 1.2, h: 1.6 });
     }
     const crateMat = new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: 0.9 });
     const crateMat2 = new THREE.MeshStandardMaterial({ color: 0x6e4520, roughness: 0.9 });

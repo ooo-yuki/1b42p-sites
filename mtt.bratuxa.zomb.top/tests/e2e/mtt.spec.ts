@@ -738,37 +738,28 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#goBtn');
     await page.waitForTimeout(800);
     type M = { ground: (x: number, z: number) => number };
-    const roofA = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.ground(-24, -24));
+    const roofB1 = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.ground(20, -19));
     const open = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.ground(0, 10));
-    expect(roofA).toBe(5);
+    expect(roofB1).toBe(12.9);
     expect(open).toBe(0);
   });
 
-  test('лестница ведёт на крышу: перешагиваем ступени', async ({ page }) => {
+  test('переулок и заборы: lane проходим, секции держат', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.waitForTimeout(800);
-    type M = { teleport: (x: number, z: number, yaw: number) => void; py: () => number };
-    await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.teleport(-36, -24, -Math.PI / 2));
-    await page.keyboard.down('KeyW');
-    let py = 0;
-    for (let i = 0; i < 50 && py <= 4.5; i++) {
-      await page.waitForTimeout(500);
-      py = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.py());
-    }
-    await page.keyboard.up('KeyW');
-    expect(py).toBeGreaterThan(4.5);
-  });
-
-  test('мост — настил: сверху опора, силуэт в solids', async ({ page }) => {
-    await page.click('#guestBtn');
-    await page.click('#goBtn');
-    await page.waitForTimeout(800);
-    type M = { ground: (x: number, z: number) => number; solids: () => Array<{ deck?: boolean }> };
-    const top = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.ground(-24, -20));
-    expect(top).toBe(5);
-    const decks = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solids().filter((s) => s.deck).length);
-    expect(decks).toBeGreaterThanOrEqual(2);
+    type M = { ground: (x: number, z: number) => number; solidAt: (x: number, z: number, y: number) => boolean };
+    // lane восточного переулка свободен
+    expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.ground(33.5, -8.5))).toBe(0);
+    expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solidAt(33.5, -8.5, 0))).toBe(false);
+    // стены переулка держат
+    expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solidAt(30, -11.5, 0))).toBe(true);
+    // оранжевый забор держит
+    expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solidAt(22, -32.5, 0))).toBe(true);
+    // зелёный забор держит
+    expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solidAt(-40, -22, 0))).toBe(true);
+    // Г-дом стоит: опора 12.4
+    expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.ground(-8, 31))).toBe(12.4);
   });
 
   test('выстрел оставляет трассер', async ({ page }) => {
@@ -813,9 +804,9 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#goBtn');
     await page.waitForTimeout(800);
     type M = { solidAt: (x: number, z: number, y: number) => boolean };
-    // фонтан в центре (0,0): у земли стена есть, на высоте 5 — нет
-    const low = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solidAt(0, 0, 0));
-    const high = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solidAt(0, 0, 5));
+    // фонтан на площади (27,27): у земли стена есть, на высоте 5 — нет
+    const low = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solidAt(27, 27, 0));
+    const high = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solidAt(27, 27, 5));
     expect(low).toBe(true);
     expect(high).toBe(false);
   });

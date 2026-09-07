@@ -3,7 +3,7 @@ import { Game, WEAPONS, CHARS, MAPS, KEY_ACTIONS, DEFAULT_KEYS, type HudState, t
 import oruzh1Url from './assets/oruzh1.png';
 import oruzh2Url from './assets/oruzh2.png';
 import pistolUrl from './assets/pistol.png';
-import batUrl from './assets/bat.jpg';
+import batUrl from './assets/bat.png';
 import charMttUrl from './assets/char-mtt.png';
 import charKrysaUrl from './assets/char-krysa.png';
 
