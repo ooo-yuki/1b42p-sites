@@ -5,7 +5,7 @@ const { Pool } = require('pg');
 
 const PORT = 8093;
 const ONLINE_SEC = 90;
-const SITES = ['hub', 'chaev', 'doom', 'evaelph', 'smolgrad', 'miqqil', 'setden', 'svyatoslav', 'denis', 'sasha', 'gtaevv', 'brohacho', '1b42p', 'mtt', 'laiv42', '42vs', 'ai-714ef0', 'pampers', 'shturm', 'skitons', 'tulenko'];
+const SITES = ['hub', 'chaev', 'doom', 'evaelph', 'smolgrad', 'miqqil', 'setden', 'svyatoslav', 'denis', 'sasha', 'gtaevv', 'brohacho', '1b42p', 'mtt', 'laiv42', '42vs', 'ai-714ef0', 'pampers', 'shturm', 'skitons', 'tulenko', 'fugo', 'nerenol', 'nerenol-egor', 'bunker42', 'mafia42'];
 const pool = new Pool({
   host: process.env.PGHOST || '127.0.0.1', database: 'tracker42', user: 'tracker_api',
   password: process.env.TR_DB_PASSWORD || '',
