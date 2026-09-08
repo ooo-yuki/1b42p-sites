@@ -6,6 +6,22 @@ const { Pool } = require('pg');
 const PORT = 8093;
 const ONLINE_SEC = 90;
 const SITES = ['hub', 'chaev', 'doom', 'evaelph', 'smolgrad', 'miqqil', 'setden', 'svyatoslav', 'denis', 'sasha', 'gtaevv', 'brohacho', '1b42p', 'mtt', 'laiv42', '42vs', 'ai-714ef0', 'pampers', 'shturm', 'skitons', 'tulenko', 'fugo', 'nerenol', 'nerenol-egor', 'bunker42', 'mafia42', 'sasi42io'];
+// Магазин sasi42io: цены в коинах
+const PRICES = {
+  skin_crimson: 5000, skin_ocean: 5000, skin_violet: 5000, skin_gold: 5000,
+  buff_speed: 10000, buff_score: 15000, buff_magnet: 20000, shield: 3000,
+};
+function cleanName(v) {
+  const name = String(v == null ? '' : v).trim().replace(/[<>&]/g, '');
+  return (!name || name.length > 20) ? null : name;
+}
+async function walletState(client, site, name) {
+  const w = await client.query('SELECT coins FROM sasi_wallet WHERE site=$1 AND name=$2', [site, name]);
+  const it = await client.query('SELECT item, qty FROM sasi_items WHERE site=$1 AND name=$2', [site, name]);
+  const items = {};
+  for (const r of it.rows) items[r.item] = r.qty;
+  return { coins: w.rows.length ? Number(w.rows[0].coins) : 0, items };
+}
 const pool = new Pool({
   host: process.env.PGHOST || '127.0.0.1', database: 'tracker42', user: 'tracker_api',
   password: process.env.TR_DB_PASSWORD || '',
@@ -92,12 +108,36 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/record') {
       const b = await body(req);
       const site = SITES.includes(b.site) ? b.site : 'sasi42io';
-      let name = String(b.name == null ? '' : b.name).trim().replace(/[<>&]/g, '');
+      const name = cleanName(b.name);
       const score = Number(b.score);
-      if (!name || name.length > 20) return send(res, 400, { error: 'bad-name' });
+      if (!name) return send(res, 400, { error: 'bad-name' });
       if (!Number.isInteger(score) || score < 0 || score > 9999999) return send(res, 400, { error: 'bad-score' });
-      await pool.query('INSERT INTO sasi_records (site, name, score) VALUES ($1, $2, $3)', [site, name, score]);
-      return send(res, 200, { ok: true });
+      const cur = await pool.query('SELECT score FROM sasi_records WHERE site=$1 AND name=$2', [site, name]);
+      let best, newBest;
+      if (!cur.rows.length) {
+        await pool.query('INSERT INTO sasi_records (site, name, score) VALUES ($1, $2, $3)', [site, name, score]);
+        best = score; newBest = true;
+      } else if (score > cur.rows[0].score) {
+        await pool.query('UPDATE sasi_records SET score=$3, created_at=NOW() WHERE site=$1 AND name=$2', [site, name, score]);
+        best = score; newBest = true;
+      } else {
+        best = cur.rows[0].score; newBest = false;
+      }
+      const earn = Math.floor(score / 3);
+      if (earn > 0) {
+        await pool.query(
+          'INSERT INTO sasi_wallet (site, name, coins) VALUES ($1, $2, $3) ' +
+          'ON CONFLICT (site, name) DO UPDATE SET coins = sasi_wallet.coins + EXCLUDED.coins',
+          [site, name, earn]
+        );
+      } else {
+        await pool.query(
+          'INSERT INTO sasi_wallet (site, name, coins) VALUES ($1, $2, 0) ON CONFLICT (site, name) DO NOTHING',
+          [site, name]
+        );
+      }
+      const st = await walletState(pool, site, name);
+      return send(res, 200, { ok: true, best, coins: st.coins, newBest });
     }
     if (req.method === 'GET' && url.pathname === '/api/records') {
       const site = SITES.includes(url.searchParams.get('site')) ? url.searchParams.get('site') : 'sasi42io';
@@ -109,6 +149,81 @@ const server = http.createServer(async (req, res) => {
         [site, limit]
       );
       return send(res, 200, { ok: true, records: r.rows });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/wallet') {
+      const q = url.searchParams;
+      const site = SITES.includes(q.get('site')) ? q.get('site') : 'sasi42io';
+      const name = cleanName(q.get('name'));
+      if (!name) return send(res, 400, { error: 'bad-name' });
+      const st = await walletState(pool, site, name);
+      return send(res, 200, { ok: true, coins: st.coins, items: st.items });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/shop/buy') {
+      const b = await body(req);
+      const site = SITES.includes(b.site) ? b.site : 'sasi42io';
+      const name = cleanName(b.name);
+      const item = String(b.item || '');
+      if (!name) return send(res, 400, { error: 'bad-name' });
+      if (!Object.prototype.hasOwnProperty.call(PRICES, item)) return send(res, 400, { error: 'bad-item' });
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const w = await client.query('SELECT coins FROM sasi_wallet WHERE site=$1 AND name=$2 FOR UPDATE', [site, name]);
+        const coins = w.rows.length ? Number(w.rows[0].coins) : 0;
+        const it = await client.query('SELECT qty FROM sasi_items WHERE site=$1 AND name=$2 AND item=$3', [site, name, item]);
+        const qty = it.rows.length ? it.rows[0].qty : 0;
+        if (item !== 'shield' && qty > 0) {
+          await client.query('COMMIT');
+          const st = await walletState(pool, site, name);
+          return send(res, 200, { ok: true, coins: st.coins, items: st.items, owned: true });
+        }
+        const price = PRICES[item];
+        if (coins < price) {
+          await client.query('ROLLBACK');
+          const st = await walletState(pool, site, name);
+          return send(res, 400, { error: 'no-funds', coins: st.coins, items: st.items });
+        }
+        if (!w.rows.length) {
+          await client.query('INSERT INTO sasi_wallet (site, name, coins) VALUES ($1, $2, $3)', [site, name, coins - price]);
+        } else {
+          await client.query('UPDATE sasi_wallet SET coins = coins - $3 WHERE site=$1 AND name=$2', [site, name, price]);
+        }
+        if (item === 'shield') {
+          await client.query(
+            'INSERT INTO sasi_items (site, name, item, qty) VALUES ($1, $2, $3, 1) ' +
+            'ON CONFLICT (site, name, item) DO UPDATE SET qty = sasi_items.qty + 1',
+            [site, name, item]
+          );
+        } else {
+          await client.query(
+            'INSERT INTO sasi_items (site, name, item, qty) VALUES ($1, $2, $3, 1) ' +
+            'ON CONFLICT (site, name, item) DO UPDATE SET qty = 1',
+            [site, name, item]
+          );
+        }
+        await client.query('COMMIT');
+        const st = await walletState(pool, site, name);
+        return send(res, 200, { ok: true, coins: st.coins, items: st.items });
+      } catch (e) {
+        try { await client.query('ROLLBACK'); } catch (_) {}
+        throw e;
+      } finally {
+        client.release();
+      }
+    }
+    if (req.method === 'POST' && url.pathname === '/api/shop/consume') {
+      const b = await body(req);
+      const site = SITES.includes(b.site) ? b.site : 'sasi42io';
+      const name = cleanName(b.name);
+      const item = String(b.item == null || b.item === '' ? 'shield' : b.item);
+      if (!name) return send(res, 400, { error: 'bad-name' });
+      if (!Object.prototype.hasOwnProperty.call(PRICES, item)) return send(res, 400, { error: 'bad-item' });
+      const r = await pool.query(
+        'UPDATE sasi_items SET qty = GREATEST(qty - 1, 0) WHERE site=$1 AND name=$2 AND item=$3 RETURNING qty',
+        [site, name, item]
+      );
+      const qty = r.rows.length ? r.rows[0].qty : 0;
+      return send(res, 200, { ok: true, item, qty });
     }
     return send(res, 404, { error: 'no-route' });
   } catch (e) {
