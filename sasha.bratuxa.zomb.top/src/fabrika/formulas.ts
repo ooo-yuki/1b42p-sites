@@ -25,16 +25,20 @@ export function fmt(n: number): string {
 export type Save = {
   h: number; f: number; total: number; un: string[];
   team: Record<string, number>; look: Record<string, number>; bld: Record<string, number>;
-  win: boolean;
+  win: boolean; seasons: number;
 };
+
+export function fameMult(seasons: number): number {
+  return 1 + Math.max(0, Math.floor(seasons));
+}
 
 export function defaultSave(): Save {
   return {
     h: 0, f: 0, total: 0, un: ['garage'],
-    team: { denis: 0, freak: 0, oper: 0, guard: 0 },
-    look: { jacket: 0, mantle: 0, sneakers: 0, hair: 0 },
-    bld: { arena: 0, banka: 0, garden: 0 },
-    win: false,
+    team: { denis: 0, freak: 0, oper: 0, guard: 0, piar: 0 },
+    look: { jacket: 0, mantle: 0, sneakers: 0, hair: 0, chains: 0 },
+    bld: { arena: 0, banka: 0, garden: 0, club: 0 },
+    win: false, seasons: 0,
   };
 }
 
@@ -50,6 +54,7 @@ export function migrateSave(raw: unknown): Save {
     un: Array.isArray(s.un) && s.un.length > 0 ? (s.un as string[]) : ['garage'],
     team: { ...d.team }, look: { ...d.look }, bld: { ...d.bld },
     win: s.win === true,
+    seasons: typeof s.seasons === 'number' ? Math.max(0, Math.floor(s.seasons)) : 0,
   };
   for (const k of (['team', 'look', 'bld'] as const)) {
     const part = s[k];
@@ -93,7 +98,8 @@ export function scoreHit(
 
 export type Unlock = { ok: boolean; buy?: boolean; why?: string };
 
-export function unlocked(s: Save, v: { id: string; cost: number; need: string }): Unlock {
+export function unlocked(s: Save, v: { id: string; cost: number; need: string; minSeason?: number }): Unlock {
+  if ((v.minSeason ?? 0) > s.seasons) return { ok: false, why: 'Откроется в сезоне ' + v.minSeason };
   if (s.un.indexOf(v.id) >= 0) return { ok: true };
   if (s.h < v.cost) return { ok: false, why: 'Нужно ' + fmt(v.cost) + ' хайпа' };
   if (v.need === 'jacket' && s.look.jacket < 1) return { ok: false, why: 'Нужен зеркальный пиджак' };
