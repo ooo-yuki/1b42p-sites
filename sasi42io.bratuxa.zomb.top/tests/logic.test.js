@@ -275,8 +275,8 @@ assert.strictEqual(typeof __hook.burp, 'function', 'burp must be in __hook');
 assert.strictEqual(typeof __hook.clang, 'function', 'clang must be in __hook');
 assert.strictEqual(__hook.burp(true), undefined, 'burp no-op without AudioContext');
 assert.strictEqual(__hook.clang(), undefined, 'clang no-op without AudioContext');
-assert.ok(html.includes('burp(s === player)'), 'every eaten food burps (player louder)');
-assert.ok(html.includes('clang();'), 'death clangs (bot + player)');
+assert.ok(html.includes('if (s === player) burp(true)'), 'burp only when YOU eat');
+assert.ok(html.includes('if (all[q] === player) clang()'), 'clang only when bot dies on YOU');
 assert.ok(!html.includes('mute') && !html.includes('Mute'), 'no mute button by design');
 assert.ok(html.includes('var n = BOT_N') && html.includes('bots.length < BOT_N'), 'spawn + respawn keep 25');
 assert.ok(

@@ -466,7 +466,7 @@ function eatCheck(s) {
     if (collide(s.x, s.y, foods[i].x, foods[i].y, pr)) {
       var mult = (s.star ? 2 : 1) * ((s === player && shopHas('buff_score')) ? 2.5 : 1); // магазин: очки ×2.5
       s.score = eatFood(s.score, foods[i].pts, mult);
-      burp(s === player); // рыг при каждой съеденной пище (игрок громче)
+      if (s === player) burp(true); // рыг только когда ешь ты
       foods[i] = placeFood();
     }
   }
@@ -540,7 +540,7 @@ function frame(t) {
           playerDie();
         } else {
           die(s);
-          clang(); // труба по смерти бота
+          if (all[q] === player) clang(); // труба — только если разбился об тебя
           var bi = bots.indexOf(s);
           if (bi >= 0) bots.splice(bi, 1);
         }
