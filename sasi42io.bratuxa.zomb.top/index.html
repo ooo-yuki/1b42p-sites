@@ -20,6 +20,15 @@
   #death button { font-size: 17px; padding: 10px 28px; border: none; border-radius: 10px; background: #fbbf24; color: #111; font-weight: bold; cursor: pointer; }
   #death button:hover { background: #f59e0b; }
   #hint { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); color: #6b7280; font-size: 12px; user-select: none; pointer-events: none; z-index: 5; white-space: nowrap; }
+  #joy { position: fixed; left: 18px; bottom: 18px; width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,.06); border: 1px solid #ffffff33; z-index: 6; touch-action: none; }
+  #stick { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; border-radius: 50%; background: #fbbf24; transform: translate(-50%,-50%); }
+  #boostBtn { position: fixed; right: 18px; bottom: 18px; width: 84px; height: 84px; border-radius: 50%; border: 1px solid #fbbf2466; background: rgba(251,191,36,.18); color: #fbbf24; font-size: 30px; z-index: 6; touch-action: none; user-select: none; }
+  #boostBtn.on { background: #fbbf24; color: #111; }
+  #pauseBtn { position: fixed; top: 10px; right: 190px; z-index: 6; font-size: 16px; padding: 8px 12px; border-radius: 10px; border: 1px solid #ffffff22; background: rgba(10,12,25,.72); color: #e5e7eb; cursor: pointer; }
+  #pause { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(5,6,12,.72); z-index: 9; }
+  #pause .card { text-align: center; color: #fff; background: #141829; border: 1px solid #fbbf2455; border-radius: 16px; padding: 32px 44px; }
+  #pause h1 { font-size: 26px; margin-bottom: 16px; }
+  #pause button { font-size: 17px; padding: 10px 28px; border: none; border-radius: 10px; background: #fbbf24; color: #111; font-weight: bold; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -31,7 +40,11 @@
   <p>Счёт: <span id="final">0</span> · Рекорд: <span id="finalBest">0</span></p>
   <button id="again">Ещё раз</button>
 </div></div>
-<div id="hint">движение — курсор / палец · буст — пробел / тап (тратит длину)</div>
+<div id="hint">движение — джойстик / WASD / стрелки · буст — кнопка / пробел</div>
+<div id="joy"><div id="stick"></div></div>
+<button id="boostBtn" aria-label="Буст">⚡</button>
+<button id="pauseBtn" aria-label="Пауза">⏸</button>
+<div id="pause"><div class="card"><h1>Пауза</h1><button id="resume">Продолжить</button></div></div>
 <script>
 'use strict';
 /* ===== sasi42io: чистая логика (тестируется Task 2 через window.__hook) ===== */
@@ -94,7 +107,22 @@ function nearest(bot, foods) {
   }
   return best;
 }
-window.__hook = { spawnFood: spawnFood, eatFood: eatFood, stepBot: stepBot, collide: collide };
+/* --- управление: направление + пауза (чистое, тестируется) --- */
+var __dir = { x: 1, y: 0 };
+var __paused = false;
+function setDir(x, y) {
+  x = +x || 0; y = +y || 0;
+  var len = Math.sqrt(x * x + y * y);
+  if (len < 0.0001) return { x: __dir.x, y: __dir.y }; // ноль игнорируем
+  if (len > 1) { x /= len; y /= len; }
+  __dir.x = x; __dir.y = y;
+  return { x: __dir.x, y: __dir.y };
+}
+function getDir() { return { x: __dir.x, y: __dir.y }; }
+function setPaused(b) { __paused = !!b; return __paused; }
+function togglePause() { __paused = !__paused; return __paused; }
+function isPaused() { return __paused; }
+window.__hook = { spawnFood: spawnFood, eatFood: eatFood, stepBot: stepBot, collide: collide, setDir: setDir, getDir: getDir, setPaused: setPaused, togglePause: togglePause, isPaused: isPaused };
 
 /* ===== игра ===== */
 var W = 3000, H = 3000;
@@ -123,7 +151,7 @@ function placeBooster() {
   return { x: rnd(W), y: rnd(H), type: -1, pts: 0, boost: b.id, emoji: b.emoji };
 }
 
-var player, bots, foods, boosters, alive, mouse, boosting;
+var player, bots, foods, boosters, alive, boosting;
 function newGame() {
   player = { x: W / 2, y: H / 2, angle: 0, score: 10, len: 12, segs: [], color: '#fbbf24', name: 'Ты', star: 0, bolt: 0, boltT: 0, starT: 0 };
   for (var i = 0; i < 14; i++) player.segs.push({ x: player.x - i * 8, y: player.y });
@@ -147,16 +175,60 @@ var best = 0;
 try { best = parseInt(localStorage.getItem(BEST_KEY) || '0', 10) || 0; } catch (e) {}
 document.getElementById('best').textContent = best;
 
-mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-window.addEventListener('mousemove', function (e) { mouse.x = e.clientX; mouse.y = e.clientY; });
-window.addEventListener('touchmove', function (e) { var t = e.touches[0]; mouse.x = t.clientX; mouse.y = t.clientY; }, { passive: true });
-window.addEventListener('keydown', function (e) { if (e.code === 'Space') { boosting = true; e.preventDefault(); } });
-window.addEventListener('keyup', function (e) { if (e.code === 'Space') boosting = false; });
-canvas.addEventListener('mousedown', function () { boosting = true; });
-window.addEventListener('mouseup', function () { boosting = false; });
-canvas.addEventListener('touchstart', function (e) { boosting = true; var t = e.touches[0]; mouse.x = t.clientX; mouse.y = t.clientY; }, { passive: true });
-canvas.addEventListener('touchend', function () { boosting = false; });
-document.getElementById('again').addEventListener('click', function () { newGame(); });
+/* --- ввод: джойстик (pointer) + клавиатура, последний ввод побеждает --- */
+var keys = {}, joyVec = { x: 0, y: 0 }, joyOn = false, lastSrc = 'key';
+var joyEl = document.getElementById('joy'), stickEl = document.getElementById('stick');
+var boostBtn = document.getElementById('boostBtn'), pauseBtn = document.getElementById('pauseBtn'), pauseEl = document.getElementById('pause');
+function keyVec() {
+  var x = 0, y = 0;
+  if (keys['KeyA'] || keys['ArrowLeft']) x -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) x += 1;
+  if (keys['KeyW'] || keys['ArrowUp']) y -= 1;
+  if (keys['KeyS'] || keys['ArrowDown']) y += 1;
+  return { x: x, y: y };
+}
+function applyInput() {
+  var kv = keyVec(), eff = lastSrc === 'key' ? kv : joyVec;
+  if (eff.x === 0 && eff.y === 0) eff = lastSrc === 'key' ? joyVec : kv; // фолбэк
+  if (eff.x !== 0 || eff.y !== 0) setDir(eff.x, eff.y);
+}
+window.addEventListener('keydown', function (e) {
+  if (e.code === 'Space') { boosting = true; e.preventDefault(); return; }
+  if (e.code === 'Escape' || e.code === 'KeyP') { togglePauseUI(); return; }
+  if (/^(Key[WASD]|Arrow(Up|Down|Left|Right))$/.test(e.code)) { keys[e.code] = true; lastSrc = 'key'; applyInput(); }
+});
+window.addEventListener('keyup', function (e) {
+  if (e.code === 'Space') { boosting = false; return; }
+  if (keys[e.code]) { delete keys[e.code]; applyInput(); }
+});
+function joySet(cx, cy) {
+  var r = joyEl.getBoundingClientRect();
+  var dx = cx - (r.left + r.width / 2), dy = cy - (r.top + r.height / 2);
+  var max = r.width / 2, len = Math.sqrt(dx * dx + dy * dy);
+  if (len > max) { dx = dx / len * max; dy = dy / len * max; }
+  stickEl.style.transform = 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px))';
+  joyVec = len < 8 ? { x: 0, y: 0 } : { x: dx / max, y: dy / max };
+  lastSrc = 'joy'; applyInput();
+}
+function joyReset() { joyVec = { x: 0, y: 0 }; joyOn = false; stickEl.style.transform = 'translate(-50%,-50%)'; applyInput(); }
+joyEl.addEventListener('pointerdown', function (e) { joyOn = true; try { joyEl.setPointerCapture(e.pointerId); } catch (_) {} joySet(e.clientX, e.clientY); e.preventDefault(); });
+joyEl.addEventListener('pointermove', function (e) { if (joyOn) joySet(e.clientX, e.clientY); });
+joyEl.addEventListener('pointerup', joyReset);
+joyEl.addEventListener('pointercancel', joyReset);
+function boostOn(e) { boosting = true; boostBtn.classList.add('on'); if (e) e.preventDefault(); }
+function boostOff() { boosting = false; boostBtn.classList.remove('on'); }
+boostBtn.addEventListener('pointerdown', boostOn);
+boostBtn.addEventListener('pointerup', boostOff);
+boostBtn.addEventListener('pointercancel', boostOff);
+boostBtn.addEventListener('pointerleave', boostOff);
+function togglePauseUI() {
+  var p = togglePause();
+  pauseEl.style.display = p ? 'flex' : 'none';
+  return p;
+}
+pauseBtn.addEventListener('click', togglePauseUI);
+document.getElementById('resume').addEventListener('click', togglePauseUI);
+document.getElementById('again').addEventListener('click', function () { setPaused(false); pauseEl.style.display = 'none'; newGame(); });
 
 function speedOf(s) {
   var base = 3.2 - Math.min(1.4, s.score / 900);
@@ -177,7 +249,24 @@ function moveSnake(s, tx, ty, dt) {
   var wantLen = 8 + Math.floor(s.score / 6);
   while (s.segs.length > wantLen) s.segs.pop();
 }
+function moveDir(s, dt) {
+  var d = getDir();
+  if (d.x !== 0 || d.y !== 0) {
+    var want = Math.atan2(d.y, d.x);
+    var dd = want - s.angle;
+    while (dd > Math.PI) dd -= Math.PI * 2;
+    while (dd < -Math.PI) dd += Math.PI * 2;
+    s.angle += Math.max(-0.15, Math.min(0.15, dd)) * dt;
+  }
+  var sp = speedOf(s) * dt;
+  s.x = Math.max(10, Math.min(W - 10, s.x + Math.cos(s.angle) * sp));
+  s.y = Math.max(10, Math.min(H - 10, s.y + Math.sin(s.angle) * sp));
+  s.segs.unshift({ x: s.x, y: s.y });
+  var wantLen = 8 + Math.floor(s.score / 6);
+  while (s.segs.length > wantLen) s.segs.pop();
+}
 function tickTimers(s, dt) {
+  if (isPaused()) return; // пауза фризит отсчёты бустеров
   if (s.starT > 0) { s.starT -= dt / 60; if (s.starT <= 0) s.star = 0; }
   if (s.boltT > 0) { s.boltT -= dt / 60; if (s.boltT <= 0) s.bolt = 0; }
 }
@@ -215,11 +304,11 @@ function headHitsBody(head, other) {
 var last = 0;
 function frame(t) {
   requestAnimationFrame(frame);
-  if (!alive) return;
+  if (!alive || isPaused()) return; // пауза фризит ВЕСЬ мир
   var dt = Math.min(3, (t - last) / 16.7 || 1); last = t;
-  // игрок: за курсором (экран → мир через камеру)
+  // игрок: по вектору направления (джойстик/клавиатура)
   var camX = player.x - canvas.width / 2, camY = player.y - canvas.height / 2;
-  moveSnake(player, camX + mouse.x, camY + mouse.y, dt);
+  moveDir(player, dt);
   if (boosting && player.score > 12) player.score -= 0.35 * dt; // буст тратит длину
   tickTimers(player, dt);
   eatCheck(player);
