@@ -82,7 +82,8 @@ var FOOD = [
   { pts: 5,  w: 70, emoji: '\u{1F34C}' },
   { pts: 25, w: 25, emoji: '\u{1F34C}\u{1F34C}\u{1F34C}' },
   { pts: 70, w: 5,  emoji: '\u{1F96B}' },
-  { pts: 200, w: 2,  emoji: '\u{1F35F}' } // ведро KFC: 200, реже торнадо (2%)
+  { pts: 200, w: 2,  emoji: '\u{1F35F}' }, // ведро KFC: 200, реже торнадо (2%)
+  { pts: 700, w: 1,  emoji: '\u{1F357}' } // ведро с курицей: 700, супер-редкое (1%)
 ]; // NOTE: фиолет — флаг purple поверх типов (текстуры *_purple.png), не отдельный тип
 var PURPLE_P = 0.05; // шанс фиолета при спавне еды
 function purpleRoll(r) { return r < PURPLE_P; }
@@ -108,13 +109,18 @@ var KFC_IMG = (typeof Image !== 'undefined') ? new Image() : null;
 if (KFC_IMG) { KFC_IMG.src = 'kfc.png'; }
 var KFC_P = (typeof Image !== 'undefined') ? new Image() : null;
 if (KFC_P) { KFC_P.src = 'kfc_purple.png'; }
+var BUCKET_IMG = (typeof Image !== 'undefined') ? new Image() : null;
+if (BUCKET_IMG) { BUCKET_IMG.src = 'kfc_bucket.png'; }
+var BUCKET_P = (typeof Image !== 'undefined') ? new Image() : null;
+if (BUCKET_P) { BUCKET_P.src = 'kfc_bucket_purple.png'; }
 
 function spawnFood(r) {
-  // r in [0,1): веса 70/23/5/2 -> типы 0/1/2/3 (очки 5/25/70/200, KFC реже торнадо)
+  // r in [0,1): веса 70/22/5/2/1 -> типы 0/1/2/3/4 (5/25/70/200/700, курица супер-редкая)
   if (r < 0.70) return { type: 0, pts: 5 };
-  if (r < 0.93) return { type: 1, pts: 25 };
-  if (r < 0.98) return { type: 2, pts: 70 };
-  return { type: 3, pts: 200 };
+  if (r < 0.92) return { type: 1, pts: 25 };
+  if (r < 0.97) return { type: 2, pts: 70 };
+  if (r < 0.99) return { type: 3, pts: 200 };
+  return { type: 4, pts: 700 };
 }
 function eatFood(score, foodPts, starMult) {
   return score + foodPts * (starMult || 1);
@@ -219,7 +225,7 @@ function dodgeTurn(bot, threats, W, H) {
   return turn;
 }
 // bestFood: торнадо (type 2) считается в 4 раза ближе (дистанция/4),
-// ведро KFC (type 3) — в 6 раз ближе (дистанция/6): 200 очков того стоят.
+// ведро KFC (type 3) — в 6 раз ближе, курица (type 4) — в 10 раз: джекпот.
 function bestFood(bot, foods) {
   var best = foods[0], bd = Infinity;
   for (var i = 0; i < foods.length; i++) {
@@ -227,6 +233,7 @@ function bestFood(bot, foods) {
     var d = dx * dx + dy * dy;
     if (foods[i].type === 2) d = d / 16; // (dist/4)^2
     if (foods[i].type === 3) d = d / 36; // (dist/6)^2
+    if (foods[i].type === 4) d = d / 100; // (dist/10)^2
     if (d < bd) { bd = d; best = foods[i]; }
   }
   return best;
@@ -663,6 +670,14 @@ function draw(camX, camY) {
     }
     if (f.type === 3 && typeof KFC_IMG !== 'undefined' && KFC_IMG && KFC_IMG.complete && KFC_IMG.naturalWidth) {
       ctx.drawImage(KFC_IMG, fx - 28, fy - 36, 56, 72);
+      continue;
+    }
+    if (f.purple && f.type === 4 && typeof BUCKET_P !== 'undefined' && BUCKET_P && BUCKET_P.complete && BUCKET_P.naturalWidth) {
+      ctx.drawImage(BUCKET_P, fx - 32, fy - 40, 64, 80);
+      continue;
+    }
+    if (f.type === 4 && typeof BUCKET_IMG !== 'undefined' && BUCKET_IMG && BUCKET_IMG.complete && BUCKET_IMG.naturalWidth) {
+      ctx.drawImage(BUCKET_IMG, fx - 32, fy - 40, 64, 80);
       continue;
     }
     if (f.type === 2 && typeof TORNADO_IMG !== 'undefined' && TORNADO_IMG && TORNADO_IMG.complete && TORNADO_IMG.naturalWidth) {
