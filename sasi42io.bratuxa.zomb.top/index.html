@@ -294,7 +294,10 @@ function setPaused(b) { __paused = !!b; return __paused; }
 function togglePause() { __paused = !__paused; return __paused; }
 function isPaused() { return __paused; }
 var BOT_N = 25; // мясорубка: ботов на арене
-window.__hook = { spawnFood: spawnFood, eatFood: eatFood, scoreTier: scoreTier, purpleRoll: purpleRoll, eatPurple: eatPurple, PURPLE_P: PURPLE_P, stepBot: stepBot, dodgeTurn: dodgeTurn, bestFood: bestFood, collide: collide, hitsWall: hitsWall, dropLoot: dropLoot, setDir: setDir, getDir: getDir, setPaused: setPaused, togglePause: togglePause, isPaused: isPaused, BOT_N: BOT_N, burp: burp, clang: clang, panelsVisible: panelsVisible, togglePanelsUI: togglePanelsUI, SHOP_PRICES: SHOP_PRICES, SKIN_COLORS: SKIN_COLORS, shopGain: shopGain, shopSpeed: shopSpeed, shopPickupR: shopPickupR, shopSkinColor: shopSkinColor, shieldHas: shieldHas, shieldUse: shieldUse };
+var NAMES = ['Киршик', 'Чаев', 'Тюленька', 'Свастослав', 'Саси42', 'МТТ', 'Miqqil', '5opka',
+  'Братуха', 'Вихрь', 'Торнадо', 'Пятёрка', 'Штурм', 'Кобра', 'Гром', 'Лис', 'Тень', 'Батя',
+  'Охотник', 'Трусишка', 'Шаурмен', 'Кепка', 'Фристайло', 'Змей', 'Бублик']; // 8 твоих + 17 моих: всем хватает
+window.__hook = { spawnFood: spawnFood, eatFood: eatFood, scoreTier: scoreTier, purpleRoll: purpleRoll, eatPurple: eatPurple, PURPLE_P: PURPLE_P, stepBot: stepBot, dodgeTurn: dodgeTurn, bestFood: bestFood, collide: collide, hitsWall: hitsWall, dropLoot: dropLoot, setDir: setDir, getDir: getDir, setPaused: setPaused, togglePause: togglePause, isPaused: isPaused, BOT_N: BOT_N, NAMES: NAMES, nextBotName: nextBotName, burp: burp, clang: clang, panelsVisible: panelsVisible, togglePanelsUI: togglePanelsUI, SHOP_PRICES: SHOP_PRICES, SKIN_COLORS: SKIN_COLORS, shopGain: shopGain, shopSpeed: shopSpeed, shopPickupR: shopPickupR, shopSkinColor: shopSkinColor, shieldHas: shieldHas, shieldUse: shieldUse };
 
 /* ===== игра ===== */
 var W = 3000, H = 3000;
@@ -303,7 +306,24 @@ var ctx = canvas.getContext('2d');
 function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
 window.addEventListener('resize', resize); resize();
 
-var NAMES = ['Киршик', 'Чаев', 'Тюленька', 'Свастослав', 'Саси42', 'МТТ', 'Miqqil', '5opka'];
+var NAME_POOL = [], nameIdx = 0;
+function shuffleNames() {
+  NAME_POOL = NAMES.slice(); nameIdx = 0;
+  for (var i = NAME_POOL.length - 1; i > 0; i--) {
+    var j = (Math.random() * (i + 1)) | 0;
+    var tmp = NAME_POOL[i]; NAME_POOL[i] = NAME_POOL[j]; NAME_POOL[j] = tmp;
+  }
+}
+function nextBotName() {
+  // уникальное имя: первое из пула, которого нет на арене; пул кончился — любое
+  var used = {}, i, k;
+  try { for (i = 0; i < bots.length; i++) used[bots[i].name] = 1; } catch (e) {}
+  for (k = 0; k < NAME_POOL.length; k++) {
+    var nm = NAME_POOL[(nameIdx + k) % NAME_POOL.length];
+    if (!used[nm]) { nameIdx = (nameIdx + k + 1) % NAME_POOL.length; return nm; }
+  }
+  return NAMES[(Math.random() * NAMES.length) | 0];
+}
 var KINDS = ['coward', 'normal', 'normal', 'hunter', 'coward', 'normal', 'hunter', 'normal', 'coward'];
 var COLORS = ['#ef4444', '#22c55e', '#3b82f6', '#a855f7', '#ec4899', '#14b8a6', '#f97316', '#84cc16', '#eab308'];
 
@@ -332,10 +352,11 @@ function newGame() {
   try { var sm = document.getElementById('shieldMark'); if (sm) sm.style.display = 'none'; } catch (e) {}
   for (var i = 0; i < 14; i++) player.segs.push({ x: player.x - i * 8, y: player.y });
   bots = [];
+  shuffleNames(); // свежий порядок имён на каждую игру
   var n = BOT_N; // мясорубка: 25 рыл
   for (var j = 0; j < n; j++) {
     var bx = rnd(W), by = rnd(H);
-    var b = { x: bx, y: by, angle: rnd(Math.PI * 2), score: 10 + rnd(60), len: 12, segs: [], color: COLORS[j % COLORS.length], name: NAMES[j % NAMES.length], kind: KINDS[j % KINDS.length], star: 0, bolt: 0, starT: 0, boltT: 0 };
+    var b = { x: bx, y: by, angle: rnd(Math.PI * 2), score: 10 + rnd(60), len: 12, segs: [], color: COLORS[j % COLORS.length], name: nextBotName(), kind: KINDS[j % KINDS.length], star: 0, bolt: 0, starT: 0, boltT: 0 };
     for (var k = 0; k < 14; k++) b.segs.push({ x: bx, y: by });
     bots.push(b);
   }
@@ -638,7 +659,7 @@ function frame(t) {
   // боты не вымирают полностью: держим BOT_N
   while (bots.length < BOT_N) {
     var bx = rnd(W), by = rnd(H);
-    var nb = { x: bx, y: by, angle: rnd(Math.PI * 2), score: 10 + rnd(40), len: 12, segs: [{ x: bx, y: by }], color: COLORS[(Math.random() * COLORS.length) | 0], name: NAMES[(Math.random() * NAMES.length) | 0], kind: ['coward', 'normal', 'hunter'][(Math.random() * 3) | 0], star: 0, bolt: 0, starT: 0, boltT: 0 };
+    var nb = { x: bx, y: by, angle: rnd(Math.PI * 2), score: 10 + rnd(40), len: 12, segs: [{ x: bx, y: by }], color: COLORS[(Math.random() * COLORS.length) | 0], name: nextBotName(), kind: ['coward', 'normal', 'hunter'][(Math.random() * 3) | 0], star: 0, bolt: 0, starT: 0, boltT: 0 };
     bots.push(nb);
   }
   if (player.score > best) { best = Math.floor(player.score); }
