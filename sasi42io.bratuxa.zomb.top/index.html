@@ -81,8 +81,9 @@
 var FOOD = [
   { pts: 5,  w: 70, emoji: '\u{1F34C}' },
   { pts: 25, w: 25, emoji: '\u{1F34C}\u{1F34C}\u{1F34C}' },
-  { pts: 70, w: 5,  emoji: '\u{1F96B}' }
-]; // NOTE: фиолет — флаг purple поверх типов 0/1/2 (текстуры *_purple.png), не отдельный тип
+  { pts: 70, w: 5,  emoji: '\u{1F96B}' },
+  { pts: 200, w: 2,  emoji: '\u{1F35F}' } // ведро KFC: 200, реже торнадо (2%)
+]; // NOTE: фиолет — флаг purple поверх типов (текстуры *_purple.png), не отдельный тип
 var PURPLE_P = 0.05; // шанс фиолета при спавне еды
 function purpleRoll(r) { return r < PURPLE_P; }
 function eatPurple(score) { return Math.max(0, score - 500); }
@@ -103,12 +104,17 @@ var BUNCH_P = (typeof Image !== 'undefined') ? new Image() : null;
 if (BUNCH_P) { BUNCH_P.src = 'bunch_purple.png'; }
 var TORNADO_P = (typeof Image !== 'undefined') ? new Image() : null;
 if (TORNADO_P) { TORNADO_P.src = 'tornado_purple.png'; }
+var KFC_IMG = (typeof Image !== 'undefined') ? new Image() : null;
+if (KFC_IMG) { KFC_IMG.src = 'kfc.png'; }
+var KFC_P = (typeof Image !== 'undefined') ? new Image() : null;
+if (KFC_P) { KFC_P.src = 'kfc_purple.png'; }
 
 function spawnFood(r) {
-  // r in [0,1): веса 70/25/5 -> типы 0/1/2 (очки 5/25/70)
+  // r in [0,1): веса 70/23/5/2 -> типы 0/1/2/3 (очки 5/25/70/200, KFC реже торнадо)
   if (r < 0.70) return { type: 0, pts: 5 };
-  if (r < 0.95) return { type: 1, pts: 25 };
-  return { type: 2, pts: 70 };
+  if (r < 0.93) return { type: 1, pts: 25 };
+  if (r < 0.98) return { type: 2, pts: 70 };
+  return { type: 3, pts: 200 };
 }
 function eatFood(score, foodPts, starMult) {
   return score + foodPts * (starMult || 1);
@@ -212,13 +218,15 @@ function dodgeTurn(bot, threats, W, H) {
   }
   return turn;
 }
-// bestFood: торнадо (type 2) считается в 4 раза ближе (дистанция/4).
+// bestFood: торнадо (type 2) считается в 4 раза ближе (дистанция/4),
+// ведро KFC (type 3) — в 6 раз ближе (дистанция/6): 200 очков того стоят.
 function bestFood(bot, foods) {
   var best = foods[0], bd = Infinity;
   for (var i = 0; i < foods.length; i++) {
     var dx = foods[i].x - bot.x, dy = foods[i].y - bot.y;
     var d = dx * dx + dy * dy;
     if (foods[i].type === 2) d = d / 16; // (dist/4)^2
+    if (foods[i].type === 3) d = d / 36; // (dist/6)^2
     if (d < bd) { bd = d; best = foods[i]; }
   }
   return best;
@@ -647,6 +655,14 @@ function draw(camX, camY) {
     }
     if (f.purple && f.type === 1 && typeof BUNCH_P !== 'undefined' && BUNCH_P && BUNCH_P.complete && BUNCH_P.naturalWidth) {
       ctx.drawImage(BUNCH_P, fx - 32, fy - 24, 64, 48);
+      continue;
+    }
+    if (f.purple && f.type === 3 && typeof KFC_P !== 'undefined' && KFC_P && KFC_P.complete && KFC_P.naturalWidth) {
+      ctx.drawImage(KFC_P, fx - 28, fy - 36, 56, 72);
+      continue;
+    }
+    if (f.type === 3 && typeof KFC_IMG !== 'undefined' && KFC_IMG && KFC_IMG.complete && KFC_IMG.naturalWidth) {
+      ctx.drawImage(KFC_IMG, fx - 28, fy - 36, 56, 72);
       continue;
     }
     if (f.type === 2 && typeof TORNADO_IMG !== 'undefined' && TORNADO_IMG && TORNADO_IMG.complete && TORNADO_IMG.naturalWidth) {

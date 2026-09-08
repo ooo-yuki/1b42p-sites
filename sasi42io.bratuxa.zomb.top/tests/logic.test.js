@@ -60,13 +60,16 @@ vm.runInContext(scripts[0], sandbox, { filename: 'game-inline.js' });
 const __hook = sandbox.window.__hook;
 assert.ok(__hook, 'window.__hook missing');
 
-// --- очки еды: банан 5, связка 25, торнадо 70 (через spawnFood веса 70/25/5) ---
+// --- очки еды: банан 5, связка 25, торнадо 70, ведро 200 (веса 70/23/5/2) ---
 assert.strictEqual(__hook.spawnFood(0.0).pts, 5);
 assert.strictEqual(__hook.spawnFood(0.69).pts, 5);
 assert.strictEqual(__hook.spawnFood(0.70).pts, 25);
-assert.strictEqual(__hook.spawnFood(0.94).pts, 25);
+assert.strictEqual(__hook.spawnFood(0.92).pts, 25);
+assert.strictEqual(__hook.spawnFood(0.93).pts, 70);
 assert.strictEqual(__hook.spawnFood(0.95).pts, 70);
-assert.strictEqual(__hook.spawnFood(0.99).pts, 70);
+assert.strictEqual(__hook.spawnFood(0.97).pts, 70);
+assert.strictEqual(__hook.spawnFood(0.98).pts, 200); // ведро KFC: 200, 2%
+assert.strictEqual(__hook.spawnFood(0.99).pts, 200);
 assert.strictEqual(__hook.eatFood(0, 5, 1), 5); // банан
 assert.strictEqual(__hook.eatFood(0, 25, 1), 25); // связка
 assert.strictEqual(__hook.eatFood(0, 70, 1), 70); // торнадо
@@ -157,20 +160,23 @@ const mkB = { x: W - 11, y: 1500, angle: 0, segs: [{ x: W - 11, y: 1500 }], scor
 sandbox.moveSnake(mkB, W + 500, 1500, 10);
 assert.ok(mkB.x <= W - 10, 'bots stay clamped, got ' + mkB.x);
 
-// --- дроп с ботов: dropLoot в __hook, веса 70/25/5 ---
+// --- дроп с ботов: dropLoot в __hook, веса 70/23/5/2 ---
 assert.strictEqual(typeof __hook.dropLoot, 'function', 'dropLoot must be in __hook');
 assert.strictEqual(__hook.dropLoot(0, () => 0.5).length, 0);
 assert.ok(__hook.dropLoot(3, () => 0.0).every((t) => t === 0), 'rnd=0 -> all type 0');
 assert.ok(__hook.dropLoot(3, () => 0.7).every((t) => t === 1), 'rnd=0.7 -> all type 1');
-assert.ok(__hook.dropLoot(3, () => 0.99).every((t) => t === 2), 'rnd=0.99 -> all type 2');
+assert.ok(__hook.dropLoot(3, () => 0.95).every((t) => t === 2), 'rnd=0.95 -> all type 2');
+assert.ok(__hook.dropLoot(3, () => 0.99).every((t) => t === 3), 'rnd=0.99 -> all type 3 (KFC)');
 let __i = 0;
 const loot1000 = __hook.dropLoot(1000, () => (__i++) / 1000); // равномерный проход [0,1)
 const c0 = loot1000.filter((t) => t === 0).length;
 const c1 = loot1000.filter((t) => t === 1).length;
 const c2 = loot1000.filter((t) => t === 2).length;
+const c3 = loot1000.filter((t) => t === 3).length;
 assert.strictEqual(c0, 700, 'weight type0 ~70%, got ' + c0);
-assert.strictEqual(c1, 250, 'weight type1 ~25%, got ' + c1);
+assert.strictEqual(c1, 230, 'weight type1 ~23%, got ' + c1);
 assert.strictEqual(c2, 50, 'weight type2 ~5%, got ' + c2);
+assert.strictEqual(c3, 20, 'weight type3 ~2%, got ' + c3);
 assert.ok(
   html.includes('dropLoot(n, Math.random)') && html.includes('FOOD[types[i]].pts'),
   'die(s) must drop weighted loot (count as before)'
@@ -185,7 +191,7 @@ assert.ok(
   'giveup/wall must use common playerDie flow (score + record)'
 );
 
-console.log('logic.test.js: OK walls (hitsWall, no-clamp player, clamped bots), dropLoot 700/250/50, giveup');
+console.log('logic.test.js: OK walls (hitsWall, no-clamp player, clamped bots), dropLoot 700/230/50/20, giveup');
 
 // --- магазин: цены, баффы, скины, щит (чистая логика в __hook) ---
 assert.strictEqual(Object.keys(__hook.SHOP_PRICES).sort().join(','), 'buff_magnet,buff_score,buff_speed,shield,skin_crimson,skin_gold,skin_ocean,skin_violet');
@@ -317,6 +323,19 @@ assert.ok(html.includes('foods[i].purple'), 'eatCheck must apply flat -500 to pu
 assert.ok(html.includes('banana_purple.png') && html.includes('bunch_purple.png') && html.includes('tornado_purple.png'), 'purple textures must load');
 
 console.log('logic.test.js: OK purple versions (5%, -500, floor 0)');
+
+// --- ведро KFC: 4-й тип, 200 очков, 2% (реже торнадо), топ-приоритет у ботов ---
+assert.strictEqual(__hook.eatFood(0, 200, 1), 200);
+assert.strictEqual(__hook.spawnFood(0.985).type, 3);
+assert.ok(html.includes('kfc.png') && html.includes('kfc_purple.png'), 'KFC textures must load');
+// ведро 120px: 120/6=20 < торнадо 100px: 100/4=25 — ведро побеждает ✓
+const bfK = __hook.bestFood(
+  { x: 1500, y: 1500, angle: 0 },
+  [{ x: 1600, y: 1500, type: 2 }, { x: 1620, y: 1500, type: 3 }]
+);
+assert.strictEqual(bfK.type, 3, 'KFC bucket beats tornado at close range');
+
+console.log('logic.test.js: OK KFC (type 3, 200pts, 2%)');
 
 // --- интро: сначала видео + кнопка, игра только после ▶ Играть ---
 assert.ok(html.includes('id="intro"'), 'intro overlay must exist');
