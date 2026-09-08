@@ -65,7 +65,7 @@
   <div id="recSaved">Рекорд сохранён ✅</div>
   <button id="again">Ещё раз</button>
 </div></div>
-<div id="hint">движение — джойстик / WASD / стрелки · буст — кнопка / пробел</div>
+<div id="hint">движение — джойстик / WASD / стрелки · буст — кнопка / пробел · 🟣 фиолет -500, не жри!</div>
 <div id="joy"><div id="stick"></div></div>
 <button id="boostBtn" aria-label="Буст">⚡</button>
 <button id="pauseBtn" aria-label="Пауза">⏸</button>
@@ -76,8 +76,12 @@
 var FOOD = [
   { pts: 5,  w: 70, emoji: '\u{1F34C}' },
   { pts: 25, w: 25, emoji: '\u{1F34C}\u{1F34C}\u{1F34C}' },
-  { pts: 70, w: 5,  emoji: '\u{1F96B}' }
+  { pts: 70, w: 5,  emoji: '\u{1F96B}' },
+  { pts: -500, w: 5, emoji: '\u{1F7E3}' } // фиолет: -500, шанс 5%
 ];
+var PURPLE_P = 0.05; // шанс фиолета при спавне еды
+function purpleRoll(r) { return r < PURPLE_P; }
+function eatPurple(score) { return Math.max(0, score - 500); }
 var BOOSTERS = [
   { id: 'star', emoji: '\u2B50', mult: 2, dur: 10 },
   { id: 'bolt', emoji: '\u26A1', mult: 2, dur: 10 }
@@ -263,7 +267,7 @@ function setPaused(b) { __paused = !!b; return __paused; }
 function togglePause() { __paused = !__paused; return __paused; }
 function isPaused() { return __paused; }
 var BOT_N = 25; // мясорубка: ботов на арене
-window.__hook = { spawnFood: spawnFood, eatFood: eatFood, scoreTier: scoreTier, stepBot: stepBot, dodgeTurn: dodgeTurn, bestFood: bestFood, collide: collide, hitsWall: hitsWall, dropLoot: dropLoot, setDir: setDir, getDir: getDir, setPaused: setPaused, togglePause: togglePause, isPaused: isPaused, BOT_N: BOT_N, burp: burp, clang: clang, SHOP_PRICES: SHOP_PRICES, SKIN_COLORS: SKIN_COLORS, shopGain: shopGain, shopSpeed: shopSpeed, shopPickupR: shopPickupR, shopSkinColor: shopSkinColor, shieldHas: shieldHas, shieldUse: shieldUse };
+window.__hook = { spawnFood: spawnFood, eatFood: eatFood, scoreTier: scoreTier, purpleRoll: purpleRoll, eatPurple: eatPurple, PURPLE_P: PURPLE_P, stepBot: stepBot, dodgeTurn: dodgeTurn, bestFood: bestFood, collide: collide, hitsWall: hitsWall, dropLoot: dropLoot, setDir: setDir, getDir: getDir, setPaused: setPaused, togglePause: togglePause, isPaused: isPaused, BOT_N: BOT_N, burp: burp, clang: clang, SHOP_PRICES: SHOP_PRICES, SKIN_COLORS: SKIN_COLORS, shopGain: shopGain, shopSpeed: shopSpeed, shopPickupR: shopPickupR, shopSkinColor: shopSkinColor, shieldHas: shieldHas, shieldUse: shieldUse };
 
 /* ===== игра ===== */
 var W = 3000, H = 3000;
@@ -283,6 +287,7 @@ function makeFood(n) {
   return arr;
 }
 function placeFood(x, y) {
+  if (Math.random() < PURPLE_P) return { x: x !== undefined ? x : rnd(W), y: y !== undefined ? y : rnd(H), type: 3, pts: -500, boost: null }; // фиолет-подлянка
   var t = spawnFood(Math.random());
   return { x: x !== undefined ? x : rnd(W), y: y !== undefined ? y : rnd(H), type: t.type, pts: t.pts, boost: null };
 }
@@ -482,8 +487,11 @@ function eatCheck(s) {
   var pr = shopPickupR(mag);
   for (var i = foods.length - 1; i >= 0; i--) {
     if (collide(s.x, s.y, foods[i].x, foods[i].y, pr)) {
+      if (foods[i].type === 3) { s.score = eatPurple(s.score); } // фиолет: ровно -500, без множителей, в ноль
+      else {
       var mult = scoreTier(s.score) * (s.star ? 2 : 1) * ((s === player && shopHas('buff_score')) ? 2.5 : 1); // тиры + магазин ×2.5
       s.score = eatFood(s.score, foods[i].pts, mult);
+      }
       if (s === player) burp(true); // рыг только когда ешь ты
       foods[i] = placeFood();
     }
@@ -625,7 +633,7 @@ function draw(camX, camY) {
       ctx.drawImage(BUNCH_IMG, fx - 32, fy - 24, 64, 48);
       continue;
     }
-    ctx.font = f.type === 2 ? '22px serif' : (f.type === 1 ? '17px serif' : '14px serif');
+    ctx.font = f.type === 3 ? '24px serif' : (f.type === 2 ? '22px serif' : (f.type === 1 ? '17px serif' : '14px serif'));
     ctx.fillText(FOOD[f.type].emoji, fx, fy);
   }
   for (i = 0; i < boosters.length; i++) {

@@ -302,4 +302,18 @@ assert.strictEqual(__hook.eatFood(0, 70, __hook.scoreTier(6000)), 245); // то�
 assert.ok(html.includes('scoreTier(s.score) *'), 'eatCheck must apply tier multiplier');
 
 console.log('logic.test.js: OK tiers (x1/x2/x2.5/x3.5)');
+
+// --- фиолет-подлянка: шанс 5%, -500 ровно, в ноль, без множителей ---
+assert.strictEqual(__hook.PURPLE_P, 0.05, 'purple chance 5%');
+assert.strictEqual(__hook.purpleRoll(0.0), true);
+assert.strictEqual(__hook.purpleRoll(0.049), true);
+assert.strictEqual(__hook.purpleRoll(0.05), false);
+assert.strictEqual(__hook.purpleRoll(0.99), false);
+assert.strictEqual(__hook.eatPurple(2900), 2400);
+assert.strictEqual(__hook.eatPurple(500), 0);
+assert.strictEqual(__hook.eatPurple(100), 0, 'floor zero, no negative');
+assert.ok(html.includes('type: 3, pts: -500'), 'placeFood must spawn purple type 3');
+assert.ok(html.includes('eatPurple(s.score)'), 'eatCheck must apply flat -500');
+
+console.log('logic.test.js: OK purple (5%, -500, floor 0)');
 process.exit(0);
