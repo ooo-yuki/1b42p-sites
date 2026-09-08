@@ -111,6 +111,8 @@ export interface HudState {
   lvl: number;
   /** Живых боссов на карте — для баннера 👑. */
   boss: number;
+  /** Сглаженный FPS движка. */
+  fps: number;
 }
 
 export interface WeaponDef {
@@ -200,6 +202,8 @@ interface Remote {
   /** fid бойца для pvphit (-1 = неизвестно) */
   fid: number;
   g: THREE.Group;
+  /** тело (children[0]) — кэш, чтобы не дёргать children каждый кадр */
+  body: THREE.Sprite;
   cv: HTMLCanvasElement;
   tex: THREE.CanvasTexture;
   gunCv: HTMLCanvasElement;
@@ -253,6 +257,8 @@ interface Enemy {
   repathT: number;
   /** неубиваемый сталкер Бэкрумса (урон гаснет, фраг невозможен) */
   god: boolean;
+  /** скалолаз Нашествия: лезет на стены до 12м, идёт по крышам */
+  climb: boolean;
 }
 
 /** Сетевой моб из пульса комнаты (сервер — правда). */
@@ -448,6 +454,30 @@ export class Game {
   // коробки — точный AABB, круглые — точный радиус. Пролететь/перепрыгнуть можно.
   // deck: настил (мост) — снизу проход свободный, сверху можно стоять.
   private solids: Array<{ x: number; z: number; hx: number; hz: number; h: number; deck?: boolean } | { x: number; z: number; r: number; h: number }> = [];
+  /** Бюджет BFS-путей на кадр (орда Нашествия не вешает кадр разом). */
+  private bfsBudget = 3;
+  /** Сглаженный FPS для счётчика. */
+  private fpsE = 60;
+  /** Пространственная сетка солидов (ячейка 6м): hitSolid смотрит 3×3 клетки вместо всех стен. */
+  private solidGrid = new Map<string, typeof this.solids>();
+  private static readonly GRID = 6;
+
+  private rebuildSolidGrid(): void {
+    this.solidGrid.clear();
+    const C = Game.GRID;
+    const put = (cx: number, cz: number, s: (typeof this.solids)[number]): void => {
+      const k = cx + ':' + cz;
+      let cell = this.solidGrid.get(k);
+      if (!cell) { cell = []; this.solidGrid.set(k, cell); }
+      cell.push(s);
+    };
+    for (const s of this.solids) {
+      const ex = ('r' in s ? s.r : Math.max(s.hx, s.hz)) + 2.5;
+      const x0 = Math.floor((s.x - ex) / C), x1 = Math.floor((s.x + ex) / C);
+      const z0 = Math.floor((s.z - ex) / C), z1 = Math.floor((s.z + ex) / C);
+      for (let cx = x0; cx <= x1; cx++) for (let cz = z0; cz <= z1; cz++) put(cx, cz, s);
+    }
+  }
   private lookPointer = -1;
   private lookLX = 0;
   private lookLY = 0;
@@ -541,7 +571,9 @@ export class Game {
     this.loadShop();
     this.loadKeys();
     this.buildWorld();
-    if (map !== 'duel' && this.enemiesOn) this.spawnWave();
+    this.rebuildSolidGrid();
+    // endless: только сталкеры (волн нет); duel/pvp: без врагов вообще
+    if (map !== 'duel' && map !== 'endless' && map !== 'pvp' && this.enemiesOn) this.spawnWave();
     window.addEventListener('resize', this.onResize);
     canvas.addEventListener('pointerdown', this.onPointerDown);
     window.addEventListener('pointermove', this.onPointerMove);
@@ -2350,6 +2382,24 @@ export class Game {
   }
 
   private spawnWave(): void {
+    // endless: волн нет вообще, только сталкеры через spawnStalkers()
+    if (this.map === 'endless') return;
+    // Нашествие: орда скалолазов — в разы гуще обычной (до 40 рыл)
+    if (this.map === 'invasion') {
+      const n = Math.min(8 + this.wave * 3, 40);
+      if (this.wave % 5 === 0) {
+        this.spawnEnemy('boss');
+        for (let i = 0; i < 10; i++) this.spawnClimber(i % 4 === 0 ? 'fly' : 'walk');
+        return;
+      }
+      const flyers = Math.floor(n * 0.2);
+      for (let i = 0; i < n; i++) {
+        const kind = i < flyers ? 'fly' : 'walk';
+        if (kind === 'fly') this.spawnEnemy('fly');
+        else this.spawnClimber('walk');
+      }
+      return;
+    }
     const n = Math.min(4 + this.wave, 10);
     // каждая 5-я волна — БОСС-гопник + свита поменьше
     if (this.wave % 5 === 0) {
@@ -2405,6 +2455,52 @@ export class Game {
   debugBoss(): number {
     return this.enemies.filter((e) => !e.dead && e.kind === 'boss').length;
   }
+
+  /** Скалолаз Нашествия: обычный спавн + лазание по стенам. */
+  private spawnClimber(kind: 'walk' | 'fly'): void {
+    const before = this.enemies.length;
+    this.spawnEnemy(kind);
+    if (this.enemies.length > before) {
+      const e = this.enemies[this.enemies.length - 1]!;
+      e.climb = true;
+      if (kind === 'walk') e.speed *= 1.15;
+    }
+  }
+
+  private stalkersOn = false;
+  /** 5 неубиваемых быстрых сталкеров Бэкрумса (хост endless, один раз за бой). */
+  spawnStalkers(): number {
+    if (this.netSync) return 0;
+    if (this.stalkersOn) return this.enemies.filter((e) => !e.dead && e.god).length;
+    this.stalkersOn = true;
+    for (let i = 0; i < 5; i++) {
+      const before = this.enemies.length;
+      this.spawnEnemy('walk');
+      if (this.enemies.length > before) {
+        const e = this.enemies[this.enemies.length - 1]!;
+        e.god = true;
+        e.hp = 9999; e.maxhp = 9999;
+        e.speed = 6.0;
+        e.hitCd = 0;
+        this.updateHpBar(e);
+      }
+    }
+    return this.enemies.filter((e) => !e.dead && e.god).length;
+  }
+
+  debugStalkers(): number {
+    return this.enemies.filter((e) => !e.dead && e.god).length;
+  }
+
+  /** Режим наблюдателя: движение выкл, камера на цели, удары выкл. */
+  private specOn = false;
+  private specX = 0;
+  private specZ = 0;
+  setSpec(on: boolean, x = 0, z = 0): void {
+    this.specOn = on;
+    this.specX = x; this.specZ = z;
+  }
+  debugSpec(): boolean { return this.specOn; }
 
   debugFlyers(): number {
     return this.enemies.filter((e) => !e.dead && e.kind === 'fly').length;
@@ -2472,7 +2568,7 @@ export class Game {
       speed: boss ? 1.5 : 1.7 + Math.random() * 1.1 + this.wave * 0.12 + (fly ? 0.6 : 0),
       hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, ey: 0, evy: 0, hopCd: 1 + Math.random() * 2, dead: false,
       mobId: this.mobIdSeq++, net: false, tx: sx, tz: sz, snaps: [], ewave: this.wave,
-      path: [], repathT: Math.random() * 0.5, god: false,
+      path: [], repathT: Math.random() * 0.5, god: false, climb: false,
     };
     this.updateHpBar(foe);
     this.enemies.push(foe);
@@ -2523,7 +2619,7 @@ export class Game {
   }
 
   attack(): number {
-    if (!this.started || this.dead) return 0;
+    if (!this.started || this.dead || this.specOn) return 0;
     if (this.atkCd > 0) return 0;
     this.shieldT = 0;
     this.atk++;
@@ -2717,7 +2813,7 @@ export class Game {
   // зачистка волны: +волна, +25HP, +25 фантиков, +50 опыта (один хелпер на все стволы)
   private waveClearCheck(): void {
     if (this.netSync) return;
-    if ((this.map === 'arena' || this.map === 'backrooms' || this.map === 'custom' || this.map === 'random') && this.enemiesOn && this.enemies.length > 0 && this.enemies.every((e) => e.dead)) {
+    if ((this.map === 'arena' || this.map === 'backrooms' || this.map === 'custom' || this.map === 'random' || this.map === 'invasion') && this.enemiesOn && this.enemies.length > 0 && this.enemies.every((e) => e.dead)) {
       this.wave++;
       this.hp = Math.min(this.maxhp, this.hp + 25);
       this.fantiki += 25;
@@ -2896,8 +2992,8 @@ export class Game {
     return this.remotes.map((m) => ({ nick: m.nick, char: m.char, x: m.x, z: m.z, hp: m.hp, weapon: m.weapon, py: m.py, atk: m.atk, dead: m.dead, fid: m.fid }));
   }
   /** Отладка для тестов: живые враги с координатами (навести прицел точно). */
-  debugFoes(): Array<{ id: number; x: number; z: number; hp: number; dead: boolean; ey: number }> {
-    return this.enemies.filter((e) => !e.dead).map((e) => ({ id: e.mobId, x: e.g.position.x, z: e.g.position.z, hp: Math.round(e.hp), dead: e.dead, ey: Math.round(e.ey * 100) / 100 }));
+  debugFoes(): Array<{ id: number; x: number; z: number; hp: number; dead: boolean; ey: number; climb: boolean; god: boolean }> {
+    return this.enemies.filter((e) => !e.dead).map((e) => ({ id: e.mobId, x: e.g.position.x, z: e.g.position.z, hp: Math.round(e.hp), dead: e.dead, ey: Math.round(e.ey * 100) / 100, climb: e.climb, god: e.god }));
   }
 
   /** Гость общей комнаты: локальную симуляцию гасим, мобы едут со сервера. */
@@ -2963,7 +3059,7 @@ export class Game {
           ...v, kind, hp: maxhp, maxhp, speed: 0,
           hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, ey: 0, evy: 0, hopCd: 1e9, dead: false,
           mobId: id, net: true, tx: v.g.position.x, tz: v.g.position.z, snaps: [{ t: performance.now(), x: v.g.position.x, z: v.g.position.z }], ewave: Math.round(Number(m.wave) || 1),
-          path: [], repathT: 0, god: m.god === true,
+          path: [], repathT: 0, god: m.god === true, climb: false,
         };
         this.updateHpBar(e);
         this.enemies.push(e);
@@ -3057,9 +3153,12 @@ export class Game {
     const seen = new Set<number>([sk]);
     const q: Array<[number, number]> = [[s.ix, s.iz]];
     const nb = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
-    while (q.length > 0) {
-      const cur = q.shift()!;
-      if (key(cur[0], cur[1]) === tk) break;
+    // очередь указателем (без shift — иначе O(n²) на тысячах клеток)
+    let qh = 0;
+    let foundTk = false;
+    while (qh < q.length) {
+      const cur = q[qh++]!;
+      if (key(cur[0], cur[1]) === tk) { foundTk = true; break; }
       for (const o of nb) {
         const nx = cur[0] + o[0], nz = cur[1] + o[1];
         if (Math.abs(nx) > R || Math.abs(nz) > R) continue;
@@ -3071,7 +3170,7 @@ export class Game {
         q.push([nx, nz]);
       }
     }
-    if (!prev.has(tk)) return [];
+    if (!foundTk) return [];
     const cells: Array<[number, number]> = [];
     let c = tk, guard = 10000;
     while (c !== sk && guard-- > 0) {
@@ -3097,22 +3196,50 @@ export class Game {
   // круглое — точный радиус, и только если сущность НИЖЕ верха (y <= h+0.4).
   // Хитбокс не выходит за текстуру и не тянется до неба: перепрыгнуть/перелететь можно.
   private hitSolid(x: number, z: number, rad: number, y = 0): boolean {
-    for (const s of this.solids) {
-      if (y > s.h + 0.4) continue;
-      // стоишь на верху объекта — это пол, а не стена: идём свободно
-      if (y >= s.h - 0.1) continue;
+    const C = Game.GRID;
+    const cx = Math.floor(x / C), cz = Math.floor(z / C);
+    // кандидаты из 3×3 клеток; сетка пуста (карта без стен) — полный проход
+    let found = false;
+    for (let ix = cx - 1; ix <= cx + 1 && !found; ix++) {
+      for (let iz = cz - 1; iz <= cz + 1; iz++) {
+        const cell = this.solidGrid.get(ix + ':' + iz);
+        if (cell && cell.length > 0) { found = true; break; }
+      }
+    }
+    if (found) {
+      const seen: typeof this.solids = [];
+      for (let ix = cx - 1; ix <= cx + 1; ix++) {
+        for (let iz = cz - 1; iz <= cz + 1; iz++) {
+          const cell = this.solidGrid.get(ix + ':' + iz);
+          if (!cell) continue;
+          for (const s of cell) {
+            if (seen.indexOf(s) >= 0) continue;
+            seen.push(s);
+            if (this.solidHit(s, x, z, rad, y)) return true;
+          }
+        }
+      }
+      return false;
+    }
+    for (const s of this.solids) if (this.solidHit(s, x, z, rad, y)) return true;
+    return false;
+  }
+
+  private solidHit(s: (typeof this.solids)[number], x: number, z: number, rad: number, y: number): boolean {
+    if (y > s.h + 0.4) return false;
+    // стоишь на верху объекта — это пол, а не стена: идём свободно
+    if (y >= s.h - 0.1) return false;
       if ('r' in s) {
         const dx = x - s.x, dz = z - s.z;
         if (dx * dx + dz * dz < (s.r + rad) * (s.r + rad)) return true;
       } else {
         // настил: пока ты ниже него — проходишь под мостом свободно
-        if (s.deck && y < s.h - 0.5) continue;
+        if (s.deck && y < s.h - 0.5) return false;
         const cx = Math.max(s.x - s.hx, Math.min(x, s.x + s.hx));
         const cz = Math.max(s.z - s.hz, Math.min(z, s.z + s.hz));
         const dx = x - cx, dz = z - cz;
         if (dx * dx + dz * dz < rad * rad) return true;
       }
-    }
     return false;
   }
 
@@ -3134,12 +3261,18 @@ export class Game {
   }
 
   private pushHud(): void {
+    let alive = 0, bosses = 0;
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      alive++;
+      if (e.kind === 'boss') bosses++;
+    }
     this.ev.onHud({
       hp: Math.max(0, Math.round(this.hp)),
       maxhp: this.maxhp,
       score: this.score,
       kills: this.kills,
-      enemies: this.enemies.filter((e) => !e.dead).length,
+      enemies: alive,
       wave: this.wave,
       dead: this.dead,
       fantiki: this.fantiki,
@@ -3148,11 +3281,14 @@ export class Game {
       moving: this.moving,
       med: this.medkits,
       lvl: this.level(),
-      boss: this.enemies.filter((e) => !e.dead && e.kind === 'boss').length,
+      boss: bosses,
       dash: Math.round(this.dashCd * 10) / 10,
       kick: Math.round(this.wallKickCd * 10) / 10,
+      fps: Math.round(this.fpsE),
     });
   }
+
+  debugFps(): number { return Math.round(this.fpsE); }
 
   private drawMM(): void {
     if (!this.mmCanvas) return;
@@ -3257,7 +3393,7 @@ export class Game {
         lab.position.set(0, 2.5, 0);
         g.add(lab);
         this.scene.add(g);
-        r = { nick, g, cv, tex: ltex, gunCv, gunTex, x: 0, z: 0, tx: 0, tz: 0, snaps: [], hp: 100, char, weapon: '', py: 0, atk: 0, flash: 0, dead: false, fid: -1 };
+        r = { nick, g, body, cv, tex: ltex, gunCv, gunTex, x: 0, z: 0, tx: 0, tz: 0, snaps: [], hp: 100, char, weapon: '', py: 0, atk: 0, flash: 0, dead: false, fid: -1 };
         this.gunIcon(weapon, gunCv, gunTex);
         r.weapon = weapon;
         this.remotes.push(r);
@@ -3422,6 +3558,9 @@ export class Game {
     if (this.destroyed) return;
     this.raf = requestAnimationFrame(this.loop);
     const dt = Math.min(this.clock.getDelta(), 0.05);
+    // FPS-метр (сглаживание) + свежий бюджет BFS на кадр
+    if (dt > 0.0005) this.fpsE += (1 / dt - this.fpsE) * 0.05;
+    this.bfsBudget = 3;
     if (this.started && !this.dead) {
       const km = this.keyMap;
       // поворот стрелками
@@ -3435,14 +3574,15 @@ export class Game {
       }
       // прыжок: с земли — вверх (с любой опоры: земля, крыша, мост).
       // Вол-кик Крысы — на C (способность), не на прыжке.
-      if (this.input[km.jump]) {
+      // Наблюдатель не прыгает: камера висит на цели.
+      if (this.input[km.jump] && !this.specOn) {
         if (this.py <= this.groundAt(this.px, this.pz) + 0.01) {
           this.pvy = this.jumpVel;
         }
       }
       // вол-кик Стейси Крысы на C: в полёте у стены — разворот с подбросом (кд 5с).
       // Кик швыряет ПРОТИВ движения; если стоишь — толчок от стены.
-      if (this.input[km.ability] && this.charId === 'krysa') {
+      if (this.input[km.ability] && this.charId === 'krysa' && !this.specOn) {
         this.input[km.ability] = false;
         if (this.wallT > 0 && this.wallKickCd <= 0 && this.py > 0.05) {
           let kf = (this.input[km.fwd] || this.input.ArrowUp ? 1 : 0) - (this.input[km.back] || this.input.ArrowDown ? 1 : 0) - this.joy.y;
@@ -3504,10 +3644,13 @@ export class Game {
         const e = 1 - t * t;
         this.yaw = this.kickTurnFrom + this.kickTurnDelta * e;
       }
-      // способность на C: Крыса — вол-кик (съедено выше), остальные — рывок МТТ
-      if (this.input[km.ability] && this.charId !== 'krysa') {
+      // способность на C: Крыса — вол-кик (съедено выше), остальные — рывок МТТ.
+      // Наблюдатель способностей не жмёт.
+      if (this.input[km.ability] && this.charId !== 'krysa' && !this.specOn) {
         this.input[km.ability] = false;
         this.dash();
+      } else if (this.specOn) {
+        this.input[km.ability] = false;
       }
       if (this.dashCd > 0) this.dashCd -= dt;
       // смена оружия на назначенной клавише (по умолчанию E) — только купленное
@@ -3522,9 +3665,11 @@ export class Game {
         this.input.KeyX = false;
         this.useMedkit();
       }
-      // движение: назначенные клавиши + стрелки + джойстик
+      // движение: назначенные клавиши + стрелки + джойстик.
+      // Наблюдатель стоит: камера висит на цели, ноги не ходят.
       let f = (this.input[km.fwd] || this.input.ArrowUp ? 1 : 0) - (this.input[km.back] || this.input.ArrowDown ? 1 : 0) - this.joy.y;
       let r = (this.input[km.right] ? 1 : 0) - (this.input[km.left] ? 1 : 0) + this.joy.x;
+      if (this.specOn) { f = 0; r = 0; }
       f = Math.max(-1, Math.min(1, f));
       r = Math.max(-1, Math.min(1, r));
       // бросок летит сам: кнопки на время полёта глушим
@@ -3599,7 +3744,7 @@ export class Game {
         this.pvy -= 12 * dt;
         this.py += this.pvy * dt;
         // Бэкрумс: потолок 3м — головой не пробивать (глаза 1.7м + прыжок)
-        if (this.map === 'backrooms' && this.py > 1.2) { this.py = 1.2; this.pvy = Math.min(0, this.pvy); }
+        if ((this.map === 'backrooms' || this.map === 'endless') && this.py > 1.2) { this.py = 1.2; this.pvy = Math.min(0, this.pvy); }
         // приземление на опору под ногами: земля, крыша, мост, ступень (бросок гасим)
         const g = this.groundAt(this.px, this.pz);
         if (this.py <= g) { this.py = g; this.pvy = 0; this.blastT = 0; this.blastDx = 0; this.blastDz = 0; }
@@ -3607,28 +3752,84 @@ export class Game {
       // враги идут к игроку и бьют в упор; сетевые куклы — догоняют точку хоста
       for (const e of this.enemies) {
         if (e.dead) continue;
-        const dx = this.px - e.g.position.x;
-        const dz = this.pz - e.g.position.z;
+        // сталкеры (god): идут к ближайшему живому — хозяину или сокомнатнику
+        let txp = this.px, tzp = this.pz;
+        let huntingRemote = false;
+        if (e.god && !e.net) {
+          let bd = Math.hypot(txp - e.g.position.x, tzp - e.g.position.z);
+          for (const r of this.remotes) {
+            if (r.dead) continue;
+            const rd = Math.hypot(r.x - e.g.position.x, r.z - e.g.position.z);
+            if (rd < bd) { bd = rd; txp = r.x; tzp = r.z; huntingRemote = true; }
+          }
+        }
+        const dx = txp - e.g.position.x;
+        const dz = tzp - e.g.position.z;
         const d = Math.hypot(dx, dz) || 1;
         if (e.net) {
           // кукла: прошлое по буферу хоста (без «догнал—стою» при рваных битах)
           const mp = this.snapAt(e.snaps, performance.now() - 550, e.tx, e.tz);
           e.g.position.x = mp.x;
           e.g.position.z = mp.z;
+          // кукла сталкера рядом — бьёт гостя локально (серверный урон гаснет только у хоста)
+          if (e.god && !this.dead) {
+            const pd = Math.hypot(this.px - e.g.position.x, this.pz - e.g.position.z);
+            if (pd <= 2.3 && e.hitCd <= 0 && this.shieldT <= 0) {
+              e.hitCd = 1.0;
+              this.hp -= 12 + Math.random() * 6;
+              this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
+              this.shakeT = 0.25;
+              this.sfx(hitUrl, 0.8);
+              if (this.hp <= 0) {
+                this.hp = 0;
+                this.dead = true;
+                this.pushHud();
+                this.ev.onBusted({ score: this.score, coins: 0 });
+              }
+              this.pushHud();
+            }
+          }
+        } else if (e.god && !huntingRemote && d <= 2.3 && e.hitCd <= 0 && this.shieldT <= 0) {
+          // сталкер достал: удар злее босса
+          e.hitCd = 1.0;
+          this.hp -= 12 + Math.random() * 6;
+          this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
+          this.shakeT = 0.25;
+          this.sfx(hitUrl, 0.8);
+          if (this.hp <= 0) {
+            this.hp = 0;
+            this.dead = true;
+            this.pushHud();
+            this.ev.onBusted({ score: this.score, coins: 0 });
+          }
+          this.pushHud();
         } else if (d > 2.1) {
           const eyH = e.kind === 'fly' ? 3.2 : e.ey;
           // пеший местный: виден напрямую — в лоб; за стеной — по вейпоинтам BFS.
           // Летуны и сетевые куклы — старым ходом (небо и слепки не знают стен).
-          let wx = this.px, wz = this.pz;
+          let wx = txp, wz = tzp;
           if (!e.net && e.kind !== 'fly') {
             e.repathT -= dt;
             if (e.repathT <= 0 || e.path.length === 0) {
+              // прямая видимость: шаг 2м, не дальше 48м (дальше — сразу BFS-бюджет)
               let blocked = false;
-              const steps = Math.max(1, Math.ceil(d));
-              for (let s = 1; s < steps; s++) {
-                if (this.hitSolid(e.g.position.x + (dx / d) * s, e.g.position.z + (dz / d) * s, 0.9, eyH)) { blocked = true; break; }
+              const far = Math.min(d, 48);
+              const checks = Math.min(24, Math.max(1, Math.ceil(far / 2)));
+              for (let s = 1; s <= checks; s++) {
+                const t = (far * s) / (checks + 1);
+                if (this.hitSolid(e.g.position.x + (dx / d) * t, e.g.position.z + (dz / d) * t, 0.9, eyH)) { blocked = true; break; }
               }
-              e.path = blocked ? this.findPath(e.g.position.x, e.g.position.z, this.px, this.pz) : [];
+              if (!blocked && d <= 48) {
+                e.path = [];
+              } else if (this.bfsBudget > 0) {
+                this.bfsBudget--;
+                e.path = this.findPath(e.g.position.x, e.g.position.z, txp, tzp);
+              } else {
+                // бюджет кадра исчерпан (орда Нашествия) — повторим через 0.12с, пока идём в лоб
+                e.path = [];
+                e.repathT = 0.12;
+                continue;
+              }
               e.repathT = 0.5 + Math.random() * 0.3;
             }
             if (e.path.length > 0) {
@@ -3641,8 +3842,20 @@ export class Game {
           const dd = Math.hypot(ddx, ddz) || 1;
           const nx = e.g.position.x + (ddx / dd) * e.speed * dt;
           const nz = e.g.position.z + (ddz / dd) * e.speed * dt;
-          if (!this.hitSolid(nx, e.g.position.z, 0.8, eyH)) e.g.position.x = clampArena(nx);
-          if (!this.hitSolid(e.g.position.x, nz, 0.8, eyH)) e.g.position.z = clampArena(nz);
+          let blockedX = this.hitSolid(nx, e.g.position.z, 0.8, eyH);
+          let blockedZ = this.hitSolid(e.g.position.x, nz, 0.8, eyH);
+          if (!blockedX) e.g.position.x = clampArena(nx);
+          if (!blockedZ) e.g.position.z = clampArena(nz);
+          if (e.climb && (blockedX || blockedZ)) {
+            // скалолаз: стена до 12м — лезем вверх (2.5 м/с), дальше идём по крыше
+            const top = this.groundAt(blockedX ? nx : e.g.position.x, blockedZ ? nz : e.g.position.z);
+            if (top > e.ey && top - e.ey <= 12) e.ey = Math.min(top, e.ey + 2.5 * dt);
+          }
+          if (e.climb) {
+            // соскользнули с крыши — плавно вниз по опоре
+            const gt = this.groundAt(e.g.position.x, e.g.position.z);
+            if (e.ey > gt) e.ey += (gt - e.ey) * Math.min(1, dt * 4);
+          }
         } else if (e.hitCd <= 0 && this.shieldT <= 0) {
           e.hitCd = e.kind === 'boss' ? 1.2 : 0.95;
           // босс бьёт втрое злее
@@ -3663,6 +3876,9 @@ export class Game {
         e.phase += dt * (2 + e.speed);
         if (e.kind === 'fly') {
           e.body.position.y = 3.2 + Math.sin(e.phase * 1.5) * 0.5;
+        } else if (e.climb) {
+          // скалолаз не прыгает — высота от стены/крыши
+          e.body.position.y = 1.0 + e.ey;
         } else {
           // прыжки орды
           e.hopCd -= dt;
@@ -3698,7 +3914,7 @@ export class Game {
         const sp = this.snapAt(r.snaps, renderT, r.tx, r.tz);
         r.x = sp.x; r.z = sp.z;
         if (r.flash > 0) r.flash -= dt;
-        const rbody = r.g.children[0] as THREE.Sprite;
+        const rbody = r.body;
         const pop = r.flash > 0 ? 1 + r.flash : 1;
         rbody.scale.set(1.4 * pop, 2.0 * pop, 1);
         rbody.material.color.set(r.dead ? 0x777777 : 0xffffff);
@@ -3709,11 +3925,15 @@ export class Game {
         this.drawMM();
       }
     }
-    // камера от первого лица + покачивание ходьбы
+    // камера от первого лица + покачивание ходьбы.
+    // Наблюдатель: глаза на цели с высоты 2.6м, осмотр мышью свободный.
     const shake = this.shakeT > 0 ? Math.sin(performance.now() / 20) * 0.03 : 0;
     const bob = this.moving ? Math.sin(this.bobPhase) * 0.055 : 0;
     const kick = this.swingT > 0 ? -this.swingT * 0.35 : 0;
-    this.camera.position.set(this.px, 1.7 + this.py + shake + bob, this.pz);
+    const camX = this.specOn ? this.specX : this.px;
+    const camZ = this.specOn ? this.specZ : this.pz;
+    const camY = this.specOn ? 2.6 : 1.7 + this.py;
+    this.camera.position.set(camX, camY + shake + bob, camZ);
     this.camera.rotation.set(this.pitch + kick, this.yaw, 0);
     this.renderer.render(this.scene, this.camera);
   };

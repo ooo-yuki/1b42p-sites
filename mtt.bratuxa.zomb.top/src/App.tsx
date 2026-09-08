@@ -157,6 +157,15 @@ function fmtRestart(sec: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
+/** Описание режима для плашки сервера. */
+function modeDesc(mode: string): string {
+  if (mode === 'pvp') return 'Без врагов — только ты и соперники. Побеждает лидер фрагов.';
+  if (mode === 'endless') return 'Гигантский лабиринт и 5 неубиваемых быстрых сталкеров. Выживи.';
+  if (mode === 'invasion') return 'Орда скалолазов лезет на стены и крыши. Держись.';
+  if (mode === 'duel') return 'Ночной двор 1×1 для разборок.';
+  if (mode === 'backrooms') return 'Случайный лабиринт — новый каждый раз.';
+  return 'Новый город: витрины, переулки, площадь с фонтаном.';
+}
 /** Лимит игроков по режиму (зеркало сервера). */
 function modeCap(mode: string): number {
   if (mode === 'duel') return 2;
@@ -367,7 +376,7 @@ export default function App() {
   const gameRef = useRef<Game | null>(null);
   const [menu, setMenu] = useState(true);
   const [loading, setLoading] = useState<{ show: boolean; pct: number }>({ show: false, pct: 0 });
-  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, med: 0, lvl: 1, boss: 0 });
+  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, med: 0, lvl: 1, boss: 0, fps: 60 });
   const [scores, setScores] = useState<ScoreRow[]>([]);
   const [duelTop, setDuelTop] = useState<Array<{ login: string; wins: number }>>([]);
   const [gstats, setGstats] = useState<{ games: number; best: number; online: number } | null>(null);
@@ -485,6 +494,10 @@ async function loadStats(): Promise<void> {
   /** экран смерти PvP: ресаун в случайной точке или выход в меню */
   const [pvpDead, setPvpDead] = useState(false);
   const pvpDeadRef = useRef(false);
+  /** наблюдатель Бэкрумса: цели из пульса, выбранный ник — в рефе (пульс без замыканий) */
+  const [specActive, setSpecActive] = useState(false);
+  const [specTargets, setSpecTargets] = useState<Array<{ sid: string; nick: string; hp: number; dead: boolean }>>([]);
+  const specSelNick = useRef('');
   // лобби: владелец/заявки/старт. isOwner — я создал; waiting — моя заявка висит; lobby — свежий состав
   const [isOwner, setIsOwner] = useState(false);
   const [waiting, setWaiting] = useState(false);
@@ -716,6 +729,11 @@ async function loadStats(): Promise<void> {
       pvpHp: (n: number) => game.setPvpHp(n),
       pvpSpawn: () => game.randomSpawn(),
       pvpRespawn: (x: number, z: number) => game.pvpRespawn(x, z),
+      fps: () => game.debugFps(),
+      stalkers: () => game.spawnStalkers(),
+      stalkCount: () => game.debugStalkers(),
+      spec: (on: boolean, x: number, z: number) => game.setSpec(on, x, z),
+      specOn: () => game.debugSpec(),
       charaSet: (id: string) => { game.unlockChar(id); return game.setChar(id); },
       switchW: () => game.switchWeapon(),
       medBuy: () => game.buyMedkit(),
@@ -926,6 +944,10 @@ async function loadStats(): Promise<void> {
     setRestartIn(0);
     setPvpDead(false);
     pvpDeadRef.current = false;
+    setSpecActive(false);
+    setSpecTargets([]);
+    specSelNick.current = '';
+    gameRef.current?.setSpec(false);
     if (id && sid) {
       try {
         await fetch(`/api/rooms/${id}/leave`, {
@@ -948,6 +970,49 @@ async function loadStats(): Promise<void> {
     loadScores().then(setScores);
     refreshRooms();
   }, [nick, refreshRooms]);
+
+  /** Наблюдатель: выбрать цель (или список целей), камера виснет на ней */
+  const specWatch = useCallback(async (targetSid: string, targetNick: string) => {
+    const { id, sid } = roomRef.current;
+    const g = gameRef.current;
+    if (!id || !sid || !g) return;
+    try {
+      const r = await fetch(`/api/rooms/${id}/watch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sid, target: targetSid }),
+      });
+      if (!r.ok) return;
+      const d = (await r.json()) as { targets?: Array<{ sid: string; nick: string; hp: number; dead: boolean }> };
+      const targets = d.targets ?? [];
+      specSelNick.current = targetNick || targets[0]?.nick || '';
+      setSpecTargets(targets);
+      setSpecActive(true);
+      const p = g.debugPos();
+      g.setSpec(true, p.x, p.z);
+    } catch { /* noop */ }
+  }, []);
+
+  /** Наблюдатель возвращается в бой: ресаун в случайной точке */
+  const specPlay = useCallback(async () => {
+    const { id, sid } = roomRef.current;
+    const g = gameRef.current;
+    if (!id || !sid || !g) return;
+    try {
+      const r = await fetch(`/api/rooms/${id}/play`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sid }),
+      });
+      if (!r.ok) return;
+      const d = (await r.json()) as { rx?: number; rz?: number };
+      specSelNick.current = '';
+      setSpecTargets([]);
+      setSpecActive(false);
+      g.setSpec(false);
+      g.pvpRespawn(typeof d.rx === 'number' ? d.rx : 0, typeof d.rz === 'number' ? d.rz : 22);
+    } catch { /* noop */ }
+  }, []);
 
   // действия создателя в лобби
   const lobbyAct = useCallback(async (action: 'approve' | 'deny' | 'kick' | 'start', target?: string) => {
@@ -1033,12 +1098,30 @@ async function loadStats(): Promise<void> {
           if (d.respawn && !pvpDeadRef.current) g.pvpRespawn(d.respawn.x, d.respawn.z);
         } else if (roomRef.current.mode === 'endless' || roomRef.current.mode === 'invasion') {
           setRestartIn(typeof d.restartIn === 'number' ? d.restartIn : 0);
+          // наблюдатель висит на цели: свежие координаты из строя сокомнатников
+          if (d.specView && d.specView.spec) {
+            const tgts = d.specView.targets ?? [];
+            setSpecTargets(tgts);
+            setSpecActive(true);
+            if (!specSelNick.current && tgts.length > 0) specSelNick.current = tgts[0]?.nick ?? '';
+            if (specSelNick.current) {
+              try {
+                const list = g.debugRemoteList();
+                const t = list.find((q) => q.nick === specSelNick.current);
+                if (t) g.setSpec(true, t.x, t.z);
+              } catch { /* noop */ }
+            }
+          }
         }
         // общие мобы: хост заливает слепок, гость ставит кукол (только в бою на моб-карте)
         // PvP без мобов; endless/invasion — хост назначает сервер (первый боец)
         const mobMap = roomRef.current.mode === 'arena' || roomRef.current.mode === 'backrooms' || roomRef.current.mode === 'endless' || roomRef.current.mode === 'invasion';
         const amOwner = d.owner === true || d.mobHost === true;
         const inGame = (() => { try { return g.debugPlaying(); } catch { return false; } })();
+        // хост Бэкрумса выпускает 5 сталкеров (движок — один раз за бой, гостям — куклы)
+        if (roomRef.current.mode === 'endless' && inGame && amOwner) {
+          try { g.spawnStalkers(); } catch { /* noop */ }
+        }
         g.setNetSync(!!id && inGame && !amOwner && mobMap);
         if (inGame && mobMap && amOwner) {
           try {
@@ -1474,6 +1557,18 @@ async function loadStats(): Promise<void> {
               )}
             </div>
           )}
+          <div id="fps">{hud.fps} FPS</div>
+          {specActive && (roomMode === 'endless' || roomMode === 'pvp' || roomMode === 'invasion') && (
+            <div id="specBar">
+              <div id="specTitle">👁 НАБЛЮДАТЕЛЬ — тебя не видят{restartIn > 0 ? ` · ♻️ ${fmtRestart(restartIn)}` : ''}</div>
+              <div id="specTargets">
+                {specTargets.length > 0 ? specTargets.map((t) => (
+                  <button key={t.sid} id={`spec-${t.sid}`} className={'wbtn' + (specSelNick.current === t.nick ? ' cur' : '')} onClick={() => void specWatch(t.sid, t.nick)}>👁 {t.nick} {t.dead ? '💀' : `${t.hp}❤️`}</button>
+                )) : <span>Ждём бойцов…</span>}
+              </div>
+              <button id="specPlay" className="wbtn" onClick={() => void specPlay()}>⚔️ ВЕРНУТЬСЯ В БОЙ</button>
+            </div>
+          )}
           {duel && duel.active && (
             <div id="duelBar">
               <div>⚔️ РАУНД {duel.round} · ТЫ {duel.myWins} : {duel.foeWins} {duel.foe?.nick}</div>
@@ -1502,7 +1597,17 @@ async function loadStats(): Promise<void> {
           )}
         </>
       )}
-      {hud.dead && !menu && roomMode !== 'pvp' && (
+      {hud.dead && !menu && roomMode !== 'pvp' && !specActive && (
+        roomMode === 'endless' ? (
+        <div id="busted" style={{ display: 'flex' }}>
+          <div id="deadPanel">
+            <div>☠️ СТАЛКЕРЫ ДОСТАЛИ!</div>
+            <div id="deadScore">{hud.score} 🏆 · {hud.kills} 💀</div>
+            <button id="specWatchBtn" onClick={() => void specWatch('', '')}>👁 СТАТЬ НАБЛЮДАТЕЛЕМ</button>
+            <button id="specLobbyBtn" onClick={() => { toMenu(); void leaveRoom(); }}>🚪 ВЫЙТИ В ЛОББИ</button>
+          </div>
+        </div>
+        ) : (
         <div id="busted" style={{ display: 'flex' }}>
           <div id="deadPanel">
             <div>ЗАВАЛЕН! 👊</div>
@@ -1511,6 +1616,7 @@ async function loadStats(): Promise<void> {
             <button id="retryBtn" onClick={() => window.location.reload()}>🔄 ЗАНОВО</button>
           </div>
         </div>
+        )
       )}
       {pvpDead && !menu && roomMode === 'pvp' && (
         <div id="busted" style={{ display: 'flex' }}>
@@ -2051,12 +2157,12 @@ async function loadStats(): Promise<void> {
                     <button key={mid} className={'wbtn' + (draftMode === mid ? ' cur' : '')} id={`mode-${mid}`} onClick={() => setDraftMode(mid)}>{modeName(mid)}</button>
                   ))}
                 </div>
-                {roomsList.length > 0 ? roomsList.map((r) => (
+                {roomsList.filter((r) => !r.official).length > 0 ? roomsList.filter((r) => !r.official).map((r) => (
                   <div className="srow" key={r.id}>
-                    <span>{modeIcon(r.mode)} {r.name} · {r.id} · 👥 {r.count}/{modeCap(r.mode)}{r.official ? ' · ✅' : ''}{(r.restartIn ?? 0) > 0 ? ` · ♻️ ${fmtRestart(r.restartIn ?? 0)}` : ''}</span>
+                    <span>{modeIcon(r.mode)} {r.name} · {r.id} · 👥 {r.count}/{modeCap(r.mode)}{(r.restartIn ?? 0) > 0 ? ` · ♻️ ${fmtRestart(r.restartIn ?? 0)}` : ''}</span>
                     <button className="wbtn" id={`join-${r.id}`} onClick={() => joinRoom(r.id)}>ВОЙТИ</button>
                   </div>
-                )) : <div>Пока пусто — создай первую!</div>}
+                )) : <div>Пока пусто — создай первую! Официальные сервера живут во вкладке 🖥️.</div>}
                 <button className="wclose" onClick={refreshRooms}>🔄 ОБНОВИТЬ</button>
               </>
             )}
@@ -2070,13 +2176,20 @@ async function loadStats(): Promise<void> {
               <b>{apiPing >= 0 ? `🟢 ${apiPing} мс` : '🔴 нет связи'}</b>
               <button className="wbtn" id="serversRefresh" onClick={() => { pingApi(); refreshRooms(); }}>🔄 ОБНОВИТЬ</button>
             </div>
-            <div>🟢 Онлайн: <b>{gstats?.online ?? '…'}</b> · 🌐 Комнат открыто: <b>{roomsList.length}</b></div>
-            {roomsList.length > 0 ? roomsList.map((r) => (
-              <div className="srow" key={r.id}>
-                <span>{modeIcon(r.mode)} {r.name} · 👥 {r.count}/{modeCap(r.mode)}{r.official ? ' · ✅ официальный' : ''}{r.started ? ' · ▶️ идёт' : ''}{(r.restartIn ?? 0) > 0 ? ` · ♻️ ${fmtRestart(r.restartIn ?? 0)}` : ''}</span>
-                {!roomId && <button className="wbtn" id={`srv-${r.id}`} onClick={() => joinRoom(r.id)}>ВОЙТИ</button>}
+            <div>🟢 Онлайн: <b>{gstats?.online ?? '…'}</b> · 🖥️ Серверов: <b>{roomsList.length}</b></div>
+            {roomsList.length > 0 ? roomsList.map((r) => {
+              const cap = modeCap(r.mode);
+              const pct = Math.min(100, Math.round((r.count / cap) * 100));
+              return (
+              <div className="srvcard" key={r.id}>
+                <div className="srvname">{modeIcon(r.mode)} {r.name}{r.official ? ' ✅' : ''}</div>
+                <div className="srvdesc">{modeDesc(r.mode)}</div>
+                <div className="srvmeta">👥 {r.count}/{cap}{r.started ? ' · ▶️ идёт' : ''}{(r.restartIn ?? 0) > 0 ? ` · ♻️ ${fmtRestart(r.restartIn ?? 0)}` : ''}</div>
+                <div className="srvbar"><div className="srvfill" style={{ width: `${pct}%` }} /></div>
+                {!roomId && <button className="wbtn srvjoin" id={`srv-${r.id}`} onClick={() => joinRoom(r.id)}>ВОЙТИ В БОЙ</button>}
               </div>
-            )) : <div>Сервер пуст — создай комнату во вкладке 🌐!</div>}
+              );
+            }) : <div>Сервер пуст — создай комнату во вкладке 🌐!</div>}
           </div>
           </div>
           <div className={'mtab' + (menuTab === 'tops' ? ' show' : '')}>

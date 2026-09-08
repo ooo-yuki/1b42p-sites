@@ -20,22 +20,23 @@ test('pvp: табло и таймер рестарта на официально
 
 test('pvp: удар по игроку уходит на сервер с fid', async ({ page }) => {
   await joinOfficialPvp(page);
-  // болван с fid 5 в 2.5м строго по курсу
+  const hitReq = page.waitForRequest(
+    (r) => r.url().includes('/pvphit') && r.method() === 'POST',
+    { timeout: 15000 },
+  );
+  // болван с fid 5 в 2.5м строго по курсу + удар — одним кадром, пульс не стирает болвана между
   await page.evaluate(() => {
     const m = (window as unknown as { __mtt: {
       pos: () => { x: number; z: number; yaw: number };
       setRemotes: (l: Array<{ nick: string; x: number; z: number; hp: number; char: string; fid: number }>) => void;
+      attack: () => number;
     } }).__mtt;
     const p = m.pos();
     const bx = p.x + (-Math.sin(p.yaw)) * 2.5;
     const bz = p.z + (-Math.cos(p.yaw)) * 2.5;
     m.setRemotes([{ nick: 'Bot5', x: bx, z: bz, hp: 100, char: 'mtt', fid: 5 }]);
+    m.attack();
   });
-  const hitReq = page.waitForRequest(
-    (r) => r.url().includes('/pvphit') && r.method() === 'POST',
-    { timeout: 15000 },
-  );
-  await page.evaluate(() => (window as unknown as { __mtt: { attack: () => number } }).__mtt.attack());
   const req = await hitReq;
   const body = JSON.parse(req.postData() ?? '{}') as { target?: number; dmg?: number };
   expect(body.target).toBe(5);

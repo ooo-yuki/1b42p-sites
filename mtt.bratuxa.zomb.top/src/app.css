@@ -290,3 +290,18 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 #scoreTitle{color:#ff9f1c;margin-bottom:4px}
 #scoreboard .sme{color:#39d353}
 #restartBadge{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:6;background:rgba(10,10,18,.78);border:2px solid #ff9f1c;padding:6px 14px;font-size:14px;font-weight:800;color:#ff9f1c}
+#fps{position:fixed;left:10px;bottom:10px;z-index:6;font-size:13px;font-weight:800;color:#39d353;background:rgba(10,10,18,.78);border:2px solid #39d353;padding:4px 10px}
+#scoreboard{position:fixed;top:auto;bottom:10px;right:10px;z-index:6;text-align:right;background:rgba(10,10,18,.78);border:2px solid #e23b3b;padding:8px 12px;font-size:14px;font-weight:800;color:#ece7d8;max-width:44vw;max-height:38vh;overflow-y:auto}
+#scoreTitle{color:#ff9f1c;margin-bottom:4px}
+#scoreboard .sme{color:#39d353}
+#restartBadge{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:6;background:rgba(10,10,18,.78);border:2px solid #ff9f1c;padding:6px 14px;font-size:14px;font-weight:800;color:#ff9f1c}
+.srvcard{background:linear-gradient(135deg,#141422 0%,#1d1024 100%);border:3px solid #ff9f1c;border-radius:10px;box-shadow:4px 4px 0 #000;padding:12px 14px;margin:10px 0}
+.srvname{font-size:19px;font-weight:900;color:#ffd23f;text-shadow:2px 2px 0 #000;margin-bottom:4px}
+.srvdesc{font-size:13px;color:#c6cdf2;margin-bottom:6px}
+.srvmeta{font-size:13px;font-weight:800;color:#ece7d8;margin-bottom:6px}
+.srvbar{height:10px;background:#000;border:2px solid #555;border-radius:5px;margin-bottom:8px;overflow:hidden}
+.srvfill{height:100%;background:linear-gradient(90deg,#39d353,#ff9f1c)}
+.srvjoin{width:100%;font-size:16px}
+#specBar{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:7;text-align:center;background:rgba(10,10,18,.85);border:2px solid #7b61ff;padding:8px 14px;font-size:14px;font-weight:800;color:#ece7d8;max-width:92vw}
+#specTitle{color:#b7a6ff;margin-bottom:6px}
+#specTargets{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:6px}
