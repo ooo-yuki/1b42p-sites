@@ -424,4 +424,16 @@ assert.ok(html.includes('11 * sw'), 'head must scale');
 assert.ok(html.includes('4 * sw'), 'spine stripe must scale');
 
 console.log('logic.test.js: OK snake width by score (slither-like)');
+
+// --- обзор шире: зум-аут камеры 0.65, видно ~1.54x мира ---
+assert.strictEqual(__hook.ZOOM, 0.65, 'camera zoom-out must be 0.65');
+assert.strictEqual(typeof __hook.viewWH, 'function', 'viewWH must be in __hook');
+var _vw = __hook.viewWH(650, 1300);
+assert.strictEqual(_vw.w, 1000, 'view wider than screen');
+assert.strictEqual(_vw.h, 2000);
+assert.ok(html.includes('canvas.width / ZOOM'), 'camera must use zoomed view');
+assert.ok(html.includes('setTransform(ZOOM'), 'world must render scaled');
+assert.ok(html.includes('vw + 30'), 'culling must use view size');
+
+console.log('logic.test.js: OK wide view (zoom-out 0.65)');
 process.exit(0);

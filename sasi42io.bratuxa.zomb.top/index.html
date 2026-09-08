@@ -147,6 +147,9 @@ function scoreTier(score) {
 function snakeWidth(score) {
   return 8 * (1 + Math.min(1, Math.log10(1 + (score || 0) / 200)));
 }
+// ZOOM: зум-аут камеры — видно в 1/ZOOM (~1.54×) больше мира, как в оригинале.
+var ZOOM = 0.65;
+function viewWH(w, h) { return { w: w / ZOOM, h: h / ZOOM }; }
 function collide(ax, ay, bx, by, rad) {
   var dx = ax - bx, dy = ay - by;
   return dx * dx + dy * dy < rad * rad;
@@ -311,7 +314,7 @@ var BOT_N = 25; // мясорубка: ботов на арене
 var NAMES = ['Киршик', 'Чаев', 'Тюленька', 'Свастослав', 'Санси42', 'МТТ', 'Miqqil', '5opka',
   'Сет_ден', 'Робоженщина', 'Кизяк', 'Жоперша', 'мистер Пятёрка', 'Амиго', 'Соня', 'укроп Комисаренко',
   'Бурито', 'Черепаха Хлов', 'Яна Цист', 'Язагит Лера', 'бурмалда', 'скитонс', 'гой', 'Владимир Зутин', 'Загеев']; // пул 25 от Sansy: уникальные, без повторов
-window.__hook = { spawnFood: spawnFood, eatFood: eatFood, scoreTier: scoreTier, purpleRoll: purpleRoll, eatPurple: eatPurple, PURPLE_P: PURPLE_P, goldRoll: goldRoll, eatGold: eatGold, GOLD_P: GOLD_P, stepBot: stepBot, dodgeTurn: dodgeTurn, bestFood: bestFood, collide: collide, hitsWall: hitsWall, snakeWidth: snakeWidth, headHitsBody: headHitsBody, dropLoot: dropLoot, setDir: setDir, getDir: getDir, setPaused: setPaused, togglePause: togglePause, isPaused: isPaused, BOT_N: BOT_N, NAMES: NAMES, nextBotName: nextBotName, burp: burp, clang: clang, panelsVisible: panelsVisible, togglePanelsUI: togglePanelsUI, SHOP_PRICES: SHOP_PRICES, SKIN_COLORS: SKIN_COLORS, shopGain: shopGain, shopSpeed: shopSpeed, shopPickupR: shopPickupR, shopSkinColor: shopSkinColor, shieldHas: shieldHas, shieldUse: shieldUse };
+window.__hook = { spawnFood: spawnFood, eatFood: eatFood, scoreTier: scoreTier, purpleRoll: purpleRoll, eatPurple: eatPurple, PURPLE_P: PURPLE_P, goldRoll: goldRoll, eatGold: eatGold, GOLD_P: GOLD_P, stepBot: stepBot, dodgeTurn: dodgeTurn, bestFood: bestFood, collide: collide, hitsWall: hitsWall, snakeWidth: snakeWidth, headHitsBody: headHitsBody, ZOOM: ZOOM, viewWH: viewWH, dropLoot: dropLoot, setDir: setDir, getDir: getDir, setPaused: setPaused, togglePause: togglePause, isPaused: isPaused, BOT_N: BOT_N, NAMES: NAMES, nextBotName: nextBotName, burp: burp, clang: clang, panelsVisible: panelsVisible, togglePanelsUI: togglePanelsUI, SHOP_PRICES: SHOP_PRICES, SKIN_COLORS: SKIN_COLORS, shopGain: shopGain, shopSpeed: shopSpeed, shopPickupR: shopPickupR, shopSkinColor: shopSkinColor, shieldHas: shieldHas, shieldUse: shieldUse };
 
 /* ===== игра ===== */
 var W = 3000, H = 3000;
@@ -640,7 +643,8 @@ function frame(t) {
   if (!alive || isPaused()) { last = t; return; } // пауза фризит ВЕСЬ мир + без рывка dt после resume
   var dt = Math.min(3, (t - last) / 16.7 || 1); last = t;
   // игрок: по вектору направления (джойстик/клавиатура)
-  var camX = player.x - canvas.width / 2, camY = player.y - canvas.height / 2;
+  var vw0 = canvas.width / ZOOM, vh0 = canvas.height / ZOOM; // видимый мир шире экрана
+  var camX = player.x - vw0 / 2, camY = player.y - vh0 / 2;
   moveDir(player, dt);
   if (boosting && player.score > 12) player.score -= 0.35 * dt; // буст тратит длину
   tickTimers(player, dt);
@@ -699,16 +703,19 @@ function frame(t) {
   draw(camX, camY);
 }
 function draw(camX, camY) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0); // сброс: фон в пикселях экрана
   ctx.fillStyle = '#0b0e1a';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+  var vw = canvas.width / ZOOM, vh = canvas.height / ZOOM; // видимый кусок мира
+  ctx.setTransform(ZOOM, 0, 0, ZOOM, 0, 0); // зум-аут: мир мельче, обзор шире
   // сетка арены
   ctx.strokeStyle = '#1b2138';
   ctx.lineWidth = 1;
   var g = 120;
   var x0 = Math.max(0, Math.floor(camX / g) * g), y0 = Math.max(0, Math.floor(camY / g) * g);
   ctx.beginPath();
-  for (var x = x0; x < Math.min(W, camX + canvas.width); x += g) { ctx.moveTo(x - camX, 0); ctx.lineTo(x - camX, canvas.height); }
-  for (var y = y0; y < Math.min(H, camY + canvas.height); y += g) { ctx.moveTo(0, y - camY); ctx.lineTo(canvas.width, y - camY); }
+  for (var x = x0; x < Math.min(W, camX + vw); x += g) { ctx.moveTo(x - camX, 0); ctx.lineTo(x - camX, vh); }
+  for (var y = y0; y < Math.min(H, camY + vh); y += g) { ctx.moveTo(0, y - camY); ctx.lineTo(vw, y - camY); }
   ctx.stroke();
   ctx.strokeStyle = '#fbbf24';
   ctx.lineWidth = 3;
@@ -719,7 +726,7 @@ function draw(camX, camY) {
   for (i = 0; i < foods.length; i++) {
     var f = foods[i];
     var fx = f.x - camX, fy = f.y - camY;
-    if (fx < -30 || fy < -30 || fx > canvas.width + 30 || fy > canvas.height + 30) continue;
+    if (fx < -30 || fy < -30 || fx > vw + 30 || fy > vh + 30) continue;
     if (f.type === 5 && typeof GOLD_IMG !== 'undefined' && GOLD_IMG && GOLD_IMG.complete && GOLD_IMG.naturalWidth) {
       ctx.drawImage(GOLD_IMG, fx - 32, fy - 32, 64, 64); // золото крупно: видно издалека
       var tw = Date.now() / 240; // живые блёстки: мерцают вокруг банана
@@ -779,7 +786,7 @@ function draw(camX, camY) {
   for (i = 0; i < boosters.length; i++) {
     var bb = boosters[i];
     var bx = bb.x - camX, by = bb.y - camY;
-    if (bx < -30 || by < -30 || bx > canvas.width + 30 || by > canvas.height + 30) continue;
+    if (bx < -30 || by < -30 || bx > vw + 30 || by > vh + 30) continue;
     ctx.font = '24px serif';
     ctx.fillText(bb.emoji, bx, by);
   }
@@ -794,7 +801,7 @@ function draw(camX, camY) {
     for (var j = s.segs.length - 1; j >= 1; j--) {
       var sg = s.segs[j];
       var sx = sg.x - camX, sy = sg.y - camY;
-      if (sx < -20 || sy < -20 || sx > canvas.width + 20 || sy > canvas.height + 20) continue;
+      if (sx < -20 || sy < -20 || sx > vw + 20 || sy > vh + 20) continue;
       var rad = (8 - Math.min(4, j / 12)) * sw;
       ctx.beginPath();
       ctx.arc(sx, sy, rad, 0, Math.PI * 2);
@@ -826,7 +833,7 @@ function draw(camX, camY) {
     // голова (цвет не меняем)
     var hd = s.segs[0] || s;
     var hx = hd.x - camX, hy = hd.y - camY;
-    if (hx > -20 && hy > -20 && hx < canvas.width + 20 && hy < canvas.height + 20) {
+    if (hx > -20 && hy > -20 && hx < vw + 20 && hy < vh + 20) {
       ctx.fillStyle = s.color;
       ctx.beginPath();
       ctx.arc(hx, hy, 11 * sw, 0, Math.PI * 2);
@@ -858,6 +865,7 @@ function draw(camX, camY) {
     ctx.font = 'bold 12px sans-serif';
     ctx.fillText(s.name, s.x - camX, s.y - camY - (12 + 8 * sw));
   }
+  ctx.setTransform(1, 0, 0, 1, 0, 0); // назад в пиксели экрана
 }
 /* цикл запускается кнопкой ▶ Играть (см. интро выше) */
 </script>
