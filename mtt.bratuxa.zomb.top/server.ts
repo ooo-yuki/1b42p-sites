@@ -107,12 +107,16 @@ interface Member {
   duelHp: number;
   wins: number;
   spawnIdx: number;
+  /** PvP-фраги (убийства игроков); spec = наблюдатель (не виден, не бьёт) */
+  frags: number;
+  spec: boolean;
+  specTarget: string;
   ts: number;
 }
 interface ChatMsg { nick: string; text: string; t: number }
-/** Общий моб комнаты: симулирует владелец (хост), сервер раздаёт всем. */
-interface Mob { id: number; kind: string; x: number; z: number; hp: number; dead: boolean; wave: number }
-interface Room { id: string; name: string; mode: 'arena' | 'duel' | 'backrooms'; created: number; round: number; lastWinner: string; owner: string; started: boolean; players: Map<string, Member>; pending: Map<string, Member>; chat: ChatMsg[]; mobs: Map<number, Mob>; mobHost: string; /** тихий вылет: ключ→когда ушёл (грейс-возврат без заявки) */ gone: Map<string, number>; /** кик = бан: ключ→до когда нельзя */ banned: Map<string, number>; }
+/** Общий моб комнаты: симулирует владелец (хост), сервер раздаёт всем. god = неубиваемый (сталкеры Бэкрумса). */
+interface Mob { id: number; kind: string; x: number; z: number; hp: number; dead: boolean; wave: number; god: boolean }
+interface Room { id: string; name: string; mode: 'arena' | 'duel' | 'backrooms' | 'pvp' | 'endless' | 'invasion'; created: number; /** TTL-рестарт сек (0 = без рестарта) */ ttlSec: number; /** официальная комната батальона — живёт всегда, рестарт сбрасывает игру на месте */ official: boolean; round: number; lastWinner: string; owner: string; started: boolean; players: Map<string, Member>; pending: Map<string, Member>; chat: ChatMsg[]; mobs: Map<number, Mob>; mobHost: string; /** тихий вылет: ключ→когда ушёл (грейс-возврат без заявки) */ gone: Map<string, number>; /** кик = бан: ключ→до когда нельзя */ banned: Map<string, number>; }
 const rooms = new Map<string, Room>();
 const STALE_MS = 12000;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -152,12 +156,89 @@ function prune(room: Room): void {
   }
 }
 
+/** Лимит игроков по режиму: PvP-арена 12, Бэкрумс/Нашествие 10, дуэль 2, остальное 8. */
+function roomCap(room: Room): number {
+  if (room.mode === 'duel') return 2;
+  if (room.mode === 'pvp') return 12;
+  if (room.mode === 'endless' || room.mode === 'invasion') return 10;
+  return 8;
+}
+
+/** TTL-рестарт по режиму, сек: PvP 20 мин, Бэкрумс 5 мин, Нашествие 10 мин. */
+function ttlFor(mode: Room['mode']): number {
+  if (mode === 'pvp') return 1200;
+  if (mode === 'endless') return 300;
+  if (mode === 'invasion') return 600;
+  return 0;
+}
+
+/** Секунд до рестарта (0 = без рестарта). */
+function restartIn(room: Room): number {
+  if (!room.ttlSec) return 0;
+  return Math.max(0, Math.round(room.ttlSec - (Date.now() - room.created) / 1000));
+}
+
+/** Рестарт игры на месте: новая волна жизни, статистика в ноль, игроки остаются. */
+function resetRoom(room: Room): void {
+  room.created = Date.now();
+  room.round = 1;
+  room.lastWinner = '';
+  room.mobs.clear();
+  room.mobHost = '';
+  room.chat = [];
+  room.started = true;
+  for (const m of room.players.values()) {
+    m.hp = 100; m.duelHp = 100; m.score = 0; m.kills = 0; m.wave = 1;
+    m.frags = 0; m.dead = false; m.atk = 0; m.ts = Date.now();
+  }
+  for (const m of room.pending.values()) m.ts = Date.now();
+}
+
+/**
+ * Проверка TTL. Возвращает 'gone' если комнату удалили (пользовательская истекла),
+ * 'reset' если игру перезапустили на месте, 'ok' если всё свежо.
+ */
+function checkExpiry(room: Room): 'ok' | 'reset' | 'gone' {
+  if (!room.ttlSec) return 'ok';
+  if (Date.now() - room.created <= room.ttlSec * 1000) return 'ok';
+  if (room.official) { resetRoom(room); return 'reset'; }
+  if (room.players.size === 0 && room.pending.size === 0) { rooms.delete(room.id); return 'gone'; }
+  // пользовательская комната с игроками: рестарт игры, как на официальных
+  resetRoom(room);
+  room.started = false;
+  return 'reset';
+}
+
+function randSpawnXZ(): { x: number; z: number } {
+  return { x: Math.round((Math.random() * 100 - 50) * 10) / 10, z: Math.round((Math.random() * 100 - 50) * 10) / 10 };
+}
+
+/** Три официальных сервера батальона: живут всегда, prune их пересоздаёт. */
+const OFFICIAL_DEFS = [
+  { id: 'PVP42X', name: '⚔️ PvP-арена', mode: 'pvp' },
+  { id: 'END42X', name: '🟨 Бесконечный Бэкрумс', mode: 'endless' },
+  { id: 'INV42X', name: '🌊 Нашествие', mode: 'invasion' },
+] as const;
+
+function ensureOfficial(): void {
+  for (const def of OFFICIAL_DEFS) {
+    if (rooms.has(def.id)) continue;
+    const mode = def.mode as Room['mode'];
+    rooms.set(def.id, {
+      id: def.id, name: def.name, mode, created: Date.now(), ttlSec: ttlFor(mode),
+      official: true, round: 1, lastWinner: '', owner: '', started: true,
+      players: new Map(), pending: new Map(), chat: [], mobs: new Map(),
+      mobHost: '', gone: new Map(), banned: new Map(),
+    });
+  }
+}
+
 function cleanChar(v: unknown): string {
   return v === 'krysa' ? 'krysa' : 'mtt';
 }
 
 function pubList(m: Member): object {
-  return { nick: m.nick, login: m.login, char: m.char, x: m.x, z: m.z, hp: m.hp, score: m.score, kills: m.kills, wave: m.wave, weapon: m.weapon, py: m.py, atk: m.atk, dead: m.dead };
+  return { nick: m.nick, login: m.login, char: m.char, x: m.x, z: m.z, hp: m.hp, score: m.score, kills: m.kills, frags: m.frags, spec: m.spec, wave: m.wave, weapon: m.weapon, py: m.py, atk: m.atk, dead: m.dead };
 }
 
 // только для лобби создателя: sid нужен кнопкам ПРИНЯТЬ/КИК (beat его не отдаёт)
@@ -255,11 +336,13 @@ async function roomsApi(req: Request): Promise<Response | null> {
   }
 
   if (req.method === 'GET' && parts.length === 2) {
+    ensureOfficial();
     const out: object[] = [];
     for (const r of rooms.values()) {
       prune(r);
-      if (r.players.size === 0) { rooms.delete(r.id); continue; }
-      out.push({ id: r.id, name: r.name, mode: r.mode, count: r.players.size, started: r.started });
+      if (checkExpiry(r) === 'gone') continue;
+      if (r.players.size === 0 && r.pending.size === 0 && !r.official) { rooms.delete(r.id); continue; }
+      out.push({ id: r.id, name: r.name, mode: r.mode, count: r.players.size, started: r.started, official: r.official, restartIn: restartIn(r) });
     }
     return Response.json(out);
   }
@@ -275,14 +358,16 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const nick = cleanNick(body.nick);
     const login = loginByToken(body.token);
     const name = String(body.name ?? '').slice(0, 24).trim() || `Комната ${nick}`;
-    const mode = body.mode === 'duel' ? 'duel' : body.mode === 'backrooms' ? 'backrooms' : 'arena';
+    const rawMode = String(body.mode ?? 'arena');
+    const mode: Room['mode'] = rawMode === 'duel' ? 'duel' : rawMode === 'backrooms' ? 'backrooms' : rawMode === 'pvp' ? 'pvp' : rawMode === 'endless' ? 'endless' : rawMode === 'invasion' ? 'invasion' : 'arena';
     const id = newCode();
     const sid = newSid();
     const sp = duelSpawn(0);
-    const room: Room = { id, name, mode, created: Date.now(), round: 1, lastWinner: '', owner: sid, started: false, players: new Map(), pending: new Map(), chat: [], mobs: new Map(), mobHost: '', gone: new Map(), banned: new Map() };
-    room.players.set(sid, { sid, nick, login, char: cleanChar(body.char), x: mode === 'duel' ? sp.x : 0, z: mode === 'duel' ? sp.z : 22, yaw: mode === 'duel' ? sp.yaw : 0, hp: 100, score: 0, kills: 0, wave: 1, weapon: 'fists', py: 0, atk: 0, dead: false, duelHp: 100, wins: 0, spawnIdx: 0, ts: Date.now() });
+    const pvpSp = mode === 'pvp' || mode === 'endless' || mode === 'invasion' ? randSpawnXZ() : { x: 0, z: 22 };
+    const room: Room = { id, name, mode, created: Date.now(), ttlSec: ttlFor(mode), official: false, round: 1, lastWinner: '', owner: sid, started: false, players: new Map(), pending: new Map(), chat: [], mobs: new Map(), mobHost: '', gone: new Map(), banned: new Map() };
+    room.players.set(sid, { sid, nick, login, char: cleanChar(body.char), x: mode === 'duel' ? sp.x : pvpSp.x, z: mode === 'duel' ? sp.z : pvpSp.z, yaw: mode === 'duel' ? sp.yaw : 0, hp: 100, score: 0, kills: 0, wave: 1, weapon: 'fists', py: 0, atk: 0, dead: false, duelHp: 100, wins: 0, spawnIdx: 0, frags: 0, spec: false, specTarget: '', ts: Date.now() });
     rooms.set(id, room);
-    return Response.json({ id, sid, mode, spawn: mode === 'duel' ? sp : null });
+    return Response.json({ id, sid, mode, spawn: mode === 'duel' ? sp : null, restartIn: restartIn(room) });
   }
 
   if (parts.length < 4) return Response.json({ error: 'bad' }, { status: 404 });
@@ -291,16 +376,20 @@ async function roomsApi(req: Request): Promise<Response | null> {
   const action = parts[3];
 
   // войти = оставить заявку: в игру пускает только создатель (approve)
+  // официальные сервера пускают сразу без заявки (started всегда)
   if (req.method === 'POST' && action === 'join') {
     prune(room);
-    const cap = room.mode === 'duel' ? 2 : 8;
+    if (checkExpiry(room) === 'gone') return Response.json({ error: 'noroom' }, { status: 404 });
+    const cap = roomCap(room);
     if (room.players.size + room.pending.size >= cap) return Response.json({ error: 'full' }, { status: 403 });
     const nick = cleanNick(body.nick);
     const login = loginByToken(body.token);
     const key = login || ('nick:' + nick);
     if ((room.banned.get(key) ?? 0) > Date.now()) return Response.json({ error: 'banned' }, { status: 403 });
     const sid = newSid();
-    const member = { sid, nick, login, char: cleanChar(body.char), x: 0, z: 22, yaw: 0, hp: 100, score: 0, kills: 0, wave: 1, weapon: 'fists', py: 0, atk: 0, dead: false, duelHp: 100, wins: 0, spawnIdx: room.players.size, ts: Date.now() };
+    const wantSpec = body.spec === true && (room.mode === 'endless' || room.mode === 'pvp' || room.mode === 'invasion');
+    const sp = room.mode === 'pvp' || room.mode === 'endless' || room.mode === 'invasion' ? randSpawnXZ() : { x: 0, z: 22 };
+    const member = { sid, nick, login, char: cleanChar(body.char), x: sp.x, z: sp.z, yaw: 0, hp: 100, score: 0, kills: 0, wave: 1, weapon: 'fists', py: 0, atk: 0, dead: false, duelHp: 100, wins: 0, spawnIdx: room.players.size, frags: 0, spec: wantSpec, specTarget: '', ts: Date.now() };
     // грейс-возврат: свой тихо вылетел <2мин назад, место свободно — сразу в игру без заявки
     const leftAt = room.gone.get(key) ?? 0;
     const taken = [...room.players.values()].some((m) => memberKey(m) === key);
@@ -309,6 +398,11 @@ async function roomsApi(req: Request): Promise<Response | null> {
       room.pending.delete(sid);
       room.players.set(sid, member);
       return Response.json({ sid, name: room.name, mode: room.mode, pending: false });
+    }
+    // официальные сервера: сразу в игру, без заявки
+    if (room.official) {
+      room.players.set(sid, member);
+      return Response.json({ sid, name: room.name, mode: room.mode, pending: false, official: true });
     }
     room.pending.set(sid, member);
     return Response.json({ sid, name: room.name, mode: room.mode, pending: true });
@@ -325,13 +419,14 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const selfW = sid !== '' ? room.pending.get(sid) : undefined;
     if (selfW) selfW.ts = Date.now();
     prune(room);
+    if (checkExpiry(room) === 'gone') return Response.json({ error: 'noroom' }, { status: 404 });
     const isOwner = sid !== '' && sid === room.owner;
     const mine = sid !== '' && (room.players.has(sid) || room.pending.has(sid));
     // чужим состав комнаты не показываем — только факт существования
-    if (!isOwner && !mine) return Response.json({ name: room.name, mode: room.mode, started: room.started, count: room.players.size });
+    if (!isOwner && !mine) return Response.json({ name: room.name, mode: room.mode, started: room.started, count: room.players.size, official: room.official, restartIn: restartIn(room) });
     const players = [...room.players.values()].filter((m) => m.sid !== sid).map(pubListSid);
     const out: Record<string, unknown> = {
-      name: room.name, mode: room.mode, started: room.started,
+      name: room.name, mode: room.mode, started: room.started, official: room.official, restartIn: restartIn(room),
       owner: isOwner, count: room.players.size, players,
     };
     if (isOwner) out.pending = [...room.pending.values()].map(pubListSid);
@@ -357,7 +452,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     if (action === 'approve') {
       const m = room.pending.get(target);
       if (!m) return Response.json({ error: 'noreq' }, { status: 404 });
-      const cap = room.mode === 'duel' ? 2 : 8;
+      const cap = roomCap(room);
       if (room.players.size >= cap) return Response.json({ error: 'full' }, { status: 403 });
       room.pending.delete(target);
       m.spawnIdx = room.players.size;
@@ -382,7 +477,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
       room.players.delete(target);
     }
     prune(room);
-    if (room.players.size === 0) rooms.delete(room.id);
+    if (room.players.size === 0 && !room.official) rooms.delete(room.id);
     return Response.json({ ok: true });
   }
 
@@ -416,6 +511,52 @@ async function roomsApi(req: Request): Promise<Response | null> {
     return Response.json({ foeHp: Math.round(foe.duelHp), wins: me.wins, round: room.round, lastWinner: room.lastWinner });
   }
 
+  // удар по игроку в PvP: урон ставит сервер, фраг и ресаун — тоже он
+  if (req.method === 'POST' && action === 'pvphit') {
+    if (room.mode !== 'pvp') return Response.json({ error: 'nopvp' }, { status: 403 });
+    if (me.spec) return Response.json({ error: 'spec' }, { status: 403 });
+    const target = String(body.target ?? '');
+    const foe = room.players.get(target);
+    if (!foe || foe.sid === sid) return Response.json({ error: 'nofoe' }, { status: 404 });
+    if (foe.spec) return Response.json({ error: 'specfoe' }, { status: 403 });
+    const dmg = Math.round(num(body.dmg, 5, 80, 10));
+    foe.hp = Math.max(0, foe.hp - dmg);
+    me.ts = Date.now();
+    if (foe.hp <= 0) {
+      me.frags++;
+      const sp = randSpawnXZ();
+      foe.hp = 100;
+      foe.dead = false;
+      foe.x = sp.x; foe.z = sp.z;
+      return Response.json({ foeHp: 100, dead: true, freshKill: true, frags: me.frags, rx: sp.x, rz: sp.z });
+    }
+    return Response.json({ foeHp: Math.round(foe.hp), dead: false, freshKill: false, frags: me.frags });
+  }
+
+  // наблюдатель: выбрать цель (endless/pvp/invasion); наблюдатель не виден и не бьёт
+  if (req.method === 'POST' && action === 'watch') {
+    if (room.mode !== 'endless' && room.mode !== 'pvp' && room.mode !== 'invasion') return Response.json({ error: 'nowatch' }, { status: 403 });
+    const target = String(body.target ?? '');
+    if (target !== '' && !room.players.has(target)) return Response.json({ error: 'nofoe' }, { status: 404 });
+    me.spec = true;
+    me.specTarget = target;
+    me.ts = Date.now();
+    const targets = [...room.players.values()].filter((m) => !m.spec && m.sid !== sid).map((m) => ({ sid: m.sid, nick: m.nick, hp: Math.round(m.hp), dead: m.dead }));
+    return Response.json({ ok: true, spec: true, targets });
+  }
+
+  // вернуться в бой из наблюдателя (ресаун в случайной точке)
+  if (req.method === 'POST' && action === 'play') {
+    const sp = randSpawnXZ();
+    me.spec = false;
+    me.specTarget = '';
+    me.hp = 100;
+    me.dead = false;
+    me.x = sp.x; me.z = sp.z;
+    me.ts = Date.now();
+    return Response.json({ ok: true, rx: sp.x, rz: sp.z });
+  }
+
   // чат комнаты: только свои, текст чистим, храним последние 50
   if (req.method === 'POST' && action === 'chat') {
     const text = String(body.text ?? '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, 200);
@@ -427,8 +568,9 @@ async function roomsApi(req: Request): Promise<Response | null> {
   }
 
   // общие мобы: хост (владелец) заливает слепок своих мобов, сервер хранит и раздаёт
+  // официальные сервера: владельца нет — пушит любой боец (первый пушнувший становится хостом мобов)
   if (req.method === 'POST' && action === 'mobpush') {
-    if (!isOwner) return Response.json({ error: 'notowner' }, { status: 403 });
+    if (!isOwner && !(room.official && !me.spec)) return Response.json({ error: 'notowner' }, { status: 403 });
     // хост сменился — старая таблица чужая, начинаем чисто
     if (room.mobHost !== sid) { room.mobs.clear(); room.mobHost = sid; }
     const list = Array.isArray(body.mobs) ? (body.mobs as Array<Record<string, unknown>>).slice(0, 60) : [];
@@ -448,6 +590,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
         hp: Math.round(num(raw.hp, 0, 100000)),
         dead: raw.dead === true,
         wave,
+        god: raw.god === true,
       });
     }
     // волна сменилась — чистим мобов прошлой волны, которых хост больше не шлёт
@@ -460,10 +603,12 @@ async function roomsApi(req: Request): Promise<Response | null> {
   }
 
   // общий урон по мобу: любой игрок бьёт, сервер считает HP — фраг один на всех
+  // god-мобы (сталкеры Бэкрумса) неубиваемы: урон гаснет
   if (req.method === 'POST' && action === 'mobhit') {
     const mob = room.mobs.get(Math.floor(Number(body.id)));
     if (!mob) return Response.json({ error: 'nomob' }, { status: 404 });
     if (mob.dead) return Response.json({ hp: 0, dead: true, freshKill: false });
+    if (mob.god) return Response.json({ hp: mob.hp, dead: false, freshKill: false, god: true });
     const dmg = Math.round(num(body.dmg, 1, 500, 10));
     mob.hp = Math.max(0, mob.hp - dmg);
     me.ts = Date.now();
@@ -492,8 +637,11 @@ async function roomsApi(req: Request): Promise<Response | null> {
     me.dead = body.dead === true;
     me.ts = Date.now();
     prune(room);
+    checkExpiry(room);
     const others: object[] = [];
     for (const m of room.players.values()) {
+      // наблюдателей не видит никто; наблюдатель видит всех бойцов
+      if (m.spec) continue;
       if (m.sid !== sid) others.push(pubList(m));
     }
     let duel: object = { active: false };
@@ -512,22 +660,38 @@ async function roomsApi(req: Request): Promise<Response | null> {
         };
       }
     }
-    return Response.json({ players: others, count: room.players.size, duel, started: room.started, owner: sid === room.owner, t: Date.now(), chat: room.chat.slice(-20), mobs: [...room.mobs.values()].slice(0, 60).map((m) => ({ id: m.id, kind: m.kind, x: Math.round(m.x * 10) / 10, z: Math.round(m.z * 10) / 10, hp: m.hp, dead: m.dead, wave: m.wave })) });
+    // PvP-табло: кто больше настрелял
+    let scoreboard: object[] = [];
+    if (room.mode === 'pvp') {
+      scoreboard = [...room.players.values()]
+        .filter((m) => !m.spec)
+        .sort((a, b) => b.frags - a.frags)
+        .slice(0, 12)
+        .map((m) => ({ nick: m.nick, frags: m.frags }));
+    }
+    // наблюдателю — список целей; бойцу — его флаг spec (мог стать наблюдателем с другого клиента)
+    const specView = me.spec
+      ? { spec: true, target: me.specTarget, targets: [...room.players.values()].filter((m) => !m.spec && m.sid !== sid).map((m) => ({ sid: m.sid, nick: m.nick, hp: Math.round(m.hp), dead: m.dead })) }
+      : { spec: false };
+    return Response.json({ players: others, count: room.players.size, duel, scoreboard, specView, started: room.started, official: room.official, restartIn: restartIn(room), myFrags: me.frags, owner: sid === room.owner, t: Date.now(), chat: room.chat.slice(-20), mobs: [...room.mobs.values()].slice(0, 60).map((m) => ({ id: m.id, kind: m.kind, x: Math.round(m.x * 10) / 10, z: Math.round(m.z * 10) / 10, hp: m.hp, dead: m.dead, wave: m.wave, god: m.god })) });
   }
 
   // выйти (из игроков и из заявителей; владелец уходит — комната живёт дальше)
+  // официальные сервера не удаляются никогда
   if (req.method === 'POST' && action === 'leave') {
     const out = room.players.get(sid);
     if (out) room.gone.set(memberKey(out), Date.now());
     room.players.delete(sid);
     room.pending.delete(sid);
     prune(room);
-    if (room.players.size === 0) rooms.delete(room.id);
+    if (room.players.size === 0 && !room.official) rooms.delete(room.id);
     return Response.json({ ok: true });
   }
 
   return Response.json({ error: 'bad' }, { status: 404 });
 }
+
+ensureOfficial();
 
 Bun.serve({
   port: PORT,
