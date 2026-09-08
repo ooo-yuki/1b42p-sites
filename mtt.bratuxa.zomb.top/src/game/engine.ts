@@ -21,6 +21,7 @@ import brCeilUrl from '../assets/br-ceil.jpg';
 import bossUrl from '../assets/boss.png';
 import charMttUrl from '../assets/char-mtt.png';
 import charKrysaUrl from '../assets/char-krysa.png';
+import stalkerUrl from '../assets/stalker.png';
 import shotUrl from '../assets/shot.mp3';
 import hitUrl from '../assets/hit.mp3';
 import wallkickUrl from '../assets/wallkick.mp3';
@@ -2615,6 +2616,51 @@ export class Game {
   }
 
   private stalkersOn = false;
+  /** Текстура жути МТТ: высокий красно-чёрный сталкер (тело только бессмертным). */
+  private stalkerTexCache: THREE.Texture | null = null;
+  private stalkerTexture(): THREE.Texture {
+    if (!this.stalkerTexCache) {
+      const t = new THREE.TextureLoader().load(stalkerUrl);
+      t.colorSpace = THREE.SRGBColorSpace;
+      this.stalkerTexCache = t;
+    }
+    return this.stalkerTexCache;
+  }
+
+  /** Только вид жути (тело+масштаб+прячем бар): для сетевых кукол-сталкеров. */
+  private toStalkerLook(e: Enemy): void {
+    e.body.material.map = this.stalkerTexture();
+    e.body.material.needsUpdate = true;
+    e.body.scale.set(2.2, 2.9, 1);
+    this.updateHpBar(e);
+  }
+
+  /** Превратить моба в сталкера: бессмертие + скорость + тело жути. */
+  private toStalker(e: Enemy): void {
+    e.god = true;
+    e.hp = 9999; e.maxhp = 9999;
+    e.speed = 7.5;
+    e.hitCd = 0;
+    e.repathT = Math.min(e.repathT, 0.15);
+    this.toStalkerLook(e);
+  }
+
+  /** Дальняя точка от игрока (кольцо minD–minD+20м): пак не спавнится в лицо.
+      Не нашлось на minD — вернём самую дальнюю свободную (но не ближе 25м). */
+  private farSpot(minD: number): [number, number] | null {
+    let best: [number, number] | null = null, bd = 0;
+    for (let t = 0; t < 16; t++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = minD + Math.random() * 20;
+      const x = Math.max(-this.half + 3, Math.min(this.half - 3, this.px + Math.cos(a) * r));
+      const z = Math.max(-this.half + 3, Math.min(this.half - 3, this.pz + Math.sin(a) * r));
+      if (this.hitSolid(x, z, 2)) continue;
+      const d = Math.hypot(x - this.px, z - this.pz);
+      if (d >= minD) return [x, z];
+      if (d > bd) { bd = d; best = [x, z]; }
+    }
+    return bd >= 25 ? best : null;
+  }
   /** Пак Бэкрумса: только бессмертные сталкеры (5 + волна, макс 10).
       Обычных мобов на этой карте нет — жуть должна давить, а не фармиться. */
   private spawnBackroomsPack(): number {
@@ -2624,15 +2670,10 @@ export class Game {
     // добиваем пак до нормы (волна зачистки не будет — сталкеры не умирают)
     while (have < want) {
       const before = this.enemies.length;
-      this.spawnEnemy('walk', 25);
+      this.spawnEnemy('walk', 40, this.farSpot(40));
       if (this.enemies.length <= before) break;
       const e = this.enemies[this.enemies.length - 1]!;
-      e.god = true;
-      e.hp = 9999; e.maxhp = 9999;
-      e.speed = 7.5;
-      e.hitCd = 0;
-      e.repathT = Math.min(e.repathT, 0.15);
-      this.updateHpBar(e);
+      this.toStalker(e);
       have++;
     }
     return have;
@@ -2645,15 +2686,10 @@ export class Game {
     this.stalkersOn = true;
     for (let i = 0; i < 5; i++) {
       const before = this.enemies.length;
-      this.spawnEnemy('walk', 25);
+      this.spawnEnemy('walk', 40, this.farSpot(40));
       if (this.enemies.length > before) {
         const e = this.enemies[this.enemies.length - 1]!;
-        e.god = true;
-        e.hp = 9999; e.maxhp = 9999;
-        e.speed = 7.5;
-        e.hitCd = 0;
-        e.repathT = Math.min(e.repathT, 0.15);
-        this.updateHpBar(e);
+        this.toStalker(e);
       }
     }
     return this.enemies.filter((e) => !e.dead && e.god).length;
@@ -2666,6 +2702,12 @@ export class Game {
   /** Жуть без полосок: все живые бессмертные прячут HP-бар. */
   debugGodBars(): boolean {
     return this.enemies.every((e) => e.dead || !e.god || e.hpSpr.visible === false);
+  }
+
+  /** Все живые сталкеры носят тело жути (текстура МТТ, не гопник). */
+  debugStalkerTex(): number {
+    if (!this.stalkerTexCache) return -1;
+    return this.enemies.filter((e) => !e.dead && e.god && e.body.material.map === this.stalkerTexCache).length;
   }
 
   /** Режим наблюдателя: движение выкл, камера на цели, удары выкл. */
@@ -2704,7 +2746,7 @@ export class Game {
     return { g, body, hpCv, hpTex, hpSpr };
   }
 
-  private spawnEnemy(kind: 'walk' | 'fly' | 'boss', minDist = 0): void {
+  private spawnEnemy(kind: 'walk' | 'fly' | 'boss', minDist = 0, at: [number, number] | null = null): void {
     if (this.netSync) return;
     const boss = kind === 'boss';
     const fly = kind === 'fly' && this.map !== 'backrooms';
@@ -2713,7 +2755,12 @@ export class Game {
     let sx = 0, sz = 40;
     let ok = false;
     const keepAway = minDist > 0 ? minDist : boss ? 14 : 10;
-    for (let t = 0; t < 24; t++) {
+    // готовая точка (дальний пак): проверяем и берём сразу
+    if (at && !this.hitSolid(at[0], at[1], 2)) {
+      sx = at[0]; sz = at[1];
+      ok = true;
+    }
+    for (let t = 0; t < 24 && !ok; t++) {
       const a = Math.random() * Math.PI * 2;
       const r = 26 + Math.random() * 22;
       const cx = clampArena(Math.cos(a) * r);
@@ -2724,7 +2771,11 @@ export class Game {
       ok = true;
       break;
     }
-    // запасные свободные точки, если рандом не нашёл
+    // запасные свободные точки, если рандом не нашёл: сначала дальняя от игрока
+    if (!ok) {
+      const fs = this.farSpot(25);
+      if (fs) { sx = fs[0]; sz = fs[1]; ok = true; }
+    }
     if (!ok) {
       const safe: Array<[number, number]> = [[20, 20], [-20, 20], [20, -20], [-20, -20], [0, 0], [40, 0], [-40, 0]];
       for (const [qx, qz] of safe) {
@@ -3244,6 +3295,7 @@ export class Game {
           ptx: v.g.position.x, ptz: v.g.position.z, lx: v.g.position.x, lz: v.g.position.z,
           stuckT: 0, slideT: 0, slideX: 0, slideZ: 0, stepT: Math.random() * 0.4,
         };
+        if (e.god) this.toStalkerLook(e);
         this.updateHpBar(e);
         this.enemies.push(e);
       } else {
@@ -3251,7 +3303,8 @@ export class Game {
         this.snapPush(e.snaps, performance.now(), Number(m.x) || 0, Number(m.z) || 0);
         e.tx = Number(m.x) || 0;
         e.tz = Number(m.z) || 0;
-        e.god = m.god === true;
+        if (m.god === true && !e.god) { e.god = true; this.toStalkerLook(e); }
+        else e.god = m.god === true;
         e.hp = Math.max(0, Math.round(Number(m.hp) || 0));
         const maxhp = Math.max(e.maxhp, e.hp, 1);
         e.maxhp = maxhp;
@@ -4219,7 +4272,7 @@ export class Game {
             e.ey += e.evy * dt;
             if (e.ey <= 0) { e.ey = 0; e.evy = 0; }
           }
-          e.body.position.y = 1.0 + Math.abs(Math.sin(e.phase)) * 0.12 + e.ey;
+          e.body.position.y = (e.god ? 1.45 : 1.0) + Math.abs(Math.sin(e.phase)) * 0.12 + e.ey;
         }
         e.body.material.rotation = Math.sin(e.phase) * 0.07;
         if (e.hurtT > 0) {

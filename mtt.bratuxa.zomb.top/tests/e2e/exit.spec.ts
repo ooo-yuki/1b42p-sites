@@ -53,6 +53,10 @@ test('бэкрумс-карта: только бессмертные сталк�
   // полосок HP у бессмертных нет
   const bars = await page.evaluate(() => (window as unknown as { __mtt: M & { godBars: () => boolean } }).__mtt.godBars());
   expect(bars, 'HP-бары спрятаны').toBe(true);
+  // все сталкеры носят тело жути с картинки МТТ
+  const texN = await page.evaluate(() => (window as unknown as { __mtt: M & { stalkTex: () => number } }).__mtt.stalkTex());
+  console.log('DIAG stalktex ' + texN + '/' + foes.length);
+  expect(texN, 'тело жути на всех сталкерах').toBe(foes.length);
   // FPS в жути при новом свете
   const fps = await page.evaluate(() => (window as unknown as { __mtt: M & { fps: () => number } }).__mtt.fps());
   console.log('DIAG brfps ' + fps);
