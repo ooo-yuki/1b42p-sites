@@ -20,6 +20,7 @@
 | 11 | superpowers-гейты | `brainstorming` (креатив — только после аппрува) → `writing-plans` → `executing-plans`/`subagent-driven-development`; `verification-before-completion` перед каждым клеймом |
 | 12 | browser-верификация DOM-first | `headless-render-verification` + `scripted-page-probes`; скрины врут — DOM правит |
 | 13 | Правило МТТ | апдейты игры: тегать @MeMATT0 и давать ссылку https://mtt.bratuxa.zomb.top/ в том же сообщении |
+| 14 | SKILL50+ | постоянный арсенал: 50/50 стоят — сканировать триггеры КАЖДЫЙ промпт, грузить по триггерам, сомневаешься — грузи (см. раздел SKILL50+ ниже) |
 
 ## Tier 1 — по типу задачи (триггер → скилл)
 
@@ -34,6 +35,19 @@
 - Многозадачка со спекой → `writing-plans` → `executing-plans` / `subagent-driven-development`
 - Перед клеймом «готово/починил/тесты зелёные» → `verification-before-completion`
 - Финиш ветки → `finishing-a-development-branch`; прилетевшее ревью → `receiving-code-review`
+
+## SKILL50+ — постоянный арсенал (50/50 стоят, закон)
+
+Приказ МТТ: арсенал используется на постоянной основе в проекте. Каждый промпт —
+прогон глазами по триггерам ниже, загрузка ВСЕХ сработавших (`skill_view`), сомнение = грузить.
+Таблица-источник: https://docs.google.com/spreadsheets/d/1k4gk6B_kfoPXQt7RTYvHgTGbXqBAbifBAjTAnEOgeGs/edit?usp=sharing
+
+- План/понимание: `find-skills` (не знаешь чем делать) · `grill-me` / `grill-with-docs` (дожми план/дизайн) · `wayfinder` (кусок больше сессии) · `to-spec` (промпт→спека) · `to-tickets` (план→тикеты) · `brainstorming` (креатив — ОБЯЗАТЕЛЬНО первым) · `writing-plans` → `executing-plans` / `subagent-driven-development` (многозадачка) · `handoff` (сжатие контекста) · `research` (разведка) · `teach` (объяснить)
+- Код: `implement` (работа по спеке/тикетам) · `tdd` + `test-driven-development` (RED→GREEN) · `prototype` (черновик ради ответа) · `ponytail` (ленивейшее рабочее) · `codebase-design` + `domain-modeling` (глубокие модули/домен) · `improve-codebase-architecture` (точки углубления) · `triage` (входящие issue/PR) · `resolving-merge-conflicts` (конфликты) · `code-review` + `requesting-code-review` (ревью до/после) · `diagnosing-bugs` + `systematic-debugging` (непонятный баг — 4 фазы)
+- UI/дизайн: `frontend-design` + `web-design-guidelines` (любой UI) · `design-taste-frontend` (анти-слоп) · `ui-ux-pro-max` (разбор дизайна) · `brandkit` (фирменные картинки) · `theme-factory` (темы артефактов) · `shadcn` (компоненты) · `image-to-code` (скрин→код) · `web-artifacts-builder` (сложные артефакты) · `vercel-react-best-practices` (перф React) · `impeccable` + craft-floor (фрейм, уже Tier 0)
+- Браузер/проверка: `agent-browser` + `browser-use` (живой браузер) · `headless-render-verification` + `scripted-page-probes` (DOM-first пруфы, уже Tier 0) · `webapp-testing` (тесты веба) · `verification-before-completion` (клеймы — только свежей командой, уже Tier 0)
+- Данные/доки/тексты: `supabase-postgres-best-practices` (Postgres) · `pptx` · `productivity:pdf` · `productivity:docx` · `productivity:xlsx` · `doc-coauthoring` (доки) · `seo-audit` (SEO) · `copywriting` (маркетинг-тексты) · `42-content` (тон 42, уже Tier 1)
+- Агенты/мета: `subagent-driven-development` (параллельные агенты) · `mcp-builder` (MCP) · `skill-creator` (новые скиллы) · `new-skill` (каркас скилла)
 
 ## Red Flags — STOP и читай SKILLS.md
 
