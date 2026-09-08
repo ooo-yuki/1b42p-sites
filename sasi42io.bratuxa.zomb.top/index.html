@@ -36,6 +36,7 @@
   #pause .card { text-align: center; color: #fff; background: #141829; border: 1px solid #fbbf2455; border-radius: 16px; padding: 32px 44px; }
   #pause h1 { font-size: 26px; margin-bottom: 16px; }
   #pause button { font-size: 17px; padding: 10px 28px; border: none; border-radius: 10px; background: #fbbf24; color: #111; font-weight: bold; cursor: pointer; }
+  #pause #giveup { background: #ef4444; color: #fff; margin-left: 8px; }
 </style>
 </head>
 <body>
@@ -58,7 +59,7 @@
 <div id="joy"><div id="stick"></div></div>
 <button id="boostBtn" aria-label="Буст">⚡</button>
 <button id="pauseBtn" aria-label="Пауза">⏸</button>
-<div id="pause"><div class="card"><h1>Пауза</h1><button id="resume">Продолжить</button></div></div>
+<div id="pause"><div class="card"><h1>Пауза</h1><button id="resume">Продолжить</button><button id="giveup">Завершить игру</button></div></div>
 <script>
 'use strict';
 /* ===== sasi42io: чистая логика (тестируется Task 2 через window.__hook) ===== */
@@ -91,6 +92,14 @@ function eatFood(score, foodPts, starMult) {
 function collide(ax, ay, bx, by, rad) {
   var dx = ax - bx, dy = ay - by;
   return dx * dx + dy * dy < rad * rad;
+}
+function hitsWall(x, y, W, H) {
+  return x <= 10 || x >= W - 10 || y <= 10 || y >= H - 10;
+}
+function dropLoot(n, rnd) {
+  var out = [];
+  for (var i = 0; i < n; i++) out.push(spawnFood(rnd()).type);
+  return out;
 }
 // stepBot: чистая функция руления. Возвращает новый угол (радианы).
 // bot: {x,y,angle,kind}, foods: [{x,y}], player: {x,y,score}, W,H: мир
@@ -142,7 +151,7 @@ function getDir() { return { x: __dir.x, y: __dir.y }; }
 function setPaused(b) { __paused = !!b; return __paused; }
 function togglePause() { __paused = !__paused; return __paused; }
 function isPaused() { return __paused; }
-window.__hook = { spawnFood: spawnFood, eatFood: eatFood, stepBot: stepBot, collide: collide, setDir: setDir, getDir: getDir, setPaused: setPaused, togglePause: togglePause, isPaused: isPaused };
+window.__hook = { spawnFood: spawnFood, eatFood: eatFood, stepBot: stepBot, collide: collide, hitsWall: hitsWall, dropLoot: dropLoot, setDir: setDir, getDir: getDir, setPaused: setPaused, togglePause: togglePause, isPaused: isPaused };
 
 /* ===== игра ===== */
 var W = 3000, H = 3000;
@@ -249,6 +258,7 @@ function togglePauseUI() {
 }
 pauseBtn.addEventListener('click', togglePauseUI);
 document.getElementById('resume').addEventListener('click', togglePauseUI);
+document.getElementById('giveup').addEventListener('click', function () { setPaused(false); pauseEl.style.display = 'none'; playerDie(); });
 document.getElementById('again').addEventListener('click', function () { setPaused(false); pauseEl.style.display = 'none'; newGame(); });
 
 function speedOf(s) {
@@ -280,8 +290,9 @@ function moveDir(s, dt) {
     s.angle += Math.max(-0.15, Math.min(0.15, dd)) * dt;
   }
   var sp = speedOf(s) * dt;
-  s.x = Math.max(10, Math.min(W - 10, s.x + Math.cos(s.angle) * sp));
-  s.y = Math.max(10, Math.min(H - 10, s.y + Math.sin(s.angle) * sp));
+  // игрок НЕ клемпится: выход за границу = смерть (hitsWall, см. frame)
+  s.x = s.x + Math.cos(s.angle) * sp;
+  s.y = s.y + Math.sin(s.angle) * sp;
   s.segs.unshift({ x: s.x, y: s.y });
   var wantLen = 8 + Math.floor(s.score / 6);
   while (s.segs.length > wantLen) s.segs.pop();
@@ -308,12 +319,24 @@ function eatCheck(s) {
   }
 }
 function die(s) {
-  // смерть → рассыпание едой типа 1 (🍌, 5 очков)
+  // смерть → рассыпание едой; количество как было, тип взвешенный (70/25/5)
   var n = Math.min(24, 4 + ((s.score / 12) | 0));
+  var types = dropLoot(n, Math.random);
   for (var i = 0; i < n; i++) {
-    foods.push({ x: Math.max(10, Math.min(W - 10, s.x + (Math.random() - 0.5) * 220)), y: Math.max(10, Math.min(H - 10, s.y + (Math.random() - 0.5) * 220)), type: 0, pts: 5, boost: null });
+    foods.push({ x: Math.max(10, Math.min(W - 10, s.x + (Math.random() - 0.5) * 220)), y: Math.max(10, Math.min(H - 10, s.y + (Math.random() - 0.5) * 220)), type: types[i], pts: FOOD[types[i]].pts, boost: null });
   }
   while (foods.length > 420) foods.shift();
+}
+function playerDie() {
+  // общий flow смерти игрока: лут + счёт + рекорд + экран смерти
+  if (!alive) return;
+  die(player);
+  alive = false;
+  if (player.score > best) { best = Math.floor(player.score); try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {} }
+  document.getElementById('final').textContent = Math.floor(player.score);
+  document.getElementById('finalBest').textContent = best;
+  document.getElementById('death').style.display = 'flex';
+  try { if (window.__sasiOnDeath) window.__sasiOnDeath(Math.floor(player.score)); } catch (e) {}
 }
 function headHitsBody(head, other) {
   for (var i = 3; i < other.segs.length; i += 2) {
@@ -342,21 +365,17 @@ function frame(t) {
     tickTimers(b, dt);
     eatCheck(b);
   }
-  // столкновения голов с телами
+  // столкновения голов с телами + стены-убийцы для игрока
   for (var p = all.length - 1; p >= 0; p--) {
     var s = all[p];
+    if (s === player && !alive) continue;
     for (var q = 0; q < all.length; q++) {
       if (p === q) continue;
       if (headHitsBody(s, all[q])) {
-        die(s);
         if (s === player) {
-          alive = false;
-          if (player.score > best) { best = Math.floor(player.score); try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {} }
-          document.getElementById('final').textContent = Math.floor(player.score);
-          document.getElementById('finalBest').textContent = best;
-          document.getElementById('death').style.display = 'flex';
-          try { if (window.__sasiOnDeath) window.__sasiOnDeath(Math.floor(player.score)); } catch (e) {}
+          playerDie();
         } else {
+          die(s);
           var bi = bots.indexOf(s);
           if (bi >= 0) bots.splice(bi, 1);
         }
@@ -364,6 +383,8 @@ function frame(t) {
       }
     }
   }
+  // стены-убийцы: игрок касается границы — смерть через общий flow (ботов не трогаем)
+  if (alive && hitsWall(player.x, player.y, W, H)) playerDie();
   // боты не вымирают полностью: держим 8–11
   while (bots.length < 8) {
     var bx = rnd(W), by = rnd(H);

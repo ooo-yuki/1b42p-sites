@@ -131,4 +131,59 @@ assert.ok(
 );
 
 console.log('logic.test.js: OK hook API (setDir/getDir/setPaused/togglePause/isPaused, pause freeze)');
+
+// --- стены-убийцы: hitsWall в __hook, граница x<=10||x>=W-10||y<=10||y>=H-10 ---
+assert.strictEqual(typeof __hook.hitsWall, 'function', 'hitsWall must be in __hook');
+assert.strictEqual(__hook.hitsWall(1500, 1500, W, H), false); // центр — жив
+assert.strictEqual(__hook.hitsWall(10, 1500, W, H), true); // x<=10 — смерть
+assert.strictEqual(__hook.hitsWall(11, 1500, W, H), false);
+assert.strictEqual(__hook.hitsWall(W - 10, 1500, W, H), true); // x>=W-10 — смерть
+assert.strictEqual(__hook.hitsWall(W - 11, 1500, W, H), false);
+assert.strictEqual(__hook.hitsWall(1500, 10, W, H), true); // y<=10 — смерть
+assert.strictEqual(__hook.hitsWall(1500, 11, W, H), false);
+assert.strictEqual(__hook.hitsWall(1500, H - 10, W, H), true); // y>=H-10 — смерть
+assert.strictEqual(__hook.hitsWall(1500, H - 11, W, H), false);
+assert.ok(
+  html.includes('if (alive && hitsWall(player.x, player.y, W, H)) playerDie();'),
+  'wall death must go through common flow (playerDie)'
+);
+
+// --- игрок не клемпится, боты клемпятся ---
+__hook.setDir(1, 0); // строго на восток
+const mkP = { x: W - 11, y: 1500, angle: 0, segs: [{ x: W - 11, y: 1500 }], score: 10, star: 0, bolt: 0, starT: 0, boltT: 0 };
+sandbox.moveDir(mkP, 10);
+assert.ok(mkP.x > W - 10, 'player must NOT clamp (wall = death), got ' + mkP.x);
+const mkB = { x: W - 11, y: 1500, angle: 0, segs: [{ x: W - 11, y: 1500 }], score: 10, star: 0, bolt: 0, starT: 0, boltT: 0 };
+sandbox.moveSnake(mkB, W + 500, 1500, 10);
+assert.ok(mkB.x <= W - 10, 'bots stay clamped, got ' + mkB.x);
+
+// --- дроп с ботов: dropLoot в __hook, веса 70/25/5 ---
+assert.strictEqual(typeof __hook.dropLoot, 'function', 'dropLoot must be in __hook');
+assert.strictEqual(__hook.dropLoot(0, () => 0.5).length, 0);
+assert.ok(__hook.dropLoot(3, () => 0.0).every((t) => t === 0), 'rnd=0 -> all type 0');
+assert.ok(__hook.dropLoot(3, () => 0.7).every((t) => t === 1), 'rnd=0.7 -> all type 1');
+assert.ok(__hook.dropLoot(3, () => 0.99).every((t) => t === 2), 'rnd=0.99 -> all type 2');
+let __i = 0;
+const loot1000 = __hook.dropLoot(1000, () => (__i++) / 1000); // равномерный проход [0,1)
+const c0 = loot1000.filter((t) => t === 0).length;
+const c1 = loot1000.filter((t) => t === 1).length;
+const c2 = loot1000.filter((t) => t === 2).length;
+assert.strictEqual(c0, 700, 'weight type0 ~70%, got ' + c0);
+assert.strictEqual(c1, 250, 'weight type1 ~25%, got ' + c1);
+assert.strictEqual(c2, 50, 'weight type2 ~5%, got ' + c2);
+assert.ok(
+  html.includes('dropLoot(n, Math.random)') && html.includes('FOOD[types[i]].pts'),
+  'die(s) must drop weighted loot (count as before)'
+);
+
+// --- сдаться: кнопка «Завершить игру» в оверлее паузы → общий flow ---
+assert.ok(html.includes('id="giveup"'), 'pause overlay must have giveup button');
+assert.ok(html.includes('>Завершить игру<'), 'giveup button label');
+assert.ok(html.includes("getElementById('giveup')"), 'giveup must be wired');
+assert.ok(
+  html.includes("playerDie();") && html.includes('function playerDie()'),
+  'giveup/wall must use common playerDie flow (score + record)'
+);
+
+console.log('logic.test.js: OK walls (hitsWall, no-clamp player, clamped bots), dropLoot 700/250/50, giveup');
 process.exit(0);
