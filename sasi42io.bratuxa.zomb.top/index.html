@@ -24,7 +24,7 @@
   #stick { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; border-radius: 50%; background: #fbbf24; transform: translate(-50%,-50%); }
   #boostBtn { position: fixed; right: 18px; bottom: 18px; width: 84px; height: 84px; border-radius: 50%; border: 1px solid #fbbf2466; background: rgba(251,191,36,.18); color: #fbbf24; font-size: 30px; z-index: 6; touch-action: none; user-select: none; }
   #boostBtn.on { background: #fbbf24; color: #111; }
-  #pauseBtn { position: fixed; top: 10px; right: 190px; z-index: 6; font-size: 16px; padding: 8px 12px; border-radius: 10px; border: 1px solid #ffffff22; background: rgba(10,12,25,.72); color: #e5e7eb; cursor: pointer; }
+  #pauseBtn { position: fixed; top: 10px; right: 10px; z-index: 6; font-size: 16px; padding: 8px 12px; border-radius: 10px; border: 1px solid #ffffff22; background: rgba(10,12,25,.72); color: #e5e7eb; cursor: pointer; }
   #pause { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(5,6,12,.72); z-index: 9; }
   #pause .card { text-align: center; color: #fff; background: #141829; border: 1px solid #fbbf2455; border-radius: 16px; padding: 32px 44px; }
   #pause h1 { font-size: 26px; margin-bottom: 16px; }
@@ -195,7 +195,7 @@ function applyInput() {
 window.addEventListener('keydown', function (e) {
   if (e.code === 'Space') { boosting = true; e.preventDefault(); return; }
   if (e.code === 'Escape' || e.code === 'KeyP') { togglePauseUI(); return; }
-  if (/^(Key[WASD]|Arrow(Up|Down|Left|Right))$/.test(e.code)) { keys[e.code] = true; lastSrc = 'key'; applyInput(); }
+  if (/^(Key[WASD]|Arrow(Up|Down|Left|Right))$/.test(e.code)) { keys[e.code] = true; lastSrc = 'key'; applyInput(); e.preventDefault(); }
 });
 window.addEventListener('keyup', function (e) {
   if (e.code === 'Space') { boosting = false; return; }
@@ -304,7 +304,7 @@ function headHitsBody(head, other) {
 var last = 0;
 function frame(t) {
   requestAnimationFrame(frame);
-  if (!alive || isPaused()) return; // пауза фризит ВЕСЬ мир
+  if (!alive || isPaused()) { last = t; return; } // пауза фризит ВЕСЬ мир + без рывка dt после resume
   var dt = Math.min(3, (t - last) / 16.7 || 1); last = t;
   // игрок: по вектору направления (джойстик/клавиатура)
   var camX = player.x - canvas.width / 2, camY = player.y - canvas.height / 2;

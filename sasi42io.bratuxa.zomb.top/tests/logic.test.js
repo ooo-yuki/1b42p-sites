@@ -97,4 +97,38 @@ const hunterWeak = __hook.stepBot(
 assert.ok(Math.abs(hunterWeak - 0) < 0.13, 'hunter chases weaker player, got ' + hunterWeak);
 
 console.log('logic.test.js: OK (5/25/70, x2=10, collide, stepBot)');
+
+// --- __hook API: направление + пауза ---
+assert.ok(__hook.getDir().x === 1 && __hook.getDir().y === 0, 'дефолт: восток'); // getDir отдаёт живой объект — сравниваем поля, не ссылки
+const d1 = __hook.setDir(3, 4);
+assert.ok(Math.abs(d1.x - 0.6) < 1e-9 && Math.abs(d1.y - 0.8) < 1e-9, 'setDir normalizes');
+assert.ok(__hook.getDir().x === d1.x && __hook.getDir().y === d1.y, 'getDir отдаёт текущий вектор');
+const d0 = __hook.setDir(0, 0); // ноль игнорируем — направление не меняется
+assert.ok(d0.x === d1.x && d0.y === d1.y, 'ноль не меняет направление');
+
+assert.strictEqual(__hook.isPaused(), false); // дефолт: не на паузе
+assert.strictEqual(__hook.setPaused(true), true);
+assert.strictEqual(__hook.isPaused(), true);
+assert.strictEqual(__hook.togglePause(), false); // сняли
+assert.strictEqual(__hook.isPaused(), false);
+assert.strictEqual(__hook.togglePause(), true); // поставили
+assert.strictEqual(__hook.setPaused(false), false); // сброс для остальных тестов
+
+// --- фриз мира паузой: tickTimers не тикает, frame не двигает змейку ---
+const tickTimers = sandbox.tickTimers;
+assert.strictEqual(typeof tickTimers, 'function', 'tickTimers must be reachable');
+__hook.setPaused(true);
+const frozen = { star: 1, starT: 5, bolt: 1, boltT: 5 };
+tickTimers(frozen, 60);
+assert.strictEqual(frozen.starT, 5, 'paused: starT frozen');
+assert.strictEqual(frozen.boltT, 5, 'paused: boltT frozen');
+__hook.setPaused(false);
+tickTimers(frozen, 60);
+assert.ok(frozen.starT < 5 && frozen.boltT < 5, 'unpaused: timers tick');
+assert.ok(
+  html.includes('if (!alive || isPaused()) { last = t; return; }'),
+  'frame must freeze world on pause and refresh last (no dt jump after resume)'
+);
+
+console.log('logic.test.js: OK hook API (setDir/getDir/setPaused/togglePause/isPaused, pause freeze)');
 process.exit(0);
