@@ -43,6 +43,111 @@ body { background: #0a0a0f; color: #e0d0c0; font-family: 'Segoe UI', sans-serif;
     <button onclick="startGame()">начать</button>
   </div>
   <img id="bg" src="" class="hidden">
+  <!-- NSFW SVG backgrounds — показать вместо img для интимных сцен -->
+  <div id="nsfw-bg-1" class="hidden" style="position:absolute;inset:0;background:#1a0a2e;display:flex;align-items:center;justify-content:center;">
+    <svg viewBox="0 0 800 500" style="width:100%;height:100%;">
+      <defs><radialGradient id="n1bg" cx="50%" cy="50%" r="60%"><stop offset="0%" stop-color="#3a1a4a"/><stop offset="100%" stop-color="#050308"/></radialGradient>
+      <radialGradient id="n1skin" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#f0d0b8"/><stop offset="100%" stop-color="#b89880"/></radialGradient></defs>
+      <rect width="800" height="500" fill="url(#n1bg)"/>
+      <ellipse cx="400" cy="420" rx="300" ry="80" fill="#0d0515"/>
+      <!-- фигуры together -->
+      <path d="M 280 180 Q 340 140 400 130 Q 460 140 520 180 Q 480 260 400 280 Q 320 260 280 180Z" fill="url(#n1skin)" opacity="0.9"/>
+      <ellipse cx="355" cy="195" rx="55" ry="48" fill="url(#n1skin)"/>
+      <ellipse cx="445" cy="195" rx="55" ry="48" fill="url(#n1skin)"/>
+      <ellipse cx="355" cy="208" rx="20" ry="16" fill="#c08888" opacity="0.7"/>
+      <ellipse cx="445" cy="208" rx="20" ry="16" fill="#c08888" opacity="0.7"/>
+      <circle cx="355" cy="208" r="9" fill="#a06070" opacity="0.9"/>
+      <circle cx="445" cy="208" r="9" fill="#a06070" opacity="0.9"/>
+      <ellipse cx="400" cy="290" rx="100" ry="70" fill="#c87888"/>
+      <path d="M 300 288 Q 290 340 320 380 Q 380 398 400 395 Q 420 398 480 380 Q 510 340 500 288 Q 450 305 400 305 Q 350 305 300 288Z" fill="#b07080" opacity="0.85"/>
+      <path d="M 320 305 Q 312 345 340 372 Q 378 388 400 385 Q 422 388 460 372 Q 488 345 480 305 Q 438 320 400 320 Q 362 320 320 305Z" fill="#c88898" opacity="0.75"/>
+      <ellipse cx="400" cy="250" rx="32" ry="26" fill="#d090a0" opacity="0.9"/>
+      <ellipse cx="400" cy="238" rx="16" ry="13" fill="#d8a0b0" opacity="0.95"/>
+      <ellipse cx="400" cy="355" rx="25" ry="16" fill="#783040" opacity="0.85"/>
+      <ellipse cx="400" cy="450" rx="300" ry="60" fill="#0d0515"/>
+      <!-- мужик сверху -->
+      <path d="M 520 120 Q 560 100 600 95 Q 640 100 680 120 Q 665 180 640 220 Q 600 235 560 220 Q 535 180 520 120Z" fill="url(#n1skin)" opacity="0.9"/>
+      <path d="M 600 220 Q 580 200 520 185 Q 460 170 400 160" stroke="#c8a088" stroke-width="32" stroke-linecap="round" fill="none" opacity="0.95"/>
+      <ellipse cx="420" cy="300" rx="26" ry="20" fill="#c88870" opacity="0.95" transform="rotate(-40,420,300)"/>
+      <ellipse cx="490" cy="230" rx="35" ry="28" fill="#c8a088" opacity="0.9"/>
+      <ellipse cx="545" cy="225" rx="33" ry="26" fill="#c8a088" opacity="0.9"/>
+      <path d="M 475 200 Q 555 180 600 175" stroke="#c8a088" stroke-width="14" stroke-linecap="round" fill="none" opacity="0.8"/>
+      <rect x="14" y="14" width="44" height="22" rx="4" fill="#c03070" opacity="0.9"/>
+      <text x="36" y="30" font-family="Arial" font-size="12" font-weight="bold" fill="#fff" text-anchor="middle">18+</text>
+    </svg>
+  </div>
+  <div id="nsfw-bg-2" class="hidden" style="position:absolute;inset:0;background:#1a0a2e;display:flex;align-items:center;justify-content:center;">
+    <svg viewBox="0 0 800 500" style="width:100%;height:100%;">
+      <defs><radialGradient id="n2bg" cx="50%" cy="50%" r="60%"><stop offset="0%" stop-color="#2a103a"/><stop offset="100%" stop-color="#050308"/></radialGradient>
+      <radialGradient id="n2skin" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#e0c0a8"/><stop offset="100%" stop-color="#a88070"/></radialGradient></defs>
+      <rect width="800" height="500" fill="url(#n2bg)"/>
+      <ellipse cx="400" cy="450" rx="300" ry="60" fill="#0a0510"/>
+      <!-- doggy style вид сзади -->
+      <path d="M 280 200 Q 320 150 400 135 Q 480 150 520 200 Q 480 270 400 290 Q 320 270 280 200Z" fill="url(#n2skin)" opacity="0.9"/>
+      <ellipse cx="330" cy="245" rx="68" ry="58" fill="url(#n2skin)"/>
+      <ellipse cx="470" cy="245" rx="68" ry="58" fill="url(#n2skin)"/>
+      <ellipse cx="400" cy="248" rx="28" ry="22" fill="#9a7068" opacity="0.8"/>
+      <path d="M 300 290 Q 290 340 320 375 Q 370 392 400 390 Q 430 392 480 375 Q 510 340 500 290 Q 450 305 400 305 Q 350 305 300 290Z" fill="#b86878" opacity="0.88"/>
+      <path d="M 315 305 Q 308 345 335 370 Q 375 385 400 382 Q 425 385 465 370 Q 492 345 485 305 Q 440 320 400 320 Q 360 320 315 305Z" fill="#c87888" opacity="0.78"/>
+      <ellipse cx="400" cy="265" rx="40" ry="32" fill="#c88090" opacity="0.9"/>
+      <ellipse cx="400" cy="248" rx="22" ry="17" fill="#d898a8" opacity="0.95"/>
+      <ellipse cx="400" cy="365" rx="32" ry="20" fill="#783040" opacity="0.85"/>
+      <!-- erect approaching -->
+      <path d="M 680 150 Q 640 170 580 210 Q 520 255 470 285 Q 450 295 435 305" stroke="#c8a088" stroke-width="35" stroke-linecap="round" fill="none" opacity="0.95"/>
+      <ellipse cx="430" cy="308" rx="22" ry="18" fill="#c88870" opacity="0.95" transform="rotate(-15,430,308)"/>
+      <ellipse cx="495" cy="260" rx="30" ry="25" fill="#c8a088" opacity="0.9"/>
+      <ellipse cx="548" cy="255" rx="28" ry="23" fill="#c8a088" opacity="0.9"/>
+      <rect x="14" y="14" width="44" height="22" rx="4" fill="#c03070" opacity="0.9"/>
+      <text x="36" y="30" font-family="Arial" font-size="12" font-weight="bold" fill="#fff" text-anchor="middle">18+</text>
+    </svg>
+  </div>
+  <div id="nsfw-bg-3" class="hidden" style="position:absolute;inset:0;background:#1a0a2e;display:flex;align-items:center;justify-content:center;">
+    <svg viewBox="0 0 800 500" style="width:100%;height:100%;">
+      <defs><radialGradient id="n3bg" cx="50%" cy="50%" r="60%"><stop offset="0%" stop-color="#3a1a4a"/><stop offset="100%" stop-color="#050308"/></radialGradient>
+      <radialGradient id="n3skin" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#f0d0b8"/><stop offset="100%" stop-color="#b89880"/></radialGradient></defs>
+      <rect width="800" height="500" fill="url(#n3bg)"/>
+      <rect x="60" y="360" width="680" height="120" rx="20" fill="#1a0a28"/>
+      <ellipse cx="200" cy="360" rx="120" ry="45" fill="#2a1840"/>
+      <ellipse cx="600" cy="355" rx="110" ry="42" fill="#2a1840"/>
+      <!-- missionary ШЕДЕВР -->
+      <ellipse cx="200" cy="310" rx="55" ry="60" fill="url(#n3skin)"/>
+      <path d="M 142 310 Q 80 275 60 330 Q 50 385 100 430 Q 160 410 180 365Z" fill="#1a0808" opacity="0.95"/>
+      <path d="M 258 310 Q 320 275 340 330 Q 350 385 300 430 Q 240 410 220 365Z" fill="#1a0808" opacity="0.95"/>
+      <path d="M 170 305 Q 183 312 196 305" stroke="#7a4050" stroke-width="2" fill="none" opacity="0.7"/>
+      <path d="M 204 305 Q 217 312 230 305" stroke="#7a4050" stroke-width="2" fill="none" opacity="0.7"/>
+      <ellipse cx="200" cy="335" rx="20" ry="12" fill="#c07080" opacity="0.9"/>
+      <path d="M 140 365 Q 170 355 200 353 Q 230 355 260 365 Q 245 405 230 435 Q 200 445 170 435 Q 155 405 140 365Z" fill="url(#n3skin)" opacity="0.9"/>
+      <ellipse cx="175" cy="385" rx="48" ry="44" fill="url(#n3skin)"/>
+      <ellipse cx="225" cy="385" rx="48" ry="44" fill="url(#n3skin)"/>
+      <ellipse cx="175" cy="395" rx="19" ry="16" fill="#d09898" opacity="0.75"/>
+      <ellipse cx="225" cy="395" rx="19" ry="16" fill="#d09898" opacity="0.75"/>
+      <circle cx="175" cy="395" r="8" fill="#a06070" opacity="0.9"/>
+      <circle cx="225" cy="395" r="8" fill="#a06070" opacity="0.9"/>
+      <path d="M 130 425 Q 165 415 200 413 Q 235 415 270 425 Q 260 458 245 485 Q 200 495 155 485 Q 140 458 130 425Z" fill="url(#n3skin)" opacity="0.9"/>
+      <ellipse cx="200" cy="460" rx="62" ry="45" fill="#c87888"/>
+      <path d="M 138 458 Q 130 495 155 520 Q 183 534 200 532 Q 217 534 245 520 Q 270 495 262 458 Q 232 472 200 472 Q 168 472 138 458Z" fill="#b86878" opacity="0.88"/>
+      <path d="M 152 468 Q 148 498 172 518 Q 190 528 200 526 Q 210 528 228 518 Q 252 498 248 468 Q 222 480 200 480 Q 178 480 152 468Z" fill="#c87888" opacity="0.8"/>
+      <path d="M 165 478 Q 163 505 182 520 Q 196 528 200 526 Q 204 528 218 520 Q 237 505 235 478 Q 215 488 200 488 Q 185 488 165 478Z" fill="#d89098" opacity="0.75"/>
+      <ellipse cx="200" cy="435" rx="20" ry="16" fill="#d090a0" opacity="0.95"/>
+      <ellipse cx="200" cy="422" rx="13" ry="10" fill="#dca0b2" opacity="0.95"/>
+      <ellipse cx="200" cy="498" rx="20" ry="14" fill="#783040" opacity="0.88"/>
+      <!-- мужик сверху -->
+      <ellipse cx="600" cy="320" rx="46" ry="52" fill="url(#n3skin)"/>
+      <path d="M 552 300 Q 560 268 600 263 Q 640 268 648 300 Q 635 282 600 280 Q 565 282 552 300Z" fill="#1a0a0a"/>
+      <path d="M 520 365 Q 560 348 600 343 Q 640 348 680 365 Q 665 415 640 445 Q 600 458 560 445 Q 535 415 520 365Z" fill="url(#n3skin)" opacity="0.9"/>
+      <path d="M 520 365 Q 500 395 490 430" stroke="url(#n3skin)" stroke-width="30" stroke-linecap="round" fill="none" opacity="0.9"/>
+      <path d="M 680 365 Q 700 395 710 430" stroke="url(#n3skin)" stroke-width="30" stroke-linecap="round" fill="none" opacity="0.9"/>
+      <path d="M 490 430 Q 520 415 600 410 Q 680 415 710 430 Q 700 470 680 500 Q 600 515 520 500 Q 500 470 490 430Z" fill="url(#n3skin)" opacity="0.9"/>
+      <path d="M 490 428 Q 545 415 600 413 Q 655 415 710 428 Q 655 435 600 437 Q 545 435 490 428Z" fill="#1e1212" opacity="0.6"/>
+      <path d="M 600 415 Q 578 385 518 350 Q 460 320 400 298 Q 368 288 335 278" stroke="#c8a088" stroke-width="32" stroke-linecap="round" fill="none" opacity="0.95"/>
+      <ellipse cx="330" cy="275" rx="20" ry="16" fill="#c88870" opacity="0.95" transform="rotate(-38,330,275)"/>
+      <ellipse cx="418" cy="410" rx="36" ry="30" fill="#c8a088" opacity="0.9"/>
+      <ellipse cx="478" cy="405" rx="34" ry="28" fill="#c8a088" opacity="0.9"/>
+      <ellipse cx="14" cy="14" width="44" height="22" rx="4" fill="#c03070" opacity="0.9"/>
+      <rect x="14" y="14" width="44" height="22" rx="4" fill="#c03070" opacity="0.9"/>
+      <text x="36" y="30" font-family="Arial" font-size="12" font-weight="bold" fill="#fff" text-anchor="middle">18+</text>
+    </svg>
+  </div>
   <div id="nsfw-badge" class="hidden">18+</div>
   <div id="dialogue" class="hidden"><div id="speaker"></div><div id="text"></div></div>
   <div id="choices" class="hidden"></div>
@@ -560,12 +665,28 @@ function startGame() {
   showScene(0);
 }
 
+const nsfwBgMap = { 7: 'nsfw-bg-3', 8: 'nsfw-bg-1', 9: 'nsfw-bg-2' };
+
 function showScene(idx) {
   if (idx < 0) { location.reload(); return; }
   current = idx;
   const s = scenes[idx];
-  document.getElementById('bg').src = s.bg || 'https://i.pinimg.com/736x/0a/1a/2e/0a1a2e1f9e2d4c8b3a9f8e7d6c5b4a3.jpg';
+
+  // hide all nsfw bg layers
+  document.querySelectorAll('[id^="nsfw-bg-"]').forEach(el => el.classList.add('hidden'));
+  // show img bg by default
   document.getElementById('bg').classList.remove('hidden');
+
+  if (nsfwBgMap[idx]) {
+    document.getElementById('bg').classList.add('hidden');
+    const nsfwEl = document.getElementById(nsfwBgMap[idx]);
+    if (nsfwEl) nsfwEl.classList.remove('hidden');
+  } else if (s.bg) {
+    document.getElementById('bg').src = s.bg;
+  } else {
+    document.getElementById('bg').src = 'https://i.pinimg.com/736x/0a/1a/2e/0a1a2e1f9e2d4c8b3a9f8e7d6c5b4a3.jpg';
+  }
+
   document.getElementById('dialogue').classList.remove('hidden');
   document.getElementById('nsfw-badge').classList.toggle('hidden', !s.nsfw);
   document.getElementById('speaker').textContent = s.speaker || '';

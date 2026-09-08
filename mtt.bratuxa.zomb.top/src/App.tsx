@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Game, WEAPONS, CHARS, MAPS, KEY_ACTIONS, DEFAULT_KEYS, UPG_MAX, upgCost, superCd, superRange, CASE_PRICE, type HudState, type KeyMap, type Quality, type MapId, type CustomMap, type UpgState, type CaseDrop } from './game/engine';
+import { Game, WEAPONS, CHARS, MAPS, hashSeed, KEY_ACTIONS, DEFAULT_KEYS, UPG_MAX, upgCost, superCd, superRange, CASE_PRICE, type HudState, type KeyMap, type Quality, type MapId, type CustomMap, type UpgState, type CaseDrop } from './game/engine';
 import oruzh1Url from './assets/oruzh1.png';
 import oruzh2Url from './assets/oruzh2.png';
 import pistolUrl from './assets/pistol.png';
@@ -7,8 +7,10 @@ import shotgunUrl from './assets/shotgun.png';
 import batUrl from './assets/bat.png';
 import charMttUrl from './assets/char-mtt.png';
 import charKrysaUrl from './assets/char-krysa.png';
+import charShubaUrl from './assets/char-shuba.png';
+import jumpscareUrl from './assets/jumpscare.jpg';
 
-const CHARIMG: Record<string, string> = { mtt: charMttUrl, krysa: charKrysaUrl };
+const CHARIMG: Record<string, string> = { mtt: charMttUrl, krysa: charKrysaUrl, shuba: charShubaUrl };
 
 /** Подробные описания способностей бойцов для меню. */
 const CHAR_ABILITIES: Record<string, { lines: string[]; sup: string }> = {
@@ -27,6 +29,14 @@ const CHAR_ABILITIES: Record<string, { lines: string[]; sup: string }> = {
       '🦘 Прыжки ×3 выше всех — залетает на крыши без лестниц',
     ],
     sup: '🌀 СУПЕР — Вол-кик: в полёте у стены жми C — разворот на 180° с подбросом. Кд 5с, качается до 1.7с, дальность +15% за уровень. Коснулся здания в полёте — кд сгорает сразу.',
+  },
+  shuba: {
+    lines: [
+      '❤️ Здоровье 105 — крепыш в белой шубе',
+      '💨 Скорость ×1.05 — чуть бодрее МТТ',
+      '👻 Не видят враги — супер прячет на 3 секунды',
+    ],
+    sup: '👻 СУПЕР — Несутка на C: 3с враги тебя не видят и не преследуют, бить не могут. Кд 12с, качается до 8с.',
   },
 };
 
@@ -100,6 +110,7 @@ interface RoomInfo {
 interface LobbyInfo {
   name: string;
   mode: MapId;
+  seed?: number;
   started: boolean;
   owner: boolean;
   count: number;
@@ -113,6 +124,7 @@ interface LobbyInfo {
 /** Ответ пульса комнаты: дуэль, PvP-табло, наблюдатель, ресаун, хост мобов. */
 interface BeatInfo {
   players: RoomMate[];
+  seed?: number;
   duel?: DuelInfo;
   chat?: Array<{ nick: string; text: string; t: number }>;
   mobs?: Array<{ id: number; kind: string; x: number; z: number; hp: number; dead: boolean; wave: number; god?: boolean }>;
@@ -376,7 +388,7 @@ export default function App() {
   const gameRef = useRef<Game | null>(null);
   const [menu, setMenu] = useState(true);
   const [loading, setLoading] = useState<{ show: boolean; pct: number }>({ show: false, pct: 0 });
-  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, med: 0, lvl: 1, boss: 0, fps: 60, quality: 'fast' });
+  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, invis: 0, invisCd: 0, med: 0, lvl: 1, boss: 0, fps: 60, quality: 'fast' });
   const [scores, setScores] = useState<ScoreRow[]>([]);
   const [duelTop, setDuelTop] = useState<Array<{ login: string; wins: number }>>([]);
   const [gstats, setGstats] = useState<{ games: number; best: number; online: number } | null>(null);
@@ -483,6 +495,8 @@ async function loadStats(): Promise<void> {
   const [roomId, setRoomId] = useState('');
   const [roomName, setRoomName] = useState('');
   const [roomMode, setRoomMode] = useState<MapId>('arena');
+  /** Сид карты от сервера: один на всех в комнате, новый после рестарта. */
+  const [mapSeed, setMapSeed] = useState<number | undefined>(undefined);
   const [roomDraft, setRoomDraft] = useState('');
   const [draftMode, setDraftMode] = useState<MapId>('arena');
   const [roomsList, setRoomsList] = useState<RoomInfo[]>([]);
@@ -512,6 +526,9 @@ async function loadStats(): Promise<void> {
   }, []);
   /** наблюдатель Бэкрумса: цели из пульса, выбранный ник — в рефе (пульс без замыканий) */
   const [specActive, setSpecActive] = useState(false);
+  /** скример: жуть на весь экран 5с после ваншота сталкера, поверх абсолютно всего */
+  const [jumpscare, setJumpscare] = useState(false);
+  const jumpscareTimer = useRef(0);
   const [specTargets, setSpecTargets] = useState<Array<{ sid: string; nick: string; hp: number; dead: boolean }>>([]);
   const specSelNick = useRef('');
   // лобби: владелец/заявки/старт. isOwner — я создал; waiting — моя заявка висит; lobby — свежий состав
@@ -536,6 +553,8 @@ async function loadStats(): Promise<void> {
   const [chatLog, setChatLog] = useState<Array<{ nick: string; text: string; t: number }>>([]);
   const [chatText, setChatText] = useState('');
   const chatLast = useRef(0);
+  /** Чья переписка на экране: id комнаты ('' — соло). Чат строго свой: чужие комнаты не подмешиваем. */
+  const chatRoom = useRef('');
   const chatOpenRef = useRef(false);
   // чат открыт — персонаж глух: сбрасываем залипшие кнопки
   useEffect(() => {
@@ -673,6 +692,11 @@ async function loadStats(): Promise<void> {
     const game = new Game(canvasRef.current, null, {
       onHud: (h) => { setHud(h); setQuality((q) => (q === h.quality ? q : h.quality)); },
       onBusted: () => undefined,
+      onJumpscare: () => {
+        setJumpscare(true);
+        window.clearTimeout(jumpscareTimer.current);
+        jumpscareTimer.current = window.setTimeout(() => setJumpscare(false), 5000);
+      },
       onSwing: () => { swing(); tryDuelHit(); },
       onNetHit: (nid, dmg) => {
         const { id: rid, sid } = roomRef.current;
@@ -700,7 +724,10 @@ async function loadStats(): Promise<void> {
         }).catch(() => undefined);
       },
       onPvpDead: () => { pvpDeadRef.current = true; setPvpDead(true); },
-    }, mapChoice, { enemies: !noEnemies && mapChoice !== 'pvp', custom: mapChoice === 'custom' ? customsRef.current[customSel ?? ''] ?? null : undefined });
+    }, mapChoice, { enemies: !noEnemies && mapChoice !== 'pvp', custom: mapChoice === 'custom' ? customsRef.current[customSel ?? ''] ?? null : undefined,
+      // сид от сервера: один на всех в комнате, новый после рестарта.
+      // Нет серверного (соло) — хеш комнаты или случайный («новый каждый раз»).
+      seed: (mapChoice === 'backrooms' || mapChoice === 'endless') ? (mapSeed ?? (roomRef.current.id ? hashSeed(roomRef.current.id) : undefined)) : undefined });
     gameRef.current = game;
     setSound(game.getSound());
     setSens(game.getSens());
@@ -731,6 +758,7 @@ async function loadStats(): Promise<void> {
       chara: () => game.getChar(),
       quality: () => game.getQuality(),
       dash: () => game.debugDash(),
+      invis: () => game.debugInvis(),
       playing: () => game.debugPlaying(),
       atkcd: () => game.debugAtkCd(),
       netsync: () => game.debugNetSync(),
@@ -752,7 +780,7 @@ async function loadStats(): Promise<void> {
       stalkTex: () => game.debugStalkerTex(),
       steps: () => game.debugSteps(),
       flush: () => game.flushProgress(),
-      spec: (on: boolean, x: number, z: number) => game.setSpec(on, x, z),
+      spec: (on: boolean, x: number, z: number, nick?: string) => game.setSpec(on, x, z, nick ?? ''),
       specOn: () => game.debugSpec(),
       mkroom: (name: string, mode: MapId) => createRoom(name, mode),
       charaSet: (id: string) => { game.unlockChar(id); return game.setChar(id); },
@@ -797,7 +825,7 @@ async function loadStats(): Promise<void> {
       delete (window as unknown as { __mtt?: object }).__mtt;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapChoice, noEnemies, customSel, customRev, menu]);
+  }, [mapChoice, noEnemies, customSel, customRev, menu, roomId, mapSeed]);
 
   const go = useCallback(async () => {
     try { localStorage.setItem(NICK_KEY, nick); } catch { /* noop */ }
@@ -896,9 +924,10 @@ async function loadStats(): Promise<void> {
         body: JSON.stringify({ nick: nickRef.current, name: nameOverride ?? roomDraft, char: gameRef.current?.getChar() ?? 'mtt', mode: modeOverride ?? draftMode, token: token() }),
       });
       if (!r.ok) return;
-      const d = (await r.json()) as { id: string; sid: string; mode: MapId; spawn: { x: number; z: number; yaw: number } | null };
+      const d = (await r.json()) as { id: string; sid: string; mode: MapId; seed?: number; spawn: { x: number; z: number; yaw: number } | null };
       roomRef.current = { id: d.id, sid: d.sid, mode: d.mode };
       setRoomId(d.id);
+      setMapSeed(typeof d.seed === 'number' ? d.seed >>> 0 : undefined);
       setRoomName(nameOverride || roomDraft || `Комната ${nickRef.current}`);
       setRoomMode(d.mode);
       setMapChoice(d.mode);
@@ -923,9 +952,10 @@ async function loadStats(): Promise<void> {
         body: JSON.stringify({ nick, char: gameRef.current?.getChar() ?? 'mtt', token: token() }),
       });
       if (!r.ok) return;
-      const d = (await r.json()) as { sid: string; name: string; mode: MapId; pending?: boolean };
+      const d = (await r.json()) as { sid: string; name: string; mode: MapId; seed?: number; pending?: boolean };
       roomRef.current = { id, sid: d.sid, mode: d.mode };
       setRoomId(id);
+      setMapSeed(typeof d.seed === 'number' ? d.seed >>> 0 : undefined);
       setRoomName(d.name);
       setRoomMode(d.mode);
       setMapChoice(d.mode);
@@ -947,6 +977,7 @@ async function loadStats(): Promise<void> {
     const { id, sid } = roomRef.current;
     roomRef.current = { id: '', sid: '', mode: '' };
     setRoomId('');
+    setMapSeed(undefined);
     setRoomName('');
     setRoomMode('arena');
     setMapChoice('arena');
@@ -1020,7 +1051,7 @@ async function loadStats(): Promise<void> {
       setSpecTargets(targets);
       setSpecActive(true);
       const p = g.debugPos();
-      g.setSpec(true, p.x, p.z);
+      g.setSpec(true, p.x, p.z, specSelNick.current);
     } catch { /* noop */ }
   }, []);
 
@@ -1099,6 +1130,7 @@ async function loadStats(): Promise<void> {
           return;
         }
         const d = (await r.json()) as BeatInfo;
+        if (typeof d.seed === 'number') setMapSeed((prev) => (prev === (d.seed! >>> 0) ? prev : (d.seed! >>> 0)));
         const plist = d.players ?? [];
         setMates(plist);
         matesRef.current = plist;
@@ -1130,7 +1162,7 @@ async function loadStats(): Promise<void> {
               try {
                 const list = g.debugRemoteList();
                 const t = list.find((q) => q.nick === specSelNick.current);
-                if (t) g.setSpec(true, t.x, t.z);
+                if (t) g.setSpec(true, t.x, t.z, specSelNick.current);
               } catch { /* noop */ }
             }
           }
@@ -1199,6 +1231,7 @@ async function loadStats(): Promise<void> {
         if (!r.ok) { setLobby(null); return; }
         const d = (await r.json()) as LobbyInfo & { spawn?: { x: number; z: number; yaw: number } };
         setLobby(d);
+        if (typeof d.seed === 'number') setMapSeed((prev) => (prev === (d.seed! >>> 0) ? prev : (d.seed! >>> 0)));
         if (d.accepted) setWaiting(false);
         if (d.started && !d.owner && !startedRef.current) {
           startedRef.current = true;
@@ -1517,6 +1550,11 @@ async function loadStats(): Promise<void> {
 
   return (
     <>
+      {jumpscare && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 2147483647, background: '#000' }}>
+          <img src={jumpscareUrl} alt="" style={{ width: '100vw', height: '100vh', objectFit: 'cover', display: 'block' }} />
+        </div>
+      )}
       <canvas id="c" ref={canvasRef} />
       {!menu && <div id="vig" />}
       {!menu && (
@@ -1526,7 +1564,7 @@ async function loadStats(): Promise<void> {
             <div id="hpBar"><div id="hpFill" style={{ width: `${hpFrac * 100}%` }} /></div>
           </div>
           <div id="hudRow">{noEnemies ? '🕊️ МИРНЫЙ РЕЖИМ · ' : `🌊 Волна ${hud.wave} · 👹 ${hud.enemies} · `}💀 {hud.kills} · 🏆 {hud.score}</div>
-          <div id="hudRow2">🎟️ {hud.fantiki} · 💊 {hud.med}/3 · ⭐ {hud.lvl} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}{char === 'krysa' && (hud.kick > 0 ? ` · 🌀 ${hud.kick.toFixed(1)}с` : ' · 🌀 вол-кик готов')}</div>
+          <div id="hudRow2">🎟️ {hud.fantiki} · 💊 {hud.med}/3 · ⭐ {hud.lvl} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}{char === 'krysa' && (hud.kick > 0 ? ` · 🌀 ${hud.kick.toFixed(1)}с` : ' · 🌀 вол-кик готов')}{char === 'shuba' && (hud.invis > 0 ? ` · 👻 ещё ${hud.invis.toFixed(1)}с` : hud.invisCd > 0 ? ` · 👻 ${hud.invisCd.toFixed(1)}с` : ' · 👻 несутка готова')}</div>
         </div>
       )}
       {!menu && (
@@ -1809,8 +1847,8 @@ async function loadStats(): Promise<void> {
                         <div className="cdesc">{c.desc}</div>
                       </button>
                       <div className="cstats">❤️ {c.hp} · 💨 {c.spd}× · ⭐ Ур. {lvl}</div>
-                      <div className={'rarity ' + (c.rarity === 'Легендарный' ? 'leg' : 'base')} id={`rarity-${c.id}`}>
-                        {c.rarity === 'Легендарный' ? '🌟 Редкость: Легендарный' : '⚪ Редкость: Базовый'}
+                      <div className={'rarity ' + (c.rarity === 'Легендарный' ? 'leg' : c.rarity === 'Редкий' ? 'rare' : 'base')} id={`rarity-${c.id}`}>
+                        {c.rarity === 'Легендарный' ? '🌟 Редкость: Легендарный' : c.rarity === 'Редкий' ? '💎 Редкость: Редкий' : '⚪ Редкость: Базовый'}
                       </div>
                       {locked && <div className="clocked" id={`locked-${c.id}`}>🔒 ЗАКРЫТ — выбей из 🎰 кейса</div>}
                       <div className="cxp" id={`xp-${c.id}`}>
@@ -1821,7 +1859,7 @@ async function loadStats(): Promise<void> {
                         {ab?.lines.map((l) => <li key={l}>{l}</li>)}
                         <li className="csup">{ab?.sup}</li>
                       </ul>
-                      <div className="cupgLine"><small>🔧 Прокачка: ❤️×{u.hp} 💪×{u.dmg} 💨×{u.spd} {c.id === 'mtt' ? '⚡' : '🌀'}×{u.sup} · кд супера {g?.superCdOf(c.id) ?? (c.id === 'mtt' ? 3 : 5)}с</small></div>
+                      <div className="cupgLine"><small>🔧 Прокачка: ❤️×{u.hp} 💪×{u.dmg} 💨×{u.spd} {c.id === 'mtt' ? '⚡' : c.id === 'shuba' ? '👻' : '🌀'}×{u.sup} · кд супера {g?.superCdOf(c.id) ?? (c.id === 'krysa' ? 5 : c.id === 'shuba' ? 12 : 3)}с</small></div>
                       <button
                         className="wbtn"
                         id={`upg-${c.id}`}
@@ -1835,7 +1873,7 @@ async function loadStats(): Promise<void> {
                             ['hp', '❤️ Здоровье', `+15 maxHP за уровень (макс +${UPG_MAX.hp * 15})`],
                             ['dmg', '💪 Сила', '+8% к урону за уровень'],
                             ['spd', '💨 Скорость', '+6% к скорости за уровень'],
-                            ['sup', c.id === 'mtt' ? '⚡ Супер: рывок' : '🌀 Супер: вол-кик', `кд → мин 1.7с (сейчас ${g?.superCdOf(c.id)}с) · дальность ×${superRange(u.sup)} (+15%/ур)`],
+                            ['sup', c.id === 'mtt' ? '⚡ Супер: рывок' : c.id === 'shuba' ? '👻 Супер: несутка' : '🌀 Супер: вол-кик', `кд → мин ${c.id === 'shuba' ? '8' : '1.7'}с (сейчас ${g?.superCdOf(c.id)}с)${c.id === 'shuba' ? '' : ` · дальность ×${superRange(u.sup)} (+15%/ур)`}`],
                           ] as Array<[keyof UpgState, string, string]>).map(([key, label, hint]) => {
                             const lvlU = u[key];
                             const max = UPG_MAX[key];

@@ -21,6 +21,7 @@ import brCeilUrl from '../assets/br-ceil.jpg';
 import bossUrl from '../assets/boss.png';
 import charMttUrl from '../assets/char-mtt.png';
 import charKrysaUrl from '../assets/char-krysa.png';
+import charShubaUrl from '../assets/char-shuba.png';
 import stalkerUrl from '../assets/stalker.png';
 import shotUrl from '../assets/shot.mp3';
 import hitUrl from '../assets/hit.mp3';
@@ -33,8 +34,9 @@ export function upgCost(key: keyof UpgState, lvl: number): number {
   const base = key === 'sup' ? 150 : 100;
   return Math.round(base * Math.pow(3.5, lvl));
 }
-/** Кд суперспособности с учётом прокачки, минимум 1.7с. */
+/** Кд суперспособности с учётом прокачки: МТТ/рывок мин 1.7с, Крыса мин 1.7с, Ивангой-невидимость мин 8с. */
 export function superCd(id: string, sup: number): number {
+  if (id === 'shuba') return Math.max(8, Math.round((12 - sup * 0.8) * 10) / 10);
   const base = id === 'krysa' ? 5 : 3;
   const step = id === 'krysa' ? 0.7 : 0.3;
   return Math.max(1.7, Math.round((base - sup * step) * 10) / 10);
@@ -57,6 +59,7 @@ export interface CharDef {
 export const CHARS: CharDef[] = [
   { id: 'mtt', name: '🕶️ МТТ', desc: 'Шуба, очки, золотые перчатки · +HP', hp: 120, spd: 1, rarity: 'Базовый' },
   { id: 'krysa', name: '🐀 Стейси Крыса', desc: 'Королева крыс · скорость, прыжки ×3, вол-кик', hp: 90, spd: 1.15, rarity: 'Легендарный' },
+  { id: 'shuba', name: '🥷 Ивангой', desc: 'Невидимка в белой шубе · супер — несутка на 3с', hp: 105, spd: 1.05, rarity: 'Редкий' },
 ];
 
 /** Кейс бойца: цена открытия в фантиках. */
@@ -128,6 +131,10 @@ export interface HudState {
   moving: boolean;
   dash: number;
   kick: number;
+  /** Невидимость Ивангоя: осталось секунд (0 — нет). Кд смотри в superCdOf. */
+  invis: number;
+  /** Перезарядка несутки Ивангоя: осталось секунд (0 — готова). */
+  invisCd: number;
   med: number;
   lvl: number;
   /** Живых боссов на карте — для баннера 👑. */
@@ -196,6 +203,8 @@ export const DEFAULT_KEYS: KeyMap = {
 export interface GameEvents {
   onHud: (h: HudState) => void;
   onBusted: (s: { score: number; coins: number }) => void;
+  /** скример бэкрумса: сталкер убил с 1 удара — показать жуть на весь экран */
+  onJumpscare?: () => void;
   onSwing: () => void;
   /** удар по сетевому мобу: App шлёт mobhit на сервер, ответ применяет через netSyncHp/netKill */
   onNetHit?: (id: number, dmg: number) => void;
@@ -366,13 +375,22 @@ export class Game {
     this.pushHud();
     return true;
   }
-  /** Открыть кейс бойца за фантики. Шанс Стейси 20% (если ещё закрыта), иначе утешительный приз. */
+  /** Открыть кейс бойца за фантики. Шуба 12% (Редкий), Стейси 20% (Легендарный), иначе утешительный приз. */
   openCase(): CaseDrop {
     if (this.fantiki < CASE_PRICE) return { ok: false, kind: 'empty', text: 'Не хватает фантиков' };
     this.fantiki -= CASE_PRICE;
     const roll = Math.random();
-    // Стейси ещё закрыта — 20% на неё
-    if (!this.ownedChars.includes('krysa') && roll < 0.2) {
+    // Шуба ещё закрыта — 12% на неё (редкий)
+    if (!this.ownedChars.includes('shuba') && roll < 0.12) {
+      this.unlockChar('shuba');
+      this.addXp(100);
+      this.saveShop();
+      this.pushHud();
+      return { ok: true, kind: 'char', text: '🥷 ИВАНГОЙ · Редкий — твоя!' };
+    }
+    // Стейси ещё закрыта — 20% на неё (сдвиг после шанса Шубы)
+    const krysaChance = !this.ownedChars.includes('shuba') ? 0.32 : 0.2;
+    if (!this.ownedChars.includes('krysa') && roll < krysaChance) {
       this.unlockChar('krysa');
       this.addXp(100);
       this.saveShop();
@@ -402,6 +420,15 @@ export class Game {
     this.pushHud();
     return { ok: true, kind: 'fantiki', text: '+300 🎟️ фантиков' };
   }
+  /** Начислить фантики (промокод): плюс на баланс, сейв, HUD. Возвращает баланс. */
+  addFantiki(n: number): number {
+    const v = Math.max(0, Math.floor(Number(n) || 0));
+    if (v <= 0) return this.fantiki;
+    this.fantiki += v;
+    this.saveShop();
+    this.pushHud();
+    return this.fantiki;
+  }
   // аптечки и опыт бойцов (не сносить сейвы: merge поверх)
   private medkits = 0;
   private upg: Record<string, UpgState> = (() => {
@@ -414,8 +441,8 @@ export class Game {
         spd: Math.max(0, Math.min(UPG_MAX.spd, Math.floor(p?.spd ?? 0))),
         sup: Math.max(0, Math.min(UPG_MAX.sup, Math.floor(p?.sup ?? 0))),
       });
-      return { mtt: clean(d.mtt), krysa: clean(d.krysa) };
-    } catch { return { mtt: blank(), krysa: blank() }; }
+      return { mtt: clean(d.mtt), krysa: clean(d.krysa), shuba: clean(d.shuba) };
+    } catch { return { mtt: blank(), krysa: blank(), shuba: blank() }; }
   })();
   private saveUpg(): void {
     try { localStorage.setItem('mtt_upg_v1', JSON.stringify(this.upg)); } catch { /* noop */ }
@@ -423,8 +450,8 @@ export class Game {
   private xp: Record<string, number> = (() => {
     try {
       const d = JSON.parse(localStorage.getItem('mtt_xp_v1') ?? '{}') as Record<string, number>;
-      return { mtt: Math.max(0, Math.floor(d.mtt ?? 0)), krysa: Math.max(0, Math.floor(d.krysa ?? 0)) };
-    } catch { return { mtt: 0, krysa: 0 }; }
+      return { mtt: Math.max(0, Math.floor(d.mtt ?? 0)), krysa: Math.max(0, Math.floor(d.krysa ?? 0)), shuba: Math.max(0, Math.floor(d.shuba ?? 0)) };
+    } catch { return { mtt: 0, krysa: 0, shuba: 0 }; }
   })();
   private soundOn = true;
   private sens = 1;
@@ -448,6 +475,8 @@ export class Game {
   readonly enemiesOn: boolean = true;
   /** Своя карта из редактора (map 'custom'). */
   private custom: CustomMap | null = null;
+  /** Сид лабиринта бэкрумса — один на всех в комнате. */
+  readonly mapSeed: number;
   private wallKickCd = 0;
   /** Таймер топота игрока (шаги — по земле, в полёте тишина). */
   private stepT = 0;
@@ -507,6 +536,9 @@ export class Game {
   }
   private dashT = 0;
   private dashCd = 0;
+  /** Невидимость Ивангоя: invisT — осталось секунд жути, invisCd — перезарядка. */
+  private invisT = 0;
+  private invisCd = 0;
   private dashDx = 0;
   private dashDy = 0;
   private dashDz = 0;
@@ -596,6 +628,7 @@ export class Game {
   ) {
     this.enemiesOn = opts.enemies !== false;
     this.custom = opts.custom ?? null;
+    this.mapSeed = (opts.seed ?? Math.floor(Math.random() * 2 ** 31)) >>> 0;
     // Бэкрумс большой: лабиринт ~120м. Размер задаёт сам строитель через halfOverride.
     this.half = map === 'duel' ? 32 : HALF;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
@@ -929,7 +962,7 @@ export class Game {
 
   /** Предзагрузка текстур перед боем: греет кэш, отдаёт прогресс 0–100. */
   async preload(onPct: (p: number) => void): Promise<void> {
-    const urls = [vrag1Url, vrag2Url, bossUrl, charMttUrl, charKrysaUrl, dom1Url, travaUrl, facadeUrl, panelUrl, shopUrl, roofUrl, roadUrl, walkUrl, plazaUrl, fenceUrl, skyUrl, edgeUrl, house2Url, brickUrl, brFloorUrl, brWallUrl, brCeilUrl];
+    const urls = [vrag1Url, vrag2Url, bossUrl, charMttUrl, charKrysaUrl, charShubaUrl, dom1Url, travaUrl, facadeUrl, panelUrl, shopUrl, roofUrl, roadUrl, walkUrl, plazaUrl, fenceUrl, skyUrl, edgeUrl, house2Url, brickUrl, brFloorUrl, brWallUrl, brCeilUrl];
     if (urls.length === 0) { onPct(100); return; }
     await new Promise<void>((resolve) => {
       let done = 0;
@@ -1075,7 +1108,9 @@ export class Game {
     ceil.rotation.x = Math.PI / 2;
     ceil.position.y = WH;
     scene.add(ceil);
-    // случайный лабиринт: recursive backtracker
+    // лабиринт по сиду комнаты: recursive backtracker на seeded RNG.
+    // Один сид = одна карта у всех игроков. Было Math.random — у каждого своя.
+    const rng = mulberry32(this.mapSeed);
     const vWall: boolean[][] = Array.from({ length: N + 1 }, () => new Array(N).fill(true));
     const hWall: boolean[][] = Array.from({ length: N }, () => new Array(N + 1).fill(true));
     const seen: boolean[][] = Array.from({ length: N }, () => new Array(N).fill(false));
@@ -1089,7 +1124,7 @@ export class Game {
       if (cy > 0 && !seen[cx][cy - 1]) nb.push([cx, cy - 1, 2]);
       if (cy < N - 1 && !seen[cx][cy + 1]) nb.push([cx, cy + 1, 3]);
       if (nb.length === 0) { stack.pop(); continue; }
-      const [nx, ny, dir] = nb[Math.floor(Math.random() * nb.length)];
+      const [nx, ny, dir] = nb[Math.floor(rng() * nb.length)];
       if (dir === 0) vWall[cx][cy] = false;
       else if (dir === 1) vWall[cx + 1][cy] = false;
       else if (dir === 2) hWall[cx][cy] = false;
@@ -1149,7 +1184,7 @@ export class Game {
     for (let i = 1; i < N; i += 3) {
       for (let j = 1; j < N; j += 3) {
         const isStart = i === 1 && j === 1;
-        const roll = Math.random();
+        const roll = rng();
         if (flickLeft > 0 && !isStart && roll > 0.86) {
           flickLeft--;
           cellKind.set(i + ':' + j, 'flick');
@@ -1200,7 +1235,7 @@ export class Game {
           const fl = new THREE.PointLight(0xffc06a, 2, 13, 1.8);
           fl.position.set(lx, WH - 0.5, lz);
           scene.add(fl);
-          this.lampFlicker.push({ mat: fmat, light: fl, seed: Math.random() * 100 });
+          this.lampFlicker.push({ mat: fmat, light: fl, seed: rng() * 100 });
         } else if (kind === 'live') {
           // панель горит + лужа на полу всегда; настоящий источник — только у избранных
           const panel = new THREE.Mesh(lampGeo, liveMat);
@@ -1234,8 +1269,8 @@ export class Game {
   }
 
   /** Для тестов: параметры сгенерированного лабиринта. */
-  debugMaze(): { n: number; cell: number; segs: number; half: number } {
-    return { n: 21, cell: 6, segs: this.solids.length, half: this.half };
+  debugMaze(): { n: number; cell: number; segs: number; half: number; seed: number } {
+    return { n: 21, cell: 6, segs: this.solids.length, half: this.half, seed: this.mapSeed };
   }
 
   /**
@@ -2685,7 +2720,8 @@ export class Game {
     return bd >= 25 ? best : null;
   }
   /** Пак Бэкрумса: только бессмертные сталкеры (5 + волна, макс 10).
-      Обычных мобов на этой карте нет — жуть должна давить, а не фармиться. */
+      Обычных мобов на этой карте нет — жуть должна давить, а не фармиться.
+      Спавн в 100м от игрока, чтобы не падали на голову. */
   private spawnBackroomsPack(): number {
     if (this.netSync) return 0;
     const want = Math.min(5 + Math.floor(this.wave / 2), 10);
@@ -2693,7 +2729,7 @@ export class Game {
     // добиваем пак до нормы (волна зачистки не будет — сталкеры не умирают)
     while (have < want) {
       const before = this.enemies.length;
-      this.spawnEnemy('walk', 40, this.farSpot(40));
+      this.spawnEnemy('walk', 100, this.farSpot(100));
       if (this.enemies.length <= before) break;
       const e = this.enemies[this.enemies.length - 1]!;
       this.toStalker(e);
@@ -2709,7 +2745,7 @@ export class Game {
     this.stalkersOn = true;
     for (let i = 0; i < 5; i++) {
       const before = this.enemies.length;
-      this.spawnEnemy('walk', 40, this.farSpot(40));
+      this.spawnEnemy('walk', 100, this.farSpot(100));
       if (this.enemies.length > before) {
         const e = this.enemies[this.enemies.length - 1]!;
         this.toStalker(e);
@@ -2737,11 +2773,39 @@ export class Game {
   private specOn = false;
   private specX = 0;
   private specZ = 0;
-  setSpec(on: boolean, x = 0, z = 0): void {
+  /** Ник живого игрока, за которым летит камера. Пусто — стоим на точке. */
+  private specFollow = '';
+  setSpec(on: boolean, x = 0, z = 0, followNick = ''): void {
     this.specOn = on;
     this.specX = x; this.specZ = z;
+    if (followNick !== '') this.specFollow = followNick;
+    if (!on) this.specFollow = '';
   }
   debugSpec(): boolean { return this.specOn; }
+
+  /** Каждый кадр подтягиваем камеру к живому: цель убежала — летим за ней,
+      цель умерла — пересаживаемся на первого живого. Наблюдателя враги игнорят. */
+  private updateSpecFollow(): void {
+    if (!this.specOn) return;
+    const alive = this.remotes.filter((r) => !r.dead);
+    if (alive.length === 0) return;
+    let t = alive.find((r) => r.nick === this.specFollow);
+    if (!t) { t = alive[0]!; this.specFollow = t.nick; }
+    this.specX = t.x; this.specZ = t.z;
+  }
+
+  /** Сталкер бэкрумса убивает с 1 удара: смерть + скример на весь экран. */
+  private killByStalker(): void {
+    if (this.dead || this.specOn || this.invisT > 0 || this.shieldT > 0) return;
+    this.hp = 0;
+    this.dead = true;
+    this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
+    this.shakeT = 0.35;
+    try { this.sfx(hitUrl, 0.8); } catch { /* noop */ }
+    this.pushHud();
+    this.ev.onBusted({ score: this.score, coins: 0 });
+    try { this.ev.onJumpscare?.(); } catch { /* noop */ }
+  }
 
   debugFlyers(): number {
     return this.enemies.filter((e) => !e.dead && e.kind === 'fly').length;
@@ -2785,7 +2849,9 @@ export class Game {
     }
     for (let t = 0; t < 24 && !ok; t++) {
       const a = Math.random() * Math.PI * 2;
-      const r = 26 + Math.random() * 22;
+      // бэкрумс: спавн в 100м от игрока (100–115м кольцо), остальные как раньше (26–48м)
+      const far = this.map === 'backrooms' || this.map === 'endless';
+      const r = far ? 100 + Math.random() * 15 : 26 + Math.random() * 22;
       const cx = clampArena(Math.cos(a) * r, this.half);
       const cz = clampArena(Math.sin(a) * r, this.half);
       if (this.hitSolid(cx, cz, 2)) continue;
@@ -2795,8 +2861,9 @@ export class Game {
       break;
     }
     // запасные свободные точки, если рандом не нашёл: сначала дальняя от игрока
+    // (бэкрумс — от 100м, остальные — от 25м)
     if (!ok) {
-      const fs = this.farSpot(25);
+      const fs = this.farSpot(this.map === 'backrooms' || this.map === 'endless' ? 100 : 25);
       if (fs) { sx = fs[0]; sz = fs[1]; ok = true; }
     }
     if (!ok) {
@@ -3264,7 +3331,7 @@ export class Game {
     this.dashDy = Math.sin(this.pitch);
     this.dashDz = -Math.cos(this.yaw) * cp;
     this.dashT = 0.18;
-    this.dashCd = superCd('mtt', this.upg.mtt?.sup ?? 0);
+    this.dashCd = superCd(this.charId, this.upg[this.charId]?.sup ?? 0);
     this.pvy = 0;
     this.burst(this.px, 0.4, this.pz, 12);
     this.pushHud();
@@ -3272,6 +3339,20 @@ export class Game {
   }
 
   debugDash(): number { return Math.round(this.dashCd * 10) / 10; }
+
+  // несутка Ивангоя: 3с враги не видят и не преследуют, перезарядка 12с (качается до 8с).
+  invis(): boolean {
+    if (!this.started || this.dead || this.invisCd > 0 || this.invisT > 0 || this.charId !== 'shuba') return false;
+    this.invisT = 3;
+    this.invisCd = superCd('shuba', this.upg['shuba']?.sup ?? 0);
+    this.burst(this.px, 0.4, this.pz, 12);
+    this.pushHud();
+    return true;
+  }
+
+  debugInvis(): { t: number; cd: number } {
+    return { t: Math.round(this.invisT * 10) / 10, cd: Math.round(this.invisCd * 10) / 10 };
+  }
   /** В бою (для общей комнаты): идёт игра и боец жив. */
   debugPlaying(): boolean { return this.started && !this.dead; }
   debugAtkCd(): number { return Math.round(this.atkCd * 10) / 10; }
@@ -3667,6 +3748,8 @@ export class Game {
       boss: bosses,
       dash: Math.round(this.dashCd * 10) / 10,
       kick: Math.round(this.wallKickCd * 10) / 10,
+      invis: Math.round(this.invisT * 10) / 10,
+      invisCd: Math.round(this.invisCd * 10) / 10,
       fps: Math.round(this.fpsE),
       quality: this.quality,
     });
@@ -3700,10 +3783,10 @@ export class Game {
   private charTexCache: Record<string, THREE.Texture> = {};
 
   private charTexture(id: string): THREE.Texture {
-    const key = id === 'krysa' ? 'krysa' : 'mtt';
+    const key = id === 'krysa' ? 'krysa' : id === 'shuba' ? 'shuba' : 'mtt';
     let t = this.charTexCache[key];
     if (!t) {
-      t = new THREE.TextureLoader().load(key === 'krysa' ? charKrysaUrl : charMttUrl);
+      t = new THREE.TextureLoader().load(key === 'krysa' ? charKrysaUrl : key === 'shuba' ? charShubaUrl : charMttUrl);
       t.colorSpace = THREE.SRGBColorSpace;
       this.charTexCache[key] = t;
     }
@@ -3755,7 +3838,7 @@ export class Game {
       const pfid0 = Math.floor(Number(p.fid));
       const key = Number.isFinite(pfid0) && pfid0 >= 0 ? 'fid:' + pfid0 : 'nick:' + nick;
       seen.add(key);
-      const char = p.char === 'krysa' ? 'krysa' : 'mtt';
+      const char = p.char === 'krysa' ? 'krysa' : p.char === 'shuba' ? 'shuba' : 'mtt';
       const weapon = p.weapon === 'bat' || p.weapon === 'axe' || p.weapon === 'pistol' || p.weapon === 'shotgun' ? p.weapon : 'fists';
       let r: Remote | undefined = undefined;
       for (const q of this.remotes) {
@@ -4063,15 +4146,26 @@ export class Game {
         const e = 1 - t * t;
         this.yaw = this.kickTurnFrom + this.kickTurnDelta * e;
       }
-      // способность на C: Крыса — вол-кик (съедено выше), остальные — рывок МТТ.
+      // способность на C: Крыса — вол-кик (съедено выше), Шуба-Ивангой — несутка, остальные — рывок МТТ.
       // Наблюдатель способностей не жмёт.
       if (this.input[km.ability] && this.charId !== 'krysa' && !this.specOn) {
         this.input[km.ability] = false;
-        this.dash();
+        if (this.charId === 'shuba') this.invis(); else this.dash();
       } else if (this.specOn) {
         this.input[km.ability] = false;
       }
       if (this.dashCd > 0) this.dashCd -= dt;
+      // несутка тикает: кончилась — сбрасываем HUD (враги снова видят)
+      if (this.invisT > 0) {
+        this.invisT -= dt;
+        if (this.invisT <= 0) { this.invisT = 0; this.pushHud(); }
+        else if (Math.floor(this.invisT * 5) !== Math.floor((this.invisT + dt) * 5)) this.pushHud();
+      }
+      if (this.invisCd > 0) {
+        this.invisCd -= dt;
+        if (this.invisCd <= 0) { this.invisCd = 0; this.pushHud(); }
+        else if (Math.floor(this.invisCd * 5) !== Math.floor((this.invisCd + dt) * 5)) this.pushHud();
+      }
       // смена оружия на назначенной клавише (по умолчанию E) — только купленное
       if (this.input[km.switch] || this.input.KeyE) {
         this.input[km.switch] = false;
@@ -4180,13 +4274,26 @@ export class Game {
         const g = this.groundAt(this.px, this.pz);
         if (this.py <= g) { this.py = g; this.pvy = 0; this.blastT = 0; this.blastDx = 0; this.blastDz = 0; }
       }
+      // наблюдатель: камеру держим на живом каждый кадр (цель бежит — летим за ней)
+      this.updateSpecFollow();
       // враги идут к игроку и бьют в упор; сетевые куклы — догоняют точку хоста
       for (const e of this.enemies) {
         if (e.dead) continue;
-        // сталкеры (god): идут к ближайшему живому — хозяину или сокомнатнику
-        let txp = this.px, tzp = this.pz;
+        // наблюдателя и несутку-Ивангоя враги не видят: себя из целей убираем, бьём только живых бойцов.
+        // Сталкеры (god): идут к ближайшему живому — сокомнатнику (себя скипаем в specOn/невидимости)
+        const hidden = this.specOn || this.invisT > 0;
+        let txp = hidden ? Infinity : this.px, tzp = hidden ? Infinity : this.pz;
         let huntingRemote = false;
-        if (e.god && !e.net) {
+        if (hidden) {
+          // только живые сокомнатники; нет живых — враг стоит (цели нет)
+          let bd = Infinity;
+          for (const r of this.remotes) {
+            if (r.dead) continue;
+            const rd = Math.hypot(r.x - e.g.position.x, r.z - e.g.position.z);
+            if (rd < bd) { bd = rd; txp = r.x; tzp = r.z; huntingRemote = true; }
+          }
+          if (!huntingRemote) continue;
+        } else if (e.god && !e.net) {
           let bd = Math.hypot(txp - e.g.position.x, tzp - e.g.position.z);
           for (const r of this.remotes) {
             if (r.dead) continue;
@@ -4202,11 +4309,15 @@ export class Game {
           const mp = this.snapAt(e.snaps, performance.now() - 550, e.tx, e.tz);
           e.g.position.x = mp.x;
           e.g.position.z = mp.z;
-          // кукла сталкера рядом — бьёт гостя локально (серверный урон гаснет только у хоста)
-          if (e.god && !this.dead) {
+          // кукла сталкера рядом — бьёт гостя локально (серверный урон гаснет только у хоста).
+          // наблюдателя не бьём вообще: камера летает, тела в бою нет.
+          // БЭКРУМС: 1 удар = смерть + скример. Остальные карты — старый урон.
+          if (e.god && !this.dead && !this.specOn && this.invisT <= 0) {
             const pd = Math.hypot(this.px - e.g.position.x, this.pz - e.g.position.z);
             if (pd <= 2.3 && e.hitCd <= 0 && this.shieldT <= 0) {
               e.hitCd = 1.0;
+              if (this.map === 'backrooms' || this.map === 'endless') { this.killByStalker(); }
+              else {
               this.hp -= 12 + Math.random() * 6;
               this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
               this.shakeT = 0.25;
@@ -4217,12 +4328,15 @@ export class Game {
                 this.pushHud();
                 this.ev.onBusted({ score: this.score, coins: 0 });
               }
+              }
               this.pushHud();
             }
           }
         } else if (e.god && !huntingRemote && d <= 2.3 && e.hitCd <= 0 && this.shieldT <= 0) {
-          // сталкер достал: удар злее босса
+          // БЭКРУМС: 1 удар = смерть + скример. Остальные карты — старый урон.
           e.hitCd = 1.0;
+          if (this.map === 'backrooms' || this.map === 'endless') { this.killByStalker(); }
+          else {
           this.hp -= 12 + Math.random() * 6;
           this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
           this.shakeT = 0.25;
@@ -4232,6 +4346,7 @@ export class Game {
             this.dead = true;
             this.pushHud();
             this.ev.onBusted({ score: this.score, coins: 0 });
+          }
           }
           this.pushHud();
         } else if (d > 2.1) {
@@ -4339,7 +4454,7 @@ export class Game {
             if (e.ey > gt) e.ey += (gt - e.ey) * Math.min(1, dt * 4);
           }
           } // LOD: дальние двигаются через кадр
-        } else if (e.hitCd <= 0 && this.shieldT <= 0) {
+        } else if (e.hitCd <= 0 && this.shieldT <= 0 && !this.specOn && this.invisT <= 0) {
           e.hitCd = e.kind === 'boss' ? 1.2 : 0.95;
           // босс бьёт втрое злее
           this.hp -= e.kind === 'boss' ? 18 + Math.random() * 10 : 6 + Math.random() * 5;

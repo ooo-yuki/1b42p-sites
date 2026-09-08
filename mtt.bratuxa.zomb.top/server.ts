@@ -32,6 +32,15 @@ db.run(`CREATE TABLE IF NOT EXISTS duel_top (
   login TEXT PRIMARY KEY,
   wins INTEGER NOT NULL DEFAULT 0
 )`);
+// промокоды: кто какой код уже забрал (один код — один раз на логин)
+db.run(`CREATE TABLE IF NOT EXISTS promo_redeems (
+  login TEXT NOT NULL,
+  code TEXT NOT NULL,
+  ts INTEGER NOT NULL,
+  PRIMARY KEY (login, code)
+)`);
+/** Промокоды батальона: код → фантиков на аккаунт. */
+const PROMOS: Record<string, number> = { G1PRT: 2500 };
 
 async function registerUser(login: string, pass: string): Promise<{ ok: boolean; error?: string; token?: string }> {
   if (String(pass ?? '').length < 4 || String(pass ?? '').length > 64) return { ok: false, error: 'passlen' };
@@ -118,7 +127,7 @@ interface Member {
 interface ChatMsg { nick: string; text: string; t: number }
 /** Общий моб комнаты: симулирует владелец (хост), сервер раздаёт всем. god = неубиваемый (сталкеры Бэкрумса). */
 interface Mob { id: number; kind: string; x: number; z: number; hp: number; dead: boolean; wave: number; god: boolean }
-interface Room { id: string; name: string; mode: 'arena' | 'duel' | 'backrooms' | 'pvp' | 'endless' | 'invasion'; created: number; /** TTL-рестарт сек (0 = без рестарта) */ ttlSec: number; /** официальная комната батальона — живёт всегда, рестарт сбрасывает игру на месте */ official: boolean; round: number; lastWinner: string; owner: string; started: boolean; players: Map<string, Member>; pending: Map<string, Member>; chat: ChatMsg[]; mobs: Map<number, Mob>; mobHost: string; /** тихий вылет: ключ→когда ушёл (грейс-возврат без заявки) */ gone: Map<string, number>; /** кик = бан: ключ→до когда нельзя */ banned: Map<string, number>; }
+interface Room { id: string; name: string; mode: 'arena' | 'duel' | 'backrooms' | 'pvp' | 'endless' | 'invasion'; created: number; /** Сид карты бэкрумса: один на всех в комнате, новый на каждую комнату/рестарт. */ seed: number; /** TTL-рестарт сек (0 = без рестарта) */ ttlSec: number; /** официальная комната батальона — живёт всегда, рестарт сбрасывает игру на месте */ official: boolean; round: number; lastWinner: string; owner: string; started: boolean; players: Map<string, Member>; pending: Map<string, Member>; chat: ChatMsg[]; mobs: Map<number, Mob>; mobHost: string; /** тихий вылет: ключ→когда ушёл (грейс-возврат без заявки) */ gone: Map<string, number>; /** кик = бан: ключ→до когда нельзя */ banned: Map<string, number>; }
 const rooms = new Map<string, Room>();
 const STALE_MS = 12000;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -134,6 +143,12 @@ function newCode(): string {
   let c = '';
   for (let i = 0; i < 6; i++) c += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
   return rooms.has(c) ? newCode() : c;
+}
+
+/** Новый сид карты: случайный на каждую комнату. Сервер перезапустился — комнаты
+    пересоздались с новым сидом, карта новая, но одна на всех внутри комнаты. */
+function newSeed(): number {
+  return Math.floor(Math.random() * 2 ** 31) >>> 0;
 }
 
 function memberKey(m: { login: string; nick: string }): string {
@@ -208,7 +223,7 @@ function ensureOfficial(): void {
     if (rooms.has(def.id)) continue;
     const mode = def.mode as Room['mode'];
     rooms.set(def.id, {
-      id: def.id, name: def.name, mode, created: Date.now(), ttlSec: ttlFor(mode),
+      id: def.id, name: def.name, mode, created: Date.now(), seed: newSeed(), ttlSec: ttlFor(mode),
       official: true, round: 1, lastWinner: '', owner: '', started: true,
       players: new Map(), pending: new Map(), chat: [], mobs: new Map(),
       mobHost: '', gone: new Map(), banned: new Map(),
@@ -217,7 +232,7 @@ function ensureOfficial(): void {
 }
 
 function cleanChar(v: unknown): string {
-  return v === 'krysa' ? 'krysa' : 'mtt';
+  return v === 'krysa' ? 'krysa' : v === 'shuba' ? 'shuba' : 'mtt';
 }
 
 function pubList(m: Member): object {
@@ -236,7 +251,7 @@ function duelSpawn(i: number): { x: number; z: number; yaw: number } {
 async function roomsApi(req: Request): Promise<Response | null> {
   const u = new URL(req.url);
   const p = u.pathname;
-  if (!p.startsWith('/api/rooms') && !p.startsWith('/api/register') && !p.startsWith('/api/login') && !p.startsWith('/api/me') && !p.startsWith('/api/profile') && !p.startsWith('/api/password') && !p.startsWith('/api/admin') && !p.startsWith('/api/stats')) return null;
+  if (!p.startsWith('/api/rooms') && !p.startsWith('/api/register') && !p.startsWith('/api/login') && !p.startsWith('/api/me') && !p.startsWith('/api/profile') && !p.startsWith('/api/password') && !p.startsWith('/api/promo') && !p.startsWith('/api/admin') && !p.startsWith('/api/stats')) return null;
   const parts = p.split('/').filter(Boolean); // ['api','rooms', id?, action?]
 
   // ---- аккаунты ----
@@ -284,6 +299,20 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const r = await changePassword(login, String(body.old ?? ''), String(body.pass ?? ''));
     if (!r.ok) return Response.json({ error: r.error }, { status: r.error === 'badpass' ? 401 : 400 });
     return Response.json({ ok: true });
+  }
+  // промокод: только с аккаунтом (токен), каждый код — один раз на логин
+  if (p === '/api/promo' && req.method === 'POST') {
+    let body: Record<string, unknown> = {};
+    try { body = await req.json() as Record<string, unknown>; } catch { return Response.json({ error: 'bad' }, { status: 400 }); }
+    const login = loginByToken(body.token);
+    if (!login) return Response.json({ error: 'nologin' }, { status: 401 });
+    const code = String(body.code ?? '').trim().toUpperCase().slice(0, 24);
+    const reward = PROMOS[code];
+    if (!reward) return Response.json({ error: 'badcode' }, { status: 404 });
+    const used = db.query('SELECT login FROM promo_redeems WHERE login = ? AND code = ?').get(login, code) as { login: string } | null;
+    if (used) return Response.json({ error: 'used' }, { status: 409 });
+    db.run('INSERT INTO promo_redeems (login, code, ts) VALUES (?, ?, ?)', [login, code, Date.now()]);
+    return Response.json({ ok: true, code, fantiki: reward });
   }
   // админ-статистика МТТ: онлайн по комнатам — кто где и что делает
   if (p === '/api/admin/stats' && req.method === 'GET') {
@@ -354,10 +383,10 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const sid = newSid();
     const sp = duelSpawn(0);
     const pvpSp = mode === 'pvp' || mode === 'endless' || mode === 'invasion' ? randSpawnXZ() : { x: 0, z: 22 };
-    const room: Room = { id, name, mode, created: Date.now(), ttlSec: ttlFor(mode), official: false, round: 1, lastWinner: '', owner: sid, started: false, players: new Map(), pending: new Map(), chat: [], mobs: new Map(), mobHost: '', gone: new Map(), banned: new Map() };
+    const room: Room = { id, name, mode, created: Date.now(), seed: newSeed(), ttlSec: ttlFor(mode), official: false, round: 1, lastWinner: '', owner: sid, started: false, players: new Map(), pending: new Map(), chat: [], mobs: new Map(), mobHost: '', gone: new Map(), banned: new Map() };
     room.players.set(sid, { sid, nick, login, char: cleanChar(body.char), x: mode === 'duel' ? sp.x : pvpSp.x, z: mode === 'duel' ? sp.z : pvpSp.z, yaw: mode === 'duel' ? sp.yaw : 0, hp: 100, score: 0, kills: 0, wave: 1, weapon: 'fists', py: 0, atk: 0, dead: false, duelHp: 100, wins: 0, spawnIdx: 0, frags: 0, spec: false, specTarget: '', respawn: null, ts: Date.now() });
     rooms.set(id, room);
-    return Response.json({ id, sid, mode, spawn: mode === 'duel' ? sp : null, restartIn: restartIn(room) });
+    return Response.json({ id, sid, mode, seed: room.seed, spawn: mode === 'duel' ? sp : null, restartIn: restartIn(room) });
   }
 
   if (parts.length < 4) return Response.json({ error: 'bad' }, { status: 404 });
@@ -387,15 +416,15 @@ async function roomsApi(req: Request): Promise<Response | null> {
       room.gone.delete(key);
       room.pending.delete(sid);
       room.players.set(sid, member);
-      return Response.json({ sid, name: room.name, mode: room.mode, pending: false });
+      return Response.json({ sid, name: room.name, mode: room.mode, seed: room.seed, pending: false });
     }
     // официальные сервера: сразу в игру, без заявки
     if (room.official) {
       room.players.set(sid, member);
-      return Response.json({ sid, name: room.name, mode: room.mode, pending: false, official: true });
+      return Response.json({ sid, name: room.name, mode: room.mode, seed: room.seed, pending: false, official: true });
     }
     room.pending.set(sid, member);
-    return Response.json({ sid, name: room.name, mode: room.mode, pending: true });
+    return Response.json({ sid, name: room.name, mode: room.mode, seed: room.seed, pending: true });
   }
 
   // состояние лобби для меню: кто внутри, кто просится, запущена ли игра
@@ -413,10 +442,10 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const isOwner = sid !== '' && sid === room.owner;
     const mine = sid !== '' && (room.players.has(sid) || room.pending.has(sid));
     // чужим состав комнаты не показываем — только факт существования
-    if (!isOwner && !mine) return Response.json({ name: room.name, mode: room.mode, started: room.started, count: room.players.size, official: room.official, restartIn: restartIn(room) });
+    if (!isOwner && !mine) return Response.json({ name: room.name, mode: room.mode, seed: room.seed, started: room.started, count: room.players.size, official: room.official, restartIn: restartIn(room) });
     const players = [...room.players.values()].filter((m) => m.sid !== sid).map(pubListSid);
     const out: Record<string, unknown> = {
-      name: room.name, mode: room.mode, started: room.started, official: room.official, restartIn: restartIn(room),
+      name: room.name, mode: room.mode, seed: room.seed, started: room.started, official: room.official, restartIn: restartIn(room),
       owner: isOwner, count: room.players.size, players,
     };
     if (isOwner) out.pending = [...room.pending.values()].map(pubListSid);
@@ -696,7 +725,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const respawn = me.respawn;
     me.respawn = null;
     if (respawn) { me.hp = 100; me.dead = false; }
-    return Response.json({ players: others, count: room.players.size, duel, scoreboard, specView, respawn, myHp: myHpSnap, mobHost: amMobHost, started: room.started, official: room.official, restartIn: restartIn(room), myFrags: me.frags, owner: sid === room.owner, t: Date.now(), chat: room.chat.slice(-20), mobs: [...room.mobs.values()].slice(0, 60).map((m) => ({ id: m.id, kind: m.kind, x: Math.round(m.x * 10) / 10, z: Math.round(m.z * 10) / 10, hp: m.hp, dead: m.dead, wave: m.wave, god: m.god })) });
+    return Response.json({ players: others, count: room.players.size, duel, scoreboard, specView, respawn, myHp: myHpSnap, mobHost: amMobHost, started: room.started, official: room.official, restartIn: restartIn(room), seed: room.seed, myFrags: me.frags, owner: sid === room.owner, t: Date.now(), chat: room.chat.slice(-20), mobs: [...room.mobs.values()].slice(0, 60).map((m) => ({ id: m.id, kind: m.kind, x: Math.round(m.x * 10) / 10, z: Math.round(m.z * 10) / 10, hp: m.hp, dead: m.dead, wave: m.wave, god: m.god })) });
   }
 
   // выйти (из игроков и из заявителей; владелец уходит — комната живёт дальше)
