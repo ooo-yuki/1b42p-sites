@@ -362,4 +362,16 @@ assert.ok(html.includes("getElementById('playBtn')"), 'play must be wired');
 assert.ok(!/^newGame\(\);/m.test(html), 'no autostart: game begins only on Play');
 
 console.log('logic.test.js: OK intro (video + play gate)');
+
+// --- шторка таблиц: топ-10 + рекорды прячутся кнопкой/T, выбор помнится ---
+assert.strictEqual(typeof __hook.panelsVisible, 'function', 'panelsVisible must be in __hook');
+assert.strictEqual(typeof __hook.togglePanelsUI, 'function', 'togglePanelsUI must be in __hook');
+assert.strictEqual(__hook.panelsVisible(true), true);
+assert.strictEqual(__hook.panelsVisible(false), false);
+assert.ok(html.includes('id="panelsBtn"'), 'panels toggle button must exist');
+assert.ok(html.includes("getElementById('panelsBtn')"), 'panels button must be wired');
+assert.ok(html.includes("e.code === 'KeyT'"), 'T key must toggle panels');
+assert.ok(html.includes('sasi42io_panels'), 'panels choice must persist');
+
+console.log('logic.test.js: OK panels toggle (button + T, persist)');
 process.exit(0);
