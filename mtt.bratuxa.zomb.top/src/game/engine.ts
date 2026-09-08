@@ -86,12 +86,32 @@ export const MAPS: Array<{ id: MapId; name: string; desc: string }> = [
 export interface CustomBlock { x: number; z: number; w: number; d: number; h: number }
 export interface CustomMap { name: string; size: number; walls: CustomBlock[] }
 
+/** Детерминированный ГСЧ (mulberry32) — один сид даёт одинаковый лабиринт всем игрокам. */
+export function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Хеш строки (id комнаты) в числовой сид — у всех в одной комнате одна карта. */
+export function hashSeed(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+
 /** Настройки запуска игры из меню. */
 export interface GameOpts {
   /** false — мирный режим: врагов нет, можно гулять. */
   enemies?: boolean;
   /** Своя карта (map 'custom'). */
   custom?: CustomMap | null;
+  /** Сид лабиринта бэкрумса: одинаковый у всех в комнате. Нет — случайный. */
+  seed?: number;
 }
 
 export interface HudState {
