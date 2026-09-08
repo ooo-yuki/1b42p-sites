@@ -70,3 +70,69 @@ export function coreMult(cycles: number): number {
 export function isVictory(modelLevel: number, coins: number): boolean {
   return modelLevel >= MODEL_LEVELS.length - 1 && coins >= VICTORY_COINS
 }
+
+export interface GameEvent {
+  id: string
+  name: string
+  desc: string
+  incomeMul: number
+  priceMul: number
+  drain: number
+  secs: number
+}
+
+export const PRESTIGE_HARDWARE: HardwareTier[] = [
+  { id: 'quantum', name: 'Квантовый чайник', desc: 'Шумит в суперпозиции', base: 40000, growth: 2.0, rate: 600 },
+  { id: 'kuzbass', name: 'Дата-ЦОД «Кузбасс»', desc: 'Гудит на весь регион', base: 250000, growth: 2.1, rate: 3500 },
+]
+export const EVENTS: GameEvent[] = [
+  { id: 'blackout', name: 'Отрубили свет', desc: '−50% дохода 30с', incomeMul: 0.5, priceMul: 1, drain: 0, secs: 30 },
+  { id: 'zavoz', name: 'Завоз с барахолки', desc: '−30% цен 60с', incomeMul: 1, priceMul: 0.7, drain: 0, secs: 60 },
+  { id: 'pug', name: 'Мопс погрыз кабель', desc: '−10% датасетов сразу', incomeMul: 1, priceMul: 1, drain: 0.1, secs: 0 },
+  { id: 'night', name: 'Ночной тариф', desc: '+50% дохода 60с', incomeMul: 1.5, priceMul: 1, drain: 0, secs: 60 },
+]
+export function eventPick(rng: () => number = Math.random): GameEvent {
+  return EVENTS[Math.floor(rng() * EVENTS.length)]
+}
+/* Лесенка пост-пула: какой цикл открывает функцию (пул на 5 ребитов). */
+export const PRESTIGE_GATES: Record<string, number> = {
+  quantum: 1, events: 1,
+  kuzbass: 2,
+  overclock: 3,
+  farm: 4, autobuyer: 4,
+  bred: 5, reflash: 5,
+}
+export const PUG_FARM_RATE = 5
+export const REFLASH_EVENT_CD_MUL = 0.5
+export const REFLASH_INCOME_MUL = 1.25
+export const OVERCLOCK_RATE_MUL = 2
+export const OVERCLOCK_HALL_PLUS = 15
+/* Цены пост-пула в датасетах (решение: в спеке задана только «цена ×4» фермы). */
+export const FARM_BASE = 2000
+export const FARM_GROWTH = 4
+export const FARM_MAX = 3
+export const AUTOBUYER_COST = 10000
+export const REFLASH_COST = 15000
+
+export function prestigeCost(tier: number, owned: number): number {
+  const t = PRESTIGE_HARDWARE[tier]
+  return Math.ceil(t.base * t.growth ** owned)
+}
+
+export function prestigeRate(owned: number[]): number {
+  return owned.reduce((sum, n, i) => sum + (PRESTIGE_HARDWARE[i] ? PRESTIGE_HARDWARE[i].rate * n : 0), 0)
+}
+
+export function farmCost(level: number): number {
+  return Math.ceil(FARM_BASE * FARM_GROWTH ** level)
+}
+
+/* Коллекция бреда: смешная галлюцинация каждой версии, чисто фан. */
+export const BRED: Array<{ ver: string; line: string }> = [
+  { ver: 'v0.1', line: 'Сказала «привет» холодильнику. Он не ответил' },
+  { ver: 'v0.7', line: 'Разметила кота как датасет. Кот против' },
+  { ver: 'v1.4', line: 'Написала код, который пишет код, который спит' },
+  { ver: 'v2.1', line: 'Нашла уязвимость в розетке. Запатчила скотчем' },
+  { ver: 'v3.0', line: 'Купила сервер сама. Соседи в панике' },
+  { ver: 'v4.2', line: 'Достигла просветления. Мы уже победили' },
+]

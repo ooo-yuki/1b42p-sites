@@ -1,8 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import {
   CLICK_BASE,
+  EVENTS,
   HARDWARE,
   MODEL_LEVELS,
+  PRESTIGE_GATES,
+  PRESTIGE_HARDWARE,
   clickGain,
   coreMult,
   hardwareCost,
@@ -68,5 +71,21 @@ describe('rebirth', () => {
   })
   test('ядра множат доход', () => {
     expect(incomePerSec(3, 2, hallucination(3, 2), 2)).toBe(incomePerSec(3, 2, hallucination(3, 2)) * 2)
+  })
+  test('пост-пул: 2 железа и события с числами из спеки', () => {
+    expect(PRESTIGE_HARDWARE.map(h => h.id)).toEqual(['quantum', 'kuzbass'])
+    expect(PRESTIGE_HARDWARE[0].rate).toBe(600)
+    expect(EVENTS.map(e => e.id)).toEqual(['blackout', 'zavoz', 'pug', 'night'])
+    expect(EVENTS[0].incomeMul).toBe(0.5)
+  })
+  test('лесенка гейтов 1–5', () => {
+    expect(PRESTIGE_GATES.quantum).toBe(1)
+    expect(PRESTIGE_GATES.events).toBe(1)
+    expect(PRESTIGE_GATES.kuzbass).toBe(2)
+    expect(PRESTIGE_GATES.overclock).toBe(3)
+    expect(PRESTIGE_GATES.farm).toBe(4)
+    expect(PRESTIGE_GATES.autobuyer).toBe(4)
+    expect(PRESTIGE_GATES.bred).toBe(5)
+    expect(PRESTIGE_GATES.reflash).toBe(5)
   })
 })
