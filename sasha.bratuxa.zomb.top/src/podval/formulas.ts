@@ -111,6 +111,12 @@ export function nodeIncome(id: string, owned: string[]): number {
   return n.rate * (1 + 0.5 * linkCount) * cluster
 }
 
+export const RAIDS = { windowSecs: 1800, openSecs: 300, minBet: 500, mul: 1.2 }
+export function raidShare(bet: number, pool: number): number {
+  if (bet <= 0 || pool <= 0) return 0
+  return Math.min(1, bet / pool)
+}
+
 export interface GameEvent {
   id: string
   name: string

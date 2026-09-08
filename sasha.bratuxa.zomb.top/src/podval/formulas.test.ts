@@ -20,6 +20,8 @@ import {
   hybridCost,
   NODES,
   nodeIncome,
+  RAIDS,
+  raidShare,
   trainCost,
 } from './formulas'
 
@@ -108,6 +110,12 @@ describe('rebirth', () => {
   test('кластер 3+ даёт ×1.5', () => {
     const trio = [NODES[0].id, ...NODES[0].links.slice(0, 2)]
     expect(nodeIncome(NODES[0].id, trio)).toBe(NODES[0].rate * (1 + 0.5 * 2) * 1.5)
+  })
+  test('рейд: окно и доли', () => {
+    expect(RAIDS.windowSecs).toBe(1800)
+    expect(RAIDS.minBet).toBe(500)
+    expect(raidShare(500, 2000)).toBe(0.25)
+    expect(raidShare(0, 2000)).toBe(0)
   })
   test('пост-пул: 2 железа и события с числами из спеки', () => {
     expect(PRESTIGE_HARDWARE.map(h => h.id)).toEqual(['quantum', 'kuzbass'])
