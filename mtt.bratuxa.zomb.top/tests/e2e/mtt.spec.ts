@@ -46,6 +46,85 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     expect(await hp()).toBeLessThan(hp0);
   });
 
+  test('враг огибает стену', async ({ page }) => {
+    await page.click('#guestBtn');
+    await page.click('#goBtn');
+    await expect(page.locator('#hudRow2')).toBeVisible({ timeout: 60000 });
+    type M = {
+      teleport: (x: number, z: number, yaw?: number) => void; spawnKind: (k: 'walk' | 'fly' | 'boss') => number;
+      foes: () => Array<{ id: number; x: number; z: number }>; pos: () => { x: number; z: number };
+      solidAt: (x: number, z: number, y: number) => boolean;
+      solids: () => Array<{ x: number; z: number; hx: number; hz: number; h: number }>;
+      path: (fx: number, fz: number, tx: number, tz: number) => Array<{ x: number; z: number }>;
+    };
+    // детерминированная часть: маршрут в обход дома — чистый BFS, без времени.
+    // Берём первый дом, где прямая загорожена, НО обход существует (карманы без прохода скипаем).
+    const route = await page.evaluate(() => {
+      const m = (window as unknown as { __mtt: M }).__mtt;
+      const houses = m.solids().filter((s) => s.hx >= 2 && s.hz >= 2 && s.h >= 3 && Math.abs(s.x) < 40 && Math.abs(s.z) < 40);
+      for (const house of houses) {
+        const ax = Math.max(-50, Math.min(50, house.x - house.hx - 4));
+        const bx = Math.max(-50, Math.min(50, house.x + house.hx + 4));
+        const d = Math.hypot(bx - ax, 0) || 1;
+        let blocked = false;
+        for (let s = 1; s < d; s++) {
+          if (m.solidAt(ax + ((bx - ax) * s) / d, house.z, 0)) { blocked = true; break; }
+        }
+        if (!blocked) continue;
+        const wps = m.path(ax, house.z, bx, house.z);
+        if (wps.length === 0) continue;
+        const wpsFree = wps.every((w) => !m.solidAt(w.x, w.z, 0));
+        const endNear = Math.hypot(wps[wps.length - 1].x - bx, wps[wps.length - 1].z - house.z);
+        return { ok: true, hx: house.x, hz: house.z, ax, bx, n: wps.length, wpsFree, endNear };
+      }
+      return { ok: false, hx: 0, hz: 0, ax: 0, bx: 0, n: 0, wpsFree: false, endNear: 999 };
+    });
+    console.log('ROUTE ' + JSON.stringify(route));
+    expect(route.ok).toBe(true);
+    expect(route.n).toBeGreaterThan(0);
+    expect(route.wpsFree).toBe(true);
+    expect(route.endNear).toBeLessThan(5);
+    // живая часть: отгороженный моб идёт, а не стоит (смещение за 20с)
+    await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.teleport(0, 10, 0));
+    let target = -1;
+    for (let round = 0; round < 3 && target < 0; round++) {
+      const found = await page.evaluate(() => {
+        const m = (window as unknown as { __mtt: M }).__mtt;
+        const before = new Set(m.foes().map((f) => f.id));
+        for (let i = 0; i < 4; i++) m.spawnKind('walk');
+        const p = m.pos();
+        for (const f of m.foes()) {
+          if (before.has(f.id)) continue;
+          const d = Math.hypot(f.x - p.x, f.z - p.z);
+          if (d < 15 || d > 55) continue;
+          let blocked = false;
+          const steps = Math.ceil(d);
+          for (let s = 1; s < steps; s++) {
+            if (m.solidAt(p.x + ((f.x - p.x) * s) / steps, p.z + ((f.z - p.z) * s) / steps, 0)) { blocked = true; break; }
+          }
+          if (blocked) return f.id;
+        }
+        return -1;
+      });
+      target = found as number;
+    }
+    expect(target).toBeGreaterThanOrEqual(0);
+    const p0 = await page.evaluate((tid: number) => {
+      const m = (window as unknown as { __mtt: M }).__mtt;
+      const f = m.foes().find((e) => e.id === tid);
+      return f ? { x: f.x, z: f.z } : null;
+    }, target);
+    expect(p0).not.toBeNull();
+    await page.waitForTimeout(20000);
+    const moved = await page.evaluate(([tid, sx, sz]: [number, number, number]) => {
+      const m = (window as unknown as { __mtt: M }).__mtt;
+      const f = m.foes().find((e) => e.id === tid);
+      if (!f) return 999;
+      return Math.hypot(f.x - sx, f.z - sz);
+    }, [target, (p0 as { x: number; z: number }).x, (p0 as { x: number; z: number }).z] as [number, number, number]);
+    expect(moved).toBeGreaterThan(3);
+  });
+
   test('W идёт: позиция меняется (баг Саши)', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');

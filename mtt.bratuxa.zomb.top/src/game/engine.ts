@@ -240,6 +240,9 @@ interface Enemy {
   /** буфер слепков хоста: рендерим прошлое — кукла не дёргается */
   snaps: Array<{ t: number; x: number; z: number }>;
   ewave: number;
+  /** обход стен: вейпоинты BFS + таймер пересчёта */
+  path: Array<{ x: number; z: number }>;
+  repathT: number;
 }
 
 /** Сетевой моб из пульса комнаты (сервер — правда). */
@@ -2456,6 +2459,7 @@ export class Game {
       speed: boss ? 1.5 : 1.7 + Math.random() * 1.1 + this.wave * 0.12 + (fly ? 0.6 : 0),
       hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, ey: 0, evy: 0, hopCd: 1 + Math.random() * 2, dead: false,
       mobId: this.mobIdSeq++, net: false, tx: sx, tz: sz, snaps: [], ewave: this.wave,
+      path: [], repathT: Math.random() * 0.5,
     };
     this.updateHpBar(foe);
     this.enemies.push(foe);
@@ -2839,6 +2843,7 @@ export class Game {
           ...v, kind, hp: maxhp, maxhp, speed: 0,
           hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, ey: 0, evy: 0, hopCd: 1e9, dead: false,
           mobId: id, net: true, tx: v.g.position.x, tz: v.g.position.z, snaps: [{ t: performance.now(), x: v.g.position.x, z: v.g.position.z }], ewave: Math.round(Number(m.wave) || 1),
+          path: [], repathT: 0,
         };
         this.updateHpBar(e);
         this.enemies.push(e);
@@ -2915,6 +2920,56 @@ export class Game {
     this.enemies = this.enemies.filter((e) => !e.dead);
     this.pushHud();
     this.drawMM();
+  }
+
+  /** Обход стен: BFS по сетке 2м через hitSolid-оракул. Возвращает вейпоинты
+      от врага к цели (без стартовой клетки). Нет пути — пусто (идём в лоб). */
+  private findPath(fx: number, fz: number, tx: number, tz: number): Array<{ x: number; z: number }> {
+    const CELL = 2, R = Math.ceil(this.half / CELL), OFF = 64;
+    const gx = (v: number) => Math.max(-R, Math.min(R, Math.round(v / CELL)));
+    const key = (ix: number, iz: number) => (ix + OFF) * 4096 + (iz + OFF);
+    const unkey = (k: number) => ({ ix: Math.floor(k / 4096) - OFF, iz: (k % 4096) - OFF });
+    const s = { ix: gx(fx), iz: gx(fz) }, t = { ix: gx(tx), iz: gx(tz) };
+    const sk = key(s.ix, s.iz), tk = key(t.ix, t.iz);
+    if (sk === tk) return [];
+    const prev = new Map<number, number>();
+    const seen = new Set<number>([sk]);
+    const q: Array<[number, number]> = [[s.ix, s.iz]];
+    const nb = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+    while (q.length > 0) {
+      const cur = q.shift()!;
+      if (key(cur[0], cur[1]) === tk) break;
+      for (const o of nb) {
+        const nx = cur[0] + o[0], nz = cur[1] + o[1];
+        if (Math.abs(nx) > R || Math.abs(nz) > R) continue;
+        const k = key(nx, nz);
+        if (seen.has(k)) continue;
+        if (this.hitSolid(nx * CELL, nz * CELL, 0.9, 0)) continue;
+        seen.add(k);
+        prev.set(k, key(cur[0], cur[1]));
+        q.push([nx, nz]);
+      }
+    }
+    if (!prev.has(tk)) return [];
+    const cells: Array<[number, number]> = [];
+    let c = tk, guard = 10000;
+    while (c !== sk && guard-- > 0) {
+      const u = unkey(c);
+      cells.push([u.ix, u.iz]);
+      const p = prev.get(c);
+      if (p === undefined) return [];
+      c = p;
+    }
+    if (guard <= 0) return [];
+    cells.reverse();
+    // прореживаем: оставляем повороты (прямые тянем одним рывком)
+    const out: Array<{ x: number; z: number }> = [];
+    for (let i = 0; i < cells.length; i++) {
+      const a = cells[Math.max(0, i - 1)], b = cells[i], c2 = cells[Math.min(cells.length - 1, i + 1)];
+      const turn = (b[0] - a[0]) * (c2[1] - b[1]) !== (b[1] - a[1]) * (c2[0] - b[0]);
+      if (turn || i === cells.length - 1) out.push({ x: b[0] * CELL, z: b[1] * CELL });
+    }
+    return out;
   }
 
   // круг (игрок/враг радиусом rad на высоте y) против окружения: коробка — точный AABB,
@@ -3212,6 +3267,10 @@ export class Game {
   debugSolidAt(x: number, z: number, y: number): boolean {
     return this.hitSolid(Number(x) || 0, Number(z) || 0, 0.9, Number(y) || 0);
   }
+  /** Тест-контракт обхода: вейпоинты BFS от точки к точке (чистая функция, без времени). */
+  debugPath(fx: number, fz: number, tx: number, tz: number): Array<{ x: number; z: number }> {
+    return this.findPath(Number(fx) || 0, Number(fz) || 0, Number(tx) || 0, Number(tz) || 0);
+  }
 
   // высота опоры под ногами: верх самого высокого объекта в этой точке (крыши, мосты, ступени).
   // rad расширяет поиск: для перешагивания смотрим опору впереди по курсу.
@@ -3434,9 +3493,31 @@ export class Game {
           e.g.position.x = mp.x;
           e.g.position.z = mp.z;
         } else if (d > 2.1) {
-          const nx = e.g.position.x + (dx / d) * e.speed * dt;
-          const nz = e.g.position.z + (dz / d) * e.speed * dt;
           const eyH = e.kind === 'fly' ? 3.2 : e.ey;
+          // пеший местный: виден напрямую — в лоб; за стеной — по вейпоинтам BFS.
+          // Летуны и сетевые куклы — старым ходом (небо и слепки не знают стен).
+          let wx = this.px, wz = this.pz;
+          if (!e.net && e.kind !== 'fly') {
+            e.repathT -= dt;
+            if (e.repathT <= 0 || e.path.length === 0) {
+              let blocked = false;
+              const steps = Math.max(1, Math.ceil(d));
+              for (let s = 1; s < steps; s++) {
+                if (this.hitSolid(e.g.position.x + (dx / d) * s, e.g.position.z + (dz / d) * s, 0.9, eyH)) { blocked = true; break; }
+              }
+              e.path = blocked ? this.findPath(e.g.position.x, e.g.position.z, this.px, this.pz) : [];
+              e.repathT = 0.5 + Math.random() * 0.3;
+            }
+            if (e.path.length > 0) {
+              const wp = e.path[0];
+              if (Math.hypot(wp.x - e.g.position.x, wp.z - e.g.position.z) < 1.4) e.path.shift();
+              else { wx = wp.x; wz = wp.z; }
+            }
+          }
+          const ddx = wx - e.g.position.x, ddz = wz - e.g.position.z;
+          const dd = Math.hypot(ddx, ddz) || 1;
+          const nx = e.g.position.x + (ddx / dd) * e.speed * dt;
+          const nz = e.g.position.z + (ddz / dd) * e.speed * dt;
           if (!this.hitSolid(nx, e.g.position.z, 0.8, eyH)) e.g.position.x = clampArena(nx);
           if (!this.hitSolid(e.g.position.x, nz, 0.8, eyH)) e.g.position.z = clampArena(nz);
         } else if (e.hitCd <= 0 && this.shieldT <= 0) {

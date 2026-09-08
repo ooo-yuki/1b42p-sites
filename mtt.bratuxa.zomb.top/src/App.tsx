@@ -606,6 +606,7 @@ async function loadStats(): Promise<void> {
       spots: () => game.debugSpots(),
       solids: () => game.debugSolids(),
       solidAt: (x: number, z: number, y: number) => game.debugSolidAt(x, z, y),
+      path: (fx: number, fz: number, tx: number, tz: number) => game.debugPath(fx, fz, tx, tz),
       ground: (x: number, z: number) => game.debugGround(x, z),
       tracers: () => game.debugTracers(),
       give: (n: number) => game.debugGive(n),
