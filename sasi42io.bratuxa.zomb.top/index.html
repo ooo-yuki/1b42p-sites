@@ -142,6 +142,11 @@ function scoreTier(score) {
   if (score >= 1500) return 2;
   return 1;
 }
+// snakeWidth: радиус тела по очкам, как в оригинале — ешь и толстеешь.
+// база 8, рост логарифмический, потолок ×2 (16) около ~1800 очков.
+function snakeWidth(score) {
+  return 8 * (1 + Math.min(1, Math.log10(1 + (score || 0) / 200)));
+}
 function collide(ax, ay, bx, by, rad) {
   var dx = ax - bx, dy = ay - by;
   return dx * dx + dy * dy < rad * rad;
@@ -306,7 +311,7 @@ var BOT_N = 25; // мясорубка: ботов на арене
 var NAMES = ['Киршик', 'Чаев', 'Тюленька', 'Свастослав', 'Санси42', 'МТТ', 'Miqqil', '5opka',
   'Сет_ден', 'Робоженщина', 'Кизяк', 'Жоперша', 'мистер Пятёрка', 'Амиго', 'Соня', 'укроп Комисаренко',
   'Бурито', 'Черепаха Хлов', 'Яна Цист', 'Язагит Лера', 'бурмалда', 'скитонс', 'гой', 'Владимир Зутин', 'Загеев']; // пул 25 от Sansy: уникальные, без повторов
-window.__hook = { spawnFood: spawnFood, eatFood: eatFood, scoreTier: scoreTier, purpleRoll: purpleRoll, eatPurple: eatPurple, PURPLE_P: PURPLE_P, goldRoll: goldRoll, eatGold: eatGold, GOLD_P: GOLD_P, stepBot: stepBot, dodgeTurn: dodgeTurn, bestFood: bestFood, collide: collide, hitsWall: hitsWall, dropLoot: dropLoot, setDir: setDir, getDir: getDir, setPaused: setPaused, togglePause: togglePause, isPaused: isPaused, BOT_N: BOT_N, NAMES: NAMES, nextBotName: nextBotName, burp: burp, clang: clang, panelsVisible: panelsVisible, togglePanelsUI: togglePanelsUI, SHOP_PRICES: SHOP_PRICES, SKIN_COLORS: SKIN_COLORS, shopGain: shopGain, shopSpeed: shopSpeed, shopPickupR: shopPickupR, shopSkinColor: shopSkinColor, shieldHas: shieldHas, shieldUse: shieldUse };
+window.__hook = { spawnFood: spawnFood, eatFood: eatFood, scoreTier: scoreTier, purpleRoll: purpleRoll, eatPurple: eatPurple, PURPLE_P: PURPLE_P, goldRoll: goldRoll, eatGold: eatGold, GOLD_P: GOLD_P, stepBot: stepBot, dodgeTurn: dodgeTurn, bestFood: bestFood, collide: collide, hitsWall: hitsWall, snakeWidth: snakeWidth, headHitsBody: headHitsBody, dropLoot: dropLoot, setDir: setDir, getDir: getDir, setPaused: setPaused, togglePause: togglePause, isPaused: isPaused, BOT_N: BOT_N, NAMES: NAMES, nextBotName: nextBotName, burp: burp, clang: clang, panelsVisible: panelsVisible, togglePanelsUI: togglePanelsUI, SHOP_PRICES: SHOP_PRICES, SKIN_COLORS: SKIN_COLORS, shopGain: shopGain, shopSpeed: shopSpeed, shopPickupR: shopPickupR, shopSkinColor: shopSkinColor, shieldHas: shieldHas, shieldUse: shieldUse };
 
 /* ===== игра ===== */
 var W = 3000, H = 3000;
@@ -622,8 +627,9 @@ function playerDie() {
   try { if (window.__sasiOnDeath) window.__sasiOnDeath(Math.floor(player.score)); } catch (e) {}
 }
 function headHitsBody(head, other) {
+  var killR = 12 * snakeWidth(other.score) / 8; // толстое тело задевает раньше
   for (var i = 3; i < other.segs.length; i += 2) {
-    if (collide(head.x, head.y, other.segs[i].x, other.segs[i].y, 12)) return true;
+    if (collide(head.x, head.y, other.segs[i].x, other.segs[i].y, killR)) return true;
   }
   return false;
 }
@@ -782,13 +788,14 @@ function draw(camX, camY) {
   for (i = 0; i < all.length; i++) {
     s = all[i];
     var isMe = (s === player);
+    var sw = snakeWidth(s.score) / 8; // толщина по очкам: 1.0 → 2.0
     // тело (плоские круги, цвет не меняем)
     ctx.fillStyle = s.color;
     for (var j = s.segs.length - 1; j >= 1; j--) {
       var sg = s.segs[j];
       var sx = sg.x - camX, sy = sg.y - camY;
       if (sx < -20 || sy < -20 || sx > canvas.width + 20 || sy > canvas.height + 20) continue;
-      var rad = 8 - Math.min(4, j / 12);
+      var rad = (8 - Math.min(4, j / 12)) * sw;
       ctx.beginPath();
       ctx.arc(sx, sy, rad, 0, Math.PI * 2);
       ctx.fill();
@@ -805,7 +812,7 @@ function draw(camX, camY) {
     }
     // светлая полоса вдоль спины (alpha 0.25, поверх тела)
     ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 4 * sw;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -822,34 +829,34 @@ function draw(camX, camY) {
     if (hx > -20 && hy > -20 && hx < canvas.width + 20 && hy < canvas.height + 20) {
       ctx.fillStyle = s.color;
       ctx.beginPath();
-      ctx.arc(hx, hy, 11, 0, Math.PI * 2);
+      ctx.arc(hx, hy, 11 * sw, 0, Math.PI * 2);
       ctx.fill();
       if (isMe) {
         ctx.strokeStyle = '#ffd700';
         ctx.lineWidth = 2.5;
         ctx.beginPath();
-        ctx.arc(hx, hy, 11, 0, Math.PI * 2);
+        ctx.arc(hx, hy, 11 * sw, 0, Math.PI * 2);
         ctx.stroke();
       }
       // два глаза по курсу головы
       var fx = Math.cos(s.angle), fy = Math.sin(s.angle);
       var px = -fy, py = fx;
       for (var e = -1; e <= 1; e += 2) {
-        var ex = hx + fx * 4 + px * e * 5;
-        var ey = hy + fy * 4 + py * e * 5;
+        var ex = hx + fx * 4 * sw + px * e * 5 * sw;
+        var ey = hy + fy * 4 * sw + py * e * 5 * sw;
         ctx.fillStyle = '#fff';
         ctx.beginPath();
-        ctx.arc(ex, ey, 3.2, 0, Math.PI * 2);
+        ctx.arc(ex, ey, 3.2 * sw, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#111';
         ctx.beginPath();
-        ctx.arc(ex + fx * 1.2, ey + fy * 1.2, 1.6, 0, Math.PI * 2);
+        ctx.arc(ex + fx * 1.2 * sw, ey + fy * 1.2 * sw, 1.6 * sw, 0, Math.PI * 2);
         ctx.fill();
       }
     }
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 12px sans-serif';
-    ctx.fillText(s.name, s.x - camX, s.y - camY - 20);
+    ctx.fillText(s.name, s.x - camX, s.y - camY - (12 + 8 * sw));
   }
 }
 /* цикл запускается кнопкой ▶ Играть (см. интро выше) */

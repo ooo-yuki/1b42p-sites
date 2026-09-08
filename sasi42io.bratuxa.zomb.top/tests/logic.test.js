@@ -406,4 +406,22 @@ var _gb = __hook.bestFood({ x: 0, y: 0 }, [{ x: 100, y: 0, type: 0 }, { x: 300, 
 assert.strictEqual(_gb.type, 5, 'bots must chase gold first');
 
 console.log('logic.test.js: OK golden banana (type 5, +5000, 1.5%)');
+
+// --- толщина змейки по очкам, как в оригинале: ешь и толстеешь ---
+assert.strictEqual(typeof __hook.snakeWidth, 'function', 'snakeWidth must be in __hook');
+assert.strictEqual(typeof __hook.headHitsBody, 'function', 'headHitsBody must be in __hook');
+assert.strictEqual(__hook.snakeWidth(0), 8, 'base width 8');
+assert.ok(__hook.snakeWidth(500) > 8, 'grows with score');
+assert.ok(__hook.snakeWidth(5000) > __hook.snakeWidth(500), 'monotonic growth');
+assert.strictEqual(__hook.snakeWidth(999999), 16, 'cap x2');
+assert.ok(__hook.snakeWidth(1800) >= 15.9, 'near cap by ~1800');
+// толстое тело задевает раньше: дистанция 15 — худая (rad~12) мимо, жирная (rad 24) смерть
+function _fatSegs() { var a = []; for (var i = 0; i < 6; i++) a.push({ x: 0, y: 0 }); return a; }
+assert.strictEqual(__hook.headHitsBody({ x: 15, y: 0 }, { score: 0, segs: _fatSegs() }), false);
+assert.strictEqual(__hook.headHitsBody({ x: 15, y: 0 }, { score: 999999, segs: _fatSegs() }), true);
+assert.ok(html.includes('snakeWidth(s.score)'), 'render must scale by score');
+assert.ok(html.includes('11 * sw'), 'head must scale');
+assert.ok(html.includes('4 * sw'), 'spine stripe must scale');
+
+console.log('logic.test.js: OK snake width by score (slither-like)');
 process.exit(0);
