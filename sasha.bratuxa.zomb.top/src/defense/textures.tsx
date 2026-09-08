@@ -109,6 +109,25 @@ const scarlet: Pix = {
   colors: { k: K, R: '#E31E25', W: '#f0f0f0', D: '#8F1218' },
 };
 
+/* Тесла-прожектор: корпус кобальта другим оттенком + дуга-разряд. */
+const tesla: Pix = {
+  grid: [
+    '........kk..',
+    '.......kBBk.',
+    '......kWBk..',
+    '.....kBBWk..',
+    '....kBBBk...',
+    '...kBBBBBk..',
+    '....kBBBk...',
+    '.....kkk....',
+    '...kkkkkk...',
+    '..kBBBBBBk..',
+    '..kBDDDDDk..',
+    '..kkkkkkkk..',
+  ],
+  colors: { k: K, B: '#2e8fff', D: '#0060AA', W: '#ffe9a3' },
+};
+
 /* ---------- Враги: скучные взрослые ---------- */
 
 const zevaka: Pix = {
@@ -184,6 +203,42 @@ const director: Pix = {
   colors: { k: K, F: SKIN, E: DARK, A: '#8F1218', W: '#f0f0f0', B: '#E31E25', D: '#1a1a2e' },
 };
 
+/* Тролль: грузный зануда в болотном; двойник: бледный спринтер. */
+const troll: Pix = {
+  grid: [
+    '...kkkkkk...',
+    '..kFFFFFFk..',
+    '..kFEFFEFk..',
+    '..kFFFFFFk..',
+    '...kFFFFk...',
+    '.kkkkkkkkkk.',
+    '.kGGGGGGGGk.',
+    '.kGGWGGWGGk.',
+    '.kGGGGGGGGk.',
+    '.kGGGGGGGGk.',
+    '.kGGGGGGGGk.',
+    '..kkk..kkk..',
+  ],
+  colors: { k: K, F: SKIN, E: DARK, W: '#f0f0f0', G: '#4a5c3a' },
+};
+
+const double: Pix = {
+  grid: [
+    '...kkkkkk...',
+    '...kWWWWk...',
+    '...kWWWWWk..',
+    '...kWFFWk...',
+    '....kFFk....',
+    '....kkkk....',
+    '...kWWWWk...',
+    '...kWWWWk...',
+    '...kDkkDk...',
+    '...kDk.Dk...',
+    '...kk...kk..',
+  ],
+  colors: { k: K, W: '#ffe9a3', F: SKIN, D: DARK },
+};
+
 /* ---------- Свои: штаб и мопс ---------- */
 
 const pug: Pix = {
@@ -234,5 +289,5 @@ const sale: Pix = {
   colors: { k: K, B: '#0060AA', W: '#f0f0f0' },
 };
 
-export const TEX = { flood, cobalt, scarlet, zevaka, zanuda, sprinter, director, pug, hq, sale } as const;
+export const TEX = { flood, cobalt, scarlet, tesla, zevaka, zanuda, sprinter, director, troll, double, pug, hq, sale } as const;
 export type TexName = keyof typeof TEX;

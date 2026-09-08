@@ -45,19 +45,19 @@ export function endlessWave(n: number): WaveDef {
 
 export function spawnWave(g: GameState, w: number): void {
   const endless = w > 9;
-  const def = endless ? endlessWave(w) : WAVES[w];
+  const def = endless ? endlessWave(w + 1) : WAVES[w];
   for (let i = 0; i < def.count; i++) {
     let kind = 'zevaka';
     if (def.tankEvery > 0 && i % def.tankEvery === def.tankEvery - 1) kind = 'zanuda';
     if (def.runnerEvery > 0 && i % def.runnerEvery === def.runnerEvery - 1) kind = 'sprinter';
-    if (endless && g.medals >= 2) {
+    if (endless && g.medals >= (MEDAL_GATES.troll ?? 2)) {
       if (i % 6 === 5) kind = 'troll';
       else if (i % 4 === 3) kind = 'double';
     }
     const e = ENEMIES[kind];
     g.units.push({ kind, seg: 0, pos: -i * 0.5, hp: e.hp * def.hpMul, maxHp: e.hp * def.hpMul, speed: e.speed * def.speed, reward: e.reward, regen: e.regen ?? 0 });
   }
-  if (w === 9 || (endless && (w - 10) % 5 === 0)) {
+  if (w === 9 || (endless && (w - 9) % 5 === 0)) {
     const e = ENEMIES.director;
     g.units.push({ kind: 'director', seg: 0, pos: -def.count * 0.5 - 2, hp: e.hp * def.hpMul, maxHp: e.hp * def.hpMul, speed: e.speed * def.speed, reward: e.reward });
   }

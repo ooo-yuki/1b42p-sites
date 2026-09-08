@@ -1,27 +1,39 @@
 import { useEffect, useRef, useState } from 'react';
-import { Coins, Heart, Home, Pause, Play, RotateCcw, Swords, Trophy, Waves } from 'lucide-react';
+import { Coins, Heart, Home, Lock, Pause, Play, RotateCcw, Swords, Trophy, Waves } from 'lucide-react';
 import {
-  CARDS, PATH, TURRETS, applyCard, createGame, finishWave, offerCards,
+  CARDS, CARD_GATES, MEDAL_GATES, PATH, TURRETS, WAVE_NAMES, applyCard, createGame, finishWave, offerCards,
   placeTurret, sellTurret, spawnWave, tick, type GameState,
 } from './defense/engine';
 import { TEX, DefenseTex, pixToDataUri, type TexName } from './defense/textures';
+import { readBest, writeBest, type Best } from './defense/save';
 
 /* Оборона штаба 42: canvas tower-defense на 10 волн.
    Вьюха только рисует и шлёт команды движку; симуляция — engine.ts. */
 
-const SAVE_KEY = 'sasha_def42_v1';
 const CELL = 40;
 const W = 9 * CELL;
 const H = 9 * CELL;
 
-const KIND_LABEL: Record<string, string> = { flood: 'Прожектор', cobalt: 'Кобальт', scarlet: 'Алый' };
+const KIND_LABEL: Record<string, string> = { flood: 'Прожектор', cobalt: 'Кобальт', scarlet: 'Алый', tesla: 'Тесла' };
 const CARD_ART: Record<string, TexName> = {
   rate: 'flood', dmg: 'cobalt', pierce: 'scarlet', repair: 'hq', pugs: 'pug', sale: 'sale',
+  warhorn: 'pug', live: 'sale', barricade: 'hq', sabotage: 'scarlet',
 };
 const UNIT_COLOR: Record<string, string> = {
   zevaka: '#c9c9c9', zanuda: '#f0c040', sprinter: '#6bd5ff', director: '#E31E25',
+  troll: '#9fd0ff', double: '#ffe9a3',
 };
-const TURRET_COLOR: Record<string, string> = { flood: '#ffd257', cobalt: '#2e8fff', scarlet: '#ff4d4d' };
+const TURRET_COLOR: Record<string, string> = { flood: '#ffd257', cobalt: '#2e8fff', scarlet: '#ff4d4d', tesla: '#2e8fff' };
+
+/* Витрина пост-пула: что и после какой медали. */
+const POOL: Array<{ n: string; d: string; need: number }> = [
+  { n: 'Энллесс-режим', d: 'волны 11+ с директором каждую 5-ю', need: MEDAL_GATES.endless },
+  { n: 'Тесла-прожектор', d: '400 монет, цепляет троих', need: MEDAL_GATES.tesla },
+  { n: 'Тролль и Двойник', d: 'новые враги энллесса', need: MEDAL_GATES.troll },
+  { n: 'Мопсий вой / Прямой эфир', d: 'карты поддержки', need: CARD_GATES.warhorn },
+  { n: 'Баррикада / Саботаж', d: 'карты обороны', need: CARD_GATES.barricade },
+  { n: 'Арсенал 42', d: '+15% урона всем турелям', need: MEDAL_GATES.arsenal },
+];
 
 /* Спрайты из textures.tsx: ленивый кэш Image; пока не загрузилось — fallback-фигуры. */
 const imgCache = new Map<string, HTMLImageElement>();
@@ -40,19 +52,6 @@ function drawSprite(ctx: CanvasRenderingContext2D, name: TexName, cx: number, cy
   if (!img) return false;
   ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size);
   return true;
-}
-
-type Best = { stars: number; wave: number };
-
-function readBest(): Best {
-  try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return { stars: 0, wave: 0 };
-    const p = JSON.parse(raw) as Partial<Best>;
-    return { stars: Number(p.stars) || 0, wave: Number(p.wave) || 0 };
-  } catch {
-    return { stars: 0, wave: 0 };
-  }
 }
 
 function cellCenter(seg: number, pos: number): { x: number; y: number } {
@@ -112,8 +111,15 @@ function draw(ctx: CanvasRenderingContext2D, g: GameState): void {
 }
 
 export default function Defense(): JSX.Element {
+  const [g0] = useState<GameState>(() => {
+    const g = createGame();
+    try {
+      g.medals = readBest(localStorage).medals;
+    } catch { /* сейв не критичен */ }
+    return g;
+  });
+  const gRef = useRef<GameState>(g0);
   const cvRef = useRef<HTMLCanvasElement | null>(null);
-  const gRef = useRef<GameState>(createGame());
   const [snap, setSnap] = useState<GameState>(() => ({ ...gRef.current }));
   const [kind, setKind] = useState('flood');
   const [running, setRunning] = useState(false);
@@ -121,7 +127,7 @@ export default function Defense(): JSX.Element {
   const [cards, setCards] = useState<string[] | null>(null);
   const [won, setWon] = useState(false);
   const [lost, setLost] = useState(false);
-  const [best, setBest] = useState<Best>(readBest);
+  const [best, setBest] = useState<Best>(() => readBest(localStorage));
   const [totalLost, setTotalLost] = useState(0);
   const waveStartLives = useRef(10);
 
@@ -173,6 +179,14 @@ export default function Defense(): JSX.Element {
         runRef.current = false;
         setRunning(false);
         setLost(true);
+        if (g.wave > 9) {
+          const waveNum = g.wave + 1;
+          setBest((prev) => {
+            const next = { ...prev, bestEndless: Math.max(prev.bestEndless, waveNum) };
+            writeBest(localStorage, next);
+            return next;
+          });
+        }
         return;
       }
       if (!g.units.some((u) => !u.dead)) {
@@ -182,18 +196,30 @@ export default function Defense(): JSX.Element {
         const total = lostRef.current + lostNow;
         lostRef.current = total;
         setTotalLost(total);
-        if (g.wave >= 9) {
+        if (g.wave === 9) {
           finishWave(g, total);
           setSnap({ ...g });
           endRef.current = true;
           setWon(true);
-          try {
-            const prev = readBest();
-            localStorage.setItem(SAVE_KEY, JSON.stringify({ stars: Math.max(prev.stars, g.stars || 1), wave: 10 }));
-          } catch { /* сейв не критичен */ }
-          setBest(readBest());
+          const prev = readBest(localStorage);
+          const next = {
+            stars: Math.max(prev.stars, g.stars || 1), wave: 10,
+            medals: prev.medals, bestEndless: prev.bestEndless,
+          };
+          writeBest(localStorage, next);
+          setBest(next);
+        } else if (g.wave > 9) {
+          const waveNum = g.wave + 1;
+          setBest((prev) => {
+            const next = { ...prev, bestEndless: Math.max(prev.bestEndless, waveNum) };
+            writeBest(localStorage, next);
+            return next;
+          });
+          const offered = offerCards(g, g.medals);
+          cardsRef.current = offered;
+          setCards(offered);
         } else {
-          const offered = offerCards(g);
+          const offered = offerCards(g, g.medals);
           cardsRef.current = offered;
           setCards(offered);
         }
@@ -229,6 +255,7 @@ export default function Defense(): JSX.Element {
   const startWave = () => {
     const g = gRef.current;
     if (g.over || won || lost || running || cards || g.units.some((u) => !u.dead)) return;
+    if (g.wave >= 10 && g.medals < MEDAL_GATES.endless) return;
     waveStartLives.current = g.lives;
     spawnWave(g, g.wave);
     runRef.current = true;
@@ -248,6 +275,7 @@ export default function Defense(): JSX.Element {
     if (idx >= 0) {
       sellTurret(g, idx);
     } else {
+      if (kind === 'tesla' && g.medals < MEDAL_GATES.tesla) return;
       placeTurret(g, x, y, kind);
     }
     redraw();
@@ -263,8 +291,10 @@ export default function Defense(): JSX.Element {
     setSnap({ ...g });
   };
 
-  const restart = () => {
+  const restart = (medals?: number) => {
+    const keep = medals ?? gRef.current.medals;
     gRef.current = createGame();
+    gRef.current.medals = keep;
     waveStartLives.current = 10;
     runRef.current = false;
     cardsRef.current = null;
@@ -280,16 +310,48 @@ export default function Defense(): JSX.Element {
     redraw();
   };
 
+  /* Новая смена: медаль +1, рекорд энллесса в сейв, поле с нуля. */
+  const newShift = () => {
+    const g = gRef.current;
+    if (g.wave < 9 || !won) return;
+    const prev = readBest(localStorage);
+    const next: Best = {
+      stars: Math.max(prev.stars, g.stars || 0), wave: 10,
+      medals: prev.medals + 1, bestEndless: prev.bestEndless,
+    };
+    writeBest(localStorage, next);
+    setBest(next);
+    setKind('flood');
+    restart(next.medals);
+  };
+
+  /* Энллесс-рейд: та же смена идёт на волны 11+. */
+  const goEndless = () => {
+    const g = gRef.current;
+    if (!won || g.wave !== 9 || g.medals < MEDAL_GATES.endless) return;
+    g.wave = 10;
+    setWon(false);
+    endRef.current = false;
+    waveStartLives.current = g.lives;
+    spawnWave(g, g.wave);
+    runRef.current = true;
+    setRunning(true);
+    redraw();
+    setSnap({ ...g });
+  };
+
   const g = snap;
-  const waveLabel = Math.min(g.wave + 1, 10);
+  const endless = g.wave > 9;
+  const waveTitle = endless ? `Энллесс ${g.wave + 1}` : `Волна ${g.wave + 1}: ${WAVE_NAMES[g.wave]}`;
 
   return (
     <main id="df-col">
       <p className="kicker">Саша ⁴² — <b>оборона штаба</b></p>
       <div id="df-hud">
-        <div className="pill ghost"><Waves data-icon="inline-start" /> {waveLabel}/10</div>
+        <div className="pill ghost"><Waves data-icon="inline-start" /> {waveTitle}</div>
         <div className={`pill ${g.lives <= 3 ? 'solid risk' : 'ghost'}`}><Heart data-icon="inline-start" /> {g.lives}</div>
         <div className="pill ghost"><Coins data-icon="inline-start" /> {g.coins}</div>
+        {best.medals > 0 && <div className="pill ghost"><Trophy data-icon="inline-start" /> Медали: {best.medals}</div>}
         <button
           type="button"
           className="pill ghost"
@@ -300,6 +362,7 @@ export default function Defense(): JSX.Element {
           {paused ? ' Вперёд' : ' Пауза'}
         </button>
       </div>
+      <p className="mg-note">Рекорд энллесса: {best.bestEndless > 0 ? `волна ${best.bestEndless}` : '—'}</p>
 
       <canvas
         ref={cvRef}
@@ -312,23 +375,40 @@ export default function Defense(): JSX.Element {
       />
 
       <div id="df-shop" role="group" aria-label="Выбор турели">
-        {Object.entries(TURRETS).map(([id, t]) => (
-          <button
-            key={id}
-            type="button"
-            className={`pill ${kind === id ? 'solid' : 'ghost'}`}
-            onClick={() => setKind(id)}
-            disabled={g.coins < t.cost}
-          >
-            <DefenseTex art={id as TexName} /> {KIND_LABEL[id] ?? id} · {t.cost}
-          </button>
+        {Object.entries(TURRETS).map(([id, t]) => {
+          if (id === 'tesla' && best.medals < MEDAL_GATES.tesla) {
+            return (
+              <span key={id} className="pill ghost lock">
+                <Lock data-icon="inline-start" size={14} /> Тесла — после {MEDAL_GATES.tesla}-й медали
+              </span>
+            );
+          }
+          return (
+            <button
+              key={id}
+              type="button"
+              className={`pill ${kind === id ? 'solid' : 'ghost'}`}
+              onClick={() => setKind(id)}
+              disabled={g.coins < t.cost}
+            >
+              <DefenseTex art={id as TexName} /> {KIND_LABEL[id] ?? id} · {t.cost}
+            </button>
+          );
+        })}
+      </div>
+      <div id="df-pool" role="group" aria-label="Пост-пул смены">
+        {POOL.map((p) => (
+          <span key={p.n} className="pill ghost" title={p.d}>
+            {best.medals >= p.need ? <Trophy data-icon="inline-start" size={14} /> : <Lock data-icon="inline-start" size={14} />}
+            {' '}{p.n}{best.medals < p.need ? ` — после ${p.need}-й медали` : ''}
+          </span>
         ))}
       </div>
       <p className="mg-note">Тап по клетке — поставить, тап по турели — продать за 70%. Тап по дороге не строит.</p>
 
       {!running && !cards && !won && !lost && (
         <button type="button" id="df-wave" className="pill solid" onClick={startWave}>
-          <Swords data-icon="inline-start" /> Волна {waveLabel}!
+          <Swords data-icon="inline-start" /> {endless ? `Энллесс ${g.wave + 1}!` : `Волна ${g.wave + 1}!`}
         </button>
       )}
       {paused && !won && !lost && <p className="mg-note">Пауза. Турели держат строй.</p>}
@@ -350,8 +430,8 @@ export default function Defense(): JSX.Element {
       {lost && (
         <div id="df-end" role="alert">
           <h2>Штаб захвачен скукой</h2>
-          <p>Держались до волны {waveLabel} из 10. {best.stars > 0 && `Рекорд: ${best.stars} ★.`}</p>
-          <button type="button" className="pill solid" onClick={restart}>
+          <p>Держались до {endless ? `энллесса ${g.wave + 1}` : `волны ${g.wave + 1} из 10`}. {best.stars > 0 && `Рекорд: ${best.stars} ★.`}{best.bestEndless > 0 && ` Энллесс-рекорд: волна ${best.bestEndless}.`}</p>
+          <button type="button" className="pill solid" onClick={() => restart()}>
             <RotateCcw data-icon="inline-start" /> Ещё раз
           </button>
         </div>
@@ -361,9 +441,16 @@ export default function Defense(): JSX.Element {
         <div id="df-end" role="status">
           <h2>{'★'.repeat(Math.max(1, g.stars))} Мы уже победили</h2>
           <p>Штаб выстоял 10 волн, потеряно жизней: {totalLost}.</p>
-          <button type="button" className="pill solid" onClick={restart}>
-            <RotateCcw data-icon="inline-start" /> Ещё раз
+          <button type="button" className="pill solid" onClick={newShift}>
+            <Trophy data-icon="inline-start" /> Новая смена (медалей: {best.medals + 1})
           </button>
+          {best.medals >= MEDAL_GATES.endless ? (
+            <button type="button" className="pill solid" onClick={goEndless} style={{ marginLeft: 8 }}>
+              <Swords data-icon="inline-start" /> Энллесс-рейд
+            </button>
+          ) : (
+            <p className="mg-note">Энллесс-рейд — после 1-й медали.</p>
+          )}
         </div>
       )}
 
