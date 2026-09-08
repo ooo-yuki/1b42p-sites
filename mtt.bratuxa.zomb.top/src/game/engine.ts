@@ -3153,6 +3153,23 @@ export class Game {
     const key = (ix: number, iz: number) => (ix + OFF) * 4096 + (iz + OFF);
     const unkey = (k: number) => ({ ix: Math.floor(k / 4096) - OFF, iz: (k % 4096) - OFF });
     const s = { ix: gx(fx), iz: gx(fz) }, t = { ix: gx(tx), iz: gx(tz) };
+    // цель внутри стены (игрок вжался в дом): дёргаем цель на ближайшую
+    // свободную клетку спиралью, иначе BFS заливает всю карту и возвращает [].
+    // Именно это и душило кадры, когда ты упирался в стену, а орда шла к тебе.
+    if (this.hitSolid(t.ix * CELL, t.iz * CELL, 0.9, 0)) {
+      let fixed = false;
+      for (let ring = 1; ring <= 6 && !fixed; ring++) {
+        for (let ax = -ring; ax <= ring && !fixed; ax++) {
+          for (let az = -ring; az <= ring && !fixed; az++) {
+            if (Math.max(Math.abs(ax), Math.abs(az)) !== ring) continue;
+            const cix = t.ix + ax, ciz = t.iz + az;
+            if (Math.abs(cix) > R || Math.abs(ciz) > R) continue;
+            if (!this.hitSolid(cix * CELL, ciz * CELL, 0.9, 0)) { t.ix = cix; t.iz = ciz; fixed = true; }
+          }
+        }
+      }
+      if (!fixed) return [];
+    }
     const sk = key(s.ix, s.iz), tk = key(t.ix, t.iz);
     if (sk === tk) return [];
     const prev = new Map<number, number>();
@@ -3162,7 +3179,8 @@ export class Game {
     // очередь указателем (без shift — иначе O(n²) на тысячах клеток)
     let qh = 0;
     let foundTk = false;
-    while (qh < q.length) {
+    // потолок заливки: карманы без прохода честно дают [], а не жуют весь кадр
+    while (qh < q.length && q.length < 4000) {
       const cur = q[qh++]!;
       if (key(cur[0], cur[1]) === tk) { foundTk = true; break; }
       for (const o of nb) {
@@ -3551,12 +3569,26 @@ export class Game {
   // rad расширяет поиск: для перешагивания смотрим опору впереди по курсу.
   groundAt(x: number, z: number, rad = 0): number {
     let g = 0;
-    for (const s of this.solids) {
-      if ('r' in s) {
-        const dx = x - s.x, dz = z - s.z;
-        if (dx * dx + dz * dz <= (s.r + rad) * (s.r + rad) && s.h > g) g = s.h;
-      } else {
-        if (Math.abs(x - s.x) <= s.hx + rad && Math.abs(z - s.z) <= s.hz + rad && s.h > g) g = s.h;
+    // опора всегда под ногами — берём кандидатов из сетки 3×3, а не все солиды.
+    // Раньше тут был полный проход по this.solids при КАЖДОМ вызове, а у стены
+    // вызовов 3 за кадр (посадка + 2 степ-проверки) — отсюда и просадка в упор.
+    const C = Game.GRID;
+    const cx = Math.floor(x / C), cz = Math.floor(z / C);
+    const seen: typeof this.solids = [];
+    for (let ix = cx - 1; ix <= cx + 1; ix++) {
+      for (let iz = cz - 1; iz <= cz + 1; iz++) {
+        const cell = this.solidGrid.get(ix + ':' + iz);
+        if (!cell) continue;
+        for (const s of cell) {
+          if (seen.indexOf(s) >= 0) continue;
+          seen.push(s);
+          if ('r' in s) {
+            const dx = x - s.x, dz = z - s.z;
+            if (dx * dx + dz * dz <= (s.r + rad) * (s.r + rad) && s.h > g) g = s.h;
+          } else {
+            if (Math.abs(x - s.x) <= s.hx + rad && Math.abs(z - s.z) <= s.hz + rad && s.h > g) g = s.h;
+          }
+        }
       }
     }
     return g;
@@ -3725,7 +3757,8 @@ export class Game {
             this.kickTouch();
           }
         } else {
-          if (!this.hitSolid(nx, this.pz, 0.9, this.py)) this.px = this.clamp(nx);
+          // hitSolid(nx,pz) уже проверен в условии выше — второй раз не щупаем
+          this.px = this.clamp(nx);
         }
         if (this.hitSolid(this.px, nz, 0.9, this.py)) {
           const step = this.groundAt(this.px, nz, 0.9);
