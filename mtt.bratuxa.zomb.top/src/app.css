@@ -29,7 +29,7 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(-
 .tnav:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
 /* ---------- HUD (верх слева) ---------- */
 #hud{position:fixed;top:12px;left:12px;z-index:5;font-size:15px;font-weight:700;line-height:1.65;
-  font-family:var(--font-d);text-shadow:2px 2px 0 #000;pointer-events:none;
+  font-family:var(--font-d);text-shadow:2px 2px 0 #000;pointer-events:none;font-variant-numeric:tabular-nums;
   background:var(--panel);border:1px solid var(--line);border-top:1px solid rgba(255,255,255,.16);
   border-radius:var(--r);padding:10px 14px 11px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
   box-shadow:var(--sh),0 8px 28px rgba(0,0,0,.45);min-width:230px}
@@ -108,6 +108,9 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(-
 .board{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-top:1px solid rgba(255,255,255,.14);
   border-radius:var(--r);padding:10px 18px 14px;max-width:340px;box-shadow:var(--sh),0 8px 28px rgba(0,0,0,.4);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 .board h3{margin:6px 0;color:var(--amber);font-family:var(--font-d);letter-spacing:1.5px}
+.stepN{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin-right:8px;
+  border-radius:50%;background:linear-gradient(180deg,#ffd23f,#e8930c);color:#231a00;font-size:14px;font-weight:900;
+  text-shadow:none;vertical-align:2px;box-shadow:2px 2px 0 #000}
 .board ol{margin:6px 0;padding-left:22px;text-align:left;color:#e8edff}
 .board ol li{padding:2px 0}
 .board ol li:first-child{color:var(--gold);font-weight:900}
@@ -126,7 +129,7 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(-
 .cxpBar{background:#05070f;border:1px solid #334155;border-radius:6px;height:10px;overflow:hidden}
 .cxpFill{background:linear-gradient(90deg,#a855f7,#39d353);height:100%;transition:width .4s}
 .cxp small{font-size:10px;color:#c6cdf2}
-.cabilityList{margin:6px 0;padding-left:16px;text-align:left;font-size:11px;color:#e8edff;line-height:1.5}
+.cabilityList{margin:6px 0;padding-left:16px;text-align:left;font-size:12px;line-height:1.65;color:#e8edff}
 .cabilityList li{margin:2px 0}
 .cabilityList .csup{color:var(--gold);font-weight:700}
 .cupgLine{margin:4px 0;text-align:left}
@@ -283,6 +286,9 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(-
 .srvbar{height:10px;background:#000;border:1px solid #555;border-radius:6px;margin-bottom:10px;overflow:hidden}
 .srvfill{height:100%;background:linear-gradient(90deg,#39d353,#ff9f1c);transition:width .4s;border-radius:6px}
 .srvjoin{width:100%;font-size:16px}
+.linkBtn{background:none;border:none;color:var(--gold);font:inherit;font-weight:900;cursor:pointer;
+  text-decoration:underline;text-underline-offset:3px;display:inline-flex;align-items:center;min-height:44px;padding:6px 4px}
+.linkBtn:hover{color:#fff}
 /* ---------- дуэль / смерть / баннеры ---------- */
 #duelBar{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:6;text-align:center;font-size:16px;font-weight:900;
   color:var(--gold);background:var(--panel);border:1px solid var(--red);border-radius:var(--r);padding:8px 18px;

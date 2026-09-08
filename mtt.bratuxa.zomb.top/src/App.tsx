@@ -1266,6 +1266,24 @@ async function loadStats(): Promise<void> {
     return () => window.removeEventListener('keydown', h);
   }, [menu]);
 
+  // Escape — закрыть ОДИН верхний оверлей за нажатие: чат → магазин → настройки → профиль → онлайн.
+  // Кейс не трогаем: посреди прокрута выход только через ЗАБРАТЬ.
+  // В полях ввода не срабатываем (там свой Enter/Escape: чат шлёт по Enter, закрывается своим хендлером).
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (e.code !== 'Escape') return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      if (chatOpen) { e.preventDefault(); setChatOpen(false); }
+      else if (shopOpen) { e.preventDefault(); setShopOpen(false); }
+      else if (setOpen) { e.preventDefault(); setSetOpen(false); }
+      else if (profileOpen) { e.preventDefault(); setProfileOpen(false); }
+      else if (adminOpen) { e.preventDefault(); setAdminOpen(false); }
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [chatOpen, shopOpen, setOpen, profileOpen, adminOpen]);
+
   // отправка в чат комнаты
   const sendChat = useCallback(async () => {
     const text = chatText.trim().slice(0, 200);
@@ -1920,7 +1938,7 @@ async function loadStats(): Promise<void> {
             завал — жми 💚 возродиться!</p>
           {!authed && (
             <div className="board" id="authBox">
-              <h3>🔐 Вход</h3>
+              <h3><span className="stepN">1</span>🔐 Вход</h3>
               <input
                 id="authLogin"
                 value={authLogin}
@@ -1982,10 +2000,10 @@ async function loadStats(): Promise<void> {
           </div>
           <div className={'mtab' + (menuTab === 'play' ? ' show' : '')}>
           <div className="board" id="foeSec">
-            <h3>👹 Враги</h3>
+            <h3><span className="stepN">2</span>👹 Враги</h3>
             <div className="srow">
               <button id="foeBtn" className={'wbtn' + (!noEnemies ? ' cur' : '')} onClick={() => setNoEnemies((v) => !v)}>
-                {noEnemies ? '🕊️ ВЫКЛ — просто гуляю' : '👹 ВКЛ — будет махач'}
+                {noEnemies ? '🕊️ ВРАГИ: ВЫКЛ — просто гуляю' : '👹 ВРАГИ: ВКЛ — будет махач'}
               </button>
             </div>
           </div>
@@ -2059,7 +2077,7 @@ async function loadStats(): Promise<void> {
           </div>
           <div className={'mtab' + (menuTab === 'play' ? ' show' : '')}>
           <div className="board" id="goSec">
-            <h3>🚀 В бой</h3>
+            <h3><span className="stepN">3</span>🚀 В бой</h3>
           <input
             id="nick"
             value={nick}
@@ -2072,6 +2090,8 @@ async function loadStats(): Promise<void> {
           </button>
           {(roomId && !isOwner) || waiting ? (
             <button id="goBtn" disabled title="Ждём старта от создателя">⏳ ЖДУ СТАРТА…</button>
+          ) : !authed ? (
+            <button id="goBtn" disabled title="Сначала войди или жми «ИГРАТЬ ГОСТЕМ»">🔐 СНАЧАЛА ВОЙДИ</button>
           ) : (
             <button id="goBtn" onClick={go}>{(() => { const gm = roomId ? roomMode : mapChoice; return gm === 'duel' ? '⚔️ В ДУЭЛЬ' : gm === 'backrooms' ? '🟨 В БЭКРУМС' : gm === 'pvp' ? '⚔️ В PvP-БОЙ' : gm === 'endless' ? '🟨 В БЭКРУМС' : gm === 'invasion' ? '🌊 В НАШЕСТВИЕ' : gm === 'custom' ? '🧩 НА СВОЮ' : gm === 'random' ? '🎲 НА СЛУЧАЙНУЮ' : '▶️ ПОГНАЛИ'; })()}</button>
           )}
@@ -2185,13 +2205,13 @@ async function loadStats(): Promise<void> {
                     <button key={m.id} className={'wbtn' + (draftMode === m.id ? ' cur' : '')} id={`mode-${m.id}`} onClick={() => setDraftMode(m.id)}>{m.name}</button>
                   ))}
                 </div>
-                <div><small>Официальные сервера (PvP, Бэкрумс, Нашествие) — во вкладке 🖥️.</small></div>
+                <div><small>Официальные сервера (PvP, Бэкрумс, Нашествие) — во вкладке <button className="linkBtn" id="gotoServers1" onClick={() => setMenuTab('servers')}>🖥️ Сервера →</button>.</small></div>
                 {roomsList.filter((r) => !r.official).length > 0 ? roomsList.filter((r) => !r.official).map((r) => (
                   <div className="srow" key={r.id}>
                     <span>{modeIcon(r.mode)} {r.name} · {r.id} · 👥 {r.count}/{modeCap(r.mode)}{(r.restartIn ?? 0) > 0 ? ` · ♻️ ${fmtRestart(r.restartIn ?? 0)}` : ''}</span>
                     <button className="wbtn" id={`join-${r.id}`} onClick={() => joinRoom(r.id)}>ВОЙТИ</button>
                   </div>
-                )) : <div>Пока пусто — создай первую! Официальные сервера живут во вкладке 🖥️.</div>}
+                )) : <div>Пока пусто — создай первую! Или жми <button className="linkBtn" id="gotoServers2" onClick={() => setMenuTab('servers')}>🖥️ К СЕРВЕРАМ →</button></div>}
                 <button className="wclose" id="roomsRefresh" onClick={refreshRooms}>🔄 ОБНОВИТЬ</button>
               </>
             )}
