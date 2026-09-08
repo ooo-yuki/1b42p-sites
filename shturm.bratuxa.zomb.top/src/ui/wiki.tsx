@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { WEAPONS, WEAPON_META, SLOT_ORDER } from '../sim/weapons';
+import { WEAPONS, WEAPON_META, SLOT_ORDER, type Slot } from '../sim/weapons';
 import { ENEMIES, ENEMY_META, ATTACK_RANGE, type EnemyType } from '../sim/enemies';
-import { GunIcon } from './hud';
+import { MAPS, MAP_LORE, type MapId } from '../sim/maps';
+import { WikiViewer } from './wikiViewer';
 
 function Bar({ value, max, color }: { value: number; max: number; color: string }) {
   return (
@@ -23,11 +24,21 @@ function Stat({ icon, label, value, max, color }: { icon: string; label: string;
 }
 
 const ORDER: EnemyType[] = ['runner', 'shooter', 'tank', 'boss'];
+const MAP_ORDER: MapId[] = ['yard', 'island', 'neon'];
 const reachOf = (t: EnemyType) =>
   t === 'shooter' ? ATTACK_RANGE.shooter : t === 'tank' ? ATTACK_RANGE.tank : t === 'boss' ? ATTACK_RANGE.boss : ATTACK_RANGE.melee;
 
 export function Wiki({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState<'weapons' | 'enemies'>('weapons');
+  const [tab, setTab] = useState<'weapons' | 'enemies' | 'maps'>('weapons');
+  const [selGun, setSelGun] = useState<Slot>('auto');
+  const [selMob, setSelMob] = useState<EnemyType>('tank');
+  const [selMap, setSelMap] = useState<MapId>('yard');
+  const w = WEAPONS[selGun];
+  const wm = WEAPON_META[selGun];
+  const perSec = Math.round((w.dmg * w.pellets / w.interval) * 10) / 10;
+  const e = ENEMIES[selMob];
+  const em = ENEMY_META[selMob];
+  const lore = MAP_LORE[selMap];
   return (
     <div
       style={{
@@ -35,7 +46,7 @@ export function Wiki({ onClose }: { onClose: () => void }) {
         background: 'rgba(5,7,14,0.88)', color: '#fff', fontFamily: 'system-ui', padding: 16,
       }}
     >
-      <div style={{ width: 'min(860px, 96vw)', maxHeight: '90vh', overflowY: 'auto', background: 'rgba(16,20,32,0.97)', borderRadius: 16, padding: '20px 22px', border: '1px solid rgba(255,209,102,0.35)' }}>
+      <div style={{ width: 'min(980px, 96vw)', maxHeight: '90vh', overflowY: 'auto', background: 'rgba(16,20,32,0.97)', borderRadius: 16, padding: '20px 22px', border: '1px solid rgba(255,209,102,0.35)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <h2 style={{ margin: 0 }}>📖 Вики ШТУРМ-43</h2>
           <button onClick={onClose} style={btnSm}>✕</button>
@@ -43,66 +54,75 @@ export function Wiki({ onClose }: { onClose: () => void }) {
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           <button onClick={() => setTab('weapons')} style={tab === 'weapons' ? btnActive : btn}>🔫 Оружие</button>
           <button onClick={() => setTab('enemies')} style={tab === 'enemies' ? btnActive : btn}>👾 Враги</button>
+          <button onClick={() => setTab('maps')} style={tab === 'maps' ? btnActive : btn}>🗺 Карты</button>
         </div>
 
         {tab === 'weapons' && (
-          <div style={{ display: 'grid', gap: 12 }}>
-            {SLOT_ORDER.map((s) => {
-              const w = WEAPONS[s];
-              const m = WEAPON_META[s];
-              const perSec = Math.round((w.dmg * w.pellets / w.interval) * 10) / 10;
-              return (
-                <div key={s} style={card}>
-                  <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                    <div style={{ color: '#ffd166' }}><GunIcon slot={s} size={72} /></div>
-                    <div>
-                      <div style={{ fontSize: 18, fontWeight: 800 }}>{m.name} <span style={keyBadge}>{m.key}</span></div>
-                      <div style={{ opacity: 0.85, fontSize: 13, marginTop: 2 }}>{m.desc}</div>
-                      <div style={{ color: '#ffd166', fontSize: 13, marginTop: 4 }}>💡 {m.tip}</div>
-                    </div>
+          <div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              {SLOT_ORDER.map((s) => (
+                <button key={s} onClick={() => setSelGun(s)} style={selGun === s ? btnActive : btn}>{WEAPON_META[s].short}</button>
+              ))}
+            </div>
+            <div style={grid2}>
+              <div><WikiViewer kind="gun" id={selGun} /></div>
+              <div style={card}>
+                <div style={{ fontSize: 18, fontWeight: 800 }}>{wm.name} <span style={keyBadge}>{wm.key}</span></div>
+                <div style={{ opacity: 0.85, fontSize: 13, marginTop: 2 }}>{wm.desc}</div>
+                <div style={{ color: '#ffd166', fontSize: 13, marginTop: 4 }}>💡 {wm.tip}</div>
+                <div style={{ display: 'grid', gap: 6, marginTop: 12 }}>
+                  <Stat icon="💥" label="Урон × темп/с" value={perSec} max={160} color="#ff7043" />
+                  <div style={{ fontSize: 12, opacity: 0.7, marginLeft: 30 }}>
+                    {w.pellets > 1 ? `${w.pellets} дробин × ${w.dmg}` : `${w.dmg}`} за выстрел • {Math.round(1 / w.interval * 10) / 10} выстр/с
                   </div>
-                  <div style={{ display: 'grid', gap: 6, marginTop: 12 }}>
-                    <Stat icon="💥" label="Урон × темп/с" value={perSec} max={160} color="#ff7043" />
-                    <div style={{ fontSize: 12, opacity: 0.7, marginLeft: 30 }}>
-                      {w.pellets > 1 ? `${w.pellets} дробин × ${w.dmg}` : `${w.dmg}`} за выстрел • {Math.round(1 / w.interval * 10) / 10} выстр/с
-                    </div>
-                    <Stat icon="🎯" label="Дальность" value={w.range} max={80} color="#4fc3f7" />
-                    <Stat icon="📦" label="Магазин" value={w.mag} max={30} color="#ffd166" />
-                    <Stat icon="🎒" label="Запас" value={w.reserve} max={210} color="#aed581" />
-                    <Stat icon="⟳" label="Перезарядка, с" value={w.reload} max={2.5} color="#ba68c8" />
-                    <Stat icon="🌀" label="Разброс" value={w.spread} max={5} color="#90a4ae" />
-                  </div>
+                  <Stat icon="🎯" label="Дальность" value={w.range} max={80} color="#4fc3f7" />
+                  <Stat icon="📦" label="Магазин" value={w.mag} max={30} color="#ffd166" />
+                  <Stat icon="🎒" label="Запас" value={w.reserve} max={210} color="#aed581" />
+                  <Stat icon="⟳" label="Перезарядка, с" value={w.reload} max={2.5} color="#ba68c8" />
+                  <Stat icon="🌀" label="Разброс" value={w.spread} max={5} color="#90a4ae" />
                 </div>
-              );
-            })}
+              </div>
+            </div>
           </div>
         )}
 
         {tab === 'enemies' && (
-          <div style={{ display: 'grid', gap: 12 }}>
-            {ORDER.map((t) => {
-              const e = ENEMIES[t];
-              const m = ENEMY_META[t];
-              return (
-                <div key={t} style={card}>
-                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                    <span style={{ fontSize: 40 }}>{m.icon}</span>
-                    <div>
-                      <div style={{ fontSize: 18, fontWeight: 800 }}>{m.name}</div>
-                      <div style={{ opacity: 0.85, fontSize: 13 }}>{m.desc}</div>
-                      <div style={{ color: '#ffd166', fontSize: 13, marginTop: 4 }}>💡 {m.tactic}</div>
-                    </div>
-                  </div>
-                  <div style={{ display: 'grid', gap: 6, marginTop: 12 }}>
-                    <Stat icon="❤" label="HP" value={e.hp} max={1200} color="#e57373" />
-                    <Stat icon="👟" label="Скорость" value={e.speed} max={5} color="#4fc3f7" />
-                    <Stat icon="💥" label="Урон" value={e.dmg} max={25} color="#ff7043" />
-                    <Stat icon="📏" label="Дальность атаки" value={reachOf(t)} max={18} color="#aed581" />
-                  </div>
+          <div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              {ORDER.map((t) => (
+                <button key={t} onClick={() => setSelMob(t)} style={selMob === t ? btnActive : btn}>{ENEMY_META[t].name}</button>
+              ))}
+            </div>
+            <div style={grid2}>
+              <div><WikiViewer kind="mob" id={selMob} /></div>
+              <div style={card}>
+                <div style={{ fontSize: 18, fontWeight: 800 }}>{em.name}</div>
+                <div style={{ opacity: 0.85, fontSize: 13 }}>{em.desc}</div>
+                <div style={{ color: '#ffd166', fontSize: 13, marginTop: 4 }}>💡 {em.tactic}</div>
+                <div style={{ display: 'grid', gap: 6, marginTop: 12 }}>
+                  <Stat icon="❤" label="HP" value={e.hp} max={1200} color="#e57373" />
+                  <Stat icon="👟" label="Скорость" value={e.speed} max={5} color="#4fc3f7" />
+                  <Stat icon="💥" label="Урон" value={e.dmg} max={25} color="#ff7043" />
+                  <Stat icon="📏" label="Дальность атаки" value={reachOf(selMob)} max={18} color="#aed581" />
                 </div>
-              );
-            })}
-            <div style={{ fontSize: 12, opacity: 0.65 }}>Сложность масштабирует HP и урон: Боец ×0.8 • Ветеран ×1.0 • Легенда-42 ×1.25. Босс на 7-й волне призывает 2 бегунов раз в 12с.</div>
+              </div>
+            </div>
+            <div style={{ fontSize: 12, opacity: 0.65, marginTop: 10 }}>Сложность масштабирует HP и урон: Боец ×0.8 • Ветеран ×1.0 • Легенда-42 ×1.25. Босс на 7-й волне призывает 2 бегунов раз в 12с.</div>
+          </div>
+        )}
+
+        {tab === 'maps' && (
+          <div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              {MAP_ORDER.map((m) => (
+                <button key={m} onClick={() => setSelMap(m)} style={selMap === m ? btnActive : btn}>{MAP_LORE[m].name}</button>
+              ))}
+            </div>
+            <div style={card}>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>{lore.name} <span style={keyBadge}>{MAPS[selMap].size}×{MAPS[selMap].size}</span></div>
+              <div style={{ opacity: 0.85, fontSize: 13, marginTop: 6 }}>👁 {lore.look}</div>
+              <div style={{ fontSize: 13, marginTop: 6, lineHeight: 1.5 }}>📜 {lore.lore}</div>
+            </div>
           </div>
         )}
       </div>
@@ -110,6 +130,7 @@ export function Wiki({ onClose }: { onClose: () => void }) {
   );
 }
 
+const grid2: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(280px, 1fr)', gap: 12 };
 const card: React.CSSProperties = {
   background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
   borderRadius: 12, padding: '14px 16px',
