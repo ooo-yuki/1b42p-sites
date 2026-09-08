@@ -17,7 +17,7 @@ const NAMES: Record<string, string> = {
   brohacho: 'Фабрика', '1b42p': 'Штурм', mtt: '42 LIVE',
   '42vs': '42VS', 'ai-714ef0': 'AI', pampers: 'Памперс', shturm: 'ШТУРМ-43', skitons: 'Skitons',
   tulenko: 'Туленко', fugo: 'Фуго', nerenol: 'Неренол', 'nerenol-egor': 'Егор',
-  bunker42: 'Бункер', mafia42: 'Мафия',
+  bunker42: 'Бункер', mafia42: 'Мафия', sasi42io: 'Змейка',
 };
 const COLORS: Record<string, string> = {
   hub: '#0060AA', chaev: '#7CFC00', doom: '#ff6b35', evaelph: '#ff7bac',
@@ -26,9 +26,9 @@ const COLORS: Record<string, string> = {
   brohacho: '#ff4fd8', '1b42p': '#ff3b3b', mtt: '#ff9f1c',
   '42vs': '#4db6ac', 'ai-714ef0': '#e040fb', pampers: '#aed581', shturm: '#ff8a65', skitons: '#7986cb',
   tulenko: '#7e57c2', fugo: '#66bb6a', nerenol: '#26c6da', 'nerenol-egor': '#ffa726',
-  bunker42: '#8d6e63', mafia42: '#ef5350',
+  bunker42: '#8d6e63', mafia42: '#ef5350', sasi42io: '#fbbf24',
 };
-const ORDER = ['hub', 'chaev', 'doom', 'evaelph', 'smolgrad', 'miqqil', 'setden', 'svyatoslav', 'denis', 'sasha', 'gtaevv', 'brohacho', '1b42p', 'mtt', '42vs', 'ai-714ef0', 'pampers', 'shturm', 'skitons', 'tulenko', 'fugo', 'nerenol', 'nerenol-egor', 'bunker42', 'mafia42'];
+const ORDER = ['hub', 'chaev', 'doom', 'evaelph', 'smolgrad', 'miqqil', 'setden', 'svyatoslav', 'denis', 'sasha', 'gtaevv', 'brohacho', '1b42p', 'mtt', '42vs', 'ai-714ef0', 'pampers', 'shturm', 'skitons', 'tulenko', 'fugo', 'nerenol', 'nerenol-egor', 'bunker42', 'mafia42', 'sasi42io'];
 interface HistPoint {
   ts: string;
   per_site: Record<string, number>;
