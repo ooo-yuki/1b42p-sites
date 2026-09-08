@@ -36,6 +36,10 @@
   #pause .card { text-align: center; color: #fff; background: #141829; border: 1px solid #fbbf2455; border-radius: 16px; padding: 32px 44px; }
   #pause h1 { font-size: 26px; margin-bottom: 16px; }
   #pause button { font-size: 17px; padding: 10px 28px; border: none; border-radius: 10px; background: #fbbf24; color: #111; font-weight: bold; cursor: pointer; }
+  #intro { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #000; z-index: 50; }
+  #intro video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  #playBtn { position: relative; z-index: 51; font-size: 24px; padding: 16px 56px; border: none; border-radius: 16px; background: #fbbf24; color: #111; font-weight: bold; cursor: pointer; box-shadow: 0 0 40px #fbbf288; }
+  #playBtn:hover { background: #f59e0b; }
   #pause #giveup { background: #ef4444; color: #fff; margin-left: 8px; }
   #pause .card { max-height: 92vh; overflow-y: auto; max-width: 420px; }
   #shop { margin-top: 18px; border-top: 1px solid #ffffff22; padding-top: 14px; }
@@ -65,6 +69,7 @@
   <div id="recSaved">Рекорд сохранён ✅</div>
   <button id="again">Ещё раз</button>
 </div></div>
+<div id="intro"><video id="introVideo" src="intro.mp4" muted loop playsinline autoplay></video><button id="playBtn">▶ Играть</button></div>
 <div id="hint">движение — джойстик / WASD / стрелки · буст — кнопка / пробел · 🟣 фиолет -500, не жри!</div>
 <div id="joy"><div id="stick"></div></div>
 <button id="boostBtn" aria-label="Буст">⚡</button>
@@ -319,7 +324,13 @@ function newGame() {
   document.getElementById('death').style.display = 'none';
   try { if (window.__sasiOnRetry) window.__sasiOnRetry(); } catch (e) {}
 }
-newGame();
+/* --- интро: игра стартует только по кнопке ▶ Играть --- */
+document.getElementById('playBtn').addEventListener('click', function () {
+  document.getElementById('intro').style.display = 'none';
+  try { var v = document.getElementById('introVideo'); if (v && v.pause) v.pause(); } catch (e) {}
+  newGame();
+  requestAnimationFrame(frame);
+});
 
 var best = 0;
 try { best = parseInt(localStorage.getItem(BEST_KEY) || '0', 10) || 0; } catch (e) {}
@@ -718,7 +729,7 @@ function draw(camX, camY) {
     ctx.fillText(s.name, s.x - camX, s.y - camY - 20);
   }
 }
-requestAnimationFrame(frame);
+/* цикл запускается кнопкой ▶ Играть (см. интро выше) */
 </script>
 <script>
 /* ===== sasi42io: рекорды с сервера (топ-10, 30с, фолбэк) + форма ника ===== */

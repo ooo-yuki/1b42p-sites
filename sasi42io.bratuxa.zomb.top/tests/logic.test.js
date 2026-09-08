@@ -277,7 +277,7 @@ assert.strictEqual(__hook.burp(true), undefined, 'burp no-op without AudioContex
 assert.strictEqual(__hook.clang(), undefined, 'clang no-op without AudioContext');
 assert.ok(html.includes('if (s === player) burp(true)'), 'burp only when YOU eat');
 assert.ok(html.includes('if (all[q] === player) clang()'), 'clang only when bot dies on YOU');
-assert.ok(!html.includes('mute') && !html.includes('Mute'), 'no mute button by design');
+assert.ok(!html.includes('Mute') && !html.includes('muteBtn'), 'no mute button by design (video muted attr is autoplay requirement, not a button)');
 assert.ok(html.includes('var n = BOT_N') && html.includes('bots.length < BOT_N'), 'spawn + respawn keep 25');
 assert.ok(
   html.includes('bots.concat([player])') && html.includes('.slice(0, 10)'),
@@ -316,4 +316,13 @@ assert.ok(html.includes('type: 3, pts: -500'), 'placeFood must spawn purple type
 assert.ok(html.includes('eatPurple(s.score)'), 'eatCheck must apply flat -500');
 
 console.log('logic.test.js: OK purple (5%, -500, floor 0)');
+
+// --- интро: сначала видео + кнопка, игра только после ▶ Играть ---
+assert.ok(html.includes('id="intro"'), 'intro overlay must exist');
+assert.ok(html.includes('id="introVideo"') && html.includes('src="intro.mp4"'), 'intro video must be intro.mp4');
+assert.ok(html.includes('id="playBtn"') && html.includes('Играть'), 'center play button');
+assert.ok(html.includes("getElementById('playBtn')"), 'play must be wired');
+assert.ok(!/^newGame\(\);/m.test(html), 'no autostart: game begins only on Play');
+
+console.log('logic.test.js: OK intro (video + play gate)');
 process.exit(0);
