@@ -37,7 +37,7 @@ test('бэкрумс-карта: только бессмертные сталк�
   test.setTimeout(180000);
   await boot(page);
   await createAndGo(page, 'ТестЖуть', 'backrooms');
-  let foes: Array<{ god: boolean }> = [];
+  let foes: Array<{ god: boolean; x: number; z: number }> = [];
   for (let i = 0; i < 12; i++) {
     await page.waitForTimeout(1000);
     foes = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.foes());
@@ -45,6 +45,18 @@ test('бэкрумс-карта: только бессмертные сталк�
   }
   expect(foes.length, 'пак вышел (5+)').toBeGreaterThanOrEqual(5);
   expect(foes.every((f) => f.god === true), 'все — бессмертные, обычных нет').toBe(true);
+  // пак спавнится далеко: минимум 20м от игрока (не в лицо)
+  const pos = await page.evaluate(() => (window as unknown as { __mtt: M & { pos: () => { x: number; z: number } } }).__mtt.pos());
+  const minD = Math.min(...foes.map((f) => Math.hypot(f.x - pos.x, f.z - pos.z)));
+  console.log('DIAG stalkmin ' + Math.round(minD));
+  expect(minD, 'сталкеры далеко от игрока').toBeGreaterThan(15);
+  // полосок HP у бессмертных нет
+  const bars = await page.evaluate(() => (window as unknown as { __mtt: M & { godBars: () => boolean } }).__mtt.godBars());
+  expect(bars, 'HP-бары спрятаны').toBe(true);
+  // FPS в жути при новом свете
+  const fps = await page.evaluate(() => (window as unknown as { __mtt: M & { fps: () => number } }).__mtt.fps());
+  console.log('DIAG brfps ' + fps);
+  expect(fps).toBeGreaterThan(0);
 });
 
 test('в меню: вылет с сервера + фантики целы', async ({ page, request }: { page: Page; request: import('@playwright/test').APIRequestContext }) => {

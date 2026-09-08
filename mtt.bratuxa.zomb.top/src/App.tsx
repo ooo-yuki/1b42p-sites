@@ -748,6 +748,7 @@ async function loadStats(): Promise<void> {
       fps: () => game.debugFps(),
       stalkers: () => game.spawnStalkers(),
       stalkCount: () => game.debugStalkers(),
+      godBars: () => game.debugGodBars(),
       steps: () => game.debugSteps(),
       flush: () => game.flushProgress(),
       spec: (on: boolean, x: number, z: number) => game.setSpec(on, x, z),

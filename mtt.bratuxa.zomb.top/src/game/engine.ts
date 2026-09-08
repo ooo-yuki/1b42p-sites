@@ -434,6 +434,7 @@ export class Game {
   private lampFlicker: Array<{ mat: THREE.MeshBasicMaterial; light: THREE.PointLight; seed: number }> = [];
   private torch: THREE.SpotLight | null = null;
   private lampT = 0;
+  private torchDir = new THREE.Vector3();
 
   /** Кадр жути: мигание дохнущих ламп + фонарь по взгляду. Дёшево: 2 лампы + 1 спот. */
   private updateLamps(dt: number): void {
@@ -449,11 +450,10 @@ export class Game {
       f.mat.color.setRGB(c / 255, (c * 0.82) / 255, (c * 0.6) / 255);
     }
     if (this.torch && this.camera) {
-      // фонарь сидит на камере и бьёт по взгляду на 12м вперёд
+      // фонарь сидит на камере и бьёт по взгляду на 12м вперёд (вектор переиспользуем — без мусора в кадр)
       this.torch.position.copy(this.camera.position);
-      const dir = new THREE.Vector3();
-      this.camera.getWorldDirection(dir);
-      this.torch.target.position.copy(this.camera.position).addScaledVector(dir, 12);
+      this.camera.getWorldDirection(this.torchDir);
+      this.torch.target.position.copy(this.camera.position).addScaledVector(this.torchDir, 12);
     }
   }
   /** Общая комната: id локальных мобов для слепка хоста; netSync — я гость (мобы со сервера). */
@@ -1116,15 +1116,59 @@ export class Game {
     const poolTex = new THREE.CanvasTexture(poolCv);
     const poolGeo = new THREE.PlaneGeometry(11, 11);
     let flickLeft = 2;
+    // сначала решаем судьбу каждой панели, потом включаем РЕАЛЬНЫЙ свет только
+    // на 8 разбросанных (жадный min-dist 26м): панели и лужи — unlit-материалы,
+    // они горят бесплатно, а каждый PointLight жрёт каждый пиксель кадра.
+    // Было ~17 источников + спот — вот и лаги. Стало 8 + 2 мигающих + фонарь.
+    const liveCells: Array<[number, number]> = [];
+    const cellKind = new Map<string, 'flick' | 'live' | 'dead'>();
+    for (let i = 1; i < N; i += 3) {
+      for (let j = 1; j < N; j += 3) {
+        const isStart = i === 1 && j === 1;
+        const roll = Math.random();
+        if (flickLeft > 0 && !isStart && roll > 0.86) {
+          flickLeft--;
+          cellKind.set(i + ':' + j, 'flick');
+        } else if (isStart || roll < 0.36) {
+          cellKind.set(i + ':' + j, 'live');
+          liveCells.push([-S / 2 + (i + 0.5) * CELL, -S / 2 + (j + 0.5) * CELL]);
+        } else {
+          cellKind.set(i + ':' + j, 'dead');
+        }
+      }
+    }
+    // стартовая клетка — всегда с настоящим светом (игрок рождается в свете)
+    const startKey = '1:1';
+    const litKeys = new Set<string>([startKey]);
+    const litPos: Array<[number, number]> = [liveCells[0]];
+    for (const [lx, lz] of liveCells.slice(1)) {
+      if (litKeys.size >= 8) break;
+      let ok = true;
+      for (const [px, pz] of litPos) {
+        const dx = lx - px, dz = lz - pz;
+        if (dx * dx + dz * dz < 26 * 26) { ok = false; break; }
+      }
+      if (ok) {
+        litPos.push([lx, lz]);
+        // ключ по координатам стартовой сетки — ищем ближайшую ячейку
+        let best = '', bd = Infinity;
+        for (const k of cellKind.keys()) {
+          if (cellKind.get(k) !== 'live' || litKeys.has(k)) continue;
+          const [ci, cj] = k.split(':').map(Number);
+          const cx = -S / 2 + (ci + 0.5) * CELL, cz = -S / 2 + (cj + 0.5) * CELL;
+          const d = (cx - lx) * (cx - lx) + (cz - lz) * (cz - lz);
+          if (d < bd) { bd = d; best = k; }
+        }
+        if (best) litKeys.add(best);
+      }
+    }
     for (let i = 1; i < N; i += 3) {
       for (let j = 1; j < N; j += 3) {
         const lx = -S / 2 + (i + 0.5) * CELL, lz = -S / 2 + (j + 0.5) * CELL;
-        const isStart = i === 1 && j === 1;
-        const roll = Math.random();
+        const kind = cellKind.get(i + ':' + j) ?? 'dead';
         // корпус панели виден всегда — тёмный или светящийся
-        if (flickLeft > 0 && !isStart && roll > 0.86) {
+        if (kind === 'flick') {
           // издыхающая: панель дёргается, свет её — тоже (обновляется в updateLamps)
-          flickLeft--;
           const fmat = new THREE.MeshBasicMaterial({ color: 0xffd9a0 });
           const panel = new THREE.Mesh(lampGeo, fmat);
           panel.position.set(lx, WH - 0.05, lz);
@@ -1133,18 +1177,20 @@ export class Game {
           fl.position.set(lx, WH - 0.5, lz);
           scene.add(fl);
           this.lampFlicker.push({ mat: fmat, light: fl, seed: Math.random() * 100 });
-        } else if (isStart || roll < 0.36) {
-          // живая: панель горит + источник + лужа на полу
+        } else if (kind === 'live') {
+          // панель горит + лужа на полу всегда; настоящий источник — только у избранных
           const panel = new THREE.Mesh(lampGeo, liveMat);
           panel.position.set(lx, WH - 0.05, lz);
           scene.add(panel);
-          const pl = new THREE.PointLight(0xffbe5a, 16, 19, 1.8);
-          pl.position.set(lx, WH - 0.5, lz);
-          scene.add(pl);
           const pool = new THREE.Mesh(poolGeo, new THREE.MeshBasicMaterial({ map: poolTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
           pool.rotation.x = -Math.PI / 2;
           pool.position.set(lx, 0.02, lz);
           scene.add(pool);
+          if (litKeys.has(i + ':' + j)) {
+            const pl = new THREE.PointLight(0xffbe5a, 16, 19, 1.8);
+            pl.position.set(lx, WH - 0.5, lz);
+            scene.add(pl);
+          }
         } else {
           // дохлая: тёмная панель, вокруг — тьма
           const panel = new THREE.Mesh(lampGeo, deadMat);
@@ -2578,7 +2624,7 @@ export class Game {
     // добиваем пак до нормы (волна зачистки не будет — сталкеры не умирают)
     while (have < want) {
       const before = this.enemies.length;
-      this.spawnEnemy('walk');
+      this.spawnEnemy('walk', 25);
       if (this.enemies.length <= before) break;
       const e = this.enemies[this.enemies.length - 1]!;
       e.god = true;
@@ -2599,7 +2645,7 @@ export class Game {
     this.stalkersOn = true;
     for (let i = 0; i < 5; i++) {
       const before = this.enemies.length;
-      this.spawnEnemy('walk');
+      this.spawnEnemy('walk', 25);
       if (this.enemies.length > before) {
         const e = this.enemies[this.enemies.length - 1]!;
         e.god = true;
@@ -2615,6 +2661,11 @@ export class Game {
 
   debugStalkers(): number {
     return this.enemies.filter((e) => !e.dead && e.god).length;
+  }
+
+  /** Жуть без полосок: все живые бессмертные прячут HP-бар. */
+  debugGodBars(): boolean {
+    return this.enemies.every((e) => e.dead || !e.god || e.hpSpr.visible === false);
   }
 
   /** Режим наблюдателя: движение выкл, камера на цели, удары выкл. */
@@ -2653,7 +2704,7 @@ export class Game {
     return { g, body, hpCv, hpTex, hpSpr };
   }
 
-  private spawnEnemy(kind: 'walk' | 'fly' | 'boss'): void {
+  private spawnEnemy(kind: 'walk' | 'fly' | 'boss', minDist = 0): void {
     if (this.netSync) return;
     const boss = kind === 'boss';
     const fly = kind === 'fly' && this.map !== 'backrooms';
@@ -2661,14 +2712,14 @@ export class Game {
     // точка спавна: только свободная (не внутри укрытий) и не впритык к игроку (босс — подальше)
     let sx = 0, sz = 40;
     let ok = false;
-    const minDist = boss ? 14 : 10;
+    const keepAway = minDist > 0 ? minDist : boss ? 14 : 10;
     for (let t = 0; t < 24; t++) {
       const a = Math.random() * Math.PI * 2;
       const r = 26 + Math.random() * 22;
       const cx = clampArena(Math.cos(a) * r);
       const cz = clampArena(Math.sin(a) * r);
       if (this.hitSolid(cx, cz, 2)) continue;
-      if (Math.hypot(cx - this.px, cz - this.pz) < minDist) continue;
+      if (Math.hypot(cx - this.px, cz - this.pz) < keepAway) continue;
       sx = cx; sz = cz;
       ok = true;
       break;
@@ -2677,7 +2728,7 @@ export class Game {
     if (!ok) {
       const safe: Array<[number, number]> = [[20, 20], [-20, 20], [20, -20], [-20, -20], [0, 0], [40, 0], [-40, 0]];
       for (const [qx, qz] of safe) {
-        if (!this.hitSolid(qx, qz, 2) && Math.hypot(qx - this.px, qz - this.pz) >= 10) {
+        if (!this.hitSolid(qx, qz, 2) && Math.hypot(qx - this.px, qz - this.pz) >= keepAway) {
           sx = qx; sz = qz;
           ok = true;
           break;
@@ -2703,6 +2754,9 @@ export class Game {
   }
 
   private updateHpBar(e: Enemy): void {
+    // бессмертный — без полоски: жуть не показывает HP (и так ясно, что не убить)
+    e.hpSpr.visible = !e.god;
+    if (e.god) return;
     const f = Math.max(0, e.hp / e.maxhp);
     const g = e.hpCv.getContext('2d')!;
     // рамка + фон
@@ -4078,14 +4132,14 @@ export class Game {
           }
           const ddx = wx - e.g.position.x, ddz = wz - e.g.position.z;
           const dd = Math.hypot(ddx, ddz) || 1;
-          // анти-прижим к углу: топчемся на месте (<0.3м за 0.45с), хотя идём, —
-          // слайд вбок 0.35с + маршрут пересчитать сразу, а не тереться о стену
+          // анти-прижим к углу: ползём медленнее 0.5м за 0.35с, хотя идём, —
+          // слайд вбок 0.7с (дальше от угла) + маршрут пересчитать сразу
           const moved = Math.hypot(e.g.position.x - e.lx, e.g.position.z - e.lz);
-          if (moved < 0.3) {
+          if (moved < 0.5) {
             e.stuckT += dt;
-            if (e.stuckT > 0.45 && e.slideT <= 0) {
+            if (e.stuckT > 0.35 && e.slideT <= 0) {
               e.stuckT = 0;
-              e.slideT = 0.35;
+              e.slideT = 0.7;
               const side = Math.random() < 0.5 ? 1 : -1;
               e.slideX = (-ddz / dd) * side;
               e.slideZ = (ddx / dd) * side;
