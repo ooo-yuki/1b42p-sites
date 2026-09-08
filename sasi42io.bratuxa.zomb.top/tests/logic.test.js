@@ -375,14 +375,15 @@ assert.ok(html.includes('sasi42io_panels'), 'panels choice must persist');
 
 console.log('logic.test.js: OK panels toggle (button + T, persist)');
 
-// --- имена ботов: 8 твоих первыми + 17 моих, без повторов на арене ---
+// --- имена ботов: пул 25 от Sansy, без повторов на арене ---
 assert.ok(__hook.NAMES && __hook.NAMES.length === 25, 'NAMES pool must cover 25 bots');
-assert.strictEqual(__hook.NAMES.slice(0, 8).join(','), 'Киршик,Чаев,Тюленька,Свастослав,Саси42,МТТ,Miqqil,5opka'); // первые 8 — твои (сравнение строкой: vm-массивы другой крови)
+assert.strictEqual(__hook.NAMES.slice(0, 8).join(','), 'Киршик,Чаев,Тюленька,Свастослав,Санси42,МТТ,Miqqil,5opka'); // первые 8 (сравнение строкой: vm-массивы другой крови)
+assert.strictEqual(__hook.NAMES.slice(8).join(','), 'Сет_ден,Робоженщина,Кизяк,Жоперша,мистер Пятёрка,Амиго,Соня,укроп Комисаренко,Бурито,Черепаха Хлов,Яна Цист,Язагит Лера,бурмалда,скитонс,гой,Владимир Зутин,Загеев');
 assert.strictEqual(new Set(__hook.NAMES).size, 25, 'no duplicate names in pool');
 assert.strictEqual(typeof __hook.nextBotName, 'function', 'nextBotName must be in __hook');
 assert.ok(__hook.NAMES.includes(__hook.nextBotName()), 'nextBotName deals from pool');
 assert.ok(html.includes('name: nextBotName()'), 'spawn + respawn must deal unique names');
 assert.ok(html.includes('shuffleNames()'), 'pool reshuffled every game');
 
-console.log('logic.test.js: OK unique bot names (8 yours + 17 mine)');
+console.log('logic.test.js: OK unique bot names (Sansy pool 25)');
 process.exit(0);

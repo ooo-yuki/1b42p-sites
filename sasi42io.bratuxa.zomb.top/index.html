@@ -294,9 +294,9 @@ function setPaused(b) { __paused = !!b; return __paused; }
 function togglePause() { __paused = !__paused; return __paused; }
 function isPaused() { return __paused; }
 var BOT_N = 25; // мясорубка: ботов на арене
-var NAMES = ['Киршик', 'Чаев', 'Тюленька', 'Свастослав', 'Саси42', 'МТТ', 'Miqqil', '5opka',
-  'Братуха', 'Вихрь', 'Торнадо', 'Пятёрка', 'Штурм', 'Кобра', 'Гром', 'Лис', 'Тень', 'Батя',
-  'Охотник', 'Трусишка', 'Шаурмен', 'Кепка', 'Фристайло', 'Змей', 'Бублик']; // 8 твоих + 17 моих: всем хватает
+var NAMES = ['Киршик', 'Чаев', 'Тюленька', 'Свастослав', 'Санси42', 'МТТ', 'Miqqil', '5opka',
+  'Сет_ден', 'Робоженщина', 'Кизяк', 'Жоперша', 'мистер Пятёрка', 'Амиго', 'Соня', 'укроп Комисаренко',
+  'Бурито', 'Черепаха Хлов', 'Яна Цист', 'Язагит Лера', 'бурмалда', 'скитонс', 'гой', 'Владимир Зутин', 'Загеев']; // пул 25 от Sansy: уникальные, без повторов
 window.__hook = { spawnFood: spawnFood, eatFood: eatFood, scoreTier: scoreTier, purpleRoll: purpleRoll, eatPurple: eatPurple, PURPLE_P: PURPLE_P, stepBot: stepBot, dodgeTurn: dodgeTurn, bestFood: bestFood, collide: collide, hitsWall: hitsWall, dropLoot: dropLoot, setDir: setDir, getDir: getDir, setPaused: setPaused, togglePause: togglePause, isPaused: isPaused, BOT_N: BOT_N, NAMES: NAMES, nextBotName: nextBotName, burp: burp, clang: clang, panelsVisible: panelsVisible, togglePanelsUI: togglePanelsUI, SHOP_PRICES: SHOP_PRICES, SKIN_COLORS: SKIN_COLORS, shopGain: shopGain, shopSpeed: shopSpeed, shopPickupR: shopPickupR, shopSkinColor: shopSkinColor, shieldHas: shieldHas, shieldUse: shieldUse };
 
 /* ===== игра ===== */
