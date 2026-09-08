@@ -1,6 +1,6 @@
 import type { JSX } from 'react';
 import {
-  Crown, Database, Dumbbell, Flame, Footprints, Headphones, Lock, Mic, Scissors,
+  Coins, Crown, Database, Dumbbell, Flame, Footprints, Headphones, Heart, Lock, Megaphone, Mic, Scissors,
   Shield, Shirt, Sparkles, Tent, Ticket, Trophy, Users, Warehouse, Wind, Zap,
   type LucideIcon,
 } from 'lucide-react';
@@ -12,6 +12,8 @@ export const VENUE_ICONS: Record<string, LucideIcon> = {
   club: Tent,
   arena: Trophy,
   slay: Crown,
+  stadium: Trophy,
+  kuzbass: Crown,
 };
 
 const SHOP_ICONS: Record<string, LucideIcon> = {
@@ -19,17 +21,20 @@ const SHOP_ICONS: Record<string, LucideIcon> = {
   freak: Sparkles,
   oper: Headphones,
   guard: Shield,
+  piar: Megaphone,
   jacket: Shirt,
   mantle: Crown,
   sneakers: Footprints,
   hair: Scissors,
+  chains: Coins,
   arena: Trophy,
   banka: Database,
   garden: Wind,
+  club: Heart,
 };
 
 /* Липкая мачта-афиша + пилюли ресурсов. id те же, что в legacy. */
-export function Masthead(props: { h: number; f: number; fans: number }): JSX.Element {
+export function Masthead(props: { h: number; f: number; fans: number; seasons?: number }): JSX.Element {
   return (
     <div id="top">
       <h1>
@@ -52,6 +57,11 @@ export function Masthead(props: { h: number; f: number; fans: number }): JSX.Ele
         <span className="pill">
           <Zap data-icon="inline-start" aria-hidden /> Комбо: <b id="rC">0</b>
         </span>
+        {(props.seasons ?? 0) > 0 ? (
+          <span className="pill">
+            <Trophy data-icon="inline-start" aria-hidden /> Сезон: <b id="rS">{props.seasons}</b>
+          </span>
+        ) : null}
       </div>
     </div>
   );
@@ -93,11 +103,27 @@ export function Shop(props: {
   items: Record<string, ShopItem>;
   lvls: Record<string, number>;
   isF: boolean;
+  seasons?: number;
   onBuy: (key: string) => void;
 }): JSX.Element {
   return (
     <div className="shop" id={props.id}>
       {Object.entries(props.items).map(([key, o]) => {
+        const need = o.needSeasons ?? 0;
+        if (need > (props.seasons ?? 0)) {
+          const Icon = SHOP_ICONS[key] ?? Sparkles;
+          return (
+            <div className="frow" key={key}>
+              <b>
+                <Icon data-icon="inline-start" aria-hidden size={16} /> {o.n}
+              </b>{' '}
+              <span className="hint">{o.d}</span>
+              <span className="lock">
+                <Lock data-icon="inline-start" aria-hidden size={14} /> Откроется в сезоне {need}
+              </span>
+            </div>
+          );
+        }
         const lv = props.lvls[key] ?? 0;
         const max = 3;
         const cost = lvlCost(o.base, lv);

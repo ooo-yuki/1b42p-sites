@@ -6,7 +6,7 @@ import './fabrika.css';
 import { Masthead, Shop, Venues } from './fabrika/parts';
 import { ShowStage } from './fabrika/ShowStage';
 import { BUILDS, LOOKS, TEAM, WIN_GOAL, type Venue } from './fabrika/content';
-import { fans, fmt, lvlCost, unlocked, type Save } from './fabrika/formulas';
+import { defaultSave, fans, fameMult, fmt, lvlCost, unlocked, type Save } from './fabrika/formulas';
 import { loadSave, storeSave } from './fabrika/save';
 import type { ShowSummary } from './fabrika/show';
 import { blip } from './fabrika/audio';
@@ -36,6 +36,10 @@ export default function Fabrika(): JSX.Element {
   const [lastShow, setLastShow] = useState('');
   const saveRef = useRef(save);
   saveRef.current = save;
+  const showRef = useRef<{ v: Venue; key: number } | null>(null);
+  showRef.current = show;
+  const encoreRef = useRef(false);
+  const [encore, setEncore] = useState(false);
   const winScope = useRef<HTMLDivElement | null>(null);
   const winBox = useRef<HTMLDivElement | null>(null);
 
@@ -83,18 +87,43 @@ export default function Fabrika(): JSX.Element {
   };
 
   const endShow = (sum: ShowSummary): void => {
+    const venue = showRef.current?.v ?? null;
+    const wasEncore = encoreRef.current;
+    encoreRef.current = false;
+    setEncore(false);
+    const mult = fameMult(saveRef.current.seasons);
+    const hype = Math.floor(sum.hype * mult * (wasEncore ? 2 : 1));
+    const tickets = sum.tickets ?? 0;
     setShow(null);
     setLastShow(
-      `Шоу окончено: +${fmt(sum.hype)} хайпа · точно ${sum.perfects} · хорошо ${sum.greats} · норм ${sum.goods} · мимо ${sum.misses} · комбо ${sum.best}`,
+      `${wasEncore ? 'Бис! Награды двойные. ' : ''}Шоу окончено: +${fmt(hype)} хайпа (слава ×${mult}${wasEncore ? ' · бис ×2' : ''}) · точно ${sum.perfects} · хорошо ${sum.greats} · норм ${sum.goods} · мимо ${sum.misses} · комбо ${sum.best}${tickets ? ` · фантики за цепи +${tickets}` : ''}`,
     );
     blip(990);
     setSave((p) => {
-      const h = p.h + sum.hype;
-      const total = p.total + sum.hype;
+      const h = p.h + hype;
+      const f = p.f + tickets;
+      const total = p.total + hype;
       const win = p.win || total >= WIN_GOAL;
       if (!p.win && total >= WIN_GOAL) setWinOpen(true);
-      return { ...p, h, total, win };
+      return { ...p, h, f, total, win };
     });
+    if (venue && saveRef.current.seasons >= 5 && Math.random() < 0.1) {
+      encoreRef.current = true;
+      setEncore(true);
+      setLastShow((prev) => `${prev} · Бис! Тот же зал ещё раз — награды двойные. Мы уже победили.`);
+      setShow((p) => ({ v: venue, key: (p?.key ?? showRef.current?.key ?? 0) + 1 }));
+      blip(880);
+    }
+  };
+
+  const goTour = (): void => {
+    setWinOpen(false);
+    encoreRef.current = false;
+    setEncore(false);
+    setShow(null);
+    setLastShow('');
+    setSave((p) => ({ ...defaultSave(), seasons: p.seasons + 1, win: false }));
+    blip(990);
   };
 
   const buy = (section: 'team' | 'look' | 'bld', key: string): void => {
@@ -102,6 +131,12 @@ export default function Fabrika(): JSX.Element {
     const isF = section !== 'look';
     const o = table[key];
     if (!o) return;
+    const need = o.needSeasons ?? 0;
+    if (need > saveRef.current.seasons) {
+      setHint(`Откроется в сезоне ${need} — сначала в мировой тур`);
+      blip(200);
+      return;
+    }
     const s = saveRef.current;
     const lv = s[section][key] ?? 0;
     if (lv >= 3) return;
@@ -127,7 +162,7 @@ export default function Fabrika(): JSX.Element {
 
   return (
     <>
-      <Masthead h={save.h} f={save.f} fans={fans(save.total)} />
+      <Masthead h={save.h} f={save.f} fans={fans(save.total)} seasons={save.seasons} />
       <div id="tabs" role="tablist" aria-label="Сцены фабрики">
         <div data-slot="tabs-list">
           {TABS.map((t) => {
@@ -157,6 +192,11 @@ export default function Fabrika(): JSX.Element {
         {tab === 'stage' && (
           <div id="tab-stage" role="tabpanel">
             <Venues save={save} onShow={startShow} />
+            {encore ? (
+              <div className="shop-hint" role="status">
+                Бис! Награды двойные. Мы уже победили.
+              </div>
+            ) : null}
             {show ? (
               <ShowStage key={show.key} venue={show.v} save={saveRef.current} onEnd={endShow} />
             ) : lastShow ? (
@@ -172,7 +212,7 @@ export default function Fabrika(): JSX.Element {
               <h3>
                 <Users data-icon="inline-start" aria-hidden size={16} /> Команда Батальона
               </h3>
-              <Shop id="team" items={TEAM} lvls={save.team} isF onBuy={(k) => buy('team', k)} />
+              <Shop id="team" items={TEAM} lvls={save.team} isF seasons={save.seasons} onBuy={(k) => buy('team', k)} />
             </div>
           </div>
         )}
@@ -182,7 +222,7 @@ export default function Fabrika(): JSX.Element {
               <h3>
                 <Crown data-icon="inline-start" aria-hidden size={16} /> Прокачка Пятёрки
               </h3>
-              <Shop id="looks" items={LOOKS} lvls={save.look} isF={false} onBuy={(k) => buy('look', k)} />
+              <Shop id="looks" items={LOOKS} lvls={save.look} isF={false} seasons={save.seasons} onBuy={(k) => buy('look', k)} />
             </div>
           </div>
         )}
@@ -192,7 +232,7 @@ export default function Fabrika(): JSX.Element {
               <h3>
                 <Tent data-icon="inline-start" aria-hidden size={16} /> ФрикЛенд
               </h3>
-              <Shop id="builds" items={BUILDS} lvls={save.bld} isF onBuy={(k) => buy('bld', k)} />
+              <Shop id="builds" items={BUILDS} lvls={save.bld} isF seasons={save.seasons} onBuy={(k) => buy('bld', k)} />
               <p className="hint">Каждый объект даёт перманентный буст. Мы уже победили.</p>
             </div>
           </div>
@@ -243,6 +283,9 @@ export default function Fabrika(): JSX.Element {
             </p>
             <button className="big" onClick={() => setWinOpen(false)}>
               <PartyPopper data-icon="inline-start" aria-hidden size={18} /> Кайфовать дальше
+            </button>
+            <button className="big" onClick={goTour} style={{ marginTop: 8 }}>
+              <Trophy data-icon="inline-start" aria-hidden size={18} /> В мировой тур (сезон {save.seasons + 1})
             </button>
           </div>
         </div>
