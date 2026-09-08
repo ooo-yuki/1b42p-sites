@@ -157,25 +157,26 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(-
 #caseResult.drop.spin{color:var(--gold);animation:caseblink 1s steps(2) infinite}
 @keyframes caseblink{50%{opacity:.55}}
 #caseRoulette{position:relative;margin:10px auto 4px;max-width:460px}
-#caseOverlay{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(2,4,10,.88);padding:14px;animation:ovin .3s ease-out;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+#caseOverlay{position:fixed;inset:0;z-index:60;display:grid;place-items:stretch;background:rgba(2,4,10,.94);padding:0;animation:ovin .3s ease-out;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 @keyframes ovin{from{opacity:0}to{opacity:1}}
-#caseFull{width:min(94vw,760px);max-height:94vh;overflow-y:auto;background:var(--panel-solid);border:2px solid #a855f7;border-radius:18px;padding:20px 18px 18px;text-align:center;box-shadow:0 0 44px rgba(168,85,247,.5),6px 6px 0 #000;font-family:var(--font-d)}
-#caseFull h3{margin:0 0 8px;color:var(--gold);letter-spacing:2px;font-size:24px;text-shadow:2px 2px 0 #000}
-#caseFull #caseRoulette{max-width:none;margin:8px auto}
-#caseFull #casePointer{font-size:28px}
-#caseFull #caseWin{padding:12px 0}
-#caseFull .rcard{flex:0 0 120px;width:120px;height:150px}
-#caseFull .rcard img{width:88px;height:68px}
+#caseFull{width:100vw;min-height:100dvh;overflow-y:auto;background:radial-gradient(900px 500px at 50% 20%,rgba(168,85,247,.16),transparent 65%),var(--panel-solid);border:none;border-radius:0;padding:4vh 4vw;text-align:center;box-shadow:none;font-family:var(--font-d);display:grid;place-items:center;place-content:center;gap:2vh}
+#caseFull h3{margin:0;color:var(--gold);letter-spacing:3px;font-size:clamp(28px,5vw,54px);text-shadow:3px 3px 0 #000,0 0 30px rgba(168,85,247,.6)}
+#caseFull #caseRoulette{max-width:none;width:100%;margin:0;display:grid;gap:1vh}
+#caseFull #casePointer{font-size:clamp(30px,5vw,52px)}
+#caseFull #caseWin{padding:3vh 0;width:100%}
+#caseTrack{display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:8px;padding:0 140px;width:max-content;transition-property:transform;transition-timing-function:cubic-bezier(.12,.8,.08,1)}
+#caseFull .rcard{flex:0 0 clamp(140px,18vw,200px);width:clamp(140px,18vw,200px);height:clamp(170px,24vw,240px)}
+#caseFull .rcard img{width:70%;height:52%}
 #caseFull .rcard .remo{font-size:42px}
 #caseFull .rcard .rlabel{font-size:14px}
 #caseFull #caseResult{font-size:18px;margin-top:12px}
-#caseClose{display:block;width:100%;margin-top:14px;padding:16px;font-size:20px;font-weight:900;letter-spacing:2px;border:none;border-radius:14px;cursor:pointer;background:linear-gradient(180deg,#ffd23f,#ff9f1c 60%,#e07b00);color:#231a00;box-shadow:0 0 24px rgba(255,159,28,.55),4px 4px 0 #000;font-family:var(--font-d);transition:transform .12s,filter .15s}
+#caseClose{display:block;width:100%;max-width:560px;margin:0 auto;padding:16px;font-size:20px;font-weight:900;letter-spacing:2px;border:none;border-radius:14px;cursor:pointer;background:linear-gradient(180deg,#ffd23f,#ff9f1c 60%,#e07b00);color:#231a00;box-shadow:0 0 24px rgba(255,159,28,.55),4px 4px 0 #000;font-family:var(--font-d);transition:transform .12s,filter .15s}
 #caseClose:hover{filter:brightness(1.08)}#caseClose:active{transform:scale(.97)}
 .cfullHint{margin-top:12px;color:#9aa3c0;font-size:13px}
 #casePointer{text-align:center;color:var(--gold);font-size:20px;font-weight:900;text-shadow:2px 2px 0 #000;animation:caseblink 1s steps(2) infinite}
 #caseWin{overflow:hidden;border:2px solid #a855f7;border-radius:12px;background:#0b1226;box-shadow:4px 4px 0 #000,0 0 18px rgba(168,85,247,.35);padding:8px 0;position:relative}
 #caseWin::after{content:'';position:absolute;top:0;bottom:0;left:50%;width:2px;background:var(--gold);box-shadow:0 0 10px var(--gold);transform:translateX(-50%);pointer-events:none}
-#caseTrack{display:flex;gap:8px;padding:0 140px;width:max-content;transition-property:transform;transition-timing-function:cubic-bezier(.12,.8,.08,1)}
+/* трек рулетки — грид-колонка (единственное правило; анимация — transform translateX) */
 .rcard{flex:0 0 104px;width:104px;height:128px;background:#141d33;border:2px solid #334155;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-family:var(--font-d);box-shadow:3px 3px 0 #000}
 .rcard img{width:72px;height:56px;object-fit:contain;background:#05070f;border-radius:8px}
 .rcard .remo{font-size:34px;line-height:1}
@@ -186,7 +187,8 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(-
 .rcard.fantiki{border-color:#39d353}
 .rcard.xp{border-color:#a855f7}
 .rcard.med{border-color:#66ccff}
-.rcard.win{border-color:var(--gold);border-width:3px;transform:scale(1.12);box-shadow:0 0 22px rgba(255,210,63,.9),3px 3px 0 #000;animation:winpulse .6s ease-in-out infinite alternate}
+.rcard.win{border-color:var(--gold);border-width:3px;transform:scale(1.12);box-shadow:0 0 22px rgba(255,210,63,.9),3px 3px 0 #000;animation:salto .8s cubic-bezier(.2,.9,.3,1.2) 1,winpulse .6s ease-in-out .8s infinite alternate}
+@keyframes salto{0%{transform:scale(1.12) rotateY(0)}50%{transform:scale(1.25) rotateY(180deg)}100%{transform:scale(1.12) rotateY(360deg)}}
 @keyframes winpulse{from{box-shadow:0 0 12px rgba(255,210,63,.7),3px 3px 0 #000}to{box-shadow:0 0 28px rgba(255,210,63,1),3px 3px 0 #000}}
 /* ---------- тач / оружие / прицел ---------- */
 #touch{position:fixed;inset:auto 0 0 0;z-index:5;display:none;justify-content:space-between;padding:0 12px calc(14px + env(safe-area-inset-bottom));pointer-events:none}
