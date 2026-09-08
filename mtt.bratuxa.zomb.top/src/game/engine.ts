@@ -891,8 +891,11 @@ export class Game {
       if (e.dead) continue;
       const dx = e.g.position.x - this.px, dz = e.g.position.z - this.pz;
       const d = Math.hypot(dx, dz) || 1;
-      e.g.position.x = clampArena(e.g.position.x + (dx / d) * 6);
-      e.g.position.z = clampArena(e.g.position.z + (dz / d) * 6);
+      // расталкиваем от игрока, но НЕ сквозь стены — с проверкой по осям
+      const qx = clampArena(e.g.position.x + (dx / d) * 6, this.half);
+      const qz = clampArena(e.g.position.z + (dz / d) * 6, this.half);
+      if (!this.hitSolid(qx, e.g.position.z, 0.8)) e.g.position.x = qx;
+      if (!this.hitSolid(e.g.position.x, qz, 0.8)) e.g.position.z = qz;
     }
     this.sfx(hitUrl, 0.5);
     this.pushHud();
@@ -2763,8 +2766,8 @@ export class Game {
     for (let t = 0; t < 24 && !ok; t++) {
       const a = Math.random() * Math.PI * 2;
       const r = 26 + Math.random() * 22;
-      const cx = clampArena(Math.cos(a) * r);
-      const cz = clampArena(Math.sin(a) * r);
+      const cx = clampArena(Math.cos(a) * r, this.half);
+      const cz = clampArena(Math.sin(a) * r, this.half);
       if (this.hitSolid(cx, cz, 2)) continue;
       if (Math.hypot(cx - this.px, cz - this.pz) < keepAway) continue;
       sx = cx; sz = cz;
@@ -2786,6 +2789,25 @@ export class Game {
         }
       }
     }
+    // последний шанс: любая свободная рядом
+    if (!ok) {
+      const fs = this.farSpot(5);
+      if (fs) { sx = fs[0]; sz = fs[1]; ok = true; }
+    }
+    // спираль вокруг игрока с сужением дистанции: игрок всегда стоит на
+    // свободном — рядом с ним место точно есть, пусть и ближе keepAway
+    if (!ok) {
+      for (let r = keepAway; r >= 3 && !ok; r -= 3) {
+        for (let k = 0; k < 12 && !ok; k++) {
+          const a = (k / 12) * Math.PI * 2;
+          const qx = clampArena(this.px + Math.cos(a) * r, this.half);
+          const qz = clampArena(this.pz + Math.sin(a) * r, this.half);
+          if (!this.hitSolid(qx, qz, 2)) { sx = qx; sz = qz; ok = true; }
+        }
+      }
+    }
+    // свободного места нет вообще — НЕ спавним в стену (раньше падал в дефолт (0,40) без проверки)
+    if (!ok) return;
     g.position.set(sx, 0, sz);
     this.scene.add(g);
     const foe: Enemy = {
@@ -2916,12 +2938,28 @@ export class Game {
     return this.hp;
   }
 
-  /** Ресаун в PvP после смерти: на точку, полное HP, без штрафа (штраф — сама смерть). */
+  /** Ресаун в PvP после смерти: на точку, полное HP, без штрафа (штраф — сама смерть).
+      Точка из сети может оказаться в стене (сервер карты не знает) — дёргаем
+      спиралью на ближайшую свободную, иначе жертва воскреснет вмурованной. */
   pvpRespawn(x: number, z: number): boolean {
     this.dead = false;
     this.hp = this.maxhp;
-    this.px = this.clamp(Number(x) || 0);
-    this.pz = this.clamp(Number(z) || 0);
+    let qx = this.clamp(Number(x) || 0), qz = this.clamp(Number(z) || 0);
+    if (this.hitSolid(qx, qz, 1.0, 0)) {
+      let free = false;
+      for (let ring = 1; ring <= 12 && !free; ring++) {
+        for (let ax = -ring; ax <= ring && !free; ax++) {
+          for (let az = -ring; az <= ring && !free; az++) {
+            if (Math.max(Math.abs(ax), Math.abs(az)) !== ring) continue;
+            const cx = this.clamp(qx + ax * 2), cz = this.clamp(qz + az * 2);
+            if (!this.hitSolid(cx, cz, 1.0, 0)) { qx = cx; qz = cz; free = true; }
+          }
+        }
+      }
+      if (!free) { this.randomSpawn(); this.pushHud(); this.drawMM(); return true; }
+    }
+    this.px = qx;
+    this.pz = qz;
     this.py = 0; this.pvy = 0;
     this.pushHud();
     this.drawMM();
@@ -2959,10 +2997,19 @@ export class Game {
   // общий итог попадания: отброс, полоса HP, частицы, фраг
   private afterHit(e: Enemy, dx: number, dz: number, d: number, push: number): void {
     e.hurtT = 0.18;
-    const nx = clampArena(e.g.position.x + (dx / (d || 1)) * push);
-    const nz = clampArena(e.g.position.z + (dz / (d || 1)) * push);
-    if (!this.hitSolid(nx, e.g.position.z, 0.8)) e.g.position.x = nx;
-    if (!this.hitSolid(e.g.position.x, nz, 0.8)) e.g.position.z = nz;
+    // кламп сначала под карту, проверка финальной точки (иначе отброс в стену)
+    const nx = clampArena(e.g.position.x + (dx / (d || 1)) * push, this.half);
+    const nz = clampArena(e.g.position.z + (dz / (d || 1)) * push, this.half);
+    const goX = !this.hitSolid(nx, e.g.position.z, 0.8);
+    const goZ = !this.hitSolid(e.g.position.x, nz, 0.8);
+    // отброс углом в стену запрещён: едем только по главной оси
+    if (goX && goZ && this.hitSolid(nx, nz, 0.8)) {
+      if (Math.abs(dx) >= Math.abs(dz)) e.g.position.x = nx;
+      else e.g.position.z = nz;
+    } else {
+      if (goX) e.g.position.x = nx;
+      if (goZ) e.g.position.z = nz;
+    }
     this.updateHpBar(e);
     this.burst(e.g.position.x, 1.2, e.g.position.z, 10);
     if (e.hp <= 0) {
@@ -4246,13 +4293,24 @@ export class Game {
               this.stepSound(0.3 * (1 - d / 20), 750 + Math.random() * 250);
             }
           }
-          let blockedX = this.hitSolid(nx, e.g.position.z, 0.8, eyH);
-          let blockedZ = this.hitSolid(e.g.position.x, nz, 0.8, eyH);
-          if (!blockedX) e.g.position.x = clampArena(nx);
-          if (!blockedZ) e.g.position.z = clampArena(nz);
+          // кламп СНАЧАЛА (под половину текущей карты), проверка — уже финальной точки:
+          // иначе валидируем одно место, а встаём в другое (стена)
+          const cx = clampArena(nx, this.half);
+          const cz = clampArena(nz, this.half);
+          let blockedX = this.hitSolid(cx, e.g.position.z, 0.8, eyH);
+          let blockedZ = this.hitSolid(e.g.position.x, cz, 0.8, eyH);
+          // угол: по осям проход есть, а по диагонали тело 0.8 не лезет —
+          // не срезаем, скользим вдоль главной оси (иначе клин в стене)
+          if (!blockedX && !blockedZ && cx !== e.g.position.x && cz !== e.g.position.z
+            && this.hitSolid(cx, cz, 0.8, eyH)) {
+            if (Math.abs(mdx) >= Math.abs(mdz)) blockedZ = true;
+            else blockedX = true;
+          }
+          if (!blockedX) e.g.position.x = cx;
+          if (!blockedZ) e.g.position.z = cz;
           if (e.climb && (blockedX || blockedZ)) {
             // скалолаз: стена до 12м — лезем вверх (2.5 м/с), дальше идём по крыше
-            const top = this.groundAt(blockedX ? nx : e.g.position.x, blockedZ ? nz : e.g.position.z);
+            const top = this.groundAt(blockedX ? cx : e.g.position.x, blockedZ ? cz : e.g.position.z);
             if (top > e.ey && top - e.ey <= 12) e.ey = Math.min(top, e.ey + 2.5 * dt);
           }
           if (e.climb) {
