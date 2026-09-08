@@ -13,6 +13,13 @@
   #top { position: fixed; top: 64px; right: 10px; color: #e5e7eb; font-size: 13px; background: rgba(10,12,25,.72); border: 1px solid #ffffff22; border-radius: 10px; padding: 8px 12px; user-select: none; pointer-events: none; z-index: 5; min-width: 170px; }
   #top b { color: #fbbf24; }
   #top .me { color: #fbbf24; font-weight: bold; }
+  #records { position: fixed; top: 300px; right: 10px; color: #e5e7eb; font-size: 13px; background: rgba(10,12,25,.72); border: 1px solid #fbbf2433; border-radius: 10px; padding: 8px 12px; user-select: none; z-index: 5; min-width: 170px; }
+  #records b { color: #fbbf24; }
+  #recForm { margin-top: 12px; }
+  #recForm input { font-size: 16px; padding: 8px 10px; border-radius: 8px; border: 1px solid #ffffff33; background: #0b0e1a; color: #fff; width: 180px; text-align: center; }
+  #recForm .warn { color: #ef4444; font-size: 13px; margin: 8px 0; font-weight: bold; }
+  #recForm button { margin-top: 4px; }
+  #recSaved { color: #22c55e; font-size: 14px; margin-top: 8px; display: none; }
   #death { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(5,6,12,.82); z-index: 10; }
   #death .card { text-align: center; color: #fff; background: #141829; border: 1px solid #fbbf2455; border-radius: 16px; padding: 32px 44px; }
   #death h1 { font-size: 28px; margin-bottom: 8px; }
@@ -35,9 +42,16 @@
 <canvas id="game"></canvas>
 <div id="hud">🏆 <span id="score">0</span> · рекорд <span id="best">0</span><span id="boosts"></span></div>
 <div id="top"><b>Топ-10</b><div id="toplist"></div></div>
+<div id="records"><b>Рекорды</b><div id="recordslist">загрузка…</div></div>
 <div id="death"><div class="card">
   <h1>Мы уже победили 🏆</h1>
   <p>Счёт: <span id="final">0</span> · Рекорд: <span id="finalBest">0</span></p>
+  <div id="recForm" style="display:none">
+    <input id="nickInput" maxlength="20" placeholder="Твой ник" autocomplete="off">
+    <div class="warn">Ник поменять нельзя будет</div>
+    <button id="saveNick">Сохранить</button>
+  </div>
+  <div id="recSaved">Рекорд сохранён ✅</div>
   <button id="again">Ещё раз</button>
 </div></div>
 <div id="hint">движение — джойстик / WASD / стрелки · буст — кнопка / пробел</div>
@@ -174,6 +188,7 @@ function newGame() {
   for (var m = 0; m < 6; m++) boosters.push(placeBooster());
   alive = true; boosting = false;
   document.getElementById('death').style.display = 'none';
+  try { if (window.__sasiOnRetry) window.__sasiOnRetry(); } catch (e) {}
 }
 newGame();
 
@@ -340,6 +355,7 @@ function frame(t) {
           document.getElementById('final').textContent = Math.floor(player.score);
           document.getElementById('finalBest').textContent = best;
           document.getElementById('death').style.display = 'flex';
+          try { if (window.__sasiOnDeath) window.__sasiOnDeath(Math.floor(player.score)); } catch (e) {}
         } else {
           var bi = bots.indexOf(s);
           if (bi >= 0) bots.splice(bi, 1);
@@ -491,6 +507,70 @@ function draw(camX, camY) {
   }
 }
 requestAnimationFrame(frame);
+</script>
+<script>
+/* ===== sasi42io: рекорды с сервера (топ-10, 30с, фолбэк) + форма ника ===== */
+(function () {
+  try {
+    var NICK_KEY = 'sasi42io_nick';
+    var API = 'https://hub.bratuxa.zomb.top/api';
+    var cached = []; // последний топ с сервера
+    var pendingScore = 0;
+    function esc(s) { return String(s).replace(/[<>&]/g, ''); }
+    function el(id) { return document.getElementById(id); }
+    function loadRecords() {
+      var box = el('recordslist');
+      fetch(API + '/records?site=sasi42io&limit=10').then(function (r) { return r.json(); }).then(function (j) {
+        if (!j || !j.ok || !j.records) throw 0;
+        cached = j.records;
+        if (!cached.length) { box.textContent = 'пока пусто — стань первым!'; return; }
+        var h = '';
+        for (var i = 0; i < cached.length; i++) {
+          h += '<div>' + (i + 1) + '. ' + esc(cached[i].name) + ' — ' + Math.floor(cached[i].score) + '</div>';
+        }
+        box.innerHTML = h;
+      }).catch(function () {
+        box.textContent = 'таблица недоступна (офлайн)';
+      });
+    }
+    function postRecord(name, score) {
+      return fetch(API + '/record', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ site: 'sasi42io', name: name, score: Math.floor(score) })
+      }).then(function (r) { return r.json(); }).then(function () { loadRecords(); }).catch(function () {});
+    }
+    function savedNick() { try { return localStorage.getItem(NICK_KEY) || ''; } catch (e) { return ''; } }
+    function isTop(score) {
+      if (!(score > 0)) return false;
+      if (!cached.length) return true; // нет данных — любой счёт топ
+      if (cached.length < 10) return score > 0;
+      return score > Math.floor(cached[cached.length - 1].score);
+    }
+    function hideForm() { el('recForm').style.display = 'none'; }
+    window.__sasiOnRetry = function () { hideForm(); el('recSaved').style.display = 'none'; pendingScore = 0; };
+    window.__sasiOnDeath = function (score) {
+      pendingScore = Math.floor(score) || 0;
+      hideForm(); el('recSaved').style.display = 'none';
+      if (!isTop(pendingScore)) return;
+      var nick = savedNick();
+      if (nick) { // повторный ввод не спрашиваем
+        el('recSaved').style.display = 'block';
+        postRecord(nick, pendingScore);
+        return;
+      }
+      el('recForm').style.display = 'block'; // топ-счёт + ника нет → форма
+    };
+    el('saveNick').addEventListener('click', function () {
+      var v = String(el('nickInput').value || '').trim().replace(/[<>&]/g, '').slice(0, 20);
+      if (!v) { el('nickInput').focus(); return; }
+      try { localStorage.setItem(NICK_KEY, v); } catch (e) {}
+      hideForm(); // после сохранения форму прятать
+      el('recSaved').style.display = 'block';
+      postRecord(v, pendingScore);
+    });
+    loadRecords(); setInterval(loadRecords, 30000);
+  } catch (e) {}
+})();
 </script>
 <script>
 try {

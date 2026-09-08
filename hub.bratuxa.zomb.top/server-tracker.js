@@ -89,6 +89,27 @@ const server = http.createServer(async (req, res) => {
         history: hist.rows,
       });
     }
+    if (req.method === 'POST' && url.pathname === '/api/record') {
+      const b = await body(req);
+      const site = SITES.includes(b.site) ? b.site : 'sasi42io';
+      let name = String(b.name == null ? '' : b.name).trim().replace(/[<>&]/g, '');
+      const score = Number(b.score);
+      if (!name || name.length > 20) return send(res, 400, { error: 'bad-name' });
+      if (!Number.isInteger(score) || score < 0 || score > 9999999) return send(res, 400, { error: 'bad-score' });
+      await pool.query('INSERT INTO sasi_records (site, name, score) VALUES ($1, $2, $3)', [site, name, score]);
+      return send(res, 200, { ok: true });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/records') {
+      const site = SITES.includes(url.searchParams.get('site')) ? url.searchParams.get('site') : 'sasi42io';
+      let limit = parseInt(url.searchParams.get('limit') || '10', 10);
+      if (!Number.isFinite(limit)) limit = 10;
+      limit = Math.max(1, Math.min(20, limit));
+      const r = await pool.query(
+        'SELECT name, score, created_at FROM sasi_records WHERE site=$1 ORDER BY score DESC, created_at ASC LIMIT $2',
+        [site, limit]
+      );
+      return send(res, 200, { ok: true, records: r.rows });
+    }
     return send(res, 404, { error: 'no-route' });
   } catch (e) {
     console.error('api err', e.message);
