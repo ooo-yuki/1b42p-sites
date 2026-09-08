@@ -170,7 +170,13 @@ var SHOP_API = 'https://hub.bratuxa.zomb.top/api';
 var SHOP_SITE = 'sasi42io';
 function shopGain(pts, starMult, hasScore) { return pts * (starMult || 1) * (hasScore ? 2.5 : 1); } // очки ×2.5
 function shopSpeed(base, hasSpeed) { return hasSpeed ? base * 1.4 : base; } // скорость ×1.4
-function shopPickupR(hasMagnet) { return hasMagnet ? 108 : 36; } // магнит: подбор в радиусе 3 клеток (36×3)
+function shopPickupR(hasMagnet, score) {
+  if (!hasMagnet) return 36;
+  var sc = score || 0;
+  if (sc > 35000) return 108 * 3; // 324: жадина-магнит ×3 (не суммируется)
+  if (sc > 15000) return 108 * 2; // 216: магнит ×2
+  return 108; // магнит: подбор в радиусе 3 клеток (36×3)
+}
 function shopSkinColor(id) { return SKIN_COLORS[id] || SKIN_DEFAULT; }
 function shieldHas(items) { return !!(items && items.shield > 0); }
 function shieldUse(items) { if (!shieldHas(items)) return false; items.shield--; return true; }
@@ -584,7 +590,7 @@ function clang() {
 }
 function eatCheck(s) {
   var mag = (s === player && shopHas('buff_magnet')); // магазин: магнит
-  var pr = shopPickupR(mag);
+  var pr = shopPickupR(mag, s.score); // радиус растёт от счёта: 15k ×2, 35k ×3
   for (var i = foods.length - 1; i >= 0; i--) {
     if (collide(s.x, s.y, foods[i].x, foods[i].y, pr)) {
       if (foods[i].gold) { s.score = eatGold(s.score); } // золотой банан: ровно +5000, без множителей

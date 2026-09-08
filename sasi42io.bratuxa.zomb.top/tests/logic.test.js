@@ -214,6 +214,11 @@ assert.strictEqual(__hook.shopSpeed(10, false), 10);
 assert.ok(Math.abs(__hook.shopSpeed(10, true) - 14) < 1e-9, 'speed x1.4'); // скорость ×1.4
 assert.strictEqual(__hook.shopPickupR(false), 36);
 assert.strictEqual(__hook.shopPickupR(true), 108); // магнит: 3 клетки (36×3)
+assert.strictEqual(__hook.shopPickupR(true, 15000), 108, 'boundary 15000 stays x1');
+assert.strictEqual(__hook.shopPickupR(true, 15001), 216, 'magnet x2 over 15000');
+assert.strictEqual(__hook.shopPickupR(true, 35000), 216, 'boundary 35000 stays x2');
+assert.strictEqual(__hook.shopPickupR(true, 35001), 324, 'magnet x3 over 35000, not x2+x3');
+assert.strictEqual(__hook.shopPickupR(false, 999999), 36, 'no magnet — no bonus at any score');
 assert.strictEqual(__hook.shopSkinColor('skin_crimson'), '#dc2626');
 assert.strictEqual(__hook.shopSkinColor('skin_gold'), '#ffd700');
 assert.strictEqual(__hook.shopSkinColor('nope'), '#fbbf24'); // дефолт
@@ -234,7 +239,7 @@ assert.ok(html.includes('shopHint'), 'no-nick hint must exist');
 assert.ok(html.includes("'/wallet?site='") && html.includes("'/shop/buy'") && html.includes("'/shop/consume'"), 'shop must use wallet/buy/consume API');
 assert.ok(html.includes("shopHas('buff_speed')") && html.includes('shopSpeed(base, true)'), 'speed buff x1.4 must apply');
 assert.ok(html.includes("shopHas('buff_score')"), 'score buff x2.5 must apply');
-assert.ok(html.includes('shopPickupR(mag)'), 'magnet pickup must apply');
+assert.ok(html.includes('shopPickupR(mag, s.score)'), 'magnet pickup must scale with score');
 assert.ok(html.includes('shieldBlock()'), 'shield must cancel one death');
 
 console.log('logic.test.js: OK shop (prices, x1.4/x2.5/magnet/shield, pause block, HUD coins)');
