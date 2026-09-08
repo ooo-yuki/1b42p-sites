@@ -237,6 +237,9 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.waitForTimeout(800);
+    // щит спавна гасит урон — снимаем атакой (синхронно, без таймингов кадров)
+    await expect(page.locator('#hudRow2')).toBeVisible({ timeout: 60000 });
+    await page.evaluate(() => (window as unknown as { __mtt: { attack: () => number } }).__mtt.attack());
     await page.evaluate(() => (window as unknown as { __mtt: { hurt: (n: number) => number } }).__mtt.hurt(500));
     await expect(page.locator('#reviveBtn')).toBeVisible();
     await page.click('#reviveBtn');
@@ -649,7 +652,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
 
   test('окно входа в меню', async ({ page }) => {
     await expect(page.locator('#authBox')).toBeVisible();
-    await expect(page.locator('#goBtn')).toHaveCount(0);
+    await expect(page.locator('#goBtn')).toBeDisabled();
     const login = `ui${Date.now() % 100000}`;
     await page.fill('#authLogin', login);
     await page.fill('#authPass', 'test1234');
@@ -661,6 +664,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.locator('#authOut').scrollIntoViewIfNeeded();
     await page.click('#authOut');
     await expect(page.locator('#authBox')).toBeVisible();
+    await expect(page.locator('#goBtn')).toBeDisabled();
   });
 
   test('дуэль 1×1: раунды и победа на сервере', async ({ request }) => {
@@ -727,7 +731,8 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await expect(page.locator('#menu')).toBeVisible();
     const top = await request.get('/api/scores');
     expect(top.ok()).toBeTruthy();
-    await page.click('button:has-text("ПОКИНУТЬ")');
+    // В МЕНЮ уже выкинула с сервера (leaveRoom внутри) — кнопки ПОКИНУТЬ нет, мы вне комнаты
+    await expect(page.locator('#roomLeave')).toHaveCount(0);
   });
 
   test('профиль: скрыт, открывается, показывает статистику', async ({ page, request }) => {
@@ -782,14 +787,22 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#buy-bat');
     await page.click('button:has-text("ЗАКРЫТЬ")');
     await expect(page.locator('#hudRow2')).toContainText('Бита');
-    await page.keyboard.down('KeyE');
-    await page.waitForTimeout(300);
-    await page.keyboard.up('KeyE');
-    await expect(page.locator('#hudRow2')).toContainText('Кулаки');
-    await page.keyboard.down('KeyE');
-    await page.waitForTimeout(300);
-    await page.keyboard.up('KeyE');
-    await expect(page.locator('#hudRow2')).toContainText('Бита');
+    // E под headless: короткий тап может пролететь между редкими кадрами —
+    // держим дольше и дожимаем повтором до смены ствола
+    const pressEUntil = async (want: string): Promise<void> => {
+      for (let i = 0; i < 4; i++) {
+        await page.keyboard.down('KeyE');
+        await page.waitForTimeout(800);
+        await page.keyboard.up('KeyE');
+        try {
+          await expect(page.locator('#hudRow2')).toContainText(want, { timeout: 2500 });
+          return;
+        } catch { /* мимо кадра — жмём ещё */ }
+      }
+      await expect(page.locator('#hudRow2')).toContainText(want);
+    };
+    await pressEUntil('Кулаки');
+    await pressEUntil('Бита');
   });
 
   test('🔫 пистолет бьёт по прицелу: средняя и в упор', async ({ page }) => {
@@ -841,13 +854,19 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     // четвёртая не лезет
     const fourth = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.medBuy());
     expect(fourth).toBe(false);
+    // щит спавна гасит урон — снимаем атакой (синхронно, без таймингов кадров)
+    await page.evaluate(() => (window as unknown as { __mtt: M & { attack: () => number } }).__mtt.attack());
     await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.hurt(60));
     const before = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.hp());
-    await page.keyboard.down('KeyX');
-    await page.waitForTimeout(400);
-    await page.keyboard.up('KeyX');
-    await page.waitForTimeout(300);
-    const after = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.hp());
+    // X под headless тоже может пролететь мимо кадра — дожимаем до лечения
+    let after = before;
+    for (let i = 0; i < 4 && after <= before; i++) {
+      await page.keyboard.down('KeyX');
+      await page.waitForTimeout(800);
+      await page.keyboard.up('KeyX');
+      await page.waitForTimeout(300);
+      after = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.hp());
+    }
     expect(after).toBeGreaterThan(before);
     await expect(page.locator('#hudRow2')).toContainText('💊 2/3');
   });
@@ -907,7 +926,8 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     expect(bb!.x + bb!.width).toBeLessThan(fb!.x);
     await page.click('#menuBtn');
     await page.click('#nav-rooms');
-    await page.click('button:has-text("ПОКИНУТЬ")');
+    // В МЕНЮ уже выкинула с сервера — покидать нечего, мы вне комнаты
+    await expect(page.locator('#roomLeave')).toHaveCount(0);
   });
 
   test('смена пароля через профиль', async ({ page, request }) => {

@@ -313,9 +313,17 @@ if (medkitGroup) {
 }
 ```
 
-- [ ] **Step 5: Счётчик в `dbg`** (для приёмки Task 5)
+- [ ] **Step 5: Счётчик в `dbg`** — в `src/main.tsx` в объекте `__shturm` найти строку
 
-В объект `__shturm` в поле `dbg` добавить `meds: sim.pickups.filter((m) => !m.taken).length`.
+```ts
+dbg: () => ({ t: sim.timeSec, acc, fps: fpsAvg, n: tickCount, frames: frameCount, enemies: sim.enemies.length, queue: sim.spawnQueue.length, px: sim.player.x, pz: sim.player.z, yaw: sim.player.yaw, cam: [camera.position.x, camera.position.y, camera.position.z], roll: camera.rotation.z, view: getView() }),
+```
+
+и дописать в возвращаемый объект счётчик банок — итоговая строка:
+
+```ts
+dbg: () => ({ t: sim.timeSec, acc, fps: fpsAvg, n: tickCount, frames: frameCount, enemies: sim.enemies.length, queue: sim.spawnQueue.length, px: sim.player.x, pz: sim.player.z, yaw: sim.player.yaw, cam: [camera.position.x, camera.position.y, camera.position.z], roll: camera.rotation.z, view: getView(), meds: sim.pickups.filter((m) => !m.taken).length }),
+```
 
 - [ ] **Step 6: Проверка**
 
@@ -342,15 +350,62 @@ Run: `bun test` (ожидаю 50+ pass, 0 fail), `bun run typecheck` (чисто
 
 Run: `bun run build`. Ожидаю `dist/assets/index-<hash>.js`, `dist/index.html` ссылается на него.
 
-- [ ] **Step 3: Браузер-приёмка** (стенд: `python3 -m http.server`, playwright-core, `executablePath: '/usr/local/bin/chromium'`, флаги `--use-gl=angle --use-angle=swiftshader --in-process-gpu`)
+- [ ] **Step 3: Браузер-приёмка** — файл `/tmp/shturm_balance.js`, запуск `node /tmp/shturm_balance.js`:
 
-  - `start('yard','veteran')` + `god(true)` + `fire(true)`: страница без `pageerror`.
-  - Камера-регрессия: `setYaw` 0/90/180/−90 → `roll` 0 везде (старый фикс не сломан).
-  - Банка: `meds` 3 → `tp(-14,-14)` → `meds` 2 и сообщение «Аптечка +50»; скрин `shturm-medkit.png` глянуть глазами (зелёный крест, герой рядом).
-  - Шутер-дальность: `wave(2)` пережить 20 с на месте с `god(false)`? Нет — оставить god, дальность покрыта юнит-тестом Task 2. В браузере только отсутствие регрессий.
-  - Скрин 3-го лица и 1-го лица для eyeball-финала.
+```js
+const { chromium } = require('/root/shotbot/node_modules/playwright-core');
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+(async () => {
+  const browser = await chromium.launch({ executablePath: '/usr/local/bin/chromium',
+    args: ['--no-sandbox', '--no-proxy-server', '--use-gl=angle', '--use-angle=swiftshader', '--in-process-gpu'] });
+  const page = await browser.newPage({ viewport: { width: 800, height: 450 } });
+  let pageerror = '';
+  page.on('pageerror', (e) => { pageerror += String(e).slice(0, 160) + '|'; });
+  await page.goto('http://127.0.0.1:8901/', { waitUntil: 'load', timeout: 90000 });
+  await page.waitForFunction(() => window.__shturm, null, { timeout: 90000 });
+  const S = (fn, ...a) => page.evaluate(fn, ...a);
+  const dbg = () => S(() => window.__shturm.dbg());
+  await S(() => window.__shturm.start('yard', 'veteran'));
+  await sleep(3000);
+  await S(() => window.__shturm.god(true));
+  await S(() => window.__shturm.fire(true));
+  // Камера-регрессия: крен 0 на 4 сторонах.
+  for (const y of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+    await S((yy) => window.__shturm.setYaw(yy), y);
+    await sleep(800);
+    const d = await dbg();
+    console.log((Math.abs(d.roll) < 1e-6 ? 'PASS' : 'FAIL') + ' roll yaw=' + Math.round(y * 180 / Math.PI), d.roll);
+  }
+  // Банка: было 3 → телепорт на (-14,-14) → стало 2 + хил в HUD.
+  const m0 = (await dbg()).meds;
+  await S(() => window.__shturm.tp(-14, -14));
+  await sleep(800);
+  const m1 = await dbg();
+  const msg = await S(() => window.__shturm.get().message);
+  console.log((m0 === 3 && m1.meds === 2 && /Аптечка/.test(msg) ? 'PASS' : 'FAIL') + ' medkit', { m0, m1: m1.meds, msg });
+  await page.screenshot({ path: '/root/shots/shturm-medkit.png', timeout: 120000 });
+  // Финальные скрины обоих видов.
+  await S(() => window.__shturm.view('third'));
+  await sleep(500);
+  await page.screenshot({ path: '/root/shots/shturm-balance-third.png', timeout: 120000 });
+  await S(() => window.__shturm.view('first'));
+  await sleep(500);
+  await page.screenshot({ path: '/root/shots/shturm-balance-first.png', timeout: 120000 });
+  console.log('pageerror: ' + (pageerror || 'none'));
+  await browser.close();
+})();
+```
 
-- [ ] **Step 4: Коммит dist**
+Стенд: `dist/` раздаётся через `python3 -m http.server 8901` (background). Ожидаю: все PASS, `pageerror: none`, на `shturm-medkit.png` глазами — зелёный крест и герой рядом. Дальность шутера в браузере не меряем (покрыта юнит-тестом Task 2); здесь только отсутствие регрессий.
+
+- [ ] **Step 4: Коммит dist** — сначала узнать реальные имена (хэш новый каждый билд):
+
+```bash
+ls shturm.bratuxa.zomb.top/dist/assets/
+grep -o 'assets/index-[A-Za-z0-9]*\.js' shturm.bratuxa.zomb.top/dist/index.html
+```
+
+затем, подставив имена из вывода выше вместо `<новый>` / `<старый>`:
 
 ```bash
 git add shturm.bratuxa.zomb.top/dist/index.html shturm.bratuxa.zomb.top/dist/assets/<новый>.js

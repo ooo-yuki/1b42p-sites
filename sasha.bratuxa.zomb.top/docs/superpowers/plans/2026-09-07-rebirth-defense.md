@@ -111,7 +111,8 @@ export function endlessWave(n: number): WaveDef {
 ```
 
 Директор каждую 5-ю энллесс-волну: при `n > 10 && (n - 10) % 5 === 0`
-в спавн добавляется `director`. Урон в `tick`: `dmg * (1 + 0.25 * medals)`.
+в спавн добавляется `director`. Урон в `tick`: `dmg * (1 + 0.25 * medals)`,
+при `medals >= 5` сверху `× (1 + ARSENAL_DMG_MUL)` (пассивка «Арсенал 42»).
 
 - [ ] **Step 4: Зелень**
 
@@ -144,6 +145,16 @@ test('пост-пул обороны по спеке', () => {
   expect(ENEMIES.double.speed).toBe(2.2);
   expect(Object.keys(CARDS)).toEqual(expect.arrayContaining(['warhorn', 'live', 'barricade', 'sabotage']));
 });
+test('лесенка гейтов 0–5', () => {
+  expect(CARD_GATES.warhorn).toBe(3);
+  expect(CARD_GATES.live).toBe(3);
+  expect(CARD_GATES.barricade).toBe(4);
+  expect(CARD_GATES.sabotage).toBe(4);
+  expect(MEDAL_GATES.endless).toBe(1);
+  expect(MEDAL_GATES.tesla).toBe(1);
+  expect(MEDAL_GATES.troll).toBe(2);
+  expect(MEDAL_GATES.arsenal).toBe(5);
+});
 test('тесла цепляет троих', () => {
   // три юнита в радиусе: после тика урон у всех трёх
 });
@@ -164,6 +175,14 @@ warhorn: { name: 'Мопсий вой', desc: 'страх 3с: враги сто
 live: { name: 'Прямой эфир', desc: '+5 монет за убийство 10с' },
 barricade: { name: 'Баррикада', desc: '+2 макс-жизни' },
 sabotage: { name: 'Саботаж', desc: '−30% скорости волны 10с' },
+/* Лесенка пост-пула 0–5: какая медаль открывает функцию. */
+export const CARD_GATES: Record<string, number> = {
+  warhorn: 3, live: 3, barricade: 4, sabotage: 4,
+};
+export const MEDAL_GATES: Record<string, number> = {
+  endless: 1, tesla: 1, troll: 2, double: 2, arsenal: 5,
+};
+export const ARSENAL_DMG_MUL = 0.15;
 ```
 
 Цепь теслы и реген тролля — в `tick` (рядом с существующим уроном).
@@ -205,7 +224,7 @@ git commit -m "defense: пост-пул (тесла, тролль, двойни�
 
 Сброс поля/монет/волн, `medals + 1`, `bestEndless` обновить из забега.
 
-- [ ] **Step 3: Замки: тесла/тролль/карты пула — «после N-й медали» (тесла 1, враги 1, карты 2)**
+- [ ] **Step 3: Замки лесенки 0–5: энллесс/тесла — 1, тролль/двойник — 2, вой/эфир — 3, баррикада/саботаж — 4, арсенал — 5; текст «после N-й медали»**
 
 - [ ] **Step 4: Проверка живьём**
 

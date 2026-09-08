@@ -99,11 +99,21 @@ export interface GameEvent {
 - [ ] **Step 1: Красный тест контента**
 
 ```ts
-test('пост-пул: 2 железа и 4 события с числами из спеки', () => {
+test('пост-пул: 2 железа и события с числами из спеки', () => {
   expect(PRESTIGE_HARDWARE.map(h => h.id)).toEqual(['quantum', 'kuzbass']);
   expect(PRESTIGE_HARDWARE[0].rate).toBe(600);
   expect(EVENTS.map(e => e.id)).toEqual(['blackout', 'zavoz', 'pug', 'night']);
   expect(EVENTS[0].incomeMul).toBe(0.5);
+});
+test('лесенка гейтов 1–5', () => {
+  expect(PRESTIGE_GATES.quantum).toBe(1);
+  expect(PRESTIGE_GATES.events).toBe(1);
+  expect(PRESTIGE_GATES.kuzbass).toBe(2);
+  expect(PRESTIGE_GATES.overclock).toBe(3);
+  expect(PRESTIGE_GATES.farm).toBe(4);
+  expect(PRESTIGE_GATES.autobuyer).toBe(4);
+  expect(PRESTIGE_GATES.bred).toBe(5);
+  expect(PRESTIGE_GATES.reflash).toBe(5);
 });
 ```
 
@@ -128,6 +138,17 @@ export const EVENTS: GameEvent[] = [
 export function eventPick(rng: () => number = Math.random): GameEvent {
   return EVENTS[Math.floor(rng() * EVENTS.length)];
 }
+/* Лесенка пост-пула: какой цикл открывает функцию (пул на 5 ребитов). */
+export const PRESTIGE_GATES: Record<string, number> = {
+  quantum: 1, events: 1,
+  kuzbass: 2,
+  overclock: 3,
+  farm: 4, autobuyer: 4,
+  bred: 5, reflash: 5,
+};
+export const PUG_FARM_RATE = 5;
+export const REFLASH_EVENT_CD_MUL = 0.5;
+export const REFLASH_INCOME_MUL = 1.25;
 ```
 
 - [ ] **Step 4: Зелень**
@@ -165,9 +186,9 @@ git commit -m "podval: пост-ребит железо и события"
 const rebirth = () => setS((p) => ({ ...freshSave(), cycles: p.cycles + 1 }));
 ```
 
-- [ ] **Step 2: Ряды пула с замками (`needCycles`: чайник 1, события 1, ЦОД 2, разгон 2, ферма 3, бред 3)**
+- [ ] **Step 2: Ряды пула с замками лесенки 1–5 (чайник/события — 1, ЦОД — 2, разгон — 3, ферма/автобайер — 4, бред/перепрошивка — 5)**
 
-Ряд рисуется всегда; если `s.cycles < need` — замок «Откроется после N-го ребита».
+Ряд рисуется всегда; если `s.cycles < need` — замок «Откроется после N-го ребита». Ферма — 3 уровня; автобайер — тумблер (покупает доступное железо каждые 5с); перепрошивка — тумблер (кулдаун событий ×0.5, доход ×1.25); бред — лог смешного.
 
 - [ ] **Step 3: События: тик `setInterval` 150с ± 60с, только при `cycles >= 1`; плашка с обратным отсчётом; `drain` режет датасеты сразу**
 

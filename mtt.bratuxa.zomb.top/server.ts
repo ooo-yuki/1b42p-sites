@@ -509,6 +509,8 @@ async function roomsApi(req: Request): Promise<Response | null> {
   if (req.method === 'POST' && action === 'pvphit') {
     if (room.mode !== 'pvp') return Response.json({ error: 'nopvp' }, { status: 403 });
     if (me.spec) return Response.json({ error: 'spec' }, { status: 403 });
+    // труп не бьёт: фарм фрагов мёртвыми руками запрещён
+    if (me.dead) return Response.json({ error: 'corpse' }, { status: 403 });
     const fighters = [...room.players.values()].filter((m) => !m.spec);
     const targetRaw = body.target as string | number;
     const foe = typeof targetRaw === 'number'
@@ -546,16 +548,10 @@ async function roomsApi(req: Request): Promise<Response | null> {
     return Response.json({ ok: true, spec: true, targets });
   }
 
-  // вернуться в бой из наблюдателя (ресаун в случайной точке)
+  // вернуться в бой из наблюдателя — ЗАПРЕЩЕНО приказом (наблюдатель не возрождается).
+  // Ручка оставлена, чтобы старые клиенты получали понятный 403, а не воскрешение.
   if (req.method === 'POST' && action === 'play') {
-    const sp = randSpawnXZ();
-    me.spec = false;
-    me.specTarget = '';
-    me.hp = 100;
-    me.dead = false;
-    me.x = sp.x; me.z = sp.z;
-    me.ts = Date.now();
-    return Response.json({ ok: true, rx: sp.x, rz: sp.z });
+    return Response.json({ error: 'norespawn' }, { status: 403 });
   }
 
   // чат комнаты: только свои, текст чистим, храним последние 50
@@ -613,6 +609,9 @@ async function roomsApi(req: Request): Promise<Response | null> {
   // общий урон по мобу: любой игрок бьёт, сервер считает HP — фраг один на всех
   // god-мобы (сталкеры Бэкрумса) неубиваемы: урон гаснет
   if (req.method === 'POST' && action === 'mobhit') {
+    // наблюдатель не вмешивается, труп не добивает — только живые бойцы
+    if (me.spec) return Response.json({ error: 'spec' }, { status: 403 });
+    if (me.dead) return Response.json({ error: 'corpse' }, { status: 403 });
     const mob = room.mobs.get(Math.floor(Number(body.id)));
     if (!mob) return Response.json({ error: 'nomob' }, { status: 404 });
     if (mob.dead) return Response.json({ hp: 0, dead: true, freshKill: false });

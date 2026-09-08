@@ -103,6 +103,13 @@ test('пост-пул фабрики по спеке', () => {
   expect(LOOKS.chains).toBeDefined();
   expect(RAID_NAMES.slay).toBe('Экс-продюсер');
 });
+test('лесенка гейтов 1–5', () => {
+  expect(VENUES.find(v => v.id === 'stadium')!.minSeason).toBe(1);
+  expect(VENUES.find(v => v.id === 'kuzbass')!.minSeason).toBe(3);
+  expect(TEAM.piar.needSeasons).toBe(2);
+  expect(LOOKS.chains.needSeasons).toBe(4);
+  expect(BUILDS.club.needSeasons).toBe(5);
+});
 ```
 
 - [ ] **Step 2: FAIL**
@@ -114,11 +121,13 @@ Expected: FAIL
 
 ```ts
 { id: 'stadium', n: 'Стадион 42', speed: 110, zone: 8, base: 400, gap: 0.45, cost: 150000, need: '', minSeason: 1 },
-{ id: 'kuzbass', n: 'Кузбасс-Арена', speed: 130, zone: 6, base: 1000, gap: 0.35, cost: 1000000, need: '', minSeason: 2 },
-// TEAM:
-piar: { n: 'Пиарщик СП', d: 'Промах режет комбо вдвое, а не в ноль', base: 5000 },
-// LOOKS:
-chains: { n: 'Золотые цепи', d: '+1 фантик за каждый PERFECT', base: 8000 },
+{ id: 'kuzbass', n: 'Кузбасс-Арена', speed: 130, zone: 6, base: 1000, gap: 0.35, cost: 1000000, need: '', minSeason: 3 },
+// TEAM (needSeasons 2 — открывается со 2-го сезона):
+piar: { n: 'Пиарщик СП', d: 'Промах режет комбо вдвое, а не в ноль', base: 5000, needSeasons: 2 },
+// LOOKS (needSeasons 4):
+chains: { n: 'Золотые цепи', d: '+1 фантик за каждый PERFECT', base: 8000, needSeasons: 4 },
+// BUILDS (needSeasons 5):
+club: { n: 'Фан-клуб 42', d: '+25% хайпа со всех шоу', base: 20000, needSeasons: 5 },
 export const RAID_NAMES: Record<string, string> = {
   garage: 'Хейтер-админ', club: 'Кринж-критик', arena: 'Бот-ферма', slay: 'Экс-продюсер',
   stadium: 'Диванный эксперт', kuzbass: 'Легенда ретро-чартов',
@@ -209,12 +218,14 @@ const goTour = () => setSave((p) => ({
 ```
 
 Хайп-награды `endShow`: `sum.hype * fameMult(saveRef.current.seasons)`.
+Эффект фан-клуба: база ноты в `stBase` умножается на `(1 + 0.25 * s.bld.club)`.
+Бис — только при `seasons >= 5`; именные рейды — при `seasons >= 1`.
 
 - [ ] **Step 2: Бис: после `endShow` с шансом 10% — повтор `startShow` той же площадки с флагом ×2 (плашка «Бис! Награды двойные»)**
 
 - [ ] **Step 3: Именные рейды: `callRaid`/`say` подставляют `RAID_NAMES[venue.id]`**
 
-- [ ] **Step 4: Иконки: маппинги по id (`stadium` → `Trophy`, `kuzbass` → `Crown`, `piar` → `Megaphone`, `chains` → `Coins`) в `parts.tsx`**
+- [ ] **Step 4: Иконки: маппинги по id (`stadium` → `Trophy`, `kuzbass` → `Crown`, `piar` → `Megaphone`, `chains` → `Coins`, `club` → `Heart`) в `parts.tsx`; ряды с `needSeasons` показывают замок «Откроется в сезоне N»**
 
 - [ ] **Step 5: Проверка живьём**
 

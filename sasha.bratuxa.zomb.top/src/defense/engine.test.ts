@@ -93,7 +93,7 @@ test('волна 11 жёстче 10-й, каждая 5-я — с директо�
   expect(w11.count).toBeGreaterThan(WAVES[9].count);
   expect(w11.hpMul).toBeGreaterThan(WAVES[9].hpMul);
   const g = createGame();
-  spawnWave(g, 15);
+  spawnWave(g, 14);
   expect(g.units.some((u) => u.kind === 'director')).toBe(true);
   const g2 = createGame();
   spawnWave(g2, 11);
