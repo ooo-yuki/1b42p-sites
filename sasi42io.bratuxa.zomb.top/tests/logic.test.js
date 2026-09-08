@@ -228,4 +228,44 @@ assert.ok(html.includes('shopPickupR(mag)'), 'magnet pickup must apply');
 assert.ok(html.includes('shieldBlock()'), 'shield must cancel one death');
 
 console.log('logic.test.js: OK shop (prices, x1.4/x2.5/magnet/shield, pause block, HUD coins)');
+// --- умный ИИ: dodgeTurn (увёрт) + bestFood (приоритет торнадо) ---
+assert.strictEqual(typeof __hook.dodgeTurn, 'function', 'dodgeTurn must be in __hook');
+assert.strictEqual(typeof __hook.bestFood, 'function', 'bestFood must be in __hook');
+assert.strictEqual(__hook.dodgeTurn({ x: 1500, y: 1500, angle: 0 }, [], W, H), 0); // центр — чисто
+assert.strictEqual(__hook.dodgeTurn({ x: 1500, y: 1500, angle: 0 }, [{ x: 2900, y: 2900 }], W, H), 0); // далеко — 0
+// стена: у левой стены курсом на запад — поправка до 0.25 (разворот на 180°)
+const dw = __hook.dodgeTurn({ x: 50, y: 1500, angle: Math.PI }, [], W, H);
+assert.ok(dw !== 0 && Math.abs(dw) <= 0.25, 'wall dodge turns away, got ' + dw);
+// stepBot применяет увёрт первым: еда за стеной не перебивает выживание
+const sbw = __hook.stepBot(
+  { x: 50, y: 1500, angle: Math.PI, score: 10, kind: 'normal' },
+  [{ x: 0, y: 1500, type: 0 }],
+  { x: 2000, y: 2000, score: 1 },
+  W, H, []
+);
+assert.ok(Math.abs(sbw - (Math.PI + dw)) < 1e-9, 'stepBot applies dodge first, got ' + sbw);
+// тело: чужак по курсу в 100px — увёрт, за спиной/мёртвая зона — 0
+const db = __hook.dodgeTurn({ x: 1500, y: 1500, angle: 0 }, [{ x: 1600, y: 1500 }], W, H);
+assert.ok(Math.abs(db) > 0 && Math.abs(db) <= 0.25, 'body dodge turns away, got ' + db);
+assert.strictEqual(__hook.dodgeTurn({ x: 1500, y: 1500, angle: 0 }, [{ x: 1400, y: 1500 }], W, H), 0); // за спиной — 0
+assert.strictEqual(__hook.dodgeTurn({ x: 1500, y: 1500, angle: 0 }, [{ x: 1700, y: 1500 }], W, H), 0); // 200px — далеко
+// змейка как угроза (segs) + себя игнорируем
+const me = { x: 1500, y: 1500, angle: 0, segs: [{ x: 1500, y: 1500 }, { x: 1490, y: 1500 }, { x: 1480, y: 1500 }, { x: 1600, y: 1500 }] };
+assert.ok(__hook.dodgeTurn(me, [me], W, H) === 0, 'self ignored');
+assert.ok(Math.abs(__hook.dodgeTurn({ x: 1500, y: 1500, angle: 0 }, [me], W, H)) > 0, 'snake body dodged');
+// торнадо type 2 в 300px бьёт банан в 100px (300/4=75 < 100)
+const bf = __hook.bestFood(
+  { x: 1500, y: 1500, angle: -Math.PI / 2 },
+  [{ x: 1600, y: 1500, type: 0 }, { x: 1500, y: 1200, type: 2 }]
+);
+assert.strictEqual(bf.type, 2, 'tornado wins over closer banana');
+const sbt = __hook.stepBot(
+  { x: 1500, y: 1500, angle: -Math.PI / 2, score: 10, kind: 'normal' },
+  [{ x: 1600, y: 1500, type: 0 }, { x: 1500, y: 1200, type: 2 }],
+  { x: 2900, y: 2900, score: 1 },
+  W, H, []
+);
+assert.ok(Math.abs(sbt - -Math.PI / 2) < 0.13, 'stepBot steers to tornado, got ' + sbt);
+
+console.log('logic.test.js: OK smart AI (dodgeTurn wall/body, bestFood tornado x4)');
 process.exit(0);

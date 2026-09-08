@@ -149,9 +149,64 @@ function shieldBlock() {
     return true;
   } catch (e) { return false; }
 }
+// dodgeTurn: срочный увёрт. Возвращает поправку к углу (добавить к bot.angle),
+// поворот до 0.25 ОТ опасности, иначе 0. threats: точки {x,y} или змейки {segs}.
+// Стена ближе 160 или чужое тело ближе 120 по курсу (конус ~±69°) — опасность.
+function dodgeTurn(bot, threats, W, H) {
+  var turn = 0, M = 160;
+  var dl = bot.x, dr = W - bot.x, dt = bot.y, db = H - bot.y;
+  var m = Math.min(dl, dr, dt, db);
+  if (m < M) {
+    var safe = dl === m ? 0 : (dr === m ? Math.PI : (dt === m ? Math.PI / 2 : -Math.PI / 2));
+    var d = safe - bot.angle;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    turn += Math.max(-0.25, Math.min(0.25, d));
+  }
+  if (threats && threats.length) {
+    var bd = Infinity, ba = 0;
+    var consider = function (px, py) {
+      var dx = px - bot.x, dy = py - bot.y;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist >= 120 || dist < 0.001) return;
+      var ta = Math.atan2(dy, dx), dd = ta - bot.angle;
+      while (dd > Math.PI) dd -= Math.PI * 2;
+      while (dd < -Math.PI) dd += Math.PI * 2;
+      if (Math.abs(dd) < 1.2 && dist < bd) { bd = dist; ba = ta; }
+    };
+    for (var i = 0; i < threats.length; i++) {
+      var t = threats[i];
+      if (!t || t === bot) continue;
+      if (t.segs) { for (var j = 3; j < t.segs.length; j += 2) consider(t.segs[j].x, t.segs[j].y); }
+      else consider(t.x, t.y);
+    }
+    if (bd < Infinity) {
+      var away = ba + Math.PI - bot.angle;
+      while (away > Math.PI) away -= Math.PI * 2;
+      while (away < -Math.PI) away += Math.PI * 2;
+      var bt = Math.max(-0.25, Math.min(0.25, away));
+      turn = turn ? Math.max(-0.25, Math.min(0.25, turn + bt)) : bt;
+    }
+  }
+  return turn;
+}
+// bestFood: торнадо (type 2) считается в 4 раза ближе (дистанция/4).
+function bestFood(bot, foods) {
+  var best = foods[0], bd = Infinity;
+  for (var i = 0; i < foods.length; i++) {
+    var dx = foods[i].x - bot.x, dy = foods[i].y - bot.y;
+    var d = dx * dx + dy * dy;
+    if (foods[i].type === 2) d = d / 16; // (dist/4)^2
+    if (d < bd) { bd = d; best = foods[i]; }
+  }
+  return best;
+}
 // stepBot: чистая функция руления. Возвращает новый угол (радианы).
-// bot: {x,y,angle,kind}, foods: [{x,y}], player: {x,y,score}, W,H: мир
-function stepBot(bot, foods, player, W, H) {
+// bot: {x,y,angle,kind}, foods: [{x,y,type}], player: {x,y,score}, W,H: мир,
+// threats (опц.): точки {x,y} или змейки {segs} чужих тел
+function stepBot(bot, foods, player, W, H, threats) {
+  var dodge = dodgeTurn(bot, threats, W, H);
+  if (dodge) return bot.angle + dodge; // выживание важнее еды
   var tx = W / 2, ty = H / 2, dx, dy;
   if (bot.kind === 'hunter' && player && player.score < bot.score) {
     tx = player.x; ty = player.y; // охотник догоняет слабого
@@ -159,9 +214,9 @@ function stepBot(bot, foods, player, W, H) {
     dx = bot.x - player.x; dy = bot.y - player.y;
     var d2 = dx * dx + dy * dy;
     if (d2 < 450 * 450) { tx = bot.x + dx; ty = bot.y + dy; } // трус бежит
-    else if (foods.length) { var f = nearest(bot, foods); tx = f.x; ty = f.y; }
+    else if (foods.length) { var f = bestFood(bot, foods); tx = f.x; ty = f.y; }
   } else if (foods.length) {
-    var f2 = nearest(bot, foods); tx = f2.x; ty = f2.y; // обычный — к еде
+    var f2 = bestFood(bot, foods); tx = f2.x; ty = f2.y; // обычный — к еде
   }
   // кламп от стен: подруливаем к центру у границ
   var M = 160;
@@ -199,7 +254,7 @@ function getDir() { return { x: __dir.x, y: __dir.y }; }
 function setPaused(b) { __paused = !!b; return __paused; }
 function togglePause() { __paused = !__paused; return __paused; }
 function isPaused() { return __paused; }
-window.__hook = { spawnFood: spawnFood, eatFood: eatFood, stepBot: stepBot, collide: collide, hitsWall: hitsWall, dropLoot: dropLoot, setDir: setDir, getDir: getDir, setPaused: setPaused, togglePause: togglePause, isPaused: isPaused, SHOP_PRICES: SHOP_PRICES, SKIN_COLORS: SKIN_COLORS, shopGain: shopGain, shopSpeed: shopSpeed, shopPickupR: shopPickupR, shopSkinColor: shopSkinColor, shieldHas: shieldHas, shieldUse: shieldUse };
+window.__hook = { spawnFood: spawnFood, eatFood: eatFood, stepBot: stepBot, dodgeTurn: dodgeTurn, bestFood: bestFood, collide: collide, hitsWall: hitsWall, dropLoot: dropLoot, setDir: setDir, getDir: getDir, setPaused: setPaused, togglePause: togglePause, isPaused: isPaused, SHOP_PRICES: SHOP_PRICES, SKIN_COLORS: SKIN_COLORS, shopGain: shopGain, shopSpeed: shopSpeed, shopPickupR: shopPickupR, shopSkinColor: shopSkinColor, shieldHas: shieldHas, shieldUse: shieldUse };
 
 /* ===== игра ===== */
 var W = 3000, H = 3000;
@@ -417,7 +472,7 @@ function frame(t) {
   var all = bots.concat([player]);
   for (var i = 0; i < bots.length; i++) {
     var b = bots[i];
-    b.angle = stepBot(b, foods, player, W, H);
+    b.angle = stepBot(b, foods, player, W, H, all);
     moveSnake(b, b.x + Math.cos(b.angle) * 100, b.y + Math.sin(b.angle) * 100, dt);
     tickTimers(b, dt);
     eatCheck(b);
