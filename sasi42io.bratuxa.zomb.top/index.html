@@ -60,6 +60,8 @@ var BOOSTERS = [
 var BEST_KEY = 'sasi42io_v1';
 var TORNADO_IMG = (typeof Image !== 'undefined') ? new Image() : null;
 if (TORNADO_IMG) { TORNADO_IMG.src = 'tornado.png'; }
+var BANANA_IMG = (typeof Image !== 'undefined') ? new Image() : null;
+if (BANANA_IMG) { BANANA_IMG.src = 'banana.png'; }
 
 function spawnFood(r) {
   // r in [0,1): веса 70/25/5 -> типы 0/1/2 (очки 5/25/70)
@@ -391,6 +393,16 @@ function draw(camX, camY) {
     if (fx < -30 || fy < -30 || fx > canvas.width + 30 || fy > canvas.height + 30) continue;
     if (f.type === 2 && typeof TORNADO_IMG !== 'undefined' && TORNADO_IMG && TORNADO_IMG.complete && TORNADO_IMG.naturalWidth) {
       ctx.drawImage(TORNADO_IMG, fx - 15, fy - 20, 30, 40);
+      continue;
+    }
+    if (f.type === 0 && typeof BANANA_IMG !== 'undefined' && BANANA_IMG && BANANA_IMG.complete && BANANA_IMG.naturalWidth) {
+      ctx.drawImage(BANANA_IMG, fx - 12, fy - 12, 24, 24);
+      continue;
+    }
+    if (f.type === 1 && typeof BANANA_IMG !== 'undefined' && BANANA_IMG && BANANA_IMG.complete && BANANA_IMG.naturalWidth) {
+      ctx.drawImage(BANANA_IMG, fx - 16, fy - 10, 18, 18);
+      ctx.drawImage(BANANA_IMG, fx - 2, fy - 10, 18, 18);
+      ctx.drawImage(BANANA_IMG, fx - 9, fy + 2, 18, 18);
       continue;
     }
     ctx.font = f.type === 2 ? '22px serif' : (f.type === 1 ? '17px serif' : '14px serif');
