@@ -748,6 +748,8 @@ async function loadStats(): Promise<void> {
       fps: () => game.debugFps(),
       stalkers: () => game.spawnStalkers(),
       stalkCount: () => game.debugStalkers(),
+      steps: () => game.debugSteps(),
+      flush: () => game.flushProgress(),
       spec: (on: boolean, x: number, z: number) => game.setSpec(on, x, z),
       specOn: () => game.debugSpec(),
       mkroom: (name: string, mode: MapId) => createRoom(name, mode),
@@ -989,6 +991,14 @@ async function loadStats(): Promise<void> {
     loadScores().then(setScores);
     refreshRooms();
   }, [nick, refreshRooms]);
+
+  /** В МЕНЮ из боя: ресурсы на диск (фантики/стволы/кач) + рейтинг на сервер,
+      затем мгновенный вылет с сервера (leave чистит комнату сразу, fetch — в фоне). */
+  const exitToMenu = useCallback(() => {
+    try { gameRef.current?.flushProgress(); } catch { /* noop */ }
+    toMenu();
+    void leaveRoom();
+  }, [toMenu, leaveRoom]);
 
   /** Наблюдатель: выбрать цель (или список целей), камера виснет на ней */
   const specWatch = useCallback(async (targetSid: string, targetNick: string) => {
@@ -1507,7 +1517,7 @@ async function loadStats(): Promise<void> {
             if (document.fullscreenElement) void document.exitFullscreen();
             else void document.documentElement.requestFullscreen().catch(() => {});
           }}>⛶</button>
-          <button id="menuBtn" onClick={toMenu}>🏠 В МЕНЮ</button>
+          <button id="menuBtn" onClick={exitToMenu}>🏠 В МЕНЮ</button>
           <button id="chatBtn" onClick={() => setChatOpen((o) => !o)}>💬{chatLog.length > 0 && !chatOpen ? ` ${Math.min(chatLog.length, 9)}` : ''}</button>
           {!chatOpen && chatLog.length > 0 && (
             <div id="chatToast">{chatLog[chatLog.length - 1].nick}: {chatLog[chatLog.length - 1].text}</div>

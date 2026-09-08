@@ -261,6 +261,18 @@ interface Enemy {
   god: boolean;
   /** скалолаз Нашествия: лезет на стены до 12м, идёт по крышам */
   climb: boolean;
+  /** цель прошлого маршрута: ушла >4м — пересчитываем досрочно, а не по таймеру */
+  ptx: number;
+  ptz: number;
+  /** анти-прижим к углу: последняя точка, таймер стояния, слайд вбок */
+  lx: number;
+  lz: number;
+  stuckT: number;
+  slideT: number;
+  slideX: number;
+  slideZ: number;
+  /** шаги: таймер топота (звук — по дистанции до игрока) */
+  stepT: number;
 }
 
 /** Сетевой моб из пульса комнаты (сервер — правда). */
@@ -416,6 +428,8 @@ export class Game {
   /** Своя карта из редактора (map 'custom'). */
   private custom: CustomMap | null = null;
   private wallKickCd = 0;
+  /** Таймер топота игрока (шаги — по земле, в полёте тишина). */
+  private stepT = 0;
   /** Общая комната: id локальных мобов для слепка хоста; netSync — я гость (мобы со сервера). */
   private mobIdSeq = 1;
   private netSync = false;
@@ -2390,6 +2404,11 @@ export class Game {
   private spawnWave(): void {
     // endless: волн нет вообще, только сталкеры через spawnStalkers()
     if (this.map === 'endless') return;
+    // Бэкрумс: обычных нет — только бессмертные сталкеры (пак растёт с волной)
+    if (this.map === 'backrooms') {
+      this.spawnBackroomsPack();
+      return;
+    }
     // Нашествие: орда скалолазов — в разы гуще обычной (до 40 рыл)
     if (this.map === 'invasion') {
       const n = Math.min(8 + this.wave * 3, 40);
@@ -2474,6 +2493,29 @@ export class Game {
   }
 
   private stalkersOn = false;
+  /** Пак Бэкрумса: только бессмертные сталкеры (5 + волна, макс 10).
+      Обычных мобов на этой карте нет — жуть должна давить, а не фармиться. */
+  private spawnBackroomsPack(): number {
+    if (this.netSync) return 0;
+    const want = Math.min(5 + Math.floor(this.wave / 2), 10);
+    let have = this.enemies.filter((e) => !e.dead && e.god).length;
+    // добиваем пак до нормы (волна зачистки не будет — сталкеры не умирают)
+    while (have < want) {
+      const before = this.enemies.length;
+      this.spawnEnemy('walk');
+      if (this.enemies.length <= before) break;
+      const e = this.enemies[this.enemies.length - 1]!;
+      e.god = true;
+      e.hp = 9999; e.maxhp = 9999;
+      e.speed = 7.5;
+      e.hitCd = 0;
+      e.repathT = Math.min(e.repathT, 0.15);
+      this.updateHpBar(e);
+      have++;
+    }
+    return have;
+  }
+
   /** 5 неубиваемых быстрых сталкеров Бэкрумса (хост endless, один раз за бой). */
   spawnStalkers(): number {
     if (this.netSync) return 0;
@@ -2486,8 +2528,9 @@ export class Game {
         const e = this.enemies[this.enemies.length - 1]!;
         e.god = true;
         e.hp = 9999; e.maxhp = 9999;
-        e.speed = 6.0;
+        e.speed = 7.5;
         e.hitCd = 0;
+        e.repathT = Math.min(e.repathT, 0.15);
         this.updateHpBar(e);
       }
     }
@@ -2574,7 +2617,9 @@ export class Game {
       speed: boss ? 1.5 : 1.7 + Math.random() * 1.1 + this.wave * 0.12 + (fly ? 0.6 : 0),
       hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, ey: 0, evy: 0, hopCd: 1 + Math.random() * 2, dead: false,
       mobId: this.mobIdSeq++, net: false, tx: sx, tz: sz, snaps: [], ewave: this.wave,
-      path: [], repathT: Math.random() * 0.5, god: false, climb: false,
+      path: [], repathT: 0.1 + Math.random() * 0.2, god: false, climb: false,
+      ptx: sx, ptz: sz, lx: sx, lz: sz, stuckT: 0, slideT: 0, slideX: 0, slideZ: 0,
+      stepT: Math.random() * 0.4,
     };
     this.updateHpBar(foe);
     this.enemies.push(foe);
@@ -3066,6 +3111,8 @@ export class Game {
           hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, ey: 0, evy: 0, hopCd: 1e9, dead: false,
           mobId: id, net: true, tx: v.g.position.x, tz: v.g.position.z, snaps: [{ t: performance.now(), x: v.g.position.x, z: v.g.position.z }], ewave: Math.round(Number(m.wave) || 1),
           path: [], repathT: 0, god: m.god === true, climb: false,
+          ptx: v.g.position.x, ptz: v.g.position.z, lx: v.g.position.x, lz: v.g.position.z,
+          stuckT: 0, slideT: 0, slideX: 0, slideZ: 0, stepT: Math.random() * 0.4,
         };
         this.updateHpBar(e);
         this.enemies.push(e);
@@ -3282,6 +3329,44 @@ export class Game {
       a.currentTime = 0;
       void a.play().catch(() => undefined);
     } catch { /* noop */ }
+  }
+
+  /** Топот: процедурный шаг через WebAudio (ассетов нет — короткий шумовой тап).
+      Игрок — глухой средний, враги — выше/тише, громкость тает с дистанцией. */
+  private stepCtx: AudioContext | null = null;
+  private stepBuf: AudioBuffer | null = null;
+  private stepN = 0;
+  private eStepN = 0;
+  private stepSound(vol: number, pitch: number): void {
+    if (!this.soundOn || vol <= 0.01) return;
+    try {
+      if (!this.stepCtx) this.stepCtx = new AudioContext();
+      const ctx = this.stepCtx;
+      if (ctx.state === 'suspended') void ctx.resume().catch(() => undefined);
+      if (!this.stepBuf) {
+        const n = Math.max(1, Math.floor(ctx.sampleRate * 0.07));
+        this.stepBuf = ctx.createBuffer(1, n, ctx.sampleRate);
+        const ch = this.stepBuf.getChannelData(0);
+        for (let i = 0; i < n; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 2.5);
+      }
+      const src = ctx.createBufferSource();
+      src.buffer = this.stepBuf;
+      const f = ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = pitch;
+      const g = ctx.createGain();
+      g.gain.value = Math.min(0.4, vol);
+      src.connect(f); f.connect(g); g.connect(ctx.destination);
+      src.start();
+    } catch { /* noop */ }
+  }
+
+  debugSteps(): { me: number; foes: number } { return { me: this.stepN, foes: this.eStepN }; }
+
+  /** Сброс прогресса на диск: фантики/стволы (шоп) + кач (апгрейды). Вызывать перед выходом в меню. */
+  flushProgress(): void {
+    this.saveShop();
+    this.saveUpg();
   }
 
   private pushHud(): void {
@@ -3736,7 +3821,18 @@ export class Game {
       const sp = (run ? 8.2 : 5.6) * this.charSpd;
       const len = Math.hypot(f, r);
       this.moving = len > 0.15;
-      if (this.moving) { this.shieldT = 0; this.bobPhase += dt * 11; }
+      if (this.moving) {
+        this.shieldT = 0;
+        this.bobPhase += dt * 11;
+        // топот: на земле — шаг каждые ~0.4с (бег чаще), в полёте тишина
+        const onGround = this.py <= this.groundAt(this.px, this.pz) + 0.05;
+        this.stepT -= dt;
+        if (onGround && this.stepT <= 0) {
+          this.stepT = run ? 0.32 : 0.44;
+          this.stepN++;
+          this.stepSound(0.25, 500 + Math.random() * 150);
+        }
+      }
       if (len > 0.01) {
         const nf = f / Math.max(1, len), nr = r / Math.max(1, len);
         const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
@@ -3871,6 +3967,8 @@ export class Game {
           let wx = txp, wz = tzp;
           if (!e.net && e.kind !== 'fly') {
             e.repathT -= dt;
+            // цель ушла далеко от спланированной — маршрут протух, пересчёт сразу
+            if (Math.hypot(txp - e.ptx, tzp - e.ptz) > 4) e.repathT = Math.min(e.repathT, 0.08);
             if (e.repathT <= 0 || e.path.length === 0) {
               // прямая видимость: шаг 2м, не дальше 48м (дальше — сразу BFS-бюджет)
               let blocked = false;
@@ -3891,7 +3989,8 @@ export class Game {
                 e.repathT = 0.12;
                 continue;
               }
-              e.repathT = 0.5 + Math.random() * 0.3;
+              e.ptx = txp; e.ptz = tzp;
+              e.repathT = (e.god ? 0.25 : 0.4) + Math.random() * 0.3;
             }
             if (e.path.length > 0) {
               const wp = e.path[0];
@@ -3901,8 +4000,43 @@ export class Game {
           }
           const ddx = wx - e.g.position.x, ddz = wz - e.g.position.z;
           const dd = Math.hypot(ddx, ddz) || 1;
-          const nx = e.g.position.x + (ddx / dd) * e.speed * dt;
-          const nz = e.g.position.z + (ddz / dd) * e.speed * dt;
+          // анти-прижим к углу: топчемся на месте (<0.3м за 0.45с), хотя идём, —
+          // слайд вбок 0.35с + маршрут пересчитать сразу, а не тереться о стену
+          const moved = Math.hypot(e.g.position.x - e.lx, e.g.position.z - e.lz);
+          if (moved < 0.3) {
+            e.stuckT += dt;
+            if (e.stuckT > 0.45 && e.slideT <= 0) {
+              e.stuckT = 0;
+              e.slideT = 0.35;
+              const side = Math.random() < 0.5 ? 1 : -1;
+              e.slideX = (-ddz / dd) * side;
+              e.slideZ = (ddx / dd) * side;
+              e.repathT = Math.min(e.repathT, 0.05);
+            }
+          } else {
+            e.stuckT = 0;
+            e.lx = e.g.position.x;
+            e.lz = e.g.position.z;
+          }
+          let mdx = ddx / dd, mdz = ddz / dd;
+          if (e.slideT > 0) {
+            e.slideT -= dt;
+            mdx = (mdx * 0.35 + e.slideX * 0.95);
+            mdz = (mdz * 0.35 + e.slideZ * 0.95);
+            const ml = Math.hypot(mdx, mdz) || 1;
+            mdx /= ml; mdz /= ml;
+          }
+          const nx = e.g.position.x + mdx * e.speed * dt;
+          const nz = e.g.position.z + mdz * e.speed * dt;
+          // топот орды: слышно в радиусе 18м, громкость тает с дистанцией
+          e.stepT -= dt;
+          if (e.stepT <= 0) {
+            e.stepT = 0.42 + Math.random() * 0.15;
+            if (d < 18) {
+              this.eStepN++;
+              this.stepSound(0.3 * (1 - d / 20), 750 + Math.random() * 250);
+            }
+          }
           let blockedX = this.hitSolid(nx, e.g.position.z, 0.8, eyH);
           let blockedZ = this.hitSolid(e.g.position.x, nz, 0.8, eyH);
           if (!blockedX) e.g.position.x = clampArena(nx);
