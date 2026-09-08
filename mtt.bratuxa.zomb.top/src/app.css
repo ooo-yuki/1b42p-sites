@@ -25,7 +25,8 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;opac
 #vig{position:fixed;inset:0;z-index:4;pointer-events:none;background:radial-gradient(ellipse at center,transparent 52%,rgba(2,2,12,.6) 100%)}
 ::selection{background:rgba(255,176,32,.4)}
 button{font-family:inherit}
-button:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(--gold);outline-offset:2px;border-radius:6px}
+.tnav:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
 /* ---------- HUD (верх слева) ---------- */
 #hud{position:fixed;top:12px;left:12px;z-index:5;font-size:15px;font-weight:700;line-height:1.65;
   font-family:var(--font-d);text-shadow:2px 2px 0 #000;pointer-events:none;
@@ -65,14 +66,14 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-
   -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
   filter:drop-shadow(0 0 18px rgba(232,72,63,.35)) drop-shadow(3px 3px 0 #000)}
 .tnav{display:block;background:transparent;border:1px solid transparent;border-radius:var(--r-s);cursor:pointer;text-align:left;
-  font-family:var(--font-d);font-weight:900;letter-spacing:2.5px;font-size:min(6.4vw,24px);
-  color:#f0b09a;text-shadow:2px 2px 0 #000;padding:9px 18px;margin:1px 0;transition:all .15s}
+  font-family:var(--font-d);font-weight:900;letter-spacing:2.5px;font-size:min(6.4vw,24px);min-height:44px;
+  color:#f0b09a;text-shadow:2px 2px 0 #000;padding:11px 18px;margin:1px 0;transition:all .15s}
 .tnav:hover{color:#fff;background:rgba(232,72,63,.14);border-color:rgba(232,72,63,.35);transform:translateX(3px)}
 .tnav.active{color:#160a08;text-shadow:none;border-color:transparent;
   background:linear-gradient(100deg,#b03028 0%,#e8483f 12%,#c03329 26%,#e0503f 40%,#b03028 55%,#e8483f 70%,#c03329 85%,#b03028 100%);
   box-shadow:3px 3px 0 #000,0 0 18px rgba(232,72,63,.4);
   clip-path:polygon(0 12%,3% 0,97% 4%,100% 22%,98.5% 45%,100% 68%,97% 92%,94% 100%,2% 96%,0 78%,1.5% 55%,0 32%)}
-#hubLink{color:var(--mut);font-size:13px;margin:10px 0 0 18px}
+#hubLink{color:var(--mut);font-size:13px;margin:10px 0 0 18px;display:inline-flex;align-items:center;min-height:44px}
 #menuBody .mtab{display:none;width:100%;text-align:left;max-height:72vh;overflow-y:auto;
   background:var(--panel);border:1px solid var(--line);border-top:1px solid rgba(255,255,255,.14);
   border-radius:var(--r);padding:16px 18px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:var(--sh),0 12px 40px rgba(0,0,0,.5)}
@@ -221,7 +222,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-
 .chatMsg b{color:var(--gold)}
 #chatRow{display:flex;gap:6px}
 #chatIn{flex:1;background:#0d1428;border:1px solid var(--amber);border-radius:8px;color:#fff;padding:8px;font-size:14px}
-#chatSend{background:var(--amber);border:none;border-radius:8px;padding:8px 12px;font-size:15px;cursor:pointer;font-weight:900;transition:filter .12s}
+#chatSend{background:var(--amber);border:none;border-radius:8px;padding:10px 14px;min-height:44px;font-size:15px;cursor:pointer;font-weight:900;transition:filter .12s}
 #chatSend:hover{filter:brightness(1.1)}
 /* ---------- карты ---------- */
 .mapRow{display:flex;gap:10px;flex-wrap:wrap}
@@ -252,10 +253,10 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-
 .wbtn:disabled{opacity:.45;cursor:not-allowed}
 .wbtn.buy{background:linear-gradient(180deg,#ffc63f,#e8930c);color:#231a00;border-color:transparent}
 .wbtn.cur{border-color:var(--grn);color:var(--grn)}
-.wclose{margin-top:10px;width:100%;border-radius:var(--r-s);border:1px solid var(--line);background:rgba(255,255,255,.06);color:#fff;font-weight:800;font-size:15px;padding:11px;cursor:pointer;transition:background .13s}
+.wclose{margin-top:10px;width:100%;border-radius:var(--r-s);border:1px solid var(--line);background:rgba(255,255,255,.06);color:#fff;font-weight:800;font-size:15px;padding:12px;min-height:44px;cursor:pointer;transition:background .13s}
 .wclose:hover{background:rgba(255,255,255,.12)}
 .srow{display:flex;justify-content:space-between;align-items:center;margin:10px 0;color:#e8edff}
-.srow .wbtn{width:auto;padding:8px 18px}
+.srow .wbtn{width:auto;padding:11px 18px;min-height:44px}
 #sensRange{width:100%;accent-color:var(--amber)}
 /* ---------- комнаты / серверы ---------- */
 #roomSec{max-width:340px}
@@ -264,13 +265,13 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-
 #roomBadge{position:fixed;top:170px;left:10px;right:auto;z-index:6;font-size:14px;font-weight:800;border-radius:12px;
   border:1px solid var(--blu);background:var(--panel);color:var(--blu);padding:8px 12px;font-family:var(--font-d);
   box-shadow:var(--sh);max-width:44vw;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
-#roomLeave{margin-left:8px;background:transparent;border:1px solid var(--blu);color:var(--blu);border-radius:6px;cursor:pointer;font-weight:900;transition:background .13s}
+#roomLeave{margin-left:8px;background:transparent;border:1px solid var(--blu);color:var(--blu);border-radius:6px;padding:6px 10px;min-height:44px;cursor:pointer;font-weight:900;transition:background .13s}
 #roomLeave:hover{background:rgba(102,204,255,.15)}
 #roomMates{font-size:12px;margin-top:4px;color:#e8edff;word-break:break-word}
 #authBox input{background:#141d33;color:#fff;border:1px solid #334155;border-radius:10px;padding:10px 12px;font-size:15px;width:100%;box-sizing:border-box;margin:4px 0;text-align:center}
 #authMsg{color:#ff6b6b;font-size:13px;margin:4px 0}
 #authWho{margin:6px 0;color:var(--gold);font-weight:800}
-#authOut{background:transparent;border:1px solid var(--gold);color:var(--gold);border-radius:8px;padding:4px 12px;cursor:pointer;font-weight:800;transition:background .13s}
+#authOut{background:transparent;border:1px solid var(--gold);color:var(--gold);border-radius:8px;padding:8px 14px;min-height:44px;cursor:pointer;font-weight:800;transition:background .13s}
 #authOut:hover{background:rgba(255,210,63,.12)}
 .srvcard{background:linear-gradient(135deg,rgba(255,176,32,.07),transparent 45%),var(--panel-solid);
   border:1px solid var(--line);border-top:1px solid rgba(255,255,255,.14);border-left:3px solid var(--amber);
@@ -349,7 +350,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-
 @media (max-width:960px){
   #menu{flex-direction:column;align-items:stretch;gap:10px;padding:14px 12px}
   #menuNav{width:100%;flex-direction:row;flex-wrap:wrap;gap:6px}
-  #menuNav .tnav{display:inline-block;font-size:15px;padding:8px 13px;letter-spacing:1px}
+  #menuNav .tnav{display:inline-block;font-size:15px;padding:11px 14px;min-height:44px;letter-spacing:1px}
   #menu h1{font-size:34px;text-align:center;width:100%}
   #menuBody{justify-content:flex-start;flex-direction:column;max-width:none}
   #menuBody .mtab{width:100%;max-height:none}
