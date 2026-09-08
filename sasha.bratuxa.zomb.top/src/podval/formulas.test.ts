@@ -18,6 +18,8 @@ import {
   MARKET_PULSE,
   HYBRIDS,
   hybridCost,
+  NODES,
+  nodeIncome,
   trainCost,
 } from './formulas'
 
@@ -96,6 +98,16 @@ describe('rebirth', () => {
     const s = loadSave({})
     expect(s.hybrid).toBe('')
     expect(s.hybrids).toEqual([])
+  })
+  test('сеть: 8 узлов, синергия соседей', () => {
+    expect(NODES).toHaveLength(8)
+    expect(NODES[0].links.length).toBeGreaterThan(0)
+    expect(nodeIncome(NODES[0].id, [])).toBe(NODES[0].rate)
+    expect(nodeIncome(NODES[0].id, NODES[0].links)).toBeGreaterThan(NODES[0].rate)
+  })
+  test('кластер 3+ даёт ×1.5', () => {
+    const trio = [NODES[0].id, ...NODES[0].links.slice(0, 2)]
+    expect(nodeIncome(NODES[0].id, trio)).toBe(NODES[0].rate * (1 + 0.5 * 2) * 1.5)
   })
   test('пост-пул: 2 железа и события с числами из спеки', () => {
     expect(PRESTIGE_HARDWARE.map(h => h.id)).toEqual(['quantum', 'kuzbass'])

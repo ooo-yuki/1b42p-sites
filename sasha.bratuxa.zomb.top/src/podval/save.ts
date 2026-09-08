@@ -14,6 +14,7 @@ export interface Save {
   mPrice: number
   hybrid: string
   hybrids: string[]
+  nodes: string[]
   phw: number[]
   farm: number
   auto: boolean
@@ -22,7 +23,7 @@ export interface Save {
 }
 
 export function freshSave(): Save {
-  return { datasets: 0, coins: 0, cursor: 0, cooling: 0, vuln: 0, hardware: [0, 0, 0, 0], model: 0, totalClicks: 0, cycles: 0, mPrice: 4, hybrid: '', hybrids: [], phw: [0, 0], farm: 0, auto: false, oc: false, rf: false }
+  return { datasets: 0, coins: 0, cursor: 0, cooling: 0, vuln: 0, hardware: [0, 0, 0, 0], model: 0, totalClicks: 0, cycles: 0, mPrice: 4, hybrid: '', hybrids: [], nodes: [], phw: [0, 0], farm: 0, auto: false, oc: false, rf: false }
 }
 
 export function loadSave(raw: unknown): Save {
@@ -42,6 +43,7 @@ export function loadSave(raw: unknown): Save {
     mPrice: typeof r.mPrice === 'number' ? Math.min(12, Math.max(1, r.mPrice)) : fresh.mPrice,
     hybrid: typeof r.hybrid === 'string' ? r.hybrid : fresh.hybrid,
     hybrids: Array.isArray(r.hybrids) ? (r.hybrids as unknown[]).filter((x): x is string => typeof x === 'string') : fresh.hybrids,
+    nodes: Array.isArray(r.nodes) ? (r.nodes as unknown[]).filter((x): x is string => typeof x === 'string') : fresh.nodes,
     phw: Array.isArray(r.phw) ? [0, 1].map((i) => (typeof r.phw![i] === 'number' ? r.phw![i] : 0)) : fresh.phw,
     farm: typeof r.farm === 'number' ? Math.min(3, Math.max(0, Math.floor(r.farm))) : fresh.farm,
     auto: r.auto === true,

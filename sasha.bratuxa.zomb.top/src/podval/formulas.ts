@@ -94,6 +94,23 @@ export function hybridCost(maxLevel: number): number {
   return trainCost(maxLevel) * 3
 }
 
+export const NODES = [
+  { id: 'kem1', name: 'Кемерово-1', cost: 5000, rate: 50, links: ['kem2', 'garage'] },
+  { id: 'kem2', name: 'Кемерово-2', cost: 8000, rate: 80, links: ['kem1', 'attic'] },
+  { id: 'garage', name: 'Гаражный', cost: 12000, rate: 130, links: ['kem1', 'shop'] },
+  { id: 'attic', name: 'Чердак', cost: 20000, rate: 220, links: ['kem2', 'school'] },
+  { id: 'shop', name: 'Магазинный', cost: 30000, rate: 330, links: ['garage', 'plant'] },
+  { id: 'school', name: 'Школьный', cost: 45000, rate: 500, links: ['attic', 'kuz'] },
+  { id: 'plant', name: 'Заводской', cost: 60000, rate: 680, links: ['shop', 'kuz'] },
+  { id: 'kuz', name: 'Кузбасс-Хаб', cost: 80000, rate: 900, links: ['school', 'plant'] },
+]
+export function nodeIncome(id: string, owned: string[]): number {
+  const n = NODES.find((x) => x.id === id)!
+  const linkCount = n.links.filter((l) => owned.includes(l)).length
+  const cluster = linkCount >= 2 ? 1.5 : 1
+  return n.rate * (1 + 0.5 * linkCount) * cluster
+}
+
 export interface GameEvent {
   id: string
   name: string
