@@ -22,6 +22,8 @@ import {
   nodeIncome,
   RAIDS,
   raidShare,
+  ANOMALIES,
+  anomalyOf,
   trainCost,
 } from './formulas'
 
@@ -116,6 +118,12 @@ describe('rebirth', () => {
     expect(RAIDS.minBet).toBe(500)
     expect(raidShare(500, 2000)).toBe(0.25)
     expect(raidShare(0, 2000)).toBe(0)
+  })
+  test('аномалии: 7 штук, ротация по дню', () => {
+    expect(ANOMALIES).toHaveLength(7)
+    expect(ANOMALIES.map(a => a.id)).toContain('day42')
+    expect(anomalyOf(new Date(2026, 8, 7))).toBe(anomalyOf(new Date(2026, 8, 14)))
+    expect(anomalyOf(new Date(2026, 8, 7))).not.toBe(anomalyOf(new Date(2026, 8, 8)))
   })
   test('пост-пул: 2 железа и события с числами из спеки', () => {
     expect(PRESTIGE_HARDWARE.map(h => h.id)).toEqual(['quantum', 'kuzbass'])

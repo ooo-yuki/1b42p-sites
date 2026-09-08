@@ -117,6 +117,19 @@ export function raidShare(bet: number, pool: number): number {
   return Math.min(1, bet / pool)
 }
 
+export const ANOMALIES = [
+  { id: 'quiet', name: 'Тихий час', desc: 'клики ×3, железо спит' },
+  { id: 'heat', name: 'Жара', desc: 'охлаждение вдвое слабее, доход +30%' },
+  { id: 'audit', name: 'Проверка', desc: 'эксплойты ×3, обучение ×2 дороже' },
+  { id: 'cables', name: 'Ночь длинных кабелей', desc: 'сеть ×2' },
+  { id: 'bazaar', name: 'Базарный день', desc: 'рынок ×2 волатильность, сделки +25%' },
+  { id: 'pugriot', name: 'Мопсов бунт', desc: 'ферма ×3, остальное −10%' },
+  { id: 'day42', name: 'День 42', desc: 'всё ×1.42. Мы уже победили' },
+]
+export function anomalyOf(date: Date): string {
+  return ANOMALIES[((date.getDay() + 6) % 7) % ANOMALIES.length].id
+}
+
 export interface GameEvent {
   id: string
   name: string
