@@ -82,6 +82,18 @@ export function marketStep(price: number, trades: number, dump: number, rng: () 
   return Math.min(12, Math.max(1, Math.round(next * 100) / 100))
 }
 
+export const HYBRIDS: Record<string, { a: string; b: string; name: string; perk: string }> = {
+  chatter: { a: 'v0.1', b: 'v0.7', name: 'Болтун', perk: 'автоклик +1/с' },
+  apprentice: { a: 'v0.7', b: 'v1.4', name: 'Подмастерье', perk: 'код +25%' },
+  diver: { a: 'v1.4', b: 'v2.1', name: 'Ныряльщик', perk: 'эксплойты ×2' },
+  guard: { a: 'v2.1', b: 'v3.0', name: 'Сторож', perk: 'галлюцинации −10 п.п.' },
+  heir: { a: 'v3.0', b: 'v4.2', name: 'Наследник', perk: 'доход +30%' },
+  jester: { a: 'v0.1', b: 'v4.2', name: 'Шут', perk: 'рандомный перк каждый тик' },
+}
+export function hybridCost(maxLevel: number): number {
+  return trainCost(maxLevel) * 3
+}
+
 export interface GameEvent {
   id: string
   name: string

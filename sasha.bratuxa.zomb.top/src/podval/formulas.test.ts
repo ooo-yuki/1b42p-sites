@@ -16,6 +16,8 @@ import {
   isVictory,
   marketStep,
   MARKET_PULSE,
+  HYBRIDS,
+  hybridCost,
   trainCost,
 } from './formulas'
 
@@ -84,6 +86,16 @@ describe('rebirth', () => {
   })
   test('миграция mPrice', () => {
     expect(loadSave({ coins: 1 }).mPrice).toBe(4)
+  })
+  test('гибриды: 6 записей, шут последний', () => {
+    expect(Object.keys(HYBRIDS)).toHaveLength(6)
+    expect(HYBRIDS.jester.name).toBe('Шут')
+    expect(hybridCost(2)).toBe(trainCost(2) * 3)
+  })
+  test('миграция гибридов', () => {
+    const s = loadSave({})
+    expect(s.hybrid).toBe('')
+    expect(s.hybrids).toEqual([])
   })
   test('пост-пул: 2 железа и события с числами из спеки', () => {
     expect(PRESTIGE_HARDWARE.map(h => h.id)).toEqual(['quantum', 'kuzbass'])
