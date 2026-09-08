@@ -15,7 +15,7 @@ body { background: #0a0a0f; color: #e0d0c0; font-family: 'Segoe UI', sans-serif;
 #choices { position: absolute; bottom: 80px; left: 30px; right: 30px; display: flex; flex-direction: column; gap: 10px; }
 .choice { background: rgba(150,80,180,0.2); border: 1px solid rgba(180,100,220,0.4); color: #d0b0e0; padding: 12px 20px; border-radius: 6px; cursor: pointer; transition: all 0.2s; text-align: left; font-size: 0.95em; }
 .choice:hover { background: rgba(180,100,220,0.35); border-color: rgba(200,130,255,0.7); transform: translateX(5px); }
-#nav { margin: 15px auto; display: flex; gap: 12px; justify-content: center; }
+#nav { margin: 15px auto; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 #nav button { background: rgba(140,70,180,0.3); border: 1px solid rgba(180,100,220,0.5); color: #c0a0d0; padding: 8px 22px; border-radius: 5px; cursor: pointer; font-size: 0.9em; transition: all 0.2s; }
 #nav button:hover { background: rgba(170,90,210,0.5); }
 #nsfw-badge { position: absolute; top: 15px; right: 15px; background: rgba(200,50,100,0.8); color: #fff; font-size: 0.7em; padding: 4px 10px; border-radius: 4px; font-weight: bold; letter-spacing: 1px; }
@@ -25,15 +25,11 @@ body { background: #0a0a0f; color: #e0d0c0; font-family: 'Segoe UI', sans-serif;
 #title-screen p { color: #9080a0; font-size: 0.9em; }
 #title-screen button { background: linear-gradient(135deg, #8030b0, #6020a0); border: none; color: #fff; padding: 14px 40px; border-radius: 8px; font-size: 1.1em; cursor: pointer; box-shadow: 0 0 25px rgba(150,50,200,0.5); transition: all 0.2s; }
 #title-screen button:hover { transform: scale(1.05); box-shadow: 0 0 40px rgba(180,80,240,0.7); }
-
-/* ART GALLERY */
 #gallery { max-width: 900px; margin: 30px auto; padding: 0 16px 60px; }
 #gallery h2 { color: #c090e0; text-align: center; font-size: 1.6em; margin-bottom: 24px; letter-spacing: 3px; text-shadow: 0 0 20px rgba(180,80,220,0.5); }
 .art-block { margin-bottom: 50px; scroll-margin-top: 20px; }
 .art-block h3 { color: #a070c0; font-size: 1.1em; margin-bottom: 14px; letter-spacing: 1px; }
 .art-block svg { width: 100%; border-radius: 12px; border: 1px solid rgba(180,100,220,0.3); box-shadow: 0 0 40px rgba(180,80,200,0.15); }
-
-/* back button */
 #back-btn { display: block; margin: 0 auto 20px; background: rgba(140,70,180,0.3); border: 1px solid rgba(180,100,220,0.5); color: #c0a0d0; padding: 8px 22px; border-radius: 5px; cursor: pointer; font-size: 0.9em; text-align: center; text-decoration: none; width: fit-content; }
 #back-btn:hover { background: rgba(170,90,210,0.5); }
 </style>
@@ -46,15 +42,9 @@ body { background: #0a0a0f; color: #e0d0c0; font-family: 'Segoe UI', sans-serif;
     <p>визуальная новелла · 18+</p>
     <button onclick="startGame()">начать</button>
   </div>
-
   <img id="bg" src="" class="hidden">
   <div id="nsfw-badge" class="hidden">18+</div>
-
-  <div id="dialogue" class="hidden">
-    <div id="speaker"></div>
-    <div id="text"></div>
-  </div>
-
+  <div id="dialogue" class="hidden"><div id="speaker"></div><div id="text"></div></div>
   <div id="choices" class="hidden"></div>
 </div>
 
@@ -64,136 +54,168 @@ body { background: #0a0a0f; color: #e0d0c0; font-family: 'Segoe UI', sans-serif;
   <button onclick="showGallery()">🎨 Арты</button>
 </div>
 
-<!-- ART GALLERY -->
 <div id="gallery" class="hidden">
   <a id="back-btn" href="#" onclick="hideGallery();return false">← Назад к игре</a>
-
   <h2>🎨 АРТЫ 18+</h2>
 
+  <!-- ART 1 — ВЕКТОРНЫЙ ЭРОТИЧЕСКИЙ: ЦЕЛОВАНИЕ -->
   <div class="art-block" id="art1">
     <h3>Картина I — «Свет фонаря»</h3>
     <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <radialGradient id="glow1" cx="50%" cy="40%" r="60%">
-          <stop offset="0%" stop-color="#d090f0" stop-opacity="0.5"/>
-          <stop offset="100%" stop-color="#0a0a0f" stop-opacity="1"/>
-        </radialGradient>
-        <radialGradient id="skin1" cx="50%" cy="30%" r="70%">
-          <stop offset="0%" stop-color="#e8c8b0"/>
-          <stop offset="100%" stop-color="#c09080"/>
-        </radialGradient>
-        <filter id="blur1"><feGaussianBlur stdDeviation="3"/></filter>
+        <radialGradient id="g1bg" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="#3a1a4a"/><stop offset="100%" stop-color="#0a0a0f"/></radialGradient>
+        <radialGradient id="g1skin" cx="50%" cy="30%" r="70%"><stop offset="0%" stop-color="#e8c0a8"/><stop offset="100%" stop-color="#c09080"/></radialGradient>
+        <radialGradient id="g1vulva" cx="45%" cy="40%" r="60%"><stop offset="0%" stop-color="#c88090"/><stop offset="60%" stop-color="#a06070"/><stop offset="100%" stop-color="#804050"/></radialGradient>
+        <filter id="g1blur"><feGaussianBlur stdDeviation="2"/></filter>
       </defs>
-      <!-- bg -->
-      <rect width="800" height="500" fill="url(#glow1)"/>
-      <!-- window light cone -->
-      <polygon points="500,0 650,500 350,500" fill="#ffd080" opacity="0.07"/>
-      <!-- silhouette body — girl lying -->
-      <ellipse cx="400" cy="420" rx="220" ry="60" fill="#1a0a2e" opacity="0.8"/>
-      <!-- torso curve -->
-      <path d="M 280 350 Q 340 280 400 260 Q 460 280 520 350 Q 460 420 400 440 Q 340 420 280 350Z" fill="url(#skin1)" opacity="0.9"/>
-      <!-- breasts -->
-      <ellipse cx="370" cy="300" rx="45" ry="38" fill="#d8a898" opacity="0.85"/>
-      <ellipse cx="430" cy="300" rx="45" ry="38" fill="#d8a898" opacity="0.85"/>
+      <rect width="800" height="500" fill="url(#g1bg)"/>
+      <!-- light cone from window -->
+      <polygon points="480,0 640,500 320,500" fill="#ffd080" opacity="0.06"/>
+      <!-- bed shadow -->
+      <ellipse cx="400" cy="460" rx="300" ry="60" fill="#0d0515" opacity="0.9"/>
+      <!-- legs — spread wide -->
+      <path d="M 160 280 Q 140 360 180 440 L 280 430 Q 260 350 290 280Z" fill="url(#g1skin)" opacity="0.9"/>
+      <path d="M 640 280 Q 660 360 620 440 L 520 430 Q 540 350 510 280Z" fill="url(#g1skin)" opacity="0.9"/>
+      <!-- thighs -->
+      <path d="M 290 280 Q 260 340 280 400 Q 320 390 340 320 Q 360 260 340 240 Q 320 260 290 280Z" fill="url(#g1skin)" opacity="0.9"/>
+      <path d="M 510 280 Q 540 340 520 400 Q 480 390 460 320 Q 440 260 460 240 Q 480 260 510 280Z" fill="url(#g1skin)" opacity="0.9"/>
+      <!-- MONS VENERIS — prominent, central -->
+      <ellipse cx="400" cy="305" rx="100" ry="75" fill="url(#g1vulva)"/>
+      <!-- outer labia -->
+      <path d="M 300 310 Q 290 360 320 400 Q 380 415 400 410 Q 420 415 480 400 Q 510 360 500 310 Q 450 325 400 325 Q 350 325 300 310Z" fill="#b07080" opacity="0.85"/>
+      <!-- inner labia visible -->
+      <path d="M 320 330 Q 310 370 340 395 Q 380 405 400 402 Q 420 405 460 395 Q 490 370 480 330 Q 440 345 400 345 Q 360 345 320 330Z" fill="#c88898" opacity="0.75"/>
+      <!-- clitoral area -->
+      <ellipse cx="400" cy="265" rx="35" ry="28" fill="#d090a0" opacity="0.9"/>
+      <!-- clitoris glans -->
+      <ellipse cx="400" cy="252" rx="18" ry="14" fill="#d8a0b0" opacity="0.95"/>
+      <!-- clitoral hood -->
+      <path d="M 362 265 Q 400 240 438 265 Q 400 255 362 265Z" fill="#a86878" opacity="0.7"/>
+      <!-- vaginal opening -->
+      <ellipse cx="400" cy="375" rx="28" ry="18" fill="#904058" opacity="0.8"/>
+      <!-- spread labia showing inside -->
+      <path d="M 320 340 Q 300 370 320 400 Q 380 420 400 418 Q 420 420 480 400 Q 500 370 480 340 Q 440 355 400 355 Q 360 355 320 340Z" fill="#d898a8" opacity="0.4"/>
+      <!-- torso -->
+      <path d="M 280 200 Q 340 160 400 150 Q 460 160 520 200 Q 480 280 400 300 Q 320 280 280 200Z" fill="url(#g1skin)" opacity="0.9"/>
+      <!-- breasts — large, frontal -->
+      <ellipse cx="355" cy="200" rx="60" ry="52" fill="url(#g1skin)"/>
+      <ellipse cx="445" cy="200" rx="60" ry="52" fill="url(#g1skin)"/>
+      <!-- areola -->
+      <ellipse cx="355" cy="210" rx="22" ry="18" fill="#c08888" opacity="0.7"/>
+      <ellipse cx="445" cy="210" rx="22" ry="18" fill="#c08888" opacity="0.7"/>
       <!-- nipples -->
-      <circle cx="370" cy="300" r="6" fill="#c08070" opacity="0.7"/>
-      <circle cx="430" cy="300" r="6" fill="#c08070" opacity="0.7"/>
+      <circle cx="355" cy="210" r="10" fill="#a06070" opacity="0.9"/>
+      <circle cx="445" cy="210" r="10" fill="#a06070" opacity="0.9"/>
       <!-- neck -->
-      <rect x="385" y="230" width="30" height="40" rx="12" fill="url(#skin1)"/>
+      <rect x="380" y="130" width="40" height="35" rx="16" fill="url(#g1skin)"/>
       <!-- head -->
-      <ellipse cx="400" cy="200" rx="55" ry="65" fill="url(#skin1)"/>
-      <!-- hair dark flowing -->
-      <path d="M 345 190 Q 320 150 360 130 Q 400 110 440 130 Q 480 150 455 190 Q 440 170 400 168 Q 360 170 345 190Z" fill="#1a0a0a"/>
-      <path d="M 340 200 Q 310 240 300 300 Q 330 260 350 220Z" fill="#1a0a0a" opacity="0.9"/>
-      <path d="M 460 200 Q 490 240 500 300 Q 470 260 450 220Z" fill="#1a0a0a" opacity="0.9"/>
-      <!-- face eyes closed -->
-      <path d="M 375 198 Q 388 204 401 198" stroke="#8a5060" stroke-width="2" fill="none" opacity="0.7"/>
-      <path d="M 415 198 Q 428 204 441 198" stroke="#8a5060" stroke-width="2" fill="none" opacity="0.7"/>
-      <!-- lips -->
-      <ellipse cx="400" cy="222" rx="18" ry="9" fill="#c87888" opacity="0.8"/>
-      <ellipse cx="400" cy="218" rx="15" ry="5" fill="#d88898" opacity="0.5"/>
-      <!-- arm left reaching -->
-      <path d="M 280 350 Q 250 300 260 250 Q 270 220 290 210" stroke="url(#skin1)" stroke-width="28" stroke-linecap="round" fill="none" opacity="0.9"/>
-      <!-- hand left -->
-      <circle cx="290" cy="208" r="16" fill="url(#skin1)" opacity="0.9"/>
-      <!-- man's silhouette in shadow right -->
-      <ellipse cx="580" cy="440" rx="80" ry="40" fill="#0a0510" opacity="0.9"/>
-      <path d="M 520 380 Q 540 300 570 280 Q 600 300 620 380 Q 600 440 570 460 Q 540 440 520 380Z" fill="#0a0510" opacity="0.95"/>
-      <!-- arm reaching from shadow -->
-      <path d="M 540 320 Q 500 300 460 290 Q 420 285 390 290" stroke="#c8a090" stroke-width="20" stroke-linecap="round" fill="none" opacity="0.8"/>
-      <!-- hand touching -->
-      <circle cx="388" cy="290" r="14" fill="#d0b0a0" opacity="0.85"/>
-      <!-- fingers -->
-      <line x1="378" y1="282" x2="370" y2="272" stroke="#c0a090" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
-      <line x1="388" y1="278" x2="384" y2="265" stroke="#c0a090" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
-      <line x1="398" y1="280" x2="400" y2="268" stroke="#c0a090" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
-      <!-- blanket draped over hip -->
-      <path d="M 280 380 Q 340 360 400 355 Q 460 360 520 380 L 510 460 Q 400 470 290 460Z" fill="#2a1040" opacity="0.7"/>
-      <!-- light rays from window -->
-      <line x1="550" y1="0" x2="400" y2="300" stroke="#ffd090" stroke-width="1" opacity="0.12"/>
-      <line x1="580" y1="0" x2="400" y2="300" stroke="#ffd090" stroke-width="1" opacity="0.1"/>
-      <line x1="520" y1="0" x2="400" y2="300" stroke="#ffd090" stroke-width="1" opacity="0.08"/>
-      <!-- 18+ badge -->
+      <ellipse cx="400" cy="95" rx="60" ry="68" fill="url(#g1skin)"/>
+      <!-- hair dark -->
+      <path d="M 340 85 Q 320 50 360 35 Q 400 20 440 35 Q 480 50 460 85 Q 440 65 400 63 Q 360 65 340 85Z" fill="#1a0a0a"/>
+      <path d="M 335 90 Q 305 130 295 200 Q 325 160 345 115Z" fill="#1a0a0a" opacity="0.95"/>
+      <path d="M 465 90 Q 495 130 505 200 Q 475 160 455 115Z" fill="#1a0a0a" opacity="0.95"/>
+      <!-- eyes closed, lips parted -->
+      <path d="M 375 93 Q 388 99 401 93" stroke="#8a5060" stroke-width="2" fill="none" opacity="0.6"/>
+      <path d="M 415 93 Q 428 99 441 93" stroke="#8a5060" stroke-width="2" fill="none" opacity="0.6"/>
+      <ellipse cx="400" cy="118" rx="22" ry="12" fill="#c07080" opacity="0.85"/>
+      <ellipse cx="400" cy="112" rx="16" ry="6" fill="#d08090" opacity="0.5"/>
+      <!-- man's hand from right -->
+      <path d="M 620 180 Q 570 200 510 240 Q 470 260 440 270" stroke="#c8a090" stroke-width="24" stroke-linecap="round" fill="none" opacity="0.85"/>
+      <circle cx="440" cy="270" r="18" fill="#d0b0a0" opacity="0.9"/>
+      <!-- fingers spreading labia -->
+      <line x1="430" y1="260" x2="410" y2="295" stroke="#c0a090" stroke-width="7" stroke-linecap="round" opacity="0.8"/>
+      <line x1="440" y1="255" x2="425" y2="290" stroke="#c0a090" stroke-width="7" stroke-linecap="round" opacity="0.8"/>
+      <line x1="450" y1="258" x2="440" y2="293" stroke="#c0a090" stroke-width="7" stroke-linecap="round" opacity="0.8"/>
+      <!-- light rays -->
+      <line x1="550" y1="0" x2="400" y2="280" stroke="#ffd090" stroke-width="1" opacity="0.1"/>
+      <line x1="580" y1="0" x2="400" y2="280" stroke="#ffd090" stroke-width="1" opacity="0.08"/>
+      <line x1="520" y1="0" x2="400" y2="280" stroke="#ffd090" stroke-width="1" opacity="0.06"/>
       <rect x="14" y="14" width="44" height="22" rx="4" fill="#c03070" opacity="0.9"/>
       <text x="36" y="30" font-family="Arial" font-size="12" font-weight="bold" fill="#fff" text-anchor="middle">18+</text>
     </svg>
   </div>
 
+  <!-- ART 2 — МУЖСКОЕ/ЖЕНСКОЕ ВОЗДУХ -->
   <div class="art-block" id="art2">
     <h3>Картина II — «Только запах»</h3>
     <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <radialGradient id="glow2" cx="50%" cy="50%" r="60%">
-          <stop offset="0%" stop-color="#2a1a3e" stop-opacity="1"/>
-          <stop offset="100%" stop-color="#050308" stop-opacity="1"/>
-        </radialGradient>
-        <radialGradient id="skin2" cx="50%" cy="30%" r="70%">
-          <stop offset="0%" stop-color="#e0c0b0"/>
-          <stop offset="100%" stop-color="#b08070"/>
-        </radialGradient>
+        <radialGradient id="g2bg" cx="50%" cy="50%" r="65%"><stop offset="0%" stop-color="#1e0a2e"/><stop offset="100%" stop-color="#050308"/></radialGradient>
+        <radialGradient id="g2skin" cx="50%" cy="30%" r="70%"><stop offset="0%" stop-color="#d8b8a0"/><stop offset="100%" stop-color="#b08878"/></radialGradient>
+        <radialGradient id="g2penis" cx="50%" cy="30%" r="65%"><stop offset="0%" stop-color="#c8a088"/><stop offset="100%" stop-color="#9a7060"/></radialGradient>
       </defs>
-      <!-- bg dark purple -->
-      <rect width="800" height="500" fill="url(#glow2)"/>
-      <!-- subtle fog layers -->
-      <ellipse cx="200" cy="400" rx="300" ry="100" fill="#1a0a2e" opacity="0.3" filter="url(#blur1)"/>
-      <ellipse cx="600" cy="420" rx="250" ry="80" fill="#0a0515" opacity="0.4" filter="url(#blur1)"/>
-      <!-- bed shadow -->
-      <rect x="100" y="350" width="600" height="120" rx="20" fill="#0d0818"/>
-      <!-- pillow -->
-      <ellipse cx="350" cy="340" rx="140" ry="60" fill="#1a1028"/>
-      <ellipse cx="350" cy="330" rx="120" ry="45" fill="#2a1840" opacity="0.6"/>
-      <!-- girl's head on pillow, back view, hair spread -->
-      <ellipse cx="350" cy="310" rx="65" ry="60" fill="url(#skin2)"/>
-      <!-- hair spread on pillow -->
-      <path d="M 285 310 Q 200 280 160 320 Q 140 360 180 400 Q 240 380 285 340Z" fill="#1a0a0a" opacity="0.95"/>
-      <path d="M 415 310 Q 500 280 540 320 Q 560 360 520 400 Q 460 380 415 340Z" fill="#1a0a0a" opacity="0.95"/>
-      <path d="M 285 310 Q 260 340 270 380 Q 300 360 300 320Z" fill="#1a0a0a" opacity="0.9"/>
-      <path d="M 415 310 Q 440 340 430 380 Q 400 360 400 320Z" fill="#1a0a0a" opacity="0.9"/>
-      <!-- shoulder / back -->
-      <path d="M 260 340 Q 220 380 210 440 Q 240 420 260 380Z" fill="url(#skin2)" opacity="0.8"/>
-      <path d="M 440 340 Q 480 380 490 440 Q 460 420 440 380Z" fill="url(#skin2)" opacity="0.8"/>
-      <!-- spine curve hint -->
-      <path d="M 350 360 Q 345 400 350 440" stroke="#a07060" stroke-width="2" fill="none" opacity="0.3"/>
-      <!-- blanket up to waist -->
-      <path d="M 100 440 Q 200 420 350 415 Q 500 420 600 440 L 600 500 L 100 500Z" fill="#18082a"/>
-      <!-- note on pillow — «下次见» -->
-      <rect x="420" y="295" width="70" height="35" rx="4" fill="#e8d8a0" opacity="0.9" transform="rotate(-8,455,312)"/>
-      <text x="455" y="318" font-family="serif" font-size="14" fill="#3a2060" text-anchor="middle" transform="rotate(-8,455,312)" opacity="0.8">下次见</text>
-      <!-- scent lines / fog wisps rising -->
-      <path d="M 300 300 Q 290 270 300 240 Q 310 210 300 180" stroke="#a080c0" stroke-width="1.5" fill="none" opacity="0.25"/>
-      <path d="M 320 295 Q 315 260 325 230" stroke="#a080c0" stroke-width="1" fill="none" opacity="0.2"/>
-      <path d="M 380 295 Q 385 260 375 230" stroke="#a080c0" stroke-width="1" fill="none" opacity="0.2"/>
-      <path d="M 400 300 Q 410 270 400 240" stroke="#a080c0" stroke-width="1.5" fill="none" opacity="0.25"/>
-      <!-- faint window light right -->
-      <rect x="620" y="50" width="180" height="250" rx="4" fill="none" stroke="#ffd080" stroke-width="0.5" opacity="0.15"/>
-      <line x1="620" y1="50" x2="620" y2="300" stroke="#ffd080" stroke-width="0.5" opacity="0.1"/>
-      <line x1="710" y1="50" x2="710" y2="300" stroke="#ffd080" stroke-width="0.5" opacity="0.1"/>
-      <line x1="620" y1="120" x2="800" y2="120" stroke="#ffd080" stroke-width="0.5" opacity="0.08"/>
-      <line x1="620" y1="190" x2="800" y2="190" stroke="#ffd080" stroke-width="0.5" opacity="0.08"/>
-      <rect x="620" y="50" width="180" height="250" rx="4" fill="#ffd080" opacity="0.03"/>
-      <!-- morning glow on horizon -->
-      <rect x="0" y="0" width="800" height="30" fill="#c090e0" opacity="0.06"/>
-      <!-- 18+ badge -->
+      <rect width="800" height="500" fill="url(#g2bg)"/>
+      <!-- pillow shape -->
+      <ellipse cx="350" cy="340" rx="160" ry="70" fill="#1a1028" opacity="0.9"/>
+      <ellipse cx="350" cy="325" rx="130" ry="50" fill="#2a1840" opacity="0.5"/>
+      <!-- GIRL — back view, spread legs, head on pillow -->
+      <!-- legs wide open showing everything -->
+      <path d="M 150 280 Q 130 350 170 440 L 290 430 Q 270 350 300 280Z" fill="url(#g2skin)" opacity="0.9"/>
+      <path d="M 550 280 Q 570 350 530 440 L 410 430 Q 430 350 400 280Z" fill="url(#g2skin)" opacity="0.9"/>
+      <!-- thighs inner -->
+      <path d="M 300 280 Q 270 340 290 410 Q 350 420 400 415 Q 350 400 320 320 Q 310 260 300 280Z" fill="url(#g2skin)" opacity="0.9"/>
+      <path d="M 400 415 Q 450 420 510 410 Q 530 340 500 280 Q 490 260 480 280 Q 450 300 440 360 Q 430 400 400 415Z" fill="url(#g2skin)" opacity="0.9"/>
+      <!-- MONS / vulva — wide open view -->
+      <ellipse cx="400" cy="320" rx="110" ry="82" fill="#b86878"/>
+      <!-- outer labia spread open -->
+      <path d="M 290 320 Q 275 380 310 425 Q 370 445 400 443 Q 430 445 490 425 Q 525 380 510 320 Q 455 340 400 340 Q 345 340 290 320Z" fill="#c87888" opacity="0.85"/>
+      <!-- inner labia spread -->
+      <path d="M 310 330 Q 295 385 330 420 Q 375 438 400 436 Q 425 438 470 420 Q 505 385 490 330 Q 440 350 400 350 Q 360 350 310 330Z" fill="#d890a0" opacity="0.75"/>
+      <!-- vaginal canal entrance -->
+      <ellipse cx="400" cy="395" rx="35" ry="22" fill="#884058" opacity="0.85"/>
+      <!-- gushing / arousal lines -->
+      <path d="M 380 405 Q 370 430 375 460" stroke="#d898a8" stroke-width="2" fill="none" opacity="0.4"/>
+      <path d="M 400 410 Q 395 440 400 470" stroke="#d898a8" stroke-width="2" fill="none" opacity="0.5"/>
+      <path d="M 420 405 Q 430 430 425 460" stroke="#d898a8" stroke-width="2" fill="none" opacity="0.4"/>
+      <!-- clitoris enlarged -->
+      <ellipse cx="400" cy="268" rx="40" ry="32" fill="#c88090" opacity="0.9"/>
+      <ellipse cx="400" cy="252" rx="22" ry="18" fill="#d898a8" opacity="0.95"/>
+      <!-- clitoral hood -->
+      <path d="M 358 270 Q 400 240 442 270 Q 400 258 358 270Z" fill="#a06070" opacity="0.75"/>
+      <!-- clitoral glans tip -->
+      <ellipse cx="400" cy="248" rx="14" ry="11" fill="#e0a8b8" opacity="0.95"/>
+      <!-- upper body — back arching toward viewer -->
+      <path d="M 260 240 Q 300 160 400 140 Q 500 160 540 240 Q 500 300 400 320 Q 300 300 260 240Z" fill="url(#g2skin)" opacity="0.9"/>
+      <!-- buttocks -->
+      <ellipse cx="330" cy="270" rx="70" ry="60" fill="url(#g2skin)"/>
+      <ellipse cx="470" cy="270" rx="70" ry="60" fill="url(#g2skin)"/>
+      <!-- anal area between buttocks -->
+      <ellipse cx="400" cy="270" rx="28" ry="22" fill="#a07070" opacity="0.8"/>
+      <!-- spine line -->
+      <path d="M 400 160 Q 395 210 400 260" stroke="#a08070" stroke-width="2" fill="none" opacity="0.4"/>
+      <!-- shoulder blades -->
+      <ellipse cx="340" cy="200" rx="30" ry="20" fill="#b88878" opacity="0.4"/>
+      <ellipse cx="460" cy="200" rx="30" ry="20" fill="#b88878" opacity="0.4"/>
+      <!-- head face-down on pillow -->
+      <ellipse cx="350" cy="315" rx="62" ry="58" fill="url(#g2skin)"/>
+      <!-- hair spread dark -->
+      <path d="M 288 315 Q 200 280 160 330 Q 140 380 190 430 Q 260 400 300 350Z" fill="#1a0a0a" opacity="0.95"/>
+      <path d="M 412 315 Q 500 280 540 330 Q 560 380 510 430 Q 440 400 400 350Z" fill="#1a0a0a" opacity="0.95"/>
+      <path d="M 288 315 Q 260 350 270 400 Q 300 370 300 315Z" fill="#1a0a0a" opacity="0.9"/>
+      <path d="M 412 315 Q 440 350 430 400 Q 400 370 400 315Z" fill="#1a0a0a" opacity="0.9"/>
+      <!-- man's member erect — large, entering -->
+      <path d="M 680 180 Q 640 200 580 240 Q 520 280 470 310 Q 450 320 440 330" stroke="url(#g2penis)" stroke-width="38" stroke-linecap="round" fill="none" opacity="0.95"/>
+      <!-- glans penis -->
+      <ellipse cx="442" cy="332" rx="24" ry="20" fill="#c09080" opacity="0.95" transform="rotate(-20,442,332)"/>
+      <!-- testicles -->
+      <ellipse cx="500" cy="290" rx="30" ry="25" fill="url(#g2penis)" opacity="0.9"/>
+      <ellipse cx="555" cy="285" rx="28" ry="23" fill="url(#g2penis)" opacity="0.9"/>
+      <!-- pubic hair / mons -->
+      <path d="M 280 300 Q 340 280 400 278 Q 460 280 520 300 Q 460 310 400 312 Q 340 310 280 300Z" fill="#2a1818" opacity="0.6"/>
+      <!-- note — 下次见 -->
+      <rect x="460" y="60" width="80" height="38" rx="4" fill="#e8d8a0" opacity="0.9" transform="rotate(5,500,79)"/>
+      <text x="500" y="86" font-family="serif" font-size="15" fill="#3a2060" text-anchor="middle" transform="rotate(5,500,79)" opacity="0.85">下次见</text>
+      <!-- scent / fog lines -->
+      <path d="M 280 300 Q 260 260 270 220 Q 280 180 270 140" stroke="#9060a0" stroke-width="1.5" fill="none" opacity="0.2"/>
+      <path d="M 310 295 Q 300 250 310 210" stroke="#9060a0" stroke-width="1.2" fill="none" opacity="0.18"/>
+      <path d="M 490 295 Q 500 250 490 210" stroke="#9060a0" stroke-width="1.2" fill="none" opacity="0.18"/>
+      <path d="M 520 300 Q 540 260 530 220 Q 520 180 530 140" stroke="#9060a0" stroke-width="1.5" fill="none" opacity="0.2"/>
+      <!-- window frame right -->
+      <rect x="650" y="40" width="150" height="220" rx="4" fill="none" stroke="#ffd080" stroke-width="0.8" opacity="0.18"/>
+      <line x1="650" y1="40" x2="650" y2="260" stroke="#ffd080" stroke-width="0.5" opacity="0.12"/>
+      <line x1="725" y1="40" x2="725" y2="260" stroke="#ffd080" stroke-width="0.5" opacity="0.12"/>
+      <line x1="650" y1="110" x2="800" y2="110" stroke="#ffd080" stroke-width="0.5" opacity="0.1"/>
+      <line x1="650" y1="180" x2="800" y2="180" stroke="#ffd080" stroke-width="0.5" opacity="0.1"/>
       <rect x="14" y="14" width="44" height="22" rx="4" fill="#c03070" opacity="0.9"/>
       <text x="36" y="30" font-family="Arial" font-size="12" font-weight="bold" fill="#fff" text-anchor="middle">18+</text>
     </svg>
