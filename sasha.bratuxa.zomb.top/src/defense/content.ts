@@ -32,13 +32,15 @@ export const WAVE_NAMES: string[] = [
   'Броня и нытьё', 'Генеральная скука', 'Директор лично',
 ];
 
-export interface EnemyDef { hp: number; speed: number; reward: number }
+export interface EnemyDef { hp: number; speed: number; reward: number; regen?: number }
 
 export const ENEMIES: Record<string, EnemyDef> = {
   zevaka: { hp: 20, speed: 1.0, reward: 6 },
   zanuda: { hp: 60, speed: 0.6, reward: 12 },
   sprinter: { hp: 12, speed: 1.7, reward: 8 },
   director: { hp: 400, speed: 0.5, reward: 200 },
+  troll: { hp: 150, speed: 0.5, reward: 25, regen: 2 },
+  double: { hp: 30, speed: 2.2, reward: 14 },
 };
 
 export interface TurretDef { cost: number; dmg: number; rate: number; range: number }
@@ -47,6 +49,7 @@ export const TURRETS: Record<string, TurretDef> = {
   flood: { cost: 30, dmg: 9, rate: 2.5, range: 3.0 },
   cobalt: { cost: 70, dmg: 30, rate: 1.4, range: 3.6 },
   scarlet: { cost: 150, dmg: 60, rate: 0.9, range: 4.0 },
+  tesla: { cost: 400, dmg: 25, rate: 1.0, range: 3.2 },
 };
 
 export interface CardDef { name: string; desc: string }
@@ -60,4 +63,16 @@ export const CARDS: Record<string, CardDef> = {
   repair: { name: 'Ремонт штаба', desc: '+3 жизни' },
   pugs: { name: 'Мопс-подкрепление', desc: 'кусает ближайшего, 5 волн' },
   sale: { name: 'Скидка прапора', desc: 'турели −25%' },
+  warhorn: { name: 'Мопсий вой', desc: 'страх 3с: враги стоят' },
+  live: { name: 'Прямой эфир', desc: '+5 монет за убийство 10с' },
+  barricade: { name: 'Баррикада', desc: '+2 макс-жизни' },
+  sabotage: { name: 'Саботаж', desc: '−30% скорости волны 10с' },
+};
+
+/* Лесенка пост-пула 0–5: какая медаль открывает функцию. */
+export const CARD_GATES: Record<string, number> = {
+  warhorn: 3, live: 3, barricade: 4, sabotage: 4,
+};
+export const MEDAL_GATES: Record<string, number> = {
+  endless: 1, tesla: 1, troll: 2, double: 2, arsenal: 5,
 };

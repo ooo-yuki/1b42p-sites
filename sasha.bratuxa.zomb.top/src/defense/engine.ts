@@ -1,10 +1,10 @@
-import { PATH, WAVES, WAVE_NAMES, ENEMIES, TURRETS, CARDS, ARSENAL_DMG_MUL } from './content';
+import { PATH, WAVES, WAVE_NAMES, ENEMIES, TURRETS, CARDS, ARSENAL_DMG_MUL, CARD_GATES, MEDAL_GATES } from './content';
 import type { Cell, WaveDef, EnemyDef, TurretDef, CardDef } from './content';
 
-export { PATH, WAVES, WAVE_NAMES, ENEMIES, TURRETS, CARDS };
+export { PATH, WAVES, WAVE_NAMES, ENEMIES, TURRETS, CARDS, CARD_GATES, MEDAL_GATES };
 export type { Cell, WaveDef, EnemyDef, TurretDef, CardDef };
 
-export interface Unit { kind: string; seg: number; pos: number; hp: number; maxHp: number; speed: number; reward: number; dead?: boolean }
+export interface Unit { kind: string; seg: number; pos: number; hp: number; maxHp: number; speed: number; reward: number; regen?: number; dead?: boolean }
 export interface Turret { x: number; y: number; kind: string; cd: number }
 
 export interface GameState { wave: number; lives: number; coins: number; units: Unit[]; turrets: Turret[]; buffs: string[]; over: boolean; stars: number; medals: number; fearT?: number; liveT?: number; slowT?: number; maxLives?: number; dmgMul?: number; rateMul?: number; pierce?: boolean; pugs?: number; saleMul?: number }
@@ -55,7 +55,7 @@ export function spawnWave(g: GameState, w: number): void {
       else if (i % 4 === 3) kind = 'double';
     }
     const e = ENEMIES[kind];
-    g.units.push({ kind, seg: 0, pos: -i * 0.5, hp: e.hp * def.hpMul, maxHp: e.hp * def.hpMul, speed: e.speed * def.speed, reward: e.reward });
+    g.units.push({ kind, seg: 0, pos: -i * 0.5, hp: e.hp * def.hpMul, maxHp: e.hp * def.hpMul, speed: e.speed * def.speed, reward: e.reward, regen: e.regen ?? 0 });
   }
   if (w === 9 || (endless && (w - 10) % 5 === 0)) {
     const e = ENEMIES.director;
@@ -86,6 +86,7 @@ function damage(g: GameState, u: Unit, dmg: number): void {
   if (u.hp <= 0) {
     u.dead = true;
     g.coins += u.reward;
+    if ((g.liveT || 0) > 0) g.coins += 5;
   }
 }
 
@@ -98,11 +99,18 @@ export function applyCard(g: GameState, id: string): void {
   if (id === 'pierce') g.pierce = true;
   if (id === 'pugs') g.pugs = 5;
   if (id === 'sale') g.saleMul = 0.75;
-  if (id === 'repair') g.lives = Math.min(10, g.lives + 3);
+  if (id === 'repair') g.lives = Math.min(g.maxLives ?? 10, g.lives + 3);
+  if (id === 'warhorn') g.fearT = 3;
+  if (id === 'live') g.liveT = 10;
+  if (id === 'barricade') {
+    g.maxLives = (g.maxLives ?? 10) + 2;
+    g.lives = Math.min(g.maxLives, g.lives + 2);
+  }
+  if (id === 'sabotage') g.slowT = 10;
 }
 
-export function offerCards(_g: GameState): string[] {
-  const ids = Object.keys(CARDS);
+export function offerCards(_g: GameState, medals = 0): string[] {
+  const ids = Object.keys(CARDS).filter((id) => (CARD_GATES[id] ?? 0) <= medals);
   for (let i = ids.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [ids[i], ids[j]] = [ids[j], ids[i]];
@@ -119,14 +127,22 @@ export function tick(g: GameState): void {
   const arsenal = g.medals >= 5 ? 1 + ARSENAL_DMG_MUL : 1;
   const dmgMul = (g.dmgMul || 1) * medalMult(g.medals || 0) * arsenal;
   const rateMul = g.rateMul || 1;
+  g.fearT = Math.max(0, (g.fearT || 0) - dt);
+  g.liveT = Math.max(0, (g.liveT || 0) - dt);
+  g.slowT = Math.max(0, (g.slowT || 0) - dt);
+  const slowed = (g.slowT || 0) > 0;
+  const feared = (g.fearT || 0) > 0;
   // Движение: pos += speed*dt, переход на следующий сегмент; дошедшие до штаба снимают жизнь.
   for (const u of g.units) {
     if (u.dead) continue;
-    u.pos += u.speed * dt;
-    while (u.pos >= 1) {
-      u.pos -= 1;
-      u.seg += 1;
+    if (!feared) {
+      u.pos += u.speed * (slowed ? 0.7 : 1) * dt;
+      while (u.pos >= 1) {
+        u.pos -= 1;
+        u.seg += 1;
+      }
     }
+    if ((u.regen || 0) > 0 && u.hp > 0) u.hp = Math.min(u.maxHp, u.hp + u.regen! * dt);
     if (u.seg >= PATH.length - 1) {
       u.dead = true;
       g.lives -= 1;
@@ -154,7 +170,20 @@ export function tick(g: GameState): void {
     if (!best) continue;
     t.cd = 1 / (def.rate * rateMul);
     const dmg = def.dmg * dmgMul;
-    if (t.kind === 'scarlet') {
+    if (t.kind === 'tesla') {
+      const chained = g.units
+        .filter((u) => {
+          if (u.dead || u.hp <= 0) return false;
+          const c = cellOf(u);
+          return Math.hypot(c.x - t.x, c.y - t.y) <= def.range;
+        })
+        .sort((a, b) => {
+          const ca = cellOf(a), cb = cellOf(b);
+          return (Math.hypot(ca.x - t.x, ca.y - t.y) - Math.hypot(cb.x - t.x, cb.y - t.y));
+        })
+        .slice(0, 3);
+      for (const u of chained) damage(g, u, dmg);
+    } else if (t.kind === 'scarlet') {
       const tc = cellOf(best);
       const radius = g.pierce ? 2 : 1;
       const targets = g.units.filter((u) => {

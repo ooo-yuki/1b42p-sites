@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { PATH, WAVES, WAVE_NAMES, ENEMIES, endlessWave, createGame, placeTurret, sellTurret, spawnWave, tick, TURRETS, applyCard, finishWave } from './engine';
+import { PATH, WAVES, WAVE_NAMES, ENEMIES, CARDS, CARD_GATES, MEDAL_GATES, endlessWave, createGame, placeTurret, sellTurret, spawnWave, tick, TURRETS, applyCard, finishWave } from './engine';
 import { readBest } from './save';
 test('дорожка идёт от левого края к штабу 8,8 без срезов', () => {
   expect(PATH[0].x).toBe(0);
@@ -114,4 +114,42 @@ test('медали апают урон', () => {
   const g4 = mk(4);
   for (let i = 0; i < 10; i++) tick(g4);
   expect(g4.units[0].hp).toBeLessThan(hp0);
+});
+test('пост-пул обороны по спеке', () => {
+  expect(TURRETS.tesla.cost).toBe(400);
+  expect(ENEMIES.troll.hp).toBe(150);
+  expect(ENEMIES.double.speed).toBe(2.2);
+  expect(Object.keys(CARDS)).toEqual(expect.arrayContaining(['warhorn', 'live', 'barricade', 'sabotage']));
+});
+test('лесенка гейтов 0–5', () => {
+  expect(CARD_GATES.warhorn).toBe(3);
+  expect(CARD_GATES.live).toBe(3);
+  expect(CARD_GATES.barricade).toBe(4);
+  expect(CARD_GATES.sabotage).toBe(4);
+  expect(MEDAL_GATES.endless).toBe(1);
+  expect(MEDAL_GATES.tesla).toBe(1);
+  expect(MEDAL_GATES.troll).toBe(2);
+  expect(MEDAL_GATES.arsenal).toBe(5);
+});
+test('тесла цепляет троих', () => {
+  const g = createGame();
+  g.medals = 1;
+  g.coins = 1000;
+  expect(placeTurret(g, 4, 4, 'tesla')).toBe(true);
+  spawnWave(g, 0);
+  g.units.forEach((u) => { u.seg = 20; u.pos = 0.5; });
+  const hp0 = g.units.map((u) => u.hp);
+  for (let i = 0; i < 30; i++) tick(g);
+  const hit = g.units.filter((u, k) => u.hp < hp0[k]).length;
+  expect(hit).toBeGreaterThanOrEqual(3);
+});
+test('тролль регенит, двойник быстрый', () => {
+  const g = createGame();
+  g.medals = 2;
+  spawnWave(g, 11);
+  const troll = g.units.find((u) => u.kind === 'troll');
+  expect(troll).toBeDefined();
+  troll!.hp = 10;
+  for (let i = 0; i < 10; i++) tick(g);
+  expect(troll!.hp).toBeGreaterThan(10);
 });
