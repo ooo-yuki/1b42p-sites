@@ -303,7 +303,7 @@ assert.ok(html.includes('scoreTier(s.score) *'), 'eatCheck must apply tier multi
 
 console.log('logic.test.js: OK tiers (x1/x2/x2.5/x3.5)');
 
-// --- фиолет-подлянка: шанс 5%, -500 ровно, в ноль, без множителей ---
+// --- фиолетовые версии: шанс 5% поверх типа, -500 ровно, в ноль ---
 assert.strictEqual(__hook.PURPLE_P, 0.05, 'purple chance 5%');
 assert.strictEqual(__hook.purpleRoll(0.0), true);
 assert.strictEqual(__hook.purpleRoll(0.049), true);
@@ -312,10 +312,11 @@ assert.strictEqual(__hook.purpleRoll(0.99), false);
 assert.strictEqual(__hook.eatPurple(2900), 2400);
 assert.strictEqual(__hook.eatPurple(500), 0);
 assert.strictEqual(__hook.eatPurple(100), 0, 'floor zero, no negative');
-assert.ok(html.includes('type: 3, pts: -500'), 'placeFood must spawn purple type 3');
-assert.ok(html.includes('eatPurple(s.score)'), 'eatCheck must apply flat -500');
+assert.ok(html.includes('purple: purp'), 'placeFood must flag purple version (pts -500)');
+assert.ok(html.includes('foods[i].purple'), 'eatCheck must apply flat -500 to purple versions');
+assert.ok(html.includes('banana_purple.png') && html.includes('bunch_purple.png') && html.includes('tornado_purple.png'), 'purple textures must load');
 
-console.log('logic.test.js: OK purple (5%, -500, floor 0)');
+console.log('logic.test.js: OK purple versions (5%, -500, floor 0)');
 
 // --- интро: сначала видео + кнопка, игра только после ▶ Играть ---
 assert.ok(html.includes('id="intro"'), 'intro overlay must exist');

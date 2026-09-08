@@ -70,7 +70,7 @@
   <button id="again">Ещё раз</button>
 </div></div>
 <div id="intro"><video id="introVideo" src="intro.mp4" muted loop playsinline autoplay></video><button id="playBtn">▶ Играть</button></div>
-<div id="hint">движение — джойстик / WASD / стрелки · буст — кнопка / пробел · 🟣 фиолет -500, не жри!</div>
+<div id="hint">движение — джойстик / WASD / стрелки · буст — кнопка / пробел · фиолетовые версии еды -500, не жри!</div>
 <div id="joy"><div id="stick"></div></div>
 <button id="boostBtn" aria-label="Буст">⚡</button>
 <button id="pauseBtn" aria-label="Пауза">⏸</button>
@@ -81,9 +81,8 @@
 var FOOD = [
   { pts: 5,  w: 70, emoji: '\u{1F34C}' },
   { pts: 25, w: 25, emoji: '\u{1F34C}\u{1F34C}\u{1F34C}' },
-  { pts: 70, w: 5,  emoji: '\u{1F96B}' },
-  { pts: -500, w: 5, emoji: '\u{1F7E3}' } // фиолет: -500, шанс 5%
-];
+  { pts: 70, w: 5,  emoji: '\u{1F96B}' }
+]; // NOTE: фиолет — флаг purple поверх типов 0/1/2 (текстуры *_purple.png), не отдельный тип
 var PURPLE_P = 0.05; // шанс фиолета при спавне еды
 function purpleRoll(r) { return r < PURPLE_P; }
 function eatPurple(score) { return Math.max(0, score - 500); }
@@ -98,6 +97,12 @@ var BANANA_IMG = (typeof Image !== 'undefined') ? new Image() : null;
 if (BANANA_IMG) { BANANA_IMG.src = 'banana.png'; }
 var BUNCH_IMG = (typeof Image !== 'undefined') ? new Image() : null;
 if (BUNCH_IMG) { BUNCH_IMG.src = 'bunch.png'; }
+var BANANA_P = (typeof Image !== 'undefined') ? new Image() : null;
+if (BANANA_P) { BANANA_P.src = 'banana_purple.png'; }
+var BUNCH_P = (typeof Image !== 'undefined') ? new Image() : null;
+if (BUNCH_P) { BUNCH_P.src = 'bunch_purple.png'; }
+var TORNADO_P = (typeof Image !== 'undefined') ? new Image() : null;
+if (TORNADO_P) { TORNADO_P.src = 'tornado_purple.png'; }
 
 function spawnFood(r) {
   // r in [0,1): веса 70/25/5 -> типы 0/1/2 (очки 5/25/70)
@@ -292,9 +297,9 @@ function makeFood(n) {
   return arr;
 }
 function placeFood(x, y) {
-  if (Math.random() < PURPLE_P) return { x: x !== undefined ? x : rnd(W), y: y !== undefined ? y : rnd(H), type: 3, pts: -500, boost: null }; // фиолет-подлянка
   var t = spawnFood(Math.random());
-  return { x: x !== undefined ? x : rnd(W), y: y !== undefined ? y : rnd(H), type: t.type, pts: t.pts, boost: null };
+  var purp = purpleRoll(Math.random()); // 5%: фиолетовая версия того же типа, -500
+  return { x: x !== undefined ? x : rnd(W), y: y !== undefined ? y : rnd(H), type: t.type, pts: purp ? -500 : t.pts, boost: null, purple: purp };
 }
 function placeBooster() {
   // бустеры: вес 3 (редкие), ⭐×2 очки / ⚡×2 скорость, 10с
@@ -498,7 +503,7 @@ function eatCheck(s) {
   var pr = shopPickupR(mag);
   for (var i = foods.length - 1; i >= 0; i--) {
     if (collide(s.x, s.y, foods[i].x, foods[i].y, pr)) {
-      if (foods[i].type === 3) { s.score = eatPurple(s.score); } // фиолет: ровно -500, без множителей, в ноль
+      if (foods[i].purple) { s.score = eatPurple(s.score); } // фиолетовая версия: ровно -500, без множителей, в ноль
       else {
       var mult = scoreTier(s.score) * (s.star ? 2 : 1) * ((s === player && shopHas('buff_score')) ? 2.5 : 1); // тиры + магазин ×2.5
       s.score = eatFood(s.score, foods[i].pts, mult);
@@ -632,6 +637,18 @@ function draw(camX, camY) {
     var f = foods[i];
     var fx = f.x - camX, fy = f.y - camY;
     if (fx < -30 || fy < -30 || fx > canvas.width + 30 || fy > canvas.height + 30) continue;
+    if (f.purple && f.type === 2 && typeof TORNADO_P !== 'undefined' && TORNADO_P && TORNADO_P.complete && TORNADO_P.naturalWidth) {
+      ctx.drawImage(TORNADO_P, fx - 30, fy - 40, 60, 80);
+      continue;
+    }
+    if (f.purple && f.type === 0 && typeof BANANA_P !== 'undefined' && BANANA_P && BANANA_P.complete && BANANA_P.naturalWidth) {
+      ctx.drawImage(BANANA_P, fx - 24, fy - 24, 48, 48);
+      continue;
+    }
+    if (f.purple && f.type === 1 && typeof BUNCH_P !== 'undefined' && BUNCH_P && BUNCH_P.complete && BUNCH_P.naturalWidth) {
+      ctx.drawImage(BUNCH_P, fx - 32, fy - 24, 64, 48);
+      continue;
+    }
     if (f.type === 2 && typeof TORNADO_IMG !== 'undefined' && TORNADO_IMG && TORNADO_IMG.complete && TORNADO_IMG.naturalWidth) {
       ctx.drawImage(TORNADO_IMG, fx - 30, fy - 40, 60, 80);
       continue;
