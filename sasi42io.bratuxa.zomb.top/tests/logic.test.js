@@ -386,4 +386,24 @@ assert.ok(html.includes('name: nextBotName()'), 'spawn + respawn must deal uniqu
 assert.ok(html.includes('shuffleNames()'), 'pool reshuffled every game');
 
 console.log('logic.test.js: OK unique bot names (Sansy pool 25)');
+
+// --- золотой банан: тип 5, +5000 ровно, ролл 1.5% поверх спавна ---
+assert.strictEqual(__hook.GOLD_P, 0.015, 'gold chance must be 1.5%');
+assert.strictEqual(__hook.goldRoll(0.0), true);
+assert.strictEqual(__hook.goldRoll(0.0149), true);
+assert.strictEqual(__hook.goldRoll(0.015), false);
+assert.strictEqual(__hook.goldRoll(0.99), false);
+assert.strictEqual(__hook.eatGold(100), 5100, 'gold gives flat +5000');
+assert.strictEqual(__hook.eatGold(0), 5000);
+assert.strictEqual(__hook.spawnFood(0.0).pts, 5, 'old weights untouched by gold');
+assert.strictEqual(__hook.spawnFood(0.999).pts, 700);
+assert.ok(html.includes("GOLD_IMG.src = 'banana_gold.png'"), 'gold texture must load');
+assert.ok(html.includes('f.type === 5'), 'gold draw branch must exist');
+assert.ok(html.includes('Date.now()'), 'gold sparkles must twinkle');
+assert.ok(html.includes('foods[i].gold'), 'gold eat branch must exist');
+// золото в 300px бьёт банан в 100px: 90000/400=225 < 10000
+var _gb = __hook.bestFood({ x: 0, y: 0 }, [{ x: 100, y: 0, type: 0 }, { x: 300, y: 0, type: 5 }]);
+assert.strictEqual(_gb.type, 5, 'bots must chase gold first');
+
+console.log('logic.test.js: OK golden banana (type 5, +5000, 1.5%)');
 process.exit(0);

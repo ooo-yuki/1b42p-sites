@@ -85,11 +85,16 @@ var FOOD = [
   { pts: 25, w: 25, emoji: '\u{1F34C}\u{1F34C}\u{1F34C}' },
   { pts: 70, w: 5,  emoji: '\u{1F96B}' },
   { pts: 200, w: 2,  emoji: '\u{1F35F}' }, // ведро KFC: 200, реже торнадо (2%)
-  { pts: 700, w: 1,  emoji: '\u{1F357}' } // ведро с курицей: 700, супер-редкое (1%)
-]; // NOTE: фиолет — флаг purple поверх типов (текстуры *_purple.png), не отдельный тип
+  { pts: 700, w: 1,  emoji: '\u{1F357}' }, // ведро с курицей: 700, супер-редкое (1%)
+  { pts: 5000, w: 1.5, emoji: '\u{1F34C}\u2728' } // золотой банан: 5000, ролл 1.5% поверх спавна
+]; // NOTE: фиолет — флаг purple поверх типов (текстуры *_purple.png), не отдельный тип;
+   // NOTE2: золото — отдельный ролл GOLD_P поверх спавна (тип 5, banana_gold.png), в весах spawnFood не сидит
 var PURPLE_P = 0.05; // шанс фиолета при спавне еды
 function purpleRoll(r) { return r < PURPLE_P; }
 function eatPurple(score) { return Math.max(0, score - 500); }
+var GOLD_P = 0.015; // шанс золотого банана при спавне еды: 1.5%
+function goldRoll(r) { return r < GOLD_P; }
+function eatGold(score) { return score + 5000; } // джекпот ровно, без множителей
 var BOOSTERS = [
   { id: 'star', emoji: '\u2B50', mult: 2, dur: 10 },
   { id: 'bolt', emoji: '\u26A1', mult: 2, dur: 10 }
@@ -115,6 +120,8 @@ var BUCKET_IMG = (typeof Image !== 'undefined') ? new Image() : null;
 if (BUCKET_IMG) { BUCKET_IMG.src = 'kfc_bucket.png'; }
 var BUCKET_P = (typeof Image !== 'undefined') ? new Image() : null;
 if (BUCKET_P) { BUCKET_P.src = 'kfc_bucket_purple.png'; }
+var GOLD_IMG = (typeof Image !== 'undefined') ? new Image() : null;
+if (GOLD_IMG) { GOLD_IMG.src = 'banana_gold.png'; }
 
 function spawnFood(r) {
   // r in [0,1): веса 70/22/5/2/1 -> типы 0/1/2/3/4 (5/25/70/200/700, курица супер-редкая)
@@ -227,7 +234,8 @@ function dodgeTurn(bot, threats, W, H) {
   return turn;
 }
 // bestFood: торнадо (type 2) считается в 4 раза ближе (дистанция/4),
-// ведро KFC (type 3) — в 6 раз ближе, курица (type 4) — в 10 раз: джекпот.
+// ведро KFC (type 3) — в 6 раз ближе, курица (type 4) — в 10 раз,
+// золото (type 5) — в 20 раз: джекпот чуют все.
 function bestFood(bot, foods) {
   var best = foods[0], bd = Infinity;
   for (var i = 0; i < foods.length; i++) {
@@ -236,6 +244,7 @@ function bestFood(bot, foods) {
     if (foods[i].type === 2) d = d / 16; // (dist/4)^2
     if (foods[i].type === 3) d = d / 36; // (dist/6)^2
     if (foods[i].type === 4) d = d / 100; // (dist/10)^2
+    if (foods[i].type === 5) d = d / 400; // золото (dist/20)^2: джекпот 5000 чуют все
     if (d < bd) { bd = d; best = foods[i]; }
   }
   return best;
@@ -297,7 +306,7 @@ var BOT_N = 25; // мясорубка: ботов на арене
 var NAMES = ['Киршик', 'Чаев', 'Тюленька', 'Свастослав', 'Санси42', 'МТТ', 'Miqqil', '5opka',
   'Сет_ден', 'Робоженщина', 'Кизяк', 'Жоперша', 'мистер Пятёрка', 'Амиго', 'Соня', 'укроп Комисаренко',
   'Бурито', 'Черепаха Хлов', 'Яна Цист', 'Язагит Лера', 'бурмалда', 'скитонс', 'гой', 'Владимир Зутин', 'Загеев']; // пул 25 от Sansy: уникальные, без повторов
-window.__hook = { spawnFood: spawnFood, eatFood: eatFood, scoreTier: scoreTier, purpleRoll: purpleRoll, eatPurple: eatPurple, PURPLE_P: PURPLE_P, stepBot: stepBot, dodgeTurn: dodgeTurn, bestFood: bestFood, collide: collide, hitsWall: hitsWall, dropLoot: dropLoot, setDir: setDir, getDir: getDir, setPaused: setPaused, togglePause: togglePause, isPaused: isPaused, BOT_N: BOT_N, NAMES: NAMES, nextBotName: nextBotName, burp: burp, clang: clang, panelsVisible: panelsVisible, togglePanelsUI: togglePanelsUI, SHOP_PRICES: SHOP_PRICES, SKIN_COLORS: SKIN_COLORS, shopGain: shopGain, shopSpeed: shopSpeed, shopPickupR: shopPickupR, shopSkinColor: shopSkinColor, shieldHas: shieldHas, shieldUse: shieldUse };
+window.__hook = { spawnFood: spawnFood, eatFood: eatFood, scoreTier: scoreTier, purpleRoll: purpleRoll, eatPurple: eatPurple, PURPLE_P: PURPLE_P, goldRoll: goldRoll, eatGold: eatGold, GOLD_P: GOLD_P, stepBot: stepBot, dodgeTurn: dodgeTurn, bestFood: bestFood, collide: collide, hitsWall: hitsWall, dropLoot: dropLoot, setDir: setDir, getDir: getDir, setPaused: setPaused, togglePause: togglePause, isPaused: isPaused, BOT_N: BOT_N, NAMES: NAMES, nextBotName: nextBotName, burp: burp, clang: clang, panelsVisible: panelsVisible, togglePanelsUI: togglePanelsUI, SHOP_PRICES: SHOP_PRICES, SKIN_COLORS: SKIN_COLORS, shopGain: shopGain, shopSpeed: shopSpeed, shopPickupR: shopPickupR, shopSkinColor: shopSkinColor, shieldHas: shieldHas, shieldUse: shieldUse };
 
 /* ===== игра ===== */
 var W = 3000, H = 3000;
@@ -334,6 +343,9 @@ function makeFood(n) {
   return arr;
 }
 function placeFood(x, y) {
+  if (goldRoll(Math.random())) { // 1.5%: золотой банан — +5000 ровно, фиолетом не бывает
+    return { x: x !== undefined ? x : rnd(W), y: y !== undefined ? y : rnd(H), type: 5, pts: 5000, boost: null, purple: false, gold: true };
+  }
   var t = spawnFood(Math.random());
   var purp = purpleRoll(Math.random()); // 5%: фиолетовая версия того же типа, -500
   return { x: x !== undefined ? x : rnd(W), y: y !== undefined ? y : rnd(H), type: t.type, pts: purp ? -500 : t.pts, boost: null, purple: purp };
@@ -567,7 +579,8 @@ function eatCheck(s) {
   var pr = shopPickupR(mag);
   for (var i = foods.length - 1; i >= 0; i--) {
     if (collide(s.x, s.y, foods[i].x, foods[i].y, pr)) {
-      if (foods[i].purple) { s.score = eatPurple(s.score); } // фиолетовая версия: ровно -500, без множителей, в ноль
+      if (foods[i].gold) { s.score = eatGold(s.score); } // золотой банан: ровно +5000, без множителей
+      else if (foods[i].purple) { s.score = eatPurple(s.score); } // фиолетовая версия: ровно -500, без множителей, в ноль
       else {
       var mult = scoreTier(s.score) * (s.star ? 2 : 1) * ((s === player && shopHas('buff_score')) ? 2.5 : 1); // тиры + магазин ×2.5
       s.score = eatFood(s.score, foods[i].pts, mult);
@@ -701,6 +714,19 @@ function draw(camX, camY) {
     var f = foods[i];
     var fx = f.x - camX, fy = f.y - camY;
     if (fx < -30 || fy < -30 || fx > canvas.width + 30 || fy > canvas.height + 30) continue;
+    if (f.type === 5 && typeof GOLD_IMG !== 'undefined' && GOLD_IMG && GOLD_IMG.complete && GOLD_IMG.naturalWidth) {
+      ctx.drawImage(GOLD_IMG, fx - 32, fy - 32, 64, 64); // золото крупно: видно издалека
+      var tw = Date.now() / 240; // живые блёстки: мерцают вокруг банана
+      ctx.fillStyle = '#fff7cc';
+      for (var sp = 0; sp < 4; sp++) {
+        var sa = tw + sp * 1.7;
+        var sx = fx + Math.cos(sa * 1.3 + sp * 2.1) * 30;
+        var sy = fy + Math.sin(sa + sp * 1.3) * 30;
+        var sr = 1.5 + Math.abs(Math.sin(sa * 2)) * 2;
+        ctx.beginPath(); ctx.arc(sx, sy, sr, 0, 6.2832); ctx.fill();
+      }
+      continue;
+    }
     if (f.purple && f.type === 2 && typeof TORNADO_P !== 'undefined' && TORNADO_P && TORNADO_P.complete && TORNADO_P.naturalWidth) {
       ctx.drawImage(TORNADO_P, fx - 30, fy - 40, 60, 80);
       continue;
