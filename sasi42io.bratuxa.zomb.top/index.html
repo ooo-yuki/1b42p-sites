@@ -410,8 +410,8 @@ function tickTimers(s, dt) {
   if (s.starT > 0) { s.starT -= dt / 60; if (s.starT <= 0) s.star = 0; }
   if (s.boltT > 0) { s.boltT -= dt / 60; if (s.boltT <= 0) s.bolt = 0; }
 }
-/* --- звук: рыг и труба (WebAudio-синтез без файлов; vm-safe: без AudioContext молча no-op) --- */
-var AC = null, lastBurp = 0;
+/* --- звук: авторский рыг из файла + труба синтезом (vm-safe) --- */
+var AC = null, lastBurp = 0, BURP_BUF = null, burpLoading = false;
 function ac() {
   if (AC) return AC;
   try {
@@ -423,30 +423,35 @@ function ac() {
 }
 if (typeof window !== 'undefined') {
   try {
-    window.addEventListener('pointerdown', function () { var c = ac(); if (c && c.state === 'suspended') c.resume(); });
-    window.addEventListener('keydown', function () { var c = ac(); if (c && c.state === 'suspended') c.resume(); });
+    window.addEventListener('pointerdown', function () { var c = ac(); if (c && c.state === 'suspended') c.resume(); burpLoad(); });
+    window.addEventListener('keydown', function () { var c = ac(); if (c && c.state === 'suspended') c.resume(); burpLoad(); });
   } catch (e) {}
 }
+function burpLoad() {
+  // ленивая загрузка рыга: только в браузере, один раз; в vm молча no-op
+  if (BURP_BUF || burpLoading) return;
+  try {
+    if (typeof fetch === 'undefined') return;
+    var c = ac(); if (!c) return;
+    burpLoading = true;
+    fetch('burp.mp3').then(function (r) { return r.arrayBuffer(); }).then(function (ab) {
+      return c.decodeAudioData(ab);
+    }).then(function (buf) { BURP_BUF = buf; burpLoading = false; }).catch(function () { burpLoading = false; });
+  } catch (e) { burpLoading = false; }
+}
 function burp(loud) {
-  // рыг: пила 150→85 Гц + бульканье (LFO 27 Гц на частоту) + lowpass, 0.32с
+  // авторский рыг из файла; троттлинг 90мс
   try {
     var c = ac(); if (!c) return;
+    if (!BURP_BUF) { burpLoad(); return; }
     var t = c.currentTime;
     if (t - lastBurp < 0.09) return;
     lastBurp = t;
-    var o = c.createOscillator(), lfo = c.createOscillator();
-    var lg = c.createGain(), f = c.createBiquadFilter(), g = c.createGain();
-    o.type = 'sawtooth';
-    o.frequency.setValueAtTime(150, t);
-    o.frequency.exponentialRampToValueAtTime(85, t + 0.3);
-    lfo.type = 'sine'; lfo.frequency.value = 27;
-    lg.gain.value = 38; // глубина бульканья
-    lfo.connect(lg); lg.connect(o.frequency);
-    f.type = 'lowpass'; f.frequency.value = 600;
-    g.gain.setValueAtTime(loud ? 0.25 : 0.12, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
-    o.connect(f); f.connect(g); g.connect(c.destination);
-    o.start(t); lfo.start(t); o.stop(t + 0.34); lfo.stop(t + 0.34);
+    var src = c.createBufferSource(); src.buffer = BURP_BUF;
+    var g = c.createGain();
+    g.gain.value = loud ? 0.9 : 0.5;
+    src.connect(g); g.connect(c.destination);
+    src.start(t);
   } catch (e) {}
 }
 function clang() {
