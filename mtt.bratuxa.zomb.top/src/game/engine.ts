@@ -71,7 +71,7 @@ export function charSpec(id: string): CharDef {
 }
 
 export type Quality = 'fast' | 'nice';
-export type MapId = 'arena' | 'duel' | 'backrooms' | 'custom' | 'random';
+export type MapId = 'arena' | 'duel' | 'backrooms' | 'custom' | 'random' | 'pvp' | 'endless' | 'invasion';
 
 /** Карты для выбора в меню: id, название, описание. */
 export const MAPS: Array<{ id: MapId; name: string; desc: string }> = [
@@ -174,6 +174,10 @@ export interface GameEvents {
   onSwing: () => void;
   /** удар по сетевому мобу: App шлёт mobhit на сервер, ответ применяет через netSyncHp/netKill */
   onNetHit?: (id: number, dmg: number) => void;
+  /** удар по игроку в PvP: App шлёт pvphit на сервер (fid бойца из последнего beat) */
+  onPvpHit?: (fid: number, dmg: number) => void;
+  /** серверный hp в PvP упал в ноль: показать экран смерти с ресауном */
+  onPvpDead?: () => void;
 }
 
 export interface RemotePlayer {
@@ -182,6 +186,8 @@ export interface RemotePlayer {
   z: number;
   hp: number;
   char: string;
+  /** fid бойца (индекс в строю сервера) — цель для pvphit */
+  fid?: number;
   /** полное присутствие: ствол, высота, счётчик ударов, лежит ли */
   weapon?: string;
   py?: number;
@@ -191,6 +197,8 @@ export interface RemotePlayer {
 
 interface Remote {
   nick: string;
+  /** fid бойца для pvphit (-1 = неизвестно) */
+  fid: number;
   g: THREE.Group;
   cv: HTMLCanvasElement;
   tex: THREE.CanvasTexture;
@@ -243,6 +251,8 @@ interface Enemy {
   /** обход стен: вейпоинты BFS + таймер пересчёта */
   path: Array<{ x: number; z: number }>;
   repathT: number;
+  /** неубиваемый сталкер Бэкрумса (урон гаснет, фраг невозможен) */
+  god: boolean;
 }
 
 /** Сетевой моб из пульса комнаты (сервер — правда). */
@@ -254,6 +264,8 @@ export interface RemoteMob {
   hp: number;
   dead: boolean;
   wave: number;
+  /** неубиваемый сталкер Бэкрумса */
+  god?: boolean;
 }
 
 const ARENA = 110;
@@ -1901,9 +1913,10 @@ export class Game {
 
   private buildWorld(): void {
     if (this.map === 'duel') { this.buildDuel(); return; }
-    if (this.map === 'backrooms') { this.buildBackrooms(); return; }
+    if (this.map === 'backrooms' || this.map === 'endless') { this.buildBackrooms(); return; }
     if (this.map === 'custom') { this.buildCustom(); return; }
     if (this.map === 'random') { this.buildRandom(); return; }
+    // arena, pvp, invasion — город
     this.buildCity(); return;
     const scene = this.scene;
     // светло: день вместо ночи
@@ -2459,7 +2472,7 @@ export class Game {
       speed: boss ? 1.5 : 1.7 + Math.random() * 1.1 + this.wave * 0.12 + (fly ? 0.6 : 0),
       hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, ey: 0, evy: 0, hopCd: 1 + Math.random() * 2, dead: false,
       mobId: this.mobIdSeq++, net: false, tx: sx, tz: sz, snaps: [], ewave: this.wave,
-      path: [], repathT: Math.random() * 0.5,
+      path: [], repathT: Math.random() * 0.5, god: false,
     };
     this.updateHpBar(foe);
     this.enemies.push(foe);
@@ -2533,11 +2546,68 @@ export class Game {
       this.strikeEnemy(e, W.dmg * this.dmgMul() + Math.random() * 8, dx, dz, d, 1.6);
       hits++;
     }
+    // PvP: ближний бой достаёт и игроков (конус тот же, урон считает сервер)
+    if (this.map === 'pvp') {
+      for (const r of this.remotes) {
+        if (r.dead || r.fid < 0) continue;
+        const dx = r.x - this.px;
+        const dz = r.z - this.pz;
+        const d = Math.hypot(dx, dz);
+        if (d > W.range) continue;
+        const cos = (dx * fx + dz * fz) / (d || 1);
+        if (cos < 0.35) continue;
+        this.hitRemote(r, W.dmg * this.dmgMul() + Math.random() * 8);
+        hits++;
+      }
+    }
     if (hits > 0) this.sfx(hitUrl);
     this.pushHud();
     this.waveClearCheck();
     this.drawMM();
     return hits;
+  }
+
+  /** Попадание по игроку в PvP: картинка + заявка на сервер (HP и фраг считает сервер). */
+  private hitRemote(r: Remote, dmg: number): void {
+    this.burst(r.x, 1.5, r.z, 8);
+    r.flash = 0.3;
+    this.sfx(hitUrl);
+    if (r.fid >= 0) this.ev.onPvpHit?.(r.fid, Math.round(dmg));
+  }
+
+  /** Серверный HP в PvP: жертва принимает урон, в ноль — экран смерти (не busted). */
+  setPvpHp(hp: number): number {
+    this.hp = Math.max(0, Math.min(this.maxhp, Math.round(hp)));
+    if (this.hp <= 0 && this.started && !this.dead) {
+      this.dead = true;
+      this.pushHud();
+      this.ev.onPvpDead?.();
+    } else {
+      this.pushHud();
+    }
+    return this.hp;
+  }
+
+  /** Ресаун в PvP после смерти: на точку, полное HP, без штрафа (штраф — сама смерть). */
+  pvpRespawn(x: number, z: number): boolean {
+    this.dead = false;
+    this.hp = this.maxhp;
+    this.px = this.clamp(Number(x) || 0);
+    this.pz = this.clamp(Number(z) || 0);
+    this.py = 0; this.pvy = 0;
+    this.pushHud();
+    this.drawMM();
+    return true;
+  }
+
+  /** Случайная свободная точка арены (спавн PvP/Бэкрумса/Нашествия): 24 попытки мимо стен. */
+  randomSpawn(): { x: number; z: number } {
+    for (let t = 0; t < 24; t++) {
+      const qx = -48 + Math.random() * 96, qz = -48 + Math.random() * 96;
+      if (!this.hitSolid(qx, qz, 1.0)) { this.px = qx; this.pz = qz; this.yaw = 0; this.py = 0; this.pvy = 0; return { x: qx, z: qz }; }
+    }
+    this.px = 0; this.pz = 22; this.yaw = 0;
+    return { x: 0, z: 22 };
   }
 
   /** Пульс присутствия для комнаты: ствол, высота, счётчик ударов, смерть. */
@@ -2603,6 +2673,29 @@ export class Game {
       if (Math.sqrt(mx * mx + my * my + mz * mz) > 0.9) continue;
       if (t < bestD) { bestD = t; best = e; }
     }
+    // PvP: луч встречает и игроков (туша та же R~0.9, высота по прыжку)
+    let bestR: Remote | null = null;
+    let bestRD = Infinity;
+    if (this.map === 'pvp') {
+      for (const r of this.remotes) {
+        if (r.dead || r.fid < 0) continue;
+        const ty = 1.0 + (r.py || 0);
+        const vx = r.x - cx, vy = ty - cy, vz = r.z - cz;
+        const t = vx * dx + vy * dy + vz * dz;
+        if (t > range || t < 0.15) continue;
+        const mx = vx - dx * t, my = vy - dy * t, mz = vz - dz * t;
+        if (Math.sqrt(mx * mx + my * my + mz * mz) > 0.9) continue;
+        if (t < bestRD) { bestRD = t; bestR = r; }
+      }
+      if (bestR && bestRD < bestD) {
+        const fall = 1 - (bestRD / range) * 0.5;
+        this.tracer(cx, cy, cz, bestR.x, 1.0 + (bestR.py || 0), bestR.z);
+        this.hitRemote(bestR, baseDmg * fall * this.dmgMul() + Math.random() * 5);
+        this.pushHud();
+        this.drawMM();
+        return 1;
+      }
+    }
     if (!best) {
       // мимо: пыль на излёте пули + трассер в никуда
       this.burst(cx + dx * 8, cy + dy * 8, cz + dz * 8, 3);
@@ -2666,6 +2759,9 @@ export class Game {
     const perPellet = totalDmg / PELLETS;
     const hitsBy = new Map<number, number>();
     const hitPos = new Map<number, { x: number; y: number; z: number; hx: number; hz: number }>();
+    const pvpMode = this.map === 'pvp';
+    const remHits = new Map<number, number>();
+    const remPos = new Map<number, { dist: number }>();
     for (let pi = 0; pi < PELLETS; pi++) {
       const ox = (Math.random() * 2 - 1) * SPREAD, oy = (Math.random() * 2 - 1) * SPREAD;
       let pdx = dx + rx * ox + ux * oy, pdy = dy + ry * ox + uy * oy, pdz = dz + rz * ox + uz * oy;
@@ -2684,8 +2780,32 @@ export class Game {
         if (!hitPos.has(ei)) hitPos.set(ei, { x: e.g.position.x, y: ty, z: e.g.position.z, hx: ex, hz: ez });
         this.tracer(cx, cy, cz, cx + pdx * t, cy + pdy * t, cz + pdz * t);
       }
+      // PvP: дробины встречают и игроков
+      if (pvpMode) {
+        for (let ri = 0; ri < this.remotes.length; ri++) {
+          const r = this.remotes[ri];
+          if (r.dead || r.fid < 0) continue;
+          const ty = 1.0 + (r.py || 0);
+          const ex = r.x - cx, ey = ty - cy, ez = r.z - cz;
+          const t = ex * pdx + ey * pdy + ez * pdz;
+          if (t < 0.5 || t > range) continue;
+          const dd = Math.sqrt(Math.max(0, ex * ex + ey * ey + ez * ez - t * t));
+          if (dd > 0.9) continue;
+          remHits.set(ri, (remHits.get(ri) ?? 0) + 1);
+          if (!remPos.has(ri)) remPos.set(ri, { dist: Math.hypot(ex, ez) });
+          this.tracer(cx, cy, cz, cx + pdx * t, cy + pdy * t, cz + pdz * t);
+        }
+      }
     }
     let hits = 0;
+    remHits.forEach((count, ri) => {
+      const r = this.remotes[ri];
+      const rp = remPos.get(ri);
+      if (!r || !rp || r.dead || r.fid < 0) return;
+      const fall = Math.pow(Math.max(0, 1 - rp.dist / range), 1.6);
+      this.hitRemote(r, count * perPellet * fall * this.dmgMul() + Math.random() * 3);
+      hits++;
+    });
     hitsBy.forEach((count, ei) => {
       const e = this.enemies[ei];
       const hp = hitPos.get(ei);
@@ -2773,7 +2893,7 @@ export class Game {
     if (typeof yaw === 'number' && Number.isFinite(yaw)) this.yaw = yaw;
   }
   debugRemoteList(): RemotePlayer[] {
-    return this.remotes.map((m) => ({ nick: m.nick, char: m.char, x: m.x, z: m.z, hp: m.hp, weapon: m.weapon, py: m.py, atk: m.atk, dead: m.dead }));
+    return this.remotes.map((m) => ({ nick: m.nick, char: m.char, x: m.x, z: m.z, hp: m.hp, weapon: m.weapon, py: m.py, atk: m.atk, dead: m.dead, fid: m.fid }));
   }
   /** Отладка для тестов: живые враги с координатами (навести прицел точно). */
   debugFoes(): Array<{ id: number; x: number; z: number; hp: number; dead: boolean; ey: number }> {
@@ -2800,7 +2920,7 @@ export class Game {
     const out: RemoteMob[] = this.enemies
       .filter((e) => !e.net && !e.dead)
       .slice(0, 60)
-      .map((e) => ({ id: e.mobId, kind: e.kind, x: Math.round(e.g.position.x * 10) / 10, z: Math.round(e.g.position.z * 10) / 10, hp: Math.round(e.hp), dead: false, wave: e.ewave }));
+      .map((e) => ({ id: e.mobId, kind: e.kind, x: Math.round(e.g.position.x * 10) / 10, z: Math.round(e.g.position.z * 10) / 10, hp: Math.round(e.hp), dead: false, wave: e.ewave, god: e.god }));
     for (const d of this.deadLog) out.push(d);
     return out.slice(0, 60);
   }
@@ -2843,7 +2963,7 @@ export class Game {
           ...v, kind, hp: maxhp, maxhp, speed: 0,
           hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, ey: 0, evy: 0, hopCd: 1e9, dead: false,
           mobId: id, net: true, tx: v.g.position.x, tz: v.g.position.z, snaps: [{ t: performance.now(), x: v.g.position.x, z: v.g.position.z }], ewave: Math.round(Number(m.wave) || 1),
-          path: [], repathT: 0,
+          path: [], repathT: 0, god: m.god === true,
         };
         this.updateHpBar(e);
         this.enemies.push(e);
@@ -2852,6 +2972,7 @@ export class Game {
         this.snapPush(e.snaps, performance.now(), Number(m.x) || 0, Number(m.z) || 0);
         e.tx = Number(m.x) || 0;
         e.tz = Number(m.z) || 0;
+        e.god = m.god === true;
         e.hp = Math.max(0, Math.round(Number(m.hp) || 0));
         const maxhp = Math.max(e.maxhp, e.hp, 1);
         e.maxhp = maxhp;
@@ -2872,10 +2993,10 @@ export class Game {
     this.updateHpBar(e);
   }
 
-  /** Сетевой фраг по ответу сервера: награда только здесь (фраг один на всех). */
+  /** Сетевой фраг по ответу сервера: награда только здесь (фраг один на всех). god-мобы не умирают. */
   netKill(netId: number, reward = true): boolean {
     const e = this.enemies.find((q) => q.net && q.mobId === netId && !q.dead);
-    if (!e) return false;
+    if (!e || e.god) return false;
     e.dead = true;
     this.burst(e.g.position.x, 1.2, e.g.position.z, 10);
     this.scene.remove(e.g);
@@ -3136,7 +3257,7 @@ export class Game {
         lab.position.set(0, 2.5, 0);
         g.add(lab);
         this.scene.add(g);
-        r = { nick, g, cv, tex: ltex, gunCv, gunTex, x: 0, z: 0, tx: 0, tz: 0, snaps: [], hp: 100, char, weapon: '', py: 0, atk: 0, flash: 0, dead: false };
+        r = { nick, g, cv, tex: ltex, gunCv, gunTex, x: 0, z: 0, tx: 0, tz: 0, snaps: [], hp: 100, char, weapon: '', py: 0, atk: 0, flash: 0, dead: false, fid: -1 };
         this.gunIcon(weapon, gunCv, gunTex);
         r.weapon = weapon;
         this.remotes.push(r);
@@ -3164,6 +3285,8 @@ export class Game {
       const atk = Math.max(0, Math.floor(Number(p.atk) || 0));
       if (atk !== rr.atk) { rr.atk = atk; rr.flash = 0.3; }
       rr.dead = p.dead === true;
+      const pfid = Math.floor(Number(p.fid));
+      rr.fid = Number.isFinite(pfid) && pfid >= 0 ? pfid : -1;
       this.drawRemote(rr);
     }
     this.remotes = this.remotes.filter((r) => {

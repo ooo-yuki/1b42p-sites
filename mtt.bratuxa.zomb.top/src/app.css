@@ -286,3 +286,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 #loadbar{width:min(70vw,380px);height:22px;background:#000;border:3px solid #ff9f1c;box-shadow:4px 4px 0 #000}
 #loadfill{height:100%;width:0;background:#ff9f1c}
 #loadHint{font-size:13px;color:#c6cdf2}
+#scoreboard{position:fixed;top:10px;right:10px;z-index:6;text-align:right;background:rgba(10,10,18,.78);border:2px solid #e23b3b;padding:8px 12px;font-size:14px;font-weight:800;color:#ece7d8;max-width:44vw}
+#scoreTitle{color:#ff9f1c;margin-bottom:4px}
+#scoreboard .sme{color:#39d353}
+#restartBadge{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:6;background:rgba(10,10,18,.78);border:2px solid #ff9f1c;padding:6px 14px;font-size:14px;font-weight:800;color:#ff9f1c}

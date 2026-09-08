@@ -46,6 +46,10 @@ interface RoomMate {
   score: number;
   kills: number;
   wave: number;
+  /** PvP: фраги, наблюдатель, fid бойца для pvphit */
+  frags?: number;
+  spec?: boolean;
+  fid?: number;
   /** полное присутствие с сервера: ствол, высота, удары, лежит ли */
   weapon?: string;
   py?: number;
@@ -89,6 +93,8 @@ interface RoomInfo {
   mode: MapId;
   count: number;
   started?: boolean;
+  official?: boolean;
+  restartIn?: number;
 }
 
 interface LobbyInfo {
@@ -100,6 +106,63 @@ interface LobbyInfo {
   players: RoomMate[];
   pending?: RoomMate[];
   accepted?: boolean;
+  official?: boolean;
+  restartIn?: number;
+}
+
+/** Ответ пульса комнаты: дуэль, PvP-табло, наблюдатель, ресаун, хост мобов. */
+interface BeatInfo {
+  players: RoomMate[];
+  duel?: DuelInfo;
+  chat?: Array<{ nick: string; text: string; t: number }>;
+  mobs?: Array<{ id: number; kind: string; x: number; z: number; hp: number; dead: boolean; wave: number; god?: boolean }>;
+  owner?: boolean;
+  t?: number;
+  scoreboard?: Array<{ nick: string; frags: number }>;
+  specView?: { spec: boolean; target?: string; targets?: Array<{ sid: string; nick: string; hp: number; dead: boolean }> };
+  respawn?: { x: number; z: number } | null;
+  myHp?: number;
+  myFrags?: number;
+  mobHost?: boolean;
+  started?: boolean;
+  official?: boolean;
+  restartIn?: number;
+}
+
+/** Значок режима комнаты/карты. */
+function modeIcon(mode: string): string {
+  if (mode === 'duel') return '⚔️';
+  if (mode === 'backrooms' || mode === 'endless') return '🟨';
+  if (mode === 'pvp') return '⚔️';
+  if (mode === 'invasion') return '🌊';
+  if (mode === 'custom') return '🧩';
+  if (mode === 'random') return '🎲';
+  return '🌍';
+}
+
+/** Название режима комнаты. */
+function modeName(mode: string): string {
+  if (mode === 'duel') return '⚔️ ДУЭЛЬ 1×1';
+  if (mode === 'backrooms') return '🟨 БЭКРУМС';
+  if (mode === 'pvp') return '⚔️ PvP-АРЕНА';
+  if (mode === 'endless') return '🟨 БЕСКОНЕЧНЫЙ БЭКРУМС';
+  if (mode === 'invasion') return '🌊 НАШЕСТВИЕ';
+  if (mode === 'custom') return '🧩 СВОЯ';
+  return '🌍 Арена';
+}
+
+/** Секунды до рестарта → мм:сс. */
+function fmtRestart(sec: number): string {
+  const s = Math.max(0, Math.floor(sec));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/** Лимит игроков по режиму (зеркало сервера). */
+function modeCap(mode: string): number {
+  if (mode === 'duel') return 2;
+  if (mode === 'pvp') return 12;
+  if (mode === 'endless' || mode === 'invasion') return 10;
+  return 8;
 }
 
 async function loadRooms(): Promise<RoomInfo[]> {
@@ -415,6 +478,13 @@ async function loadStats(): Promise<void> {
   const [draftMode, setDraftMode] = useState<MapId>('arena');
   const [roomsList, setRoomsList] = useState<RoomInfo[]>([]);
   const [mates, setMates] = useState<RoomMate[]>([]);
+  /** PvP-табло сверху + счётчик до рестарта сервера */
+  const [scoreboard, setScoreboard] = useState<Array<{ nick: string; frags: number }>>([]);
+  const [myFrags, setMyFrags] = useState(0);
+  const [restartIn, setRestartIn] = useState(0);
+  /** экран смерти PvP: ресаун в случайной точке или выход в меню */
+  const [pvpDead, setPvpDead] = useState(false);
+  const pvpDeadRef = useRef(false);
   // лобби: владелец/заявки/старт. isOwner — я создал; waiting — моя заявка висит; lobby — свежий состав
   const [isOwner, setIsOwner] = useState(false);
   const [waiting, setWaiting] = useState(false);
@@ -589,7 +659,19 @@ async function loadStats(): Promise<void> {
           else if (typeof d.hp === 'number') g.netSyncHp(nid, d.hp);
         }).catch(() => undefined);
       },
-    }, mapChoice, { enemies: !noEnemies, custom: mapChoice === 'custom' ? customsRef.current[customSel ?? ''] ?? null : undefined });
+      onPvpHit: (fid, dmg) => {
+        const { id: rid, sid } = roomRef.current;
+        if (!rid || !sid) return;
+        fetch(`/api/rooms/${rid}/pvphit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sid, target: fid, dmg }),
+        }).then((r) => r.json()).then((d: { frags?: number }) => {
+          if (typeof d.frags === 'number') setMyFrags(d.frags);
+        }).catch(() => undefined);
+      },
+      onPvpDead: () => { pvpDeadRef.current = true; setPvpDead(true); },
+    }, mapChoice, { enemies: !noEnemies && mapChoice !== 'pvp', custom: mapChoice === 'custom' ? customsRef.current[customSel ?? ''] ?? null : undefined });
     gameRef.current = game;
     setSound(game.getSound());
     setSens(game.getSens());
@@ -631,6 +713,9 @@ async function loadStats(): Promise<void> {
       map: () => game.debugMap(),
       duelHp: (hp: number) => game.setDuelHp(hp),
       teleport: (x: number, z: number, yaw?: number) => game.debugTeleport(x, z, yaw),
+      pvpHp: (n: number) => game.setPvpHp(n),
+      pvpSpawn: () => game.randomSpawn(),
+      pvpRespawn: (x: number, z: number) => game.pvpRespawn(x, z),
       charaSet: (id: string) => { game.unlockChar(id); return game.setChar(id); },
       switchW: () => game.switchWeapon(),
       medBuy: () => game.buyMedkit(),
@@ -699,6 +784,10 @@ async function loadStats(): Promise<void> {
       if (!g) return;
       const sp = spawnRef.current;
       if (sp && roomMode === 'duel') g.debugTeleport(sp.x, sp.z, sp.yaw);
+      // официальные режимы: случайная точка (сервер тоже раскидал, пульс сведёт)
+      if (roomMode === 'pvp' || roomMode === 'endless' || roomMode === 'invasion') g.randomSpawn();
+      pvpDeadRef.current = false;
+      setPvpDead(false);
       g.start();
     }, 50);
     loadScores().then(setScores);
@@ -832,6 +921,11 @@ async function loadStats(): Promise<void> {
     setLobby(null);
     gameRef.current?.setNetSync(false);
     gameRef.current?.setRemotes([]);
+    setScoreboard([]);
+    setMyFrags(0);
+    setRestartIn(0);
+    setPvpDead(false);
+    pvpDeadRef.current = false;
     if (id && sid) {
       try {
         await fetch(`/api/rooms/${id}/leave`, {
@@ -917,7 +1011,7 @@ async function loadStats(): Promise<void> {
           }
           return;
         }
-        const d = (await r.json()) as { players: RoomMate[]; duel?: DuelInfo; chat?: Array<{ nick: string; text: string; t: number }>; mobs?: Array<{ id: number; kind: string; x: number; z: number; hp: number; dead: boolean; wave: number }>; owner?: boolean; t?: number };
+        const d = (await r.json()) as BeatInfo;
         const plist = d.players ?? [];
         setMates(plist);
         matesRef.current = plist;
@@ -928,9 +1022,22 @@ async function loadStats(): Promise<void> {
           all.push({ nick: f.nick, login: f.login, char: f.char, x: f.x, z: f.z, hp: f.hp, score: 0, kills: 0, wave: 1, weapon: f.weapon, py: f.py, atk: f.atk, dead: f.dead });
         }
         g.setRemotes(all);
+        // PvP: табло сверху, серверный hp, очередь ресауна, таймер рестарта
+        const isPvp = roomRef.current.mode === 'pvp';
+        if (isPvp) {
+          if (Array.isArray(d.scoreboard)) setScoreboard(d.scoreboard);
+          if (typeof d.myFrags === 'number') setMyFrags(d.myFrags);
+          setRestartIn(typeof d.restartIn === 'number' ? d.restartIn : 0);
+          // сначала серверный hp (в ноль — экран смерти), потом точка ресауна (мимо экрана)
+          if (typeof d.myHp === 'number' && !pvpDeadRef.current) g.setPvpHp(d.myHp);
+          if (d.respawn && !pvpDeadRef.current) g.pvpRespawn(d.respawn.x, d.respawn.z);
+        } else if (roomRef.current.mode === 'endless' || roomRef.current.mode === 'invasion') {
+          setRestartIn(typeof d.restartIn === 'number' ? d.restartIn : 0);
+        }
         // общие мобы: хост заливает слепок, гость ставит кукол (только в бою на моб-карте)
-        const mobMap = roomRef.current.mode === 'arena' || roomRef.current.mode === 'backrooms';
-        const amOwner = d.owner === true;
+        // PvP без мобов; endless/invasion — хост назначает сервер (первый боец)
+        const mobMap = roomRef.current.mode === 'arena' || roomRef.current.mode === 'backrooms' || roomRef.current.mode === 'endless' || roomRef.current.mode === 'invasion';
+        const amOwner = d.owner === true || d.mobHost === true;
         const inGame = (() => { try { return g.debugPlaying(); } catch { return false; } })();
         g.setNetSync(!!id && inGame && !amOwner && mobMap);
         if (inGame && mobMap && amOwner) {
@@ -1376,6 +1483,17 @@ async function loadStats(): Promise<void> {
               {duel.lastWinner && <div id="duelLast">🏆 Раунд взял: {duel.lastWinner}</div>}
             </div>
           )}
+          {roomMode === 'pvp' && (
+            <div id="scoreboard">
+              <div id="scoreTitle">⚔️ ФРАГИ · ТЫ: {myFrags} 💀{restartIn > 0 ? ` · ♻️ ${fmtRestart(restartIn)}` : ''}</div>
+              {scoreboard.length > 0 ? scoreboard.map((s, i) => (
+                <div key={i} className={s.nick === nick ? 'sme' : ''}>{i + 1}. {s.nick} — {s.frags} 💀</div>
+              )) : <div>Пока тихо — разведи движ!</div>}
+            </div>
+          )}
+          {(roomMode === 'endless' || roomMode === 'invasion') && restartIn > 0 && (
+            <div id="restartBadge">♻️ Рестарт через {fmtRestart(restartIn)}</div>
+          )}
           {waveBanner > 0 && (
             <div id="waveBanner" key={`wave-${waveBanner}`}>🌊 ВОЛНА {waveBanner}</div>
           )}
@@ -1384,13 +1502,23 @@ async function loadStats(): Promise<void> {
           )}
         </>
       )}
-      {hud.dead && !menu && (
+      {hud.dead && !menu && roomMode !== 'pvp' && (
         <div id="busted" style={{ display: 'flex' }}>
           <div id="deadPanel">
             <div>ЗАВАЛЕН! 👊</div>
             <div id="deadScore">{hud.score} 🏆 · {hud.kills} 💀</div>
             <button id="reviveBtn" onClick={() => gameRef.current?.revive()}>💚 ВОЗРОДИТЬСЯ (−100 🏆)</button>
             <button id="retryBtn" onClick={() => window.location.reload()}>🔄 ЗАНОВО</button>
+          </div>
+        </div>
+      )}
+      {pvpDead && !menu && roomMode === 'pvp' && (
+        <div id="busted" style={{ display: 'flex' }}>
+          <div id="deadPanel">
+            <div>☠️ ТЕБЯ ЗАВАЛИЛИ!</div>
+            <div id="deadScore">Фраги: {myFrags} 💀</div>
+            <button id="pvpRespawn" onClick={() => { const g = gameRef.current; if (g) { const sp = g.randomSpawn(); g.pvpRespawn(sp.x, sp.z); } pvpDeadRef.current = false; setPvpDead(false); }}>🎲 ВОЗРОДИТЬСЯ В СЛУЧАЙНОЙ ТОЧКЕ</button>
+            <button id="pvpMenu" onClick={() => { pvpDeadRef.current = false; setPvpDead(false); toMenu(); }}>🚪 ВЫЙТИ В МЕНЮ</button>
           </div>
         </div>
       )}
@@ -1808,7 +1936,7 @@ async function loadStats(): Promise<void> {
           {(roomId && !isOwner) || waiting ? (
             <button id="goBtn" disabled title="Ждём старта от создателя">⏳ ЖДУ СТАРТА…</button>
           ) : (
-            <button id="goBtn" onClick={go}>{(() => { const gm = roomId ? roomMode : mapChoice; return gm === 'duel' ? '⚔️ В ДУЭЛЬ' : gm === 'backrooms' ? '🟨 В БЭКРУМС' : gm === 'custom' ? '🧩 НА СВОЮ' : gm === 'random' ? '🎲 НА СЛУЧАЙНУЮ' : '▶️ ПОГНАЛИ'; })()}</button>
+            <button id="goBtn" onClick={go}>{(() => { const gm = roomId ? roomMode : mapChoice; return gm === 'duel' ? '⚔️ В ДУЭЛЬ' : gm === 'backrooms' ? '🟨 В БЭКРУМС' : gm === 'pvp' ? '⚔️ В PvP-БОЙ' : gm === 'endless' ? '🟨 В БЭКРУМС' : gm === 'invasion' ? '🌊 В НАШЕСТВИЕ' : gm === 'custom' ? '🧩 НА СВОЮ' : gm === 'random' ? '🎲 НА СЛУЧАЙНУЮ' : '▶️ ПОГНАЛИ'; })()}</button>
           )}
           </div>
           </div>
@@ -1859,7 +1987,7 @@ async function loadStats(): Promise<void> {
             <h3>🌐 Комнаты</h3>
             {roomId ? (
               <>
-                <div>Сидишь в <b>{roomName || roomId}</b> ({roomId}) {roomMode === 'duel' ? '⚔️ ДУЭЛЬ 1×1' : roomMode === 'backrooms' ? '🟨 БЭКРУМС' : roomMode === 'custom' ? '🧩 СВОЯ' : '🌍 Арена'}{isOwner ? ' · 👑 ты создатель' : ''} — сокомнатники на карте полными телами: виден ствол, удары, прыжки.</div>
+                <div>Сидишь в <b>{roomName || roomId}</b> ({roomId}) {modeName(roomMode)}{isOwner ? ' · 👑 ты создатель' : ''}{lobby?.official ? ' · ✅ официальный' : ''}{typeof lobby?.restartIn === 'number' && (lobby?.restartIn ?? 0) > 0 ? ` · ♻️ ${fmtRestart(lobby?.restartIn ?? 0)}` : ''} — сокомнатники на карте полными телами: виден ствол, удары, прыжки.</div>
                 {(lobby?.players?.length ?? 0) > 0 && (
                   <div id="lobbyList">
                     <b>👥 В комнате ({(lobby?.players?.length ?? 0) + 1}):</b>
@@ -1919,10 +2047,13 @@ async function loadStats(): Promise<void> {
                   {MAPS.map((m) => (
                     <button key={m.id} className={'wbtn' + (draftMode === m.id ? ' cur' : '')} id={`mode-${m.id}`} onClick={() => setDraftMode(m.id)}>{m.name}</button>
                   ))}
+                  {(['pvp', 'endless', 'invasion'] as MapId[]).map((mid) => (
+                    <button key={mid} className={'wbtn' + (draftMode === mid ? ' cur' : '')} id={`mode-${mid}`} onClick={() => setDraftMode(mid)}>{modeName(mid)}</button>
+                  ))}
                 </div>
                 {roomsList.length > 0 ? roomsList.map((r) => (
                   <div className="srow" key={r.id}>
-                    <span>{r.mode === 'duel' ? '⚔️' : r.mode === 'backrooms' ? '🟨' : '🌍'} {r.name} · {r.id} · 👥 {r.count}{r.mode === 'duel' ? '/2' : ''}</span>
+                    <span>{modeIcon(r.mode)} {r.name} · {r.id} · 👥 {r.count}/{modeCap(r.mode)}{r.official ? ' · ✅' : ''}{(r.restartIn ?? 0) > 0 ? ` · ♻️ ${fmtRestart(r.restartIn ?? 0)}` : ''}</span>
                     <button className="wbtn" id={`join-${r.id}`} onClick={() => joinRoom(r.id)}>ВОЙТИ</button>
                   </div>
                 )) : <div>Пока пусто — создай первую!</div>}
@@ -1942,7 +2073,8 @@ async function loadStats(): Promise<void> {
             <div>🟢 Онлайн: <b>{gstats?.online ?? '…'}</b> · 🌐 Комнат открыто: <b>{roomsList.length}</b></div>
             {roomsList.length > 0 ? roomsList.map((r) => (
               <div className="srow" key={r.id}>
-                <span>{r.mode === 'duel' ? '⚔️' : r.mode === 'backrooms' ? '🟨' : '🌍'} {r.name} · 👥 {r.count}{r.mode === 'duel' ? '/2' : ''}{r.started ? ' · ▶️ идёт' : ''}</span>
+                <span>{modeIcon(r.mode)} {r.name} · 👥 {r.count}/{modeCap(r.mode)}{r.official ? ' · ✅ официальный' : ''}{r.started ? ' · ▶️ идёт' : ''}{(r.restartIn ?? 0) > 0 ? ` · ♻️ ${fmtRestart(r.restartIn ?? 0)}` : ''}</span>
+                {!roomId && <button className="wbtn" id={`srv-${r.id}`} onClick={() => joinRoom(r.id)}>ВОЙТИ</button>}
               </div>
             )) : <div>Сервер пуст — создай комнату во вкладке 🌐!</div>}
           </div>

@@ -152,7 +152,8 @@ function prune(room: Room): void {
   for (const [k, t] of room.gone) if (now - t > 300000) room.gone.delete(k);
   for (const [k, t] of room.banned) if (now - t > 0) room.banned.delete(k);
   // создатель ушёл — владелец переходит старшему из оставшихся
-  if (!room.players.has(room.owner)) {
+  // официальные сервера без владельца навсегда (иначе гость станет «создателем»)
+  if (!room.official && !room.players.has(room.owner)) {
     const next = [...room.players.keys()][0];
     if (next) room.owner = next;
   }
@@ -525,17 +526,20 @@ async function roomsApi(req: Request): Promise<Response | null> {
       : room.players.get(String(targetRaw ?? ''));
     if (!foe || foe.sid === sid) return Response.json({ error: 'nofoe' }, { status: 404 });
     if (foe.spec) return Response.json({ error: 'specfoe' }, { status: 403 });
+    // по трупу не бьём — фраг уже раздали, ждём ресауна
+    if (foe.dead) return Response.json({ error: 'deadfoe' }, { status: 403 });
     const dmg = Math.round(num(body.dmg, 5, 80, 10));
     foe.hp = Math.max(0, foe.hp - dmg);
     me.ts = Date.now();
     if (foe.hp <= 0) {
       me.frags++;
       const sp = randSpawnXZ();
-      foe.hp = 100;
-      foe.dead = false;
+      // жертва лежит трупом, пока её пульс не заберёт точку возрождения (ревайв — там же)
+      foe.hp = 0;
+      foe.dead = true;
       foe.x = sp.x; foe.z = sp.z;
       foe.respawn = { x: sp.x, z: sp.z };
-      return Response.json({ foeHp: 100, dead: true, freshKill: true, frags: me.frags, rx: sp.x, rz: sp.z });
+      return Response.json({ foeHp: 0, dead: true, freshKill: true, frags: me.frags, rx: sp.x, rz: sp.z });
     }
     return Response.json({ foeHp: Math.round(foe.hp), dead: false, freshKill: false, frags: me.frags });
   }
@@ -697,10 +701,13 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const specView = me.spec
       ? { spec: true, target: me.specTarget, targets: [...room.players.values()].filter((m) => !m.spec && m.sid !== sid).map((m) => ({ sid: m.sid, nick: m.nick, hp: Math.round(m.hp), dead: m.dead })) }
       : { spec: false };
-    // очередь ресауна: жертва PvP телепортируется на точку (одноразово)
+    // очередь ресауна: жертва PvP забирает точку возрождения (одноразово) —
+    // hp слепка шлём ДО ревайва, чтобы клиент увидел смерть и показал экран
+    const myHpSnap = Math.round(me.hp);
     const respawn = me.respawn;
     me.respawn = null;
-    return Response.json({ players: others, count: room.players.size, duel, scoreboard, specView, respawn, myHp: Math.round(me.hp), mobHost: amMobHost, started: room.started, official: room.official, restartIn: restartIn(room), myFrags: me.frags, owner: sid === room.owner, t: Date.now(), chat: room.chat.slice(-20), mobs: [...room.mobs.values()].slice(0, 60).map((m) => ({ id: m.id, kind: m.kind, x: Math.round(m.x * 10) / 10, z: Math.round(m.z * 10) / 10, hp: m.hp, dead: m.dead, wave: m.wave, god: m.god })) });
+    if (respawn) { me.hp = 100; me.dead = false; }
+    return Response.json({ players: others, count: room.players.size, duel, scoreboard, specView, respawn, myHp: myHpSnap, mobHost: amMobHost, started: room.started, official: room.official, restartIn: restartIn(room), myFrags: me.frags, owner: sid === room.owner, t: Date.now(), chat: room.chat.slice(-20), mobs: [...room.mobs.values()].slice(0, 60).map((m) => ({ id: m.id, kind: m.kind, x: Math.round(m.x * 10) / 10, z: Math.round(m.z * 10) / 10, hp: m.hp, dead: m.dead, wave: m.wave, god: m.god })) });
   }
 
   // выйти (из игроков и из заявителей; владелец уходит — комната живёт дальше)
