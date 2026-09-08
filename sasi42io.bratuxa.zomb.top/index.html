@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>sasi42io — змейка 42 🏆</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0b0e1a; font-family: system-ui, -apple-system, sans-serif; }
+  #game { display: block; position: fixed; inset: 0; touch-action: none; }
+  #hud { position: fixed; top: 10px; left: 10px; color: #fbbf24; font-size: 15px; line-height: 1.5; background: rgba(10,12,25,.72); border: 1px solid #fbbf2433; border-radius: 10px; padding: 8px 12px; user-select: none; pointer-events: none; z-index: 5; }
+  #hud .boost { font-size: 18px; margin-left: 6px; }
+  #top { position: fixed; top: 10px; right: 10px; color: #e5e7eb; font-size: 13px; background: rgba(10,12,25,.72); border: 1px solid #ffffff22; border-radius: 10px; padding: 8px 12px; user-select: none; pointer-events: none; z-index: 5; min-width: 170px; }
+  #top b { color: #fbbf24; }
+  #top .me { color: #fbbf24; font-weight: bold; }
+  #death { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(5,6,12,.82); z-index: 10; }
+  #death .card { text-align: center; color: #fff; background: #141829; border: 1px solid #fbbf2455; border-radius: 16px; padding: 32px 44px; }
+  #death h1 { font-size: 28px; margin-bottom: 8px; }
+  #death p { color: #9ca3af; margin-bottom: 16px; }
+  #death button { font-size: 17px; padding: 10px 28px; border: none; border-radius: 10px; background: #fbbf24; color: #111; font-weight: bold; cursor: pointer; }
+  #death button:hover { background: #f59e0b; }
+  #hint { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); color: #6b7280; font-size: 12px; user-select: none; pointer-events: none; z-index: 5; white-space: nowrap; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud">🏆 <span id="score">0</span> · рекорд <span id="best">0</span><span id="boosts"></span></div>
+<div id="top"><b>Топ-10</b><div id="toplist"></div></div>
+<div id="death"><div class="card">
+  <h1>Мы уже победили 🏆</h1>
+  <p>Счёт: <span id="final">0</span> · Рекорд: <span id="finalBest">0</span></p>
+  <button id="again">Ещё раз</button>
+</div></div>
+<div id="hint">движение — курсор / палец · буст — пробел / тап (тратит длину)</div>
+<script>
+'use strict';
+/* ===== sasi42io: чистая логика (тестируется Task 2 через window.__hook) ===== */
+var FOOD = [
+  { pts: 5,  w: 70, emoji: '\u{1F34C}' },
+  { pts: 25, w: 25, emoji: '\u{1F34C}\u{1F34C}\u{1F34C}' },
+  { pts: 70, w: 5,  emoji: '\u{1F96B}' }
+];
+var BOOSTERS = [
+  { id: 'star', emoji: '\u2B50', mult: 2, dur: 10 },
+  { id: 'bolt', emoji: '\u26A1', mult: 2, dur: 10 }
+];
+var BEST_KEY = 'sasi42io_v1';
+
+function spawnFood(r) {
+  // r in [0,1): веса 70/25/5 -> типы 0/1/2 (очки 5/25/70)
+  if (r < 0.70) return { type: 0, pts: 5 };
+  if (r < 0.95) return { type: 1, pts: 25 };
+  return { type: 2, pts: 70 };
+}
+function eatFood(score, foodPts, starMult) {
+  return score + foodPts * (starMult || 1);
+}
+function collide(ax, ay, bx, by, rad) {
+  var dx = ax - bx, dy = ay - by;
+  return dx * dx + dy * dy < rad * rad;
+}
+// stepBot: чистая функция руления. Возвращает новый угол (радианы).
+// bot: {x,y,angle,kind}, foods: [{x,y}], player: {x,y,score}, W,H: мир
+function stepBot(bot, foods, player, W, H) {
+  var tx = W / 2, ty = H / 2, dx, dy;
+  if (bot.kind === 'hunter' && player && player.score < bot.score) {
+    tx = player.x; ty = player.y; // охотник догоняет слабого
+  } else if (bot.kind === 'coward' && player) {
+    dx = bot.x - player.x; dy = bot.y - player.y;
+    var d2 = dx * dx + dy * dy;
+    if (d2 < 450 * 450) { tx = bot.x + dx; ty = bot.y + dy; } // трус бежит
+    else if (foods.length) { var f = nearest(bot, foods); tx = f.x; ty = f.y; }
+  } else if (foods.length) {
+    var f2 = nearest(bot, foods); tx = f2.x; ty = f2.y; // обычный — к еде
+  }
+  // кламп от стен: подруливаем к центру у границ
+  var M = 160;
+  if (bot.x < M) tx = bot.x + 300; else if (bot.x > W - M) tx = bot.x - 300;
+  if (bot.y < M) ty = bot.y + 300; else if (bot.y > H - M) ty = bot.y - 300;
+  var want = Math.atan2(ty - bot.y, tx - bot.x);
+  // плавный поворот (макс 0.12 рад/тик)
+  var d = want - bot.angle;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  var turn = Math.max(-0.12, Math.min(0.12, d));
+  return bot.angle + turn;
+}
+function nearest(bot, foods) {
+  var best = foods[0], bd = Infinity;
+  for (var i = 0; i < foods.length; i++) {
+    var dx = foods[i].x - bot.x, dy = foods[i].y - bot.y;
+    var d = dx * dx + dy * dy;
+    if (d < bd) { bd = d; best = foods[i]; }
+  }
+  return best;
+}
+window.__hook = { spawnFood: spawnFood, eatFood: eatFood, stepBot: stepBot, collide: collide };
+
+/* ===== игра ===== */
+var W = 3000, H = 3000;
+var canvas = document.getElementById('game');
+var ctx = canvas.getContext('2d');
+function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+window.addEventListener('resize', resize); resize();
+
+var NAMES = ['Батя', 'Штурм', 'Кобра', 'Трусишка', 'Охотник', 'Вихрь', 'Тень', 'Гром', 'Лис'];
+var KINDS = ['coward', 'normal', 'normal', 'hunter', 'coward', 'normal', 'hunter', 'normal', 'coward'];
+var COLORS = ['#ef4444', '#22c55e', '#3b82f6', '#a855f7', '#ec4899', '#14b8a6', '#f97316', '#84cc16', '#eab308'];
+
+function rnd(n) { return Math.random() * n; }
+function makeFood(n) {
+  var arr = [];
+  for (var i = 0; i < n; i++) arr.push(placeFood());
+  return arr;
+}
+function placeFood(x, y) {
+  var t = spawnFood(Math.random());
+  return { x: x !== undefined ? x : rnd(W), y: y !== undefined ? y : rnd(H), type: t.type, pts: t.pts, boost: null };
+}
+function placeBooster() {
+  // бустеры: вес 3 (редкие), ⭐×2 очки / ⚡×2 скорость, 10с
+  var b = BOOSTERS[(Math.random() * BOOSTERS.length) | 0];
+  return { x: rnd(W), y: rnd(H), type: -1, pts: 0, boost: b.id, emoji: b.emoji };
+}
+
+var player, bots, foods, boosters, alive, mouse, boosting;
+function newGame() {
+  player = { x: W / 2, y: H / 2, angle: 0, score: 10, len: 12, segs: [], color: '#fbbf24', name: 'Ты', star: 0, bolt: 0, boltT: 0, starT: 0 };
+  for (var i = 0; i < 14; i++) player.segs.push({ x: player.x - i * 8, y: player.y });
+  bots = [];
+  var n = 8 + ((Math.random() * 4) | 0); // 8–11
+  for (var j = 0; j < n; j++) {
+    var bx = rnd(W), by = rnd(H);
+    var b = { x: bx, y: by, angle: rnd(Math.PI * 2), score: 10 + rnd(60), len: 12, segs: [], color: COLORS[j % COLORS.length], name: NAMES[j % NAMES.length], kind: KINDS[j % KINDS.length], star: 0, bolt: 0, starT: 0, boltT: 0 };
+    for (var k = 0; k < 14; k++) b.segs.push({ x: bx, y: by });
+    bots.push(b);
+  }
+  foods = makeFood(160);
+  boosters = [];
+  for (var m = 0; m < 6; m++) boosters.push(placeBooster());
+  alive = true; boosting = false;
+  document.getElementById('death').style.display = 'none';
+}
+newGame();
+
+var best = 0;
+try { best = parseInt(localStorage.getItem(BEST_KEY) || '0', 10) || 0; } catch (e) {}
+document.getElementById('best').textContent = best;
+
+mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+window.addEventListener('mousemove', function (e) { mouse.x = e.clientX; mouse.y = e.clientY; });
+window.addEventListener('touchmove', function (e) { var t = e.touches[0]; mouse.x = t.clientX; mouse.y = t.clientY; }, { passive: true });
+window.addEventListener('keydown', function (e) { if (e.code === 'Space') { boosting = true; e.preventDefault(); } });
+window.addEventListener('keyup', function (e) { if (e.code === 'Space') boosting = false; });
+canvas.addEventListener('mousedown', function () { boosting = true; });
+window.addEventListener('mouseup', function () { boosting = false; });
+canvas.addEventListener('touchstart', function (e) { boosting = true; var t = e.touches[0]; mouse.x = t.clientX; mouse.y = t.clientY; }, { passive: true });
+canvas.addEventListener('touchend', function () { boosting = false; });
+document.getElementById('again').addEventListener('click', function () { newGame(); });
+
+function speedOf(s) {
+  var base = 3.2 - Math.min(1.4, s.score / 900);
+  if (s.boltT > 0) base *= 2; // ⚡×2 скорость
+  if (boosting && s === player) base *= 1.8;
+  return base;
+}
+function moveSnake(s, tx, ty, dt) {
+  var want = Math.atan2(ty - s.y, tx - s.x);
+  var d = want - s.angle;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  s.angle += Math.max(-0.15, Math.min(0.15, d)) * dt;
+  var sp = speedOf(s) * dt;
+  s.x = Math.max(10, Math.min(W - 10, s.x + Math.cos(s.angle) * sp));
+  s.y = Math.max(10, Math.min(H - 10, s.y + Math.sin(s.angle) * sp));
+  s.segs.unshift({ x: s.x, y: s.y });
+  var wantLen = 8 + Math.floor(s.score / 6);
+  while (s.segs.length > wantLen) s.segs.pop();
+}
+function tickTimers(s, dt) {
+  if (s.starT > 0) { s.starT -= dt / 60; if (s.starT <= 0) s.star = 0; }
+  if (s.boltT > 0) { s.boltT -= dt / 60; if (s.boltT <= 0) s.bolt = 0; }
+}
+function eatCheck(s) {
+  for (var i = foods.length - 1; i >= 0; i--) {
+    if (collide(s.x, s.y, foods[i].x, foods[i].y, 22)) {
+      s.score = eatFood(s.score, foods[i].pts, s.star ? 2 : 1);
+      foods[i] = placeFood();
+    }
+  }
+  for (var j = boosters.length - 1; j >= 0; j--) {
+    if (collide(s.x, s.y, boosters[j].x, boosters[j].y, 26)) {
+      if (boosters[j].boost === 'star') { s.star = 1; s.starT = 10; }
+      else { s.bolt = 1; s.boltT = 10; }
+      s.score = eatFood(s.score, 10, 1);
+      boosters[j] = placeBooster();
+    }
+  }
+}
+function die(s) {
+  // смерть → рассыпание едой типа 1 (🍌, 5 очков)
+  var n = Math.min(24, 4 + ((s.score / 12) | 0));
+  for (var i = 0; i < n; i++) {
+    foods.push({ x: Math.max(10, Math.min(W - 10, s.x + (Math.random() - 0.5) * 220)), y: Math.max(10, Math.min(H - 10, s.y + (Math.random() - 0.5) * 220)), type: 0, pts: 5, boost: null });
+  }
+  while (foods.length > 420) foods.shift();
+}
+function headHitsBody(head, other) {
+  for (var i = 3; i < other.segs.length; i += 2) {
+    if (collide(head.x, head.y, other.segs[i].x, other.segs[i].y, 12)) return true;
+  }
+  return false;
+}
+
+var last = 0;
+function frame(t) {
+  requestAnimationFrame(frame);
+  if (!alive) return;
+  var dt = Math.min(3, (t - last) / 16.7 || 1); last = t;
+  // игрок: за курсором (экран → мир через камеру)
+  var camX = player.x - canvas.width / 2, camY = player.y - canvas.height / 2;
+  moveSnake(player, camX + mouse.x, camY + mouse.y, dt);
+  if (boosting && player.score > 12) player.score -= 0.35 * dt; // буст тратит длину
+  tickTimers(player, dt);
+  eatCheck(player);
+  // боты
+  var all = bots.concat([player]);
+  for (var i = 0; i < bots.length; i++) {
+    var b = bots[i];
+    b.angle = stepBot(b, foods, player, W, H);
+    moveSnake(b, b.x + Math.cos(b.angle) * 100, b.y + Math.sin(b.angle) * 100, dt);
+    tickTimers(b, dt);
+    eatCheck(b);
+  }
+  // столкновения голов с телами
+  for (var p = all.length - 1; p >= 0; p--) {
+    var s = all[p];
+    for (var q = 0; q < all.length; q++) {
+      if (p === q) continue;
+      if (headHitsBody(s, all[q])) {
+        die(s);
+        if (s === player) {
+          alive = false;
+          if (player.score > best) { best = Math.floor(player.score); try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {} }
+          document.getElementById('final').textContent = Math.floor(player.score);
+          document.getElementById('finalBest').textContent = best;
+          document.getElementById('death').style.display = 'flex';
+        } else {
+          var bi = bots.indexOf(s);
+          if (bi >= 0) bots.splice(bi, 1);
+        }
+        break;
+      }
+    }
+  }
+  // боты не вымирают полностью: держим 8–11
+  while (bots.length < 8) {
+    var bx = rnd(W), by = rnd(H);
+    var nb = { x: bx, y: by, angle: rnd(Math.PI * 2), score: 10 + rnd(40), len: 12, segs: [{ x: bx, y: by }], color: COLORS[(Math.random() * COLORS.length) | 0], name: NAMES[(Math.random() * NAMES.length) | 0], kind: ['coward', 'normal', 'hunter'][(Math.random() * 3) | 0], star: 0, bolt: 0, starT: 0, boltT: 0 };
+    bots.push(nb);
+  }
+  if (player.score > best) { best = Math.floor(player.score); }
+  document.getElementById('score').textContent = Math.floor(player.score);
+  document.getElementById('best').textContent = best;
+  // HUD бустеров с отсчётом
+  var bh = '';
+  if (player.starT > 0) bh += '<span class="boost">\u2B50×2 ' + Math.ceil(player.starT) + 'с</span>';
+  if (player.boltT > 0) bh += '<span class="boost">\u26A1×2 ' + Math.ceil(player.boltT) + 'с</span>';
+  document.getElementById('boosts').innerHTML = bh;
+  // топ-10
+  var rank = all.slice().sort(function (a, b) { return b.score - a.score; }).slice(0, 10);
+  var html = '';
+  for (var r = 0; r < rank.length; r++) {
+    html += '<div class="' + (rank[r] === player ? 'me' : '') + '">' + (r + 1) + '. ' + rank[r].name + ' — ' + Math.floor(rank[r].score) + '</div>';
+  }
+  document.getElementById('toplist').innerHTML = html;
+  draw(camX, camY);
+}
+function draw(camX, camY) {
+  ctx.fillStyle = '#0b0e1a';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // сетка арены
+  ctx.strokeStyle = '#1b2138';
+  ctx.lineWidth = 1;
+  var g = 120;
+  var x0 = Math.max(0, Math.floor(camX / g) * g), y0 = Math.max(0, Math.floor(camY / g) * g);
+  ctx.beginPath();
+  for (var x = x0; x < Math.min(W, camX + canvas.width); x += g) { ctx.moveTo(x - camX, 0); ctx.lineTo(x - camX, canvas.height); }
+  for (var y = y0; y < Math.min(H, camY + canvas.height); y += g) { ctx.moveTo(0, y - camY); ctx.lineTo(canvas.width, y - camY); }
+  ctx.stroke();
+  ctx.strokeStyle = '#fbbf24';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(-camX, -camY, W, H);
+  var i, s;
+  // еда
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (i = 0; i < foods.length; i++) {
+    var f = foods[i];
+    var fx = f.x - camX, fy = f.y - camY;
+    if (fx < -30 || fy < -30 || fx > canvas.width + 30 || fy > canvas.height + 30) continue;
+    ctx.font = f.type === 2 ? '22px serif' : (f.type === 1 ? '17px serif' : '14px serif');
+    ctx.fillText(FOOD[f.type].emoji, fx, fy);
+  }
+  for (i = 0; i < boosters.length; i++) {
+    var bb = boosters[i];
+    var bx = bb.x - camX, by = bb.y - camY;
+    if (bx < -30 || by < -30 || bx > canvas.width + 30 || by > canvas.height + 30) continue;
+    ctx.font = '24px serif';
+    ctx.fillText(bb.emoji, bx, by);
+  }
+  // змейки
+  var all = bots.concat([player]);
+  for (i = 0; i < all.length; i++) {
+    s = all[i];
+    ctx.fillStyle = s.color;
+    for (var j = s.segs.length - 1; j >= 0; j--) {
+      var sg = s.segs[j];
+      var sx = sg.x - camX, sy = sg.y - camY;
+      if (sx < -20 || sy < -20 || sx > canvas.width + 20 || sy > canvas.height + 20) continue;
+      var rad = j === 0 ? 11 : 8 - Math.min(4, j / 12);
+      ctx.beginPath();
+      ctx.arc(sx, sy, rad, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText(s.name, s.x - camX, s.y - camY - 20);
+  }
+}
+requestAnimationFrame(frame);
+</script>
+<script>
+try {
+  var SITE = 'sasi42io';
+  var s = localStorage.getItem('t42_sid');
+  if (!s) { s = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(function (b) { return b.toString(16).padStart(2, '0'); }).join(''); localStorage.setItem('t42_sid', s); }
+  var b = function () { fetch('https://hub.bratuxa.zomb.top/api/track', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ site: SITE, sid: s }), keepalive: true }).catch(function () {}); };
+  b(); setInterval(b, 30000);
+} catch (e) {}
+</script>
+</body>
+</html>
