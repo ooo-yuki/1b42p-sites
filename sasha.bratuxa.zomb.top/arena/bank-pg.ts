@@ -14,6 +14,8 @@ export type PgBank = {
   verify: (token: string) => Promise<{ uid: number; nick: string; balance: number } | null>;
   applyDelta: (uid: number, delta: number) => Promise<{ balance: number } | null>;
   leaders: (limit: number) => Promise<{ nick: string; balance: number }[]>;
+  podvalSubmit: (nick: string, pts: number, season: string) => Promise<void>;
+  podvalTop: (season: string, limit: number) => Promise<{ nick: string; pts: number }[]>;
 };
 
 const NICK_RE = /^[A-Za-zА-Яа-яЁё0-9_-]{2,16}$/;
@@ -76,7 +78,25 @@ export function openPgBank(url: string): PgBank {
     return rows as { nick: string; balance: number }[];
   };
 
-  return { sql, register, login, verify, applyDelta, leaders };
+  const podvalSubmit: PgBank['podvalSubmit'] = async (nick, pts, season) => {
+    await sql`CREATE TABLE IF NOT EXISTS podval_league (
+      nick TEXT NOT NULL, pts INTEGER NOT NULL, season TEXT NOT NULL, ts BIGINT NOT NULL,
+      PRIMARY KEY (nick, season)
+    )`;
+    await sql`INSERT INTO podval_league (nick, pts, season, ts)
+      VALUES (${nick}, ${pts}, ${season}, ${Date.now()})
+      ON CONFLICT (nick, season) DO UPDATE SET
+        pts = GREATEST(podval_league.pts, EXCLUDED.pts), ts = EXCLUDED.ts`;
+  };
+
+  const podvalTop: PgBank['podvalTop'] = async (season, limit) => {
+    const n = Math.max(1, Math.min(50, Math.floor(limit) || 10));
+    const rows = await sql`SELECT nick, pts FROM podval_league
+      WHERE season = ${season} ORDER BY pts DESC, ts ASC LIMIT ${n}`;
+    return rows as { nick: string; pts: number }[];
+  };
+
+  return { sql, register, login, verify, applyDelta, leaders, podvalSubmit, podvalTop };
 }
 
 export async function closePgBank(b: PgBank): Promise<void> {

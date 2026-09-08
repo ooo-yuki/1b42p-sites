@@ -73,3 +73,23 @@ describe('pgbank money', () => {
     await closePgBank(b);
   });
 });
+
+describe('podval league', () => {
+  test('таблица сезона — по убыванию очков, лимит режет, лучший результат хранится', async () => {
+    const b = await fresh();
+    const season = '2026-W37';
+    try { await b.sql`DELETE FROM podval_league WHERE season = ${season}`; } catch { /* таблицы ещё нет — создаст podvalSubmit */ }
+    await b.podvalSubmit('Лига-Бедный', 1000, season);
+    await b.podvalSubmit('Лига-Богатый', 9000, season);
+    await b.podvalSubmit('Лига-Средний', 5000, season);
+    const top = await b.podvalTop(season, 10);
+    expect(top.map((r) => r.nick)).toEqual(['Лига-Богатый', 'Лига-Средний', 'Лига-Бедный']);
+    expect(top[0].pts).toBe(9000);
+    expect((await b.podvalTop(season, 2))).toHaveLength(2);
+    await b.podvalSubmit('Лига-Бедный', 500, season);
+    expect((await b.podvalTop(season, 10)).find((r) => r.nick === 'Лига-Бедный')?.pts).toBe(1000);
+    await b.podvalSubmit('Лига-Бедный', 12000, season);
+    expect((await b.podvalTop(season, 10))[0].nick).toBe('Лига-Бедный');
+    await closePgBank(b);
+  });
+});
