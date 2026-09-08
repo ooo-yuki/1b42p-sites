@@ -415,19 +415,75 @@ function draw(camX, camY) {
     ctx.font = '24px serif';
     ctx.fillText(bb.emoji, bx, by);
   }
-  // змейки
+  // змейки: тело + светлая полоса спины + чешуйки + голова с глазами
   var all = bots.concat([player]);
   for (i = 0; i < all.length; i++) {
     s = all[i];
+    var isMe = (s === player);
+    // тело (плоские круги, цвет не меняем)
     ctx.fillStyle = s.color;
-    for (var j = s.segs.length - 1; j >= 0; j--) {
+    for (var j = s.segs.length - 1; j >= 1; j--) {
       var sg = s.segs[j];
       var sx = sg.x - camX, sy = sg.y - camY;
       if (sx < -20 || sy < -20 || sx > canvas.width + 20 || sy > canvas.height + 20) continue;
-      var rad = j === 0 ? 11 : 8 - Math.min(4, j / 12);
+      var rad = 8 - Math.min(4, j / 12);
       ctx.beginPath();
       ctx.arc(sx, sy, rad, 0, Math.PI * 2);
       ctx.fill();
+      // чешуйки-дуги на каждом 2-м сегменте
+      if (j % 2 === 0) {
+        var pv = s.segs[j - 1];
+        var sa = Math.atan2(pv.y - sg.y, pv.x - sg.x);
+        ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(sx, sy, rad * 0.55, sa - 1.2, sa + 1.2);
+        ctx.stroke();
+      }
+    }
+    // светлая полоса вдоль спины (alpha 0.25, поверх тела)
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 4;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (var k = s.segs.length - 1; k >= 0; k--) {
+      var qp = s.segs[k];
+      var qx = qp.x - camX, qy = qp.y - camY;
+      if (k === s.segs.length - 1) ctx.moveTo(qx, qy);
+      else ctx.lineTo(qx, qy);
+    }
+    ctx.stroke();
+    // голова (цвет не меняем)
+    var hd = s.segs[0] || s;
+    var hx = hd.x - camX, hy = hd.y - camY;
+    if (hx > -20 && hy > -20 && hx < canvas.width + 20 && hy < canvas.height + 20) {
+      ctx.fillStyle = s.color;
+      ctx.beginPath();
+      ctx.arc(hx, hy, 11, 0, Math.PI * 2);
+      ctx.fill();
+      if (isMe) {
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(hx, hy, 11, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      // два глаза по курсу головы
+      var fx = Math.cos(s.angle), fy = Math.sin(s.angle);
+      var px = -fy, py = fx;
+      for (var e = -1; e <= 1; e += 2) {
+        var ex = hx + fx * 4 + px * e * 5;
+        var ey = hy + fy * 4 + py * e * 5;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(ex, ey, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#111';
+        ctx.beginPath();
+        ctx.arc(ex + fx * 1.2, ey + fy * 1.2, 1.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 12px sans-serif';
