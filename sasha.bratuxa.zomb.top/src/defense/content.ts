@@ -51,6 +51,8 @@ export const TURRETS: Record<string, TurretDef> = {
 
 export interface CardDef { name: string; desc: string }
 
+/* Пассивка «Арсенал 42»: +15% урона всем турелям при 5 медалях. */
+export const ARSENAL_DMG_MUL = 0.15;
 export const CARDS: Record<string, CardDef> = {
   rate: { name: 'Двойной прожектор', desc: 'скорострельность +30%' },
   dmg: { name: 'Кобальтовый кулак', desc: 'урон +40%' },

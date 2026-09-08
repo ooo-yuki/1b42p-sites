@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { PATH, WAVES, ENEMIES, WAVE_NAMES, createGame, placeTurret, sellTurret, spawnWave, tick, TURRETS, applyCard, finishWave } from './engine';
+import { PATH, WAVES, WAVE_NAMES, ENEMIES, endlessWave, createGame, placeTurret, sellTurret, spawnWave, tick, TURRETS, applyCard, finishWave } from './engine';
 import { readBest } from './save';
 test('дорожка идёт от левого края к штабу 8,8 без срезов', () => {
   expect(PATH[0].x).toBe(0);
@@ -87,4 +87,31 @@ test('имена 10 волн и медали в сейве', () => {
   expect(WAVE_NAMES[9]).toBe('Директор лично');
   const store = { getItem: (_k: string) => null as string | null };
   expect(readBest(store).medals).toBe(0);
+});
+test('волна 11 жёстче 10-й, каждая 5-я — с директором', () => {
+  const w11 = endlessWave(11);
+  expect(w11.count).toBeGreaterThan(WAVES[9].count);
+  expect(w11.hpMul).toBeGreaterThan(WAVES[9].hpMul);
+  const g = createGame();
+  spawnWave(g, 15);
+  expect(g.units.some((u) => u.kind === 'director')).toBe(true);
+  const g2 = createGame();
+  spawnWave(g2, 11);
+  expect(g2.units.some((u) => u.kind === 'director')).toBe(false);
+});
+test('медали апают урон', () => {
+  const mk = (medals: number) => {
+    const g = createGame();
+    g.medals = medals;
+    expect(placeTurret(g, 4, 0, 'cobalt')).toBe(true);
+    spawnWave(g, 0);
+    g.units.forEach((u) => { u.seg = 4; u.pos = 0.5; });
+    return g;
+  };
+  const g0 = mk(0);
+  for (let i = 0; i < 10; i++) tick(g0);
+  const hp0 = g0.units[0].hp;
+  const g4 = mk(4);
+  for (let i = 0; i < 10; i++) tick(g4);
+  expect(g4.units[0].hp).toBeLessThan(hp0);
 });
