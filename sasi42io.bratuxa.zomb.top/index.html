@@ -37,11 +37,21 @@
   #pause h1 { font-size: 26px; margin-bottom: 16px; }
   #pause button { font-size: 17px; padding: 10px 28px; border: none; border-radius: 10px; background: #fbbf24; color: #111; font-weight: bold; cursor: pointer; }
   #pause #giveup { background: #ef4444; color: #fff; margin-left: 8px; }
+  #pause .card { max-height: 92vh; overflow-y: auto; max-width: 420px; }
+  #shop { margin-top: 18px; border-top: 1px solid #ffffff22; padding-top: 14px; }
+  #shop h2 { font-size: 19px; margin-bottom: 6px; color: #fbbf24; }
+  #shopCoins { color: #fbbf24; }
+  #shopHint { color: #9ca3af; font-size: 13px; margin: 8px 0; }
+  #shopList { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  #shopList .shopRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; background: #0b0e1a; border: 1px solid #ffffff18; border-radius: 8px; padding: 6px 10px; }
+  #shopList button { font-size: 13px; padding: 6px 14px; margin-top: 0; }
+  #shopList button:disabled { background: #374151; color: #9ca3af; cursor: default; }
+  #shopMsg { color: #ef4444; font-size: 13px; margin-top: 6px; min-height: 18px; }
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
-<div id="hud">🏆 <span id="score">0</span> · рекорд <span id="best">0</span><span id="boosts"></span></div>
+<div id="hud">🏆 <span id="score">0</span> · рекорд <span id="best">0</span> · 🪙 <span id="coins">0</span><span id="shieldMark" style="display:none"> · 🛡 спас!</span><span id="boosts"></span></div>
 <div id="top"><b>Топ-10</b><div id="toplist"></div></div>
 <div id="records"><b>Рекорды</b><div id="recordslist">загрузка…</div></div>
 <div id="death"><div class="card">
@@ -59,7 +69,7 @@
 <div id="joy"><div id="stick"></div></div>
 <button id="boostBtn" aria-label="Буст">⚡</button>
 <button id="pauseBtn" aria-label="Пауза">⏸</button>
-<div id="pause"><div class="card"><h1>Пауза</h1><button id="resume">Продолжить</button><button id="giveup">Завершить игру</button></div></div>
+<div id="pause"><div class="card"><h1>Пауза</h1><button id="resume">Продолжить</button><button id="giveup">Завершить игру</button><div id="shop"><h2>Магазин 🛒</h2><div>Баланс: <b><span id="shopCoins">0</span> 🪙</b></div><div id="shopHint" style="display:none">Сначала сыграй и введи ник на экране смерти — без ника магазин недоступен</div><div id="shopList"></div><div id="shopMsg"></div></div></div></div>
 <script>
 'use strict';
 /* ===== sasi42io: чистая логика (тестируется Task 2 через window.__hook) ===== */
@@ -100,6 +110,44 @@ function dropLoot(n, rnd) {
   var out = [];
   for (var i = 0; i < n; i++) out.push(spawnFood(rnd()).type);
   return out;
+}
+/* --- магазин: цены, скины, баффы, щит (чистое, тестируется через __hook) --- */
+var SHOP_PRICES = { skin_crimson: 5000, skin_ocean: 5000, skin_violet: 5000, skin_gold: 5000, buff_speed: 10000, buff_score: 15000, buff_magnet: 20000, shield: 3000 };
+var SKIN_COLORS = { skin_crimson: '#dc2626', skin_ocean: '#0ea5e9', skin_violet: '#8b5cf6', skin_gold: '#ffd700' };
+var SKIN_DEFAULT = '#fbbf24';
+var SHOP_API = 'https://hub.bratuxa.zomb.top/api';
+var SHOP_SITE = 'sasi42io';
+function shopGain(pts, starMult, hasScore) { return pts * (starMult || 1) * (hasScore ? 2.5 : 1); } // очки ×2.5
+function shopSpeed(base, hasSpeed) { return hasSpeed ? base * 1.4 : base; } // скорость ×1.4
+function shopPickupR(hasMagnet) { return hasMagnet ? 108 : 36; } // магнит: подбор в радиусе 3 клеток (36×3)
+function shopSkinColor(id) { return SKIN_COLORS[id] || SKIN_DEFAULT; }
+function shieldHas(items) { return !!(items && items.shield > 0); }
+function shieldUse(items) { if (!shieldHas(items)) return false; items.shield--; return true; }
+function shopHas(id) {
+  try { var sh = (typeof window !== 'undefined' && window.__shop) ? window.__shop.items : null; return !!(sh && sh[id] > 0); }
+  catch (e) { return false; }
+}
+function shieldBlock() {
+  // щит гасит одну смерть: consume на сервер + пометка, игрок жив
+  try {
+    if (typeof window === 'undefined' || !window.__shop || !window.__shop.items) return false;
+    if (!(window.__shop.items.shield > 0) || window.__shop.shieldUsed) return false;
+    window.__shop.items.shield--;
+    window.__shop.shieldUsed = true;
+    var nm = '';
+    try { nm = localStorage.getItem('sasi42io_nick') || ''; } catch (e) {}
+    try {
+      if (nm && typeof fetch !== 'undefined') {
+        fetch(SHOP_API + '/shop/consume', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ site: SHOP_SITE, name: nm, item: 'shield' }) }).catch(function () {});
+      }
+    } catch (e) {}
+    try { var m = document.getElementById('shieldMark'); if (m) { m.style.display = 'inline'; m.textContent = ' · 🛡 спас!'; } } catch (e) {}
+    // отброс от стены + разворот, чтобы не умереть в том же тике
+    player.x = Math.max(30, Math.min(W - 30, player.x));
+    player.y = Math.max(30, Math.min(H - 30, player.y));
+    player.angle += Math.PI;
+    return true;
+  } catch (e) { return false; }
 }
 // stepBot: чистая функция руления. Возвращает новый угол (радианы).
 // bot: {x,y,angle,kind}, foods: [{x,y}], player: {x,y,score}, W,H: мир
@@ -151,7 +199,7 @@ function getDir() { return { x: __dir.x, y: __dir.y }; }
 function setPaused(b) { __paused = !!b; return __paused; }
 function togglePause() { __paused = !__paused; return __paused; }
 function isPaused() { return __paused; }
-window.__hook = { spawnFood: spawnFood, eatFood: eatFood, stepBot: stepBot, collide: collide, hitsWall: hitsWall, dropLoot: dropLoot, setDir: setDir, getDir: getDir, setPaused: setPaused, togglePause: togglePause, isPaused: isPaused };
+window.__hook = { spawnFood: spawnFood, eatFood: eatFood, stepBot: stepBot, collide: collide, hitsWall: hitsWall, dropLoot: dropLoot, setDir: setDir, getDir: getDir, setPaused: setPaused, togglePause: togglePause, isPaused: isPaused, SHOP_PRICES: SHOP_PRICES, SKIN_COLORS: SKIN_COLORS, shopGain: shopGain, shopSpeed: shopSpeed, shopPickupR: shopPickupR, shopSkinColor: shopSkinColor, shieldHas: shieldHas, shieldUse: shieldUse };
 
 /* ===== игра ===== */
 var W = 3000, H = 3000;
@@ -183,6 +231,9 @@ function placeBooster() {
 var player, bots, foods, boosters, alive, boosting;
 function newGame() {
   player = { x: W / 2, y: H / 2, angle: 0, score: 10, len: 12, segs: [], color: '#fbbf24', name: 'Ты', star: 0, bolt: 0, boltT: 0, starT: 0 };
+  try { var sk = localStorage.getItem('sasi42io_skin'); if (sk) player.color = shopSkinColor(sk); } catch (e) {}
+  try { if (typeof window !== 'undefined' && window.__shop) window.__shop.shieldUsed = false; } catch (e) {}
+  try { var sm = document.getElementById('shieldMark'); if (sm) sm.style.display = 'none'; } catch (e) {}
   for (var i = 0; i < 14; i++) player.segs.push({ x: player.x - i * 8, y: player.y });
   bots = [];
   var n = 8 + ((Math.random() * 4) | 0); // 8–11
@@ -258,12 +309,13 @@ function togglePauseUI() {
 }
 pauseBtn.addEventListener('click', togglePauseUI);
 document.getElementById('resume').addEventListener('click', togglePauseUI);
-document.getElementById('giveup').addEventListener('click', function () { setPaused(false); pauseEl.style.display = 'none'; playerDie(); });
+document.getElementById('giveup').addEventListener('click', function () { setPaused(false); pauseEl.style.display = 'none'; playerDie('giveup'); });
 document.getElementById('again').addEventListener('click', function () { setPaused(false); pauseEl.style.display = 'none'; newGame(); });
 
 function speedOf(s) {
   var base = 3.2 - Math.min(1.4, s.score / 900);
   if (s.boltT > 0) base *= 2; // ⚡×2 скорость
+  if (s === player && shopHas('buff_speed')) base = shopSpeed(base, true); // магазин: скорость ×1.4
   if (boosting && s === player) base *= 1.8;
   return base;
 }
@@ -303,9 +355,12 @@ function tickTimers(s, dt) {
   if (s.boltT > 0) { s.boltT -= dt / 60; if (s.boltT <= 0) s.bolt = 0; }
 }
 function eatCheck(s) {
+  var mag = (s === player && shopHas('buff_magnet')); // магазин: магнит
+  var pr = shopPickupR(mag);
   for (var i = foods.length - 1; i >= 0; i--) {
-    if (collide(s.x, s.y, foods[i].x, foods[i].y, 36)) {
-      s.score = eatFood(s.score, foods[i].pts, s.star ? 2 : 1);
+    if (collide(s.x, s.y, foods[i].x, foods[i].y, pr)) {
+      var mult = (s.star ? 2 : 1) * ((s === player && shopHas('buff_score')) ? 2.5 : 1); // магазин: очки ×2.5
+      s.score = eatFood(s.score, foods[i].pts, mult);
       foods[i] = placeFood();
     }
   }
@@ -328,8 +383,10 @@ function die(s) {
   while (foods.length > 420) foods.shift();
 }
 function playerDie() {
-  // общий flow смерти игрока: лут + счёт + рекорд + экран смерти
+  // общий flow смерти игрока: щит гасит одну смерть → лут + счёт + рекорд + экран смерти
   if (!alive) return;
+  var why = arguments.length ? arguments[0] : '';
+  if (why !== 'giveup' && shieldBlock()) return;
   die(player);
   alive = false;
   if (player.score > best) { best = Math.floor(player.score); try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {} }
@@ -590,6 +647,116 @@ requestAnimationFrame(frame);
       postRecord(v, pendingScore);
     });
     loadRecords(); setInterval(loadRecords, 30000);
+  } catch (e) {}
+})();
+</script>
+<script>
+/* ===== sasi42io: магазин в паузе — кошелёк, инвентарь, скины, баффы ===== */
+(function () {
+  try {
+    var NICK_KEY = 'sasi42io_nick', SKIN_KEY = 'sasi42io_skin';
+    var API = 'https://hub.bratuxa.zomb.top/api', SITE = 'sasi42io';
+    var ITEMS = [
+      { id: 'skin_crimson', name: 'Скин «Багрянец»', price: 5000, skin: 1 },
+      { id: 'skin_ocean', name: 'Скин «Океан»', price: 5000, skin: 1 },
+      { id: 'skin_violet', name: 'Скин «Фиолет»', price: 5000, skin: 1 },
+      { id: 'skin_gold', name: 'Скин «Золото»', price: 5000, skin: 1 },
+      { id: 'buff_speed', name: 'Скорость ×1.4', price: 10000 },
+      { id: 'buff_score', name: 'Очки ×2.5', price: 15000 },
+      { id: 'buff_magnet', name: 'Магнит (3 клетки)', price: 20000 },
+      { id: 'shield', name: 'Щит (1 смерть)', price: 3000 }
+    ];
+    if (!window.__shop) window.__shop = { coins: 0, items: {}, shieldUsed: false };
+    function nick() { try { return localStorage.getItem(NICK_KEY) || ''; } catch (e) { return ''; } }
+    function el(id) { return document.getElementById(id); }
+    function setCoins(c) {
+      window.__shop.coins = c;
+      if (el('coins')) el('coins').textContent = c;
+      if (el('shopCoins')) el('shopCoins').textContent = c;
+    }
+    function applySkin() {
+      try {
+        var cur = localStorage.getItem(SKIN_KEY) || '';
+        if (cur && window.__hook && window.__hook.shopSkinColor && typeof player !== 'undefined' && player) {
+          player.color = window.__hook.shopSkinColor(cur);
+        }
+      } catch (e) {}
+    }
+    function render() {
+      var box = el('shopList'); if (!box) return;
+      var items = window.__shop.items || {}, n = nick(), cur = '';
+      try { cur = localStorage.getItem(SKIN_KEY) || ''; } catch (e) {}
+      var hint = el('shopHint');
+      if (hint) hint.style.display = n ? 'none' : 'block';
+      var h = '';
+      for (var i = 0; i < ITEMS.length; i++) {
+        var it = ITEMS[i], qty = (items && items[it.id] > 0) ? items[it.id] : 0, owned = qty > 0;
+        h += '<div class="shopRow"><span>' + it.name + ' · ' + it.price + ' 🪙' + (it.id === 'shield' && qty > 1 ? ' ×' + qty : '') + '</span>';
+        if (!n) h += '<button disabled>Купить</button>';
+        else if (it.skin && owned && cur === it.id) h += '<button disabled>Выбран ✅</button>';
+        else if (it.skin && owned) h += '<button data-skin="' + it.id + '">Выбрать</button>';
+        else if (owned && it.id !== 'shield') h += '<button disabled>Куплено ✅</button>';
+        else h += '<button data-buy="' + it.id + '">Купить</button>';
+        h += '</div>';
+      }
+      box.innerHTML = h;
+      var msg = el('shopMsg'); if (msg) msg.textContent = '';
+    }
+    function loadWallet() {
+      var n = nick();
+      if (!n) { render(); return; } // без ника — подсказка сыграть и ввести ник
+      fetch(API + '/wallet?site=' + SITE + '&name=' + encodeURIComponent(n)).then(function (r) { return r.json(); }).then(function (j) {
+        if (!j || !j.ok) throw 0;
+        window.__shop.items = j.items || {};
+        setCoins(j.coins || 0);
+        render(); applySkin();
+      }).catch(function () { render(); });
+    }
+    function buy(item) {
+      var n = nick(); if (!n) return;
+      fetch(API + '/shop/buy', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ site: SITE, name: n, item: item })
+      }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (o) {
+        if (o.j && (o.j.ok || o.j.owned)) {
+          window.__shop.items = o.j.items || {};
+          setCoins(o.j.coins || 0);
+          render(); applySkin();
+        } else {
+          if (o.j && typeof o.j.coins === 'number') setCoins(o.j.coins);
+          if (o.j && o.j.items) window.__shop.items = o.j.items;
+          render();
+          var msg = el('shopMsg'); if (msg) msg.textContent = 'не хватает коинов';
+        }
+      }).catch(function () {});
+    }
+    var box0 = el('shopList');
+    if (box0) box0.addEventListener('click', function (e) {
+      var t = e.target || {};
+      var b = t.getAttribute ? t.getAttribute('data-buy') : null;
+      var sk = t.getAttribute ? t.getAttribute('data-skin') : null;
+      if (b) buy(b);
+      else if (sk) {
+        try { localStorage.setItem(SKIN_KEY, sk); } catch (e2) {}
+        applySkin(); render();
+      }
+    });
+    var pb = el('pauseBtn');
+    if (pb) pb.addEventListener('click', function () { setTimeout(loadWallet, 0); });
+    // баффы грузятся со старта игры (wallet+items); щит/сброс — на каждый newGame
+    var prevRetry = window.__sasiOnRetry;
+    window.__sasiOnRetry = function () {
+      try { if (prevRetry) prevRetry(); } catch (e) {}
+      window.__shop.shieldUsed = false;
+      var m = el('shieldMark'); if (m) m.style.display = 'none';
+      loadWallet(); applySkin();
+    };
+    var prevDeath = window.__sasiOnDeath;
+    window.__sasiOnDeath = function (s) {
+      try { if (prevDeath) prevDeath(s); } catch (e) {}
+      setTimeout(loadWallet, 500); // подтянуть коины за рекорд
+    };
+    loadWallet(); applySkin();
   } catch (e) {}
 })();
 </script>

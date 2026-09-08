@@ -186,4 +186,46 @@ assert.ok(
 );
 
 console.log('logic.test.js: OK walls (hitsWall, no-clamp player, clamped bots), dropLoot 700/250/50, giveup');
+
+// --- магазин: цены, баффы, скины, щит (чистая логика в __hook) ---
+assert.strictEqual(Object.keys(__hook.SHOP_PRICES).sort().join(','), 'buff_magnet,buff_score,buff_speed,shield,skin_crimson,skin_gold,skin_ocean,skin_violet');
+assert.strictEqual(__hook.SHOP_PRICES.skin_crimson, 5000);
+assert.strictEqual(__hook.SHOP_PRICES.skin_ocean, 5000);
+assert.strictEqual(__hook.SHOP_PRICES.skin_violet, 5000);
+assert.strictEqual(__hook.SHOP_PRICES.skin_gold, 5000);
+assert.strictEqual(__hook.SHOP_PRICES.buff_speed, 10000);
+assert.strictEqual(__hook.SHOP_PRICES.buff_score, 15000);
+assert.strictEqual(__hook.SHOP_PRICES.buff_magnet, 20000);
+assert.strictEqual(__hook.SHOP_PRICES.shield, 3000);
+assert.strictEqual(__hook.shopGain(10, 1, false), 10); // без баффа
+assert.strictEqual(__hook.shopGain(10, 1, true), 25); // очки ×2.5
+assert.strictEqual(__hook.shopGain(5, 2, true), 25); // звезда × бафф
+assert.strictEqual(__hook.shopSpeed(10, false), 10);
+assert.ok(Math.abs(__hook.shopSpeed(10, true) - 14) < 1e-9, 'speed x1.4'); // скорость ×1.4
+assert.strictEqual(__hook.shopPickupR(false), 36);
+assert.strictEqual(__hook.shopPickupR(true), 108); // магнит: 3 клетки (36×3)
+assert.strictEqual(__hook.shopSkinColor('skin_crimson'), '#dc2626');
+assert.strictEqual(__hook.shopSkinColor('skin_gold'), '#ffd700');
+assert.strictEqual(__hook.shopSkinColor('nope'), '#fbbf24'); // дефолт
+assert.strictEqual(__hook.shieldHas({}), false);
+assert.strictEqual(__hook.shieldHas({ shield: 1 }), true);
+const __inv = { shield: 1 };
+assert.strictEqual(__hook.shieldUse(__inv), true); // consume: qty-1
+assert.strictEqual(__inv.shield, 0);
+assert.strictEqual(__hook.shieldUse(__inv), false); // пусто — не гасит
+
+// --- магазин в паузе: блок, баланс, 8 товаров, ник-подсказка, скин, баффы, щит ---
+assert.ok(html.includes('id="shop"'), 'pause must contain shop block');
+assert.ok(html.includes('id="shopCoins"'), 'shop must show coin balance');
+assert.ok(html.includes('id="coins"'), 'HUD must show coin balance');
+assert.ok(html.includes('>Купить<'), 'shop items must have buy buttons');
+assert.ok(html.includes('sasi42io_skin'), 'skin choice must persist in sasi42io_skin');
+assert.ok(html.includes('shopHint'), 'no-nick hint must exist');
+assert.ok(html.includes("'/wallet?site='") && html.includes("'/shop/buy'") && html.includes("'/shop/consume'"), 'shop must use wallet/buy/consume API');
+assert.ok(html.includes("shopHas('buff_speed')") && html.includes('shopSpeed(base, true)'), 'speed buff x1.4 must apply');
+assert.ok(html.includes("shopHas('buff_score')"), 'score buff x2.5 must apply');
+assert.ok(html.includes('shopPickupR(mag)'), 'magnet pickup must apply');
+assert.ok(html.includes('shieldBlock()'), 'shield must cancel one death');
+
+console.log('logic.test.js: OK shop (prices, x1.4/x2.5/magnet/shield, pause block, HUD coins)');
 process.exit(0);
