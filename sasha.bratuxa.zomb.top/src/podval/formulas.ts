@@ -71,6 +71,17 @@ export function isVictory(modelLevel: number, coins: number): boolean {
   return modelLevel >= MODEL_LEVELS.length - 1 && coins >= VICTORY_COINS
 }
 
+export const MARKET_PULSE = [
+  { id: 'rush', name: 'Ажиотаж', desc: 'цена ×2 60с', mul: 2, secs: 60 },
+  { id: 'crash', name: 'Обвал', desc: 'цена ×0.5 60с', mul: 0.5, secs: 60 },
+  { id: 'insider', name: 'Инсайд', desc: '+50% к 10 продажам', mul: 1.5, secs: 0 },
+  { id: 'calm', name: 'Тишина', desc: 'заморозка 30с', mul: 1, secs: 30 },
+]
+export function marketStep(price: number, trades: number, dump: number, rng: () => number = Math.random): number {
+  const next = price + (trades * 0.02 - dump * 0.03) + (rng() - 0.5)
+  return Math.min(12, Math.max(1, Math.round(next * 100) / 100))
+}
+
 export interface GameEvent {
   id: string
   name: string

@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { loadSave } from './save'
 import {
   CLICK_BASE,
   EVENTS,
@@ -13,6 +14,8 @@ import {
   hallucination,
   incomePerSec,
   isVictory,
+  marketStep,
+  MARKET_PULSE,
   trainCost,
 } from './formulas'
 
@@ -71,6 +74,16 @@ describe('rebirth', () => {
   })
   test('ядра множат доход', () => {
     expect(incomePerSec(3, 2, hallucination(3, 2), 2)).toBe(incomePerSec(3, 2, hallucination(3, 2)) * 2)
+  })
+  test('рынок: кламп 1..12 и пульсы из спеки', () => {
+    expect(marketStep(4, 0, 0, () => 0.5)).toBeGreaterThanOrEqual(1)
+    expect(marketStep(4, 0, 0, () => 0.5)).toBeLessThanOrEqual(12)
+    expect(marketStep(100, 0, 0, () => 0.5)).toBe(12)
+    expect(marketStep(-5, 0, 0, () => 0.5)).toBe(1)
+    expect(MARKET_PULSE.map(p => p.id)).toEqual(['rush', 'crash', 'insider', 'calm'])
+  })
+  test('миграция mPrice', () => {
+    expect(loadSave({ coins: 1 }).mPrice).toBe(4)
   })
   test('пост-пул: 2 железа и события с числами из спеки', () => {
     expect(PRESTIGE_HARDWARE.map(h => h.id)).toEqual(['quantum', 'kuzbass'])
