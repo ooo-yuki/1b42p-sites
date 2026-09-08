@@ -3419,6 +3419,13 @@ export class Game {
         const k = key(nx, nz);
         if (seen.has(k)) continue;
         if (this.hitSolid(nx * CELL, nz * CELL, 0.9, 0)) continue;
+        // без среза углов: диагональ — только если обе ортогональные соседки свободны.
+        // Иначе маршрут ведёт в угловую щель, куда тело 0.8 не лезет, и моб клинит,
+        // хотя рядом есть честный проход. Именно это и видели: «проход есть, не идёт».
+        if (o[0] !== 0 && o[1] !== 0) {
+          if (this.hitSolid((cur[0] + o[0]) * CELL, cur[1] * CELL, 0.9, 0)) continue;
+          if (this.hitSolid(cur[0] * CELL, (cur[1] + o[1]) * CELL, 0.9, 0)) continue;
+        }
         seen.add(k);
         prev.set(k, key(cur[0], cur[1]));
         q.push([nx, nz]);
@@ -3436,12 +3443,29 @@ export class Game {
     }
     if (guard <= 0) return [];
     cells.reverse();
-    // прореживаем: оставляем повороты (прямые тянем одним рывком)
+    // спрямление по прямой видимости (string pulling): от якоря — к самой дальней
+    // видимой клетке. Моб идёт по чистым прямым, а не трётся о каждый центр клетки.
+    const losClear = (ax: number, az: number, bx: number, bz: number): boolean => {
+      const d = Math.hypot(bx - ax, bz - az);
+      const n = Math.max(1, Math.ceil(d / 0.5));
+      for (let i = 1; i <= n; i++) {
+        if (this.hitSolid(ax + ((bx - ax) * i) / n, az + ((bz - az) * i) / n, 0.9, 0)) return false;
+      }
+      return true;
+    };
+    const pts: Array<{ x: number; z: number }> = [{ x: fx, z: fz }];
+    for (const cl of cells) pts.push({ x: cl[0] * CELL, z: cl[1] * CELL });
+    pts.push({ x: t.ix * CELL, z: t.iz * CELL });
     const out: Array<{ x: number; z: number }> = [];
-    for (let i = 0; i < cells.length; i++) {
-      const a = cells[Math.max(0, i - 1)], b = cells[i], c2 = cells[Math.min(cells.length - 1, i + 1)];
-      const turn = (b[0] - a[0]) * (c2[1] - b[1]) !== (b[1] - a[1]) * (c2[0] - b[0]);
-      if (turn || i === cells.length - 1) out.push({ x: b[0] * CELL, z: b[1] * CELL });
+    let anchor = 0;
+    while (anchor < pts.length - 1) {
+      let jump = anchor + 1;
+      for (let k = anchor + 2; k < pts.length; k++) {
+        if (losClear(pts[anchor].x, pts[anchor].z, pts[k].x, pts[k].z)) jump = k;
+        else break;
+      }
+      out.push(pts[jump]);
+      anchor = jump;
     }
     return out;
   }
