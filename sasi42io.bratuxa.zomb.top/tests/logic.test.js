@@ -216,8 +216,7 @@ assert.strictEqual(__hook.shopPickupR(false), 36);
 assert.strictEqual(__hook.shopPickupR(true), 108); // магнит: 3 клетки (36×3)
 assert.strictEqual(__hook.shopPickupR(true, 15000), 108, 'boundary 15000 stays x1');
 assert.strictEqual(__hook.shopPickupR(true, 15001), 216, 'magnet x2 over 15000');
-assert.strictEqual(__hook.shopPickupR(true, 35000), 216, 'boundary 35000 stays x2');
-assert.strictEqual(__hook.shopPickupR(true, 35001), 324, 'magnet x3 over 35000, not x2+x3');
+assert.strictEqual(__hook.shopPickupR(true, 35001), 216, 'no x3: cap stays x2 at any score');
 assert.strictEqual(__hook.shopPickupR(false, 999999), 36, 'no magnet — no bonus at any score');
 assert.strictEqual(__hook.shopSkinColor('skin_crimson'), '#dc2626');
 assert.strictEqual(__hook.shopSkinColor('skin_gold'), '#ffd700');
