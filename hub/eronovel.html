@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Без слов — Визуальная новелла</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a0f; color: #e0d0c0; font-family: 'Segoe UI', sans-serif; height: 100vh; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+#scene { width: 100%; max-width: 900px; aspect-ratio: 16/9; position: relative; overflow: hidden; border-radius: 8px; box-shadow: 0 0 60px rgba(180,80,200,0.2); }
+#bg { width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; }
+#dialogue { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(10,5,20,0.95)); padding: 40px 30px 25px; }
+#speaker { color: #c090e0; font-weight: bold; font-size: 0.9em; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 2px; }
+#text { font-size: 1.05em; line-height: 1.7; min-height: 60px; }
+#choices { position: absolute; bottom: 80px; left: 30px; right: 30px; display: flex; flex-direction: column; gap: 10px; }
+.choice { background: rgba(150,80,180,0.2); border: 1px solid rgba(180,100,220,0.4); color: #d0b0e0; padding: 12px 20px; border-radius: 6px; cursor: pointer; transition: all 0.2s; text-align: left; font-size: 0.95em; }
+.choice:hover { background: rgba(180,100,220,0.35); border-color: rgba(200,130,255,0.7); transform: translateX(5px); }
+#nav { margin-top: 15px; display: flex; gap: 12px; }
+#nav button { background: rgba(140,70,180,0.3); border: 1px solid rgba(180,100,220,0.5); color: #c0a0d0; padding: 8px 22px; border-radius: 5px; cursor: pointer; font-size: 0.9em; transition: all 0.2s; }
+#nav button:hover { background: rgba(170,90,210,0.5); }
+#nsfw-badge { position: absolute; top: 15px; right: 15px; background: rgba(200,50,100,0.8); color: #fff; font-size: 0.7em; padding: 4px 10px; border-radius: 4px; font-weight: bold; letter-spacing: 1px; }
+.hidden { display: none !important; }
+#title-screen { position: absolute; inset: 0; background: linear-gradient(135deg, #1a0a2e, #0a0a1a); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 30px; }
+#title-screen h1 { font-size: 2.5em; color: #d090f0; text-shadow: 0 0 30px rgba(180,80,220,0.6); letter-spacing: 4px; }
+#title-screen p { color: #9080a0; font-size: 0.9em; }
+#title-screen button { background: linear-gradient(135deg, #8030b0, #6020a0); border: none; color: #fff; padding: 14px 40px; border-radius: 8px; font-size: 1.1em; cursor: pointer; box-shadow: 0 0 25px rgba(150,50,200,0.5); transition: all 0.2s; }
+#title-screen button:hover { transform: scale(1.05); box-shadow: 0 0 40px rgba(180,80,240,0.7); }
+</style>
+</head>
+<body>
+
+<div id="scene">
+  <div id="title-screen">
+    <h1>БЕЗ СЛОВ</h1>
+    <p>визуальная новелла · 18+</p>
+    <button onclick="startGame()">начать</button>
+  </div>
+
+  <img id="bg" src="" class="hidden">
+  <div id="nsfw-badge" class="hidden">18+</div>
+
+  <div id="dialogue" class="hidden">
+    <div id="speaker"></div>
+    <div id="text"></div>
+  </div>
+
+  <div id="choices" class="hidden"></div>
+</div>
+
+<div id="nav" class="hidden">
+  <button onclick="saveGame()">💾</button>
+  <button onclick="loadGame()">📂</button>
+</div>
+
+<script>
+const scenes = [
+  {
+    bg: "https://i.pinimg.com/736x/2a/1a/3e/2a1a3e4f7e2d4c8b3a9f8e7d6c5b4a3.jpg",
+    speaker: "",
+    text: "Ничего не было. Потом — что-то.",
+    choices: [
+      { text: "Открыть глаза", next: 1 },
+      { text: "Остаться в темноте", next: 2 }
+    ]
+  },
+  {
+    bg: "https://i.pinimg.com/736x/5c/3b/8a/5c3b8a1f9e2d4c8b3a9f8e7d6c5b4a3.jpg",
+    speaker: "",
+    text: "Комната. Свет фонаря за окном. Кто-то рядом.",
+    choices: [
+      { text: "Шепнуть: «Ты кто?»", next: 3 },
+      { text: "Молчать и слушать", next: 4 }
+    ]
+  },
+  {
+    bg: "",
+    speaker: "",
+    text: "Темнота обнимает. Дыхание замедляется. Сны приходят без слов.",
+    choices: [
+      { text: "Проснуться", next: 1 }
+    ]
+  },
+  {
+    bg: "https://i.pinimg.com/736x/8d/4c/9b/8d4c9b1f9e2d4c8b3a9f8e7d6c5b4a3.jpg",
+    speaker: "Незнакомка",
+    text: "Я — та, кого ты искал. Или та, кто нашёл тебя.",
+    choices: [
+      { text: "Протянуть руку", next: 5 },
+      { text: "Отодвинуться", next: 6 }
+    ]
+  },
+  {
+    bg: "https://i.pinimg.com/736x/7e/5d/0a/7e5d0a1f9e2d4c8b3a9f8e7d6c5b4a3.jpg",
+    speaker: "",
+    text: "Шаги. Скрип кровати. Запах — чего-то цветочного, но с горечью.",
+    choices: [
+      { text: "Приоткрыть глаза", next: 3 }
+    ]
+  },
+  {
+    bg: "https://i.pinimg.com/736x/9a/6e/1b/9a6e1b1f9e2d4c8b3a9f8e7d6c5b4a3.jpg",
+    speaker: "Незнакомка",
+    text: "Хороший выбор. Я люблю смелых.",
+    nsfw: true,
+    choices: [
+      { text: "Целовать", next: 7 },
+      { text: "Остановиться", next: 8 }
+    ]
+  },
+  {
+    bg: "https://i.pinimg.com/736x/6b/4f/2c/6b4f2c1f9e2d4c8b3a9f8e7d6c5b4a3.jpg",
+    speaker: "Незнакомка",
+    text: "Тогда я подожду. У меня много времени.",
+    choices: [
+      { text: "Передумать", next: 5 },
+      { text: "Встать и уйти", next: 9 }
+    ]
+  },
+  {
+    bg: "https://i.pinimg.com/736x/0c/7a/3d/0c7a3d1f9e2d4c8b3a9f8e7d6c5b4a3.jpg",
+    speaker: "",
+    text: "Всё, что было после — остаётся только между вами двумя. Без слов. Без свидетелей.",
+    nsfw: true,
+    choices: [
+      { text: "Конец", next: -1 }
+    ]
+  },
+  {
+    bg: "https://i.pinimg.com/736x/3d/8b/4e/3d8b4e1f9e2d4c8b3a9f8e7d6c5b4a3.jpg",
+    speaker: "",
+    text: "Утро. Она исчезла. На подушке — только запах и записка: «下次见».",
+    choices: [
+      { text: "Конец", next: -1 }
+    ]
+  },
+  {
+    bg: "https://i.pinimg.com/736x/1e/9c/5f/1e9c5f1f9e2d4c8b3a9f8e7d6c5b4a3.jpg",
+    speaker: "",
+    text: "Коридор. Дверь. Свет. Ты вышел — но что-то осталось внутри.",
+    choices: [
+      { text: "Оглянуться", next: 3 },
+      { text: "Конец", next: -1 }
+    ]
+  }
+];
+
+let current = 0;
+
+function startGame() {
+  document.getElementById('title-screen').classList.add('hidden');
+  document.getElementById('nav').classList.remove('hidden');
+  showScene(0);
+}
+
+function showScene(idx) {
+  if (idx < 0) {
+    location.reload();
+    return;
+  }
+  current = idx;
+  const s = scenes[idx];
+
+  document.getElementById('bg').src = s.bg || 'https://i.pinimg.com/736x/0a/1a/2e/0a1a2e1f9e2d4c8b3a9f8e7d6c5b4a3.jpg';
+  document.getElementById('bg').classList.remove('hidden');
+  document.getElementById('dialogue').classList.remove('hidden');
+  document.getElementById('nsfw-badge').classList.toggle('hidden', !s.nsfw);
+
+  document.getElementById('speaker').textContent = s.speaker || '';
+  document.getElementById('text').textContent = s.text;
+
+  const choicesEl = document.getElementById('choices');
+  choicesEl.classList.remove('hidden');
+  choicesEl.innerHTML = '';
+  s.choices.forEach(c => {
+    const btn = document.createElement('button');
+    btn.className = 'choice';
+    btn.textContent = c.text;
+    btn.onclick = () => showScene(c.next);
+    choicesEl.appendChild(btn);
+  });
+}
+
+function typeText(el, text, cb) {
+  el.textContent = '';
+  let i = 0;
+  const interval = setInterval(() => {
+    el.textContent += text[i];
+    i++;
+    if (i >= text.length) { clearInterval(interval); cb && cb(); }
+  }, 30);
+}
+
+function saveGame() {
+  localStorage.setItem('eronel_save', current);
+  alert('💾 Сохранено');
+}
+function loadGame() {
+  const s = localStorage.getItem('eronel_save');
+  if (s !== null) showScene(parseInt(s));
+}
+</script>
+</body>
+</html>
