@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { PATH, WAVES, ENEMIES, createGame, placeTurret, sellTurret, spawnWave, tick, TURRETS, applyCard, finishWave } from './engine';
+import { PATH, WAVES, ENEMIES, WAVE_NAMES, createGame, placeTurret, sellTurret, spawnWave, tick, TURRETS, applyCard, finishWave } from './engine';
+import { readBest } from './save';
 test('дорожка идёт от левого края к штабу 8,8 без срезов', () => {
   expect(PATH[0].x).toBe(0);
   const last = PATH[PATH.length - 1];
@@ -80,4 +81,10 @@ test('звёзды: 0 потерь — 3, 4 потери — 1', () => {
   expect(g.stars).toBe(3);
   finishWave(g, 4);
   expect(g.stars).toBe(1);
+});
+test('имена 10 волн и медали в сейве', () => {
+  expect(WAVE_NAMES).toHaveLength(10);
+  expect(WAVE_NAMES[9]).toBe('Директор лично');
+  const store = { getItem: (_k: string) => null as string | null };
+  expect(readBest(store).medals).toBe(0);
 });

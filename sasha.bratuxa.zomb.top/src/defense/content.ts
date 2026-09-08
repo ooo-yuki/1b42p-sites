@@ -26,6 +26,12 @@ export const WAVES: WaveDef[] = Array.from({ length: 10 }, (_, i) => ({
   runnerEvery: i < 3 ? 0 : 3,
 }));
 
+export const WAVE_NAMES: string[] = [
+  'Разведка зануд', 'Первые зеваки', 'Спринт-отряд', 'Танки идут',
+  'Скука сгущается', 'Двойной зануда', 'Марафон спринта',
+  'Броня и нытьё', 'Генеральная скука', 'Директор лично',
+];
+
 export interface EnemyDef { hp: number; speed: number; reward: number }
 
 export const ENEMIES: Record<string, EnemyDef> = {

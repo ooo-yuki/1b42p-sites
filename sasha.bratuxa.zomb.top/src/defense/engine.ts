@@ -1,7 +1,7 @@
-import { PATH, WAVES, ENEMIES, TURRETS, CARDS } from './content';
+import { PATH, WAVES, WAVE_NAMES, ENEMIES, TURRETS, CARDS } from './content';
 import type { Cell, WaveDef, EnemyDef, TurretDef, CardDef } from './content';
 
-export { PATH, WAVES, ENEMIES, TURRETS, CARDS };
+export { PATH, WAVES, WAVE_NAMES, ENEMIES, TURRETS, CARDS };
 export type { Cell, WaveDef, EnemyDef, TurretDef, CardDef };
 
 export interface Unit { kind: string; seg: number; pos: number; hp: number; maxHp: number; speed: number; reward: number; dead?: boolean }
