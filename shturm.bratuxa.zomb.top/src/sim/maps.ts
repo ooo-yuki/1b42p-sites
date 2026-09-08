@@ -69,39 +69,6 @@ export const MAPS = {
   },
 } satisfies Record<string, MapDef>;
 
-/** Визитка карты для Вики: имя, описание, тактика, размер, фишка. */
-export interface MapMeta {
-  name: string;
-  desc: string;
-  tactic: string;
-  size: number;
-  feature: string;
-}
-export const MAP_META: Record<MapId, MapMeta> = {
-  yard: {
-    name: 'Двор 1Б42П',
-    desc: 'Тесный двор базы 42×42м: будка, покрышки, ящики и пруд по центру. Родной дом батальона — каждый угол пристрелян.',
-    tactic: 'Кайти вокруг центра, пруд используй как барьер от бегунов.',
-    size: 42,
-    feature: 'Пруд + будка + трафареты «42»',
-  },
-  island: {
-    name: 'Остров',
-    desc: 'Большая открытая арена 60×60м: пальмы, камни, мешки и ящики. Много места для манёвра, но укрытий мало.',
-    tactic: 'Держи круги по периметру, не зажимайся у камней.',
-    size: 60,
-    feature: 'Пальмы + камни + мешки',
-  },
-  neon: {
-    name: 'Неон-город',
-    desc: 'Ночной город 50×50м: светящиеся стойки, бочки, контейнер и вывеска «ШТУРМ-43». Красиво, тесно, опасно.',
-    tactic: 'Прячься за контейнером от стрелков, слушай шаги в неоне.',
-    size: 50,
-    feature: 'Неон-стойки + вывеска ШТУРМ-43',
-  },
-};
-export const MAP_ORDER: MapId[] = ['yard', 'island', 'neon'];
-
 /** Push-out круглых препятствий: мутирует pos, возвращает true если было столкновение. */
 /** Пропс с верхом h ниже высоты игрока y пропускается (перепрыгнул). */
 export function resolveCircle(pos: { x: number; z: number; y?: number }, radius: number, map: MapId): boolean {
