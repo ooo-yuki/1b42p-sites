@@ -99,6 +99,14 @@ function spawnFood(r) {
 function eatFood(score, foodPts, starMult) {
   return score + foodPts * (starMult || 1);
 }
+// scoreTier: тиры жадности по текущему счёту — еда даёт больше.
+// <1500: x1, 1500–2999: x2, 3000–5499: x2.5, >=5500: x3.5
+function scoreTier(score) {
+  if (score >= 5500) return 3.5;
+  if (score >= 3000) return 2.5;
+  if (score >= 1500) return 2;
+  return 1;
+}
 function collide(ax, ay, bx, by, rad) {
   var dx = ax - bx, dy = ay - by;
   return dx * dx + dy * dy < rad * rad;
@@ -255,7 +263,7 @@ function setPaused(b) { __paused = !!b; return __paused; }
 function togglePause() { __paused = !__paused; return __paused; }
 function isPaused() { return __paused; }
 var BOT_N = 25; // мясорубка: ботов на арене
-window.__hook = { spawnFood: spawnFood, eatFood: eatFood, stepBot: stepBot, dodgeTurn: dodgeTurn, bestFood: bestFood, collide: collide, hitsWall: hitsWall, dropLoot: dropLoot, setDir: setDir, getDir: getDir, setPaused: setPaused, togglePause: togglePause, isPaused: isPaused, BOT_N: BOT_N, burp: burp, clang: clang, SHOP_PRICES: SHOP_PRICES, SKIN_COLORS: SKIN_COLORS, shopGain: shopGain, shopSpeed: shopSpeed, shopPickupR: shopPickupR, shopSkinColor: shopSkinColor, shieldHas: shieldHas, shieldUse: shieldUse };
+window.__hook = { spawnFood: spawnFood, eatFood: eatFood, scoreTier: scoreTier, stepBot: stepBot, dodgeTurn: dodgeTurn, bestFood: bestFood, collide: collide, hitsWall: hitsWall, dropLoot: dropLoot, setDir: setDir, getDir: getDir, setPaused: setPaused, togglePause: togglePause, isPaused: isPaused, BOT_N: BOT_N, burp: burp, clang: clang, SHOP_PRICES: SHOP_PRICES, SKIN_COLORS: SKIN_COLORS, shopGain: shopGain, shopSpeed: shopSpeed, shopPickupR: shopPickupR, shopSkinColor: shopSkinColor, shieldHas: shieldHas, shieldUse: shieldUse };
 
 /* ===== игра ===== */
 var W = 3000, H = 3000;
@@ -474,7 +482,7 @@ function eatCheck(s) {
   var pr = shopPickupR(mag);
   for (var i = foods.length - 1; i >= 0; i--) {
     if (collide(s.x, s.y, foods[i].x, foods[i].y, pr)) {
-      var mult = (s.star ? 2 : 1) * ((s === player && shopHas('buff_score')) ? 2.5 : 1); // магазин: очки ×2.5
+      var mult = scoreTier(s.score) * (s.star ? 2 : 1) * ((s === player && shopHas('buff_score')) ? 2.5 : 1); // тиры + магазин ×2.5
       s.score = eatFood(s.score, foods[i].pts, mult);
       if (s === player) burp(true); // рыг только когда ешь ты
       foods[i] = placeFood();

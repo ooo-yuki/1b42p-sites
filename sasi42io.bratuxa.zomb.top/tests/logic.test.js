@@ -285,4 +285,21 @@ assert.ok(
 );
 
 console.log('logic.test.js: OK sound (burp/clang) + meatgrinder (25 bots, shared top-10)');
+
+// --- тиры жадности: еда растёт со счётом (границы 1500/3000/5500) ---
+assert.strictEqual(__hook.scoreTier(0), 1);
+assert.strictEqual(__hook.scoreTier(1499), 1);
+assert.strictEqual(__hook.scoreTier(1500), 2);
+assert.strictEqual(__hook.scoreTier(2999), 2);
+assert.strictEqual(__hook.scoreTier(3000), 2.5);
+assert.strictEqual(__hook.scoreTier(5499), 2.5);
+assert.strictEqual(__hook.scoreTier(5500), 3.5);
+assert.strictEqual(__hook.scoreTier(99999), 3.5);
+assert.strictEqual(__hook.eatFood(0, 70, __hook.scoreTier(0)), 70); // торнадо до 1500
+assert.strictEqual(__hook.eatFood(0, 70, __hook.scoreTier(2000)), 140); // торнадо x2
+assert.strictEqual(__hook.eatFood(0, 70, __hook.scoreTier(4000)), 175); // торнадо x2.5
+assert.strictEqual(__hook.eatFood(0, 70, __hook.scoreTier(6000)), 245); // торнадо x3.5
+assert.ok(html.includes('scoreTier(s.score) *'), 'eatCheck must apply tier multiplier');
+
+console.log('logic.test.js: OK tiers (x1/x2/x2.5/x3.5)');
 process.exit(0);
