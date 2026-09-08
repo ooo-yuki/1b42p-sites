@@ -62,6 +62,8 @@ var TORNADO_IMG = (typeof Image !== 'undefined') ? new Image() : null;
 if (TORNADO_IMG) { TORNADO_IMG.src = 'tornado.png'; }
 var BANANA_IMG = (typeof Image !== 'undefined') ? new Image() : null;
 if (BANANA_IMG) { BANANA_IMG.src = 'banana.png'; }
+var BUNCH_IMG = (typeof Image !== 'undefined') ? new Image() : null;
+if (BUNCH_IMG) { BUNCH_IMG.src = 'bunch.png'; }
 
 function spawnFood(r) {
   // r in [0,1): веса 70/25/5 -> типы 0/1/2 (очки 5/25/70)
@@ -276,7 +278,7 @@ function tickTimers(s, dt) {
 }
 function eatCheck(s) {
   for (var i = foods.length - 1; i >= 0; i--) {
-    if (collide(s.x, s.y, foods[i].x, foods[i].y, 22)) {
+    if (collide(s.x, s.y, foods[i].x, foods[i].y, 36)) {
       s.score = eatFood(s.score, foods[i].pts, s.star ? 2 : 1);
       foods[i] = placeFood();
     }
@@ -392,17 +394,15 @@ function draw(camX, camY) {
     var fx = f.x - camX, fy = f.y - camY;
     if (fx < -30 || fy < -30 || fx > canvas.width + 30 || fy > canvas.height + 30) continue;
     if (f.type === 2 && typeof TORNADO_IMG !== 'undefined' && TORNADO_IMG && TORNADO_IMG.complete && TORNADO_IMG.naturalWidth) {
-      ctx.drawImage(TORNADO_IMG, fx - 15, fy - 20, 30, 40);
+      ctx.drawImage(TORNADO_IMG, fx - 30, fy - 40, 60, 80);
       continue;
     }
     if (f.type === 0 && typeof BANANA_IMG !== 'undefined' && BANANA_IMG && BANANA_IMG.complete && BANANA_IMG.naturalWidth) {
-      ctx.drawImage(BANANA_IMG, fx - 12, fy - 12, 24, 24);
+      ctx.drawImage(BANANA_IMG, fx - 24, fy - 24, 48, 48);
       continue;
     }
-    if (f.type === 1 && typeof BANANA_IMG !== 'undefined' && BANANA_IMG && BANANA_IMG.complete && BANANA_IMG.naturalWidth) {
-      ctx.drawImage(BANANA_IMG, fx - 16, fy - 10, 18, 18);
-      ctx.drawImage(BANANA_IMG, fx - 2, fy - 10, 18, 18);
-      ctx.drawImage(BANANA_IMG, fx - 9, fy + 2, 18, 18);
+    if (f.type === 1 && typeof BUNCH_IMG !== 'undefined' && BUNCH_IMG && BUNCH_IMG.complete && BUNCH_IMG.naturalWidth) {
+      ctx.drawImage(BUNCH_IMG, fx - 32, fy - 24, 64, 48);
       continue;
     }
     ctx.font = f.type === 2 ? '22px serif' : (f.type === 1 ? '17px serif' : '14px serif');
