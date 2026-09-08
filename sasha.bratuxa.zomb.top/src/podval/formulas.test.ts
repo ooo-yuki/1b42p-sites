@@ -4,6 +4,7 @@ import {
   HARDWARE,
   MODEL_LEVELS,
   clickGain,
+  coreMult,
   hardwareCost,
   hardwareRate,
   hallucination,
@@ -57,5 +58,15 @@ describe('доход и победа', () => {
     expect(isVictory(MODEL_LEVELS.length - 1, 42000)).toBe(true)
     expect(isVictory(MODEL_LEVELS.length - 1, 41999)).toBe(false)
     expect(isVictory(0, 999999)).toBe(false)
+  })
+})
+
+describe('rebirth', () => {
+  test('ядра дают +50% аддитивно', () => {
+    expect(coreMult(0)).toBe(1)
+    expect(coreMult(2)).toBe(2)
+  })
+  test('ядра множат доход', () => {
+    expect(incomePerSec(3, 2, hallucination(3, 2), 2)).toBe(incomePerSec(3, 2, hallucination(3, 2)) * 2)
   })
 })

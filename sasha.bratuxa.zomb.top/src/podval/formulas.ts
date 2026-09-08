@@ -58,9 +58,13 @@ export function hallucination(modelLevel: number, cooling: number): number {
   return Math.max(2, MODEL_LEVELS[modelLevel].baseHall - cooling * 3)
 }
 
-export function incomePerSec(modelLevel: number, vulnLevel: number, hall: number): number {
+export function incomePerSec(modelLevel: number, vulnLevel: number, hall: number, cycles = 0): number {
   const vuln = (VULN_PAYOUT[vulnLevel] ?? 0) / 10
-  return (MODEL_LEVELS[modelLevel].codeRate + vuln) * (1 - (hall / 100) * 0.75)
+  return (MODEL_LEVELS[modelLevel].codeRate + vuln) * (1 - (hall / 100) * 0.75) * coreMult(cycles)
+}
+
+export function coreMult(cycles: number): number {
+  return 1 + 0.5 * Math.max(0, Math.floor(cycles))
 }
 
 export function isVictory(modelLevel: number, coins: number): boolean {

@@ -10,10 +10,16 @@ export interface Save {
   hardware: number[]
   model: number
   totalClicks: number
+  cycles: number
+  phw: number[]
+  farm: number
+  auto: boolean
+  oc: boolean
+  rf: boolean
 }
 
 export function freshSave(): Save {
-  return { datasets: 0, coins: 0, cursor: 0, cooling: 0, vuln: 0, hardware: [0, 0, 0, 0], model: 0, totalClicks: 0 }
+  return { datasets: 0, coins: 0, cursor: 0, cooling: 0, vuln: 0, hardware: [0, 0, 0, 0], model: 0, totalClicks: 0, cycles: 0, phw: [0, 0], farm: 0, auto: false, oc: false, rf: false }
 }
 
 export function loadSave(raw: unknown): Save {
@@ -29,5 +35,11 @@ export function loadSave(raw: unknown): Save {
     hardware: Array.isArray(r.hardware) ? [0, 1, 2, 3].map((i) => (typeof r.hardware![i] === 'number' ? r.hardware![i] : 0)) : fresh.hardware,
     model: typeof r.model === 'number' ? r.model : fresh.model,
     totalClicks: typeof r.totalClicks === 'number' ? r.totalClicks : fresh.totalClicks,
+    cycles: typeof r.cycles === 'number' ? Math.max(0, Math.floor(r.cycles)) : fresh.cycles,
+    phw: Array.isArray(r.phw) ? [0, 1].map((i) => (typeof r.phw![i] === 'number' ? r.phw![i] : 0)) : fresh.phw,
+    farm: typeof r.farm === 'number' ? Math.min(3, Math.max(0, Math.floor(r.farm))) : fresh.farm,
+    auto: r.auto === true,
+    oc: r.oc === true,
+    rf: r.rf === true,
   }
 }

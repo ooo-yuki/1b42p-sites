@@ -15,4 +15,8 @@ describe('сейвы подвала', () => {
     expect(loadSave(null)).toEqual(freshSave())
     expect(loadSave('мусор' as never)).toEqual(freshSave())
   })
+  test('старый сейв без cycles мигрирует в 0', () => {
+    expect(loadSave({ coins: 5 }).cycles).toBe(0)
+    expect(freshSave().cycles).toBe(0)
+  })
 })
