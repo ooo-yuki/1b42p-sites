@@ -430,6 +430,32 @@ export class Game {
   private wallKickCd = 0;
   /** Таймер топота игрока (шаги — по земле, в полёте тишина). */
   private stepT = 0;
+  /** Жуть Бэкрумса: издыхающие лампы (панель + свет дёргаются) и фонарь игрока. */
+  private lampFlicker: Array<{ mat: THREE.MeshBasicMaterial; light: THREE.PointLight; seed: number }> = [];
+  private torch: THREE.SpotLight | null = null;
+  private lampT = 0;
+
+  /** Кадр жути: мигание дохнущих ламп + фонарь по взгляду. Дёшево: 2 лампы + 1 спот. */
+  private updateLamps(dt: number): void {
+    this.lampT += dt;
+    const t = this.lampT;
+    for (const f of this.lampFlicker) {
+      // рваное дёргание с провалами в ноль — лампа издыхает
+      const n = Math.sin(t * 31 + f.seed) * Math.sin(t * 17 + f.seed * 2) * Math.sin(t * 7 + f.seed * 3);
+      const drop = Math.sin(t * 0.9 + f.seed) > 0.86 ? 0 : 1;
+      const k = drop * (n > -0.2 ? 0.75 + 0.25 * n : 0.06);
+      f.light.intensity = 7 * k;
+      const c = Math.floor(40 + 190 * k);
+      f.mat.color.setRGB(c / 255, (c * 0.82) / 255, (c * 0.6) / 255);
+    }
+    if (this.torch && this.camera) {
+      // фонарь сидит на камере и бьёт по взгляду на 12м вперёд
+      this.torch.position.copy(this.camera.position);
+      const dir = new THREE.Vector3();
+      this.camera.getWorldDirection(dir);
+      this.torch.target.position.copy(this.camera.position).addScaledVector(dir, 12);
+    }
+  }
   /** Общая комната: id локальных мобов для слепка хоста; netSync — я гость (мобы со сервера). */
   private mobIdSeq = 1;
   private netSync = false;
@@ -572,10 +598,10 @@ export class Game {
     if (map === 'duel') {
       this.scene.background = new THREE.Color(0x1a1030);
       this.scene.fog = new THREE.Fog(0x1a1030, 40, 140);
-    } else if (map === 'backrooms') {
-      // гул жёлтых ламп: тёплый туман, небо не нужно — сверху потолок
-      this.scene.background = new THREE.Color(0x8a7a3a);
-      this.scene.fog = new THREE.Fog(0x8a7a3a, 8, 55);
+    } else if (map === 'backrooms' || map === 'endless') {
+      // жуть: почти тьма, тёплый туман, небо не нужно — сверху потолок
+      this.scene.background = new THREE.Color(0x060503);
+      this.scene.fog = new THREE.Fog(0x060503, 6, 50);
     } else {
       this.scene.background = new THREE.Color(0x9ecdf0);
       this.scene.fog = new THREE.Fog(0x9ecdf0, 60, 200);
@@ -997,11 +1023,12 @@ export class Game {
     const N = 21, CELL = 6, WH = 3, TH = 0.7;
     const S = N * CELL;
     this.half = S / 2;
-    // свет ламп: тепло и ярко, теней нет — дёшево при сотнях стен
-    scene.add(new THREE.AmbientLight(0xffe9a8, 1.15));
-    const top = new THREE.DirectionalLight(0xfff2cc, 0.55);
-    top.position.set(20, 30, 10);
-    scene.add(top);
+    // свет жути: тусклый тёплый фон + живые лампы островками, остальное — тьма.
+    // Направленного солнца нет (сверху потолок), только слабый блик для чтения форм.
+    scene.add(new THREE.AmbientLight(0x9a8a6a, 0.28));
+    const glimmer = new THREE.DirectionalLight(0xffe9c4, 0.12);
+    glimmer.position.set(20, 30, 10);
+    scene.add(glimmer);
     const floorTex = new THREE.TextureLoader().load(brFloorUrl);
     floorTex.colorSpace = THREE.SRGBColorSpace;
     floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
@@ -1071,16 +1098,65 @@ export class Game {
     });
     inst.instanceMatrix.needsUpdate = true;
     scene.add(inst);
-    // панели ламп на потолке через 3 клетки — просто светлые, без источников
-    const lampMat = new THREE.MeshBasicMaterial({ color: 0xfff6d8 });
+    // лампы: живые островки света (~1/3 панелей), дохлые (тьма) и пара мигающих.
+    // Стартовая клетка всегда светлая — игрок рождается в свете, а не в соплях.
+    const liveMat = new THREE.MeshBasicMaterial({ color: 0xffe2a8 });
+    const deadMat = new THREE.MeshBasicMaterial({ color: 0x201c16 });
     const lampGeo = new THREE.BoxGeometry(1.4, 0.08, 0.7);
+    // тёплая лужа света на полу под живой лампой (одна текстура на всех — дёшево)
+    const poolCv = document.createElement('canvas');
+    poolCv.width = poolCv.height = 128;
+    const pg = poolCv.getContext('2d')!;
+    const grad = pg.createRadialGradient(64, 64, 4, 64, 64, 64);
+    grad.addColorStop(0, 'rgba(255,196,110,0.7)');
+    grad.addColorStop(0.6, 'rgba(255,180,90,0.3)');
+    grad.addColorStop(1, 'rgba(255,170,80,0)');
+    pg.fillStyle = grad;
+    pg.fillRect(0, 0, 128, 128);
+    const poolTex = new THREE.CanvasTexture(poolCv);
+    const poolGeo = new THREE.PlaneGeometry(11, 11);
+    let flickLeft = 2;
     for (let i = 1; i < N; i += 3) {
       for (let j = 1; j < N; j += 3) {
-        const lamp = new THREE.Mesh(lampGeo, lampMat);
-        lamp.position.set(-S / 2 + (i + 0.5) * CELL, WH - 0.05, -S / 2 + (j + 0.5) * CELL);
-        scene.add(lamp);
+        const lx = -S / 2 + (i + 0.5) * CELL, lz = -S / 2 + (j + 0.5) * CELL;
+        const isStart = i === 1 && j === 1;
+        const roll = Math.random();
+        // корпус панели виден всегда — тёмный или светящийся
+        if (flickLeft > 0 && !isStart && roll > 0.86) {
+          // издыхающая: панель дёргается, свет её — тоже (обновляется в updateLamps)
+          flickLeft--;
+          const fmat = new THREE.MeshBasicMaterial({ color: 0xffd9a0 });
+          const panel = new THREE.Mesh(lampGeo, fmat);
+          panel.position.set(lx, WH - 0.05, lz);
+          scene.add(panel);
+          const fl = new THREE.PointLight(0xffc06a, 2, 13, 1.8);
+          fl.position.set(lx, WH - 0.5, lz);
+          scene.add(fl);
+          this.lampFlicker.push({ mat: fmat, light: fl, seed: Math.random() * 100 });
+        } else if (isStart || roll < 0.36) {
+          // живая: панель горит + источник + лужа на полу
+          const panel = new THREE.Mesh(lampGeo, liveMat);
+          panel.position.set(lx, WH - 0.05, lz);
+          scene.add(panel);
+          const pl = new THREE.PointLight(0xffbe5a, 16, 19, 1.8);
+          pl.position.set(lx, WH - 0.5, lz);
+          scene.add(pl);
+          const pool = new THREE.Mesh(poolGeo, new THREE.MeshBasicMaterial({ map: poolTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+          pool.rotation.x = -Math.PI / 2;
+          pool.position.set(lx, 0.02, lz);
+          scene.add(pool);
+        } else {
+          // дохлая: тёмная панель, вокруг — тьма
+          const panel = new THREE.Mesh(lampGeo, deadMat);
+          panel.position.set(lx, WH - 0.05, lz);
+          scene.add(panel);
+        }
       }
     }
+    // фонарь игрока: без него в тёмных зонах слепота — тёплый конус по взгляду
+    this.torch = new THREE.SpotLight(0xfff0d0, 70, 36, 0.55, 0.4, 1.3);
+    scene.add(this.torch);
+    scene.add(this.torch.target);
     // старт — в клетке (0,0), лицо в открытый проход (восток или юг — что прокопано)
     this.px = -S / 2 + 0.5 * CELL;
     this.pz = -S / 2 + 0.5 * CELL;
@@ -3695,6 +3771,8 @@ export class Game {
     if (dt > 0.0005) this.fpsE += (1 / dt - this.fpsE) * 0.05;
     this.bfsBudget = 3;
     this.frame++;
+    // жуть Бэкрумса: мигание ламп + фонарь (только если карта их завела)
+    if (this.torch || this.lampFlicker.length > 0) this.updateLamps(dt);
     // авто-качество: 4с просадки ниже 28 FPS на nice — тихо сбрасываем на fast
     if (this.started) {
       if (this.fpsE < 28 && this.quality === 'nice') this.lowT += dt;
