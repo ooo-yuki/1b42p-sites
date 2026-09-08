@@ -3,7 +3,7 @@
    банк хайпа отдаёт событием ended, кладёт вызывающий. */
 import type { Save } from './formulas';
 import { fmt, judgeDist, scoreHit } from './formulas';
-import type { Venue } from './content';
+import { RAID_NAMES, type Venue } from './content';
 
 export type NoteView = {
   setX(x: number): void;
@@ -19,7 +19,7 @@ export type Layer = {
 };
 
 export type ShowSummary = {
-  hype: number; perfects: number; greats: number; goods: number; misses: number; best: number;
+  hype: number; perfects: number; greats: number; goods: number; misses: number; best: number; tickets: number;
 };
 
 export type ShowEvents = {
@@ -34,7 +34,8 @@ type Hater = { age: number; dead: boolean; view: HaterView };
 
 const stSpeed = (v: Venue, s: Save): number => v.speed * (1 - 0.12 * s.team.denis);
 const stZone = (v: Venue, s: Save): number => v.zone + 3 * s.look.jacket;
-const stBase = (v: Venue, s: Save): number => Math.round(v.base * (1 + 0.25 * s.bld.arena));
+const stBase = (v: Venue, s: Save): number =>
+  Math.round(v.base * (1 + 0.25 * s.bld.arena) * (1 + 0.25 * (s.bld.club ?? 0)));
 const stCritM = (s: Save): number =>
   (1 + 0.25 * s.team.freak) * (1 + [0, 0.25, 0.5, 1][s.look.hair]);
 const stComboStep = (s: Save): number => 0.1 + 0.02 * s.bld.garden;
@@ -54,6 +55,7 @@ export class ShowEngine {
   misses = 0;
   over = false;
   cursorHidden = true;
+  tickets = 0;
   raid: { got: number; need: number; t: number } | null = null;
   notes: Note[] = [];
   haters: Hater[] = [];
@@ -98,6 +100,11 @@ export class ShowEngine {
     return this.spd() / stSpeed(this.v, this.s);
   }
 
+  /** Промах: с пиарщиком комбо режется вдвое, а не в ноль. */
+  private softMiss(): void {
+    this.combo = (this.s.team.piar ?? 0) > 0 ? Math.floor(this.combo / 2) : 0;
+  }
+
   step(dt: number): void {
     if (this.over) return;
     if (this.cd > 0) this.cd -= dt;
@@ -108,7 +115,7 @@ export class ShowEngine {
       this.ev.ended({
         hype: Math.floor(this.hype),
         perfects: this.perfects, greats: this.greats,
-        goods: this.goods, misses: this.misses, best: this.best,
+        goods: this.goods, misses: this.misses, best: this.best, tickets: this.tickets,
       });
       return;
     }
@@ -132,7 +139,7 @@ export class ShowEngine {
       if (nt.x < this.zc - gw) {
         nt.view.remove();
         this.notes.splice(m, 1);
-        this.combo = 0;
+        this.softMiss();
         this.misses++;
         this.ev.say(nt.raid ? 'Рейд-нота ушла!' : 'Пропустил ноту!');
         this.ev.blip(180);
@@ -164,7 +171,7 @@ export class ShowEngine {
       if (this.haters[k].age > 5) {
         this.haters[k].view.remove();
         this.haters.splice(k, 1);
-        this.combo = 0;
+        this.softMiss();
         this.ev.say('Хейтер сорвал кусок шоу! −10%');
         this.hype *= 0.9;
         this.ev.blip(200);
@@ -212,7 +219,7 @@ export class ShowEngine {
       if (d < bestD) { bestD = d; best = n; }
     }
     if (!best || bestD > zw) {
-      this.combo = 0;
+      this.softMiss();
       this.misses++;
       this.ev.say('Мимо! Рано или поздно');
       this.ev.blip(200);
@@ -234,6 +241,7 @@ export class ShowEngine {
     if (j === 'perfect') this.perfects++;
     else if (j === 'great') this.greats++;
     else this.goods++;
+    if (j === 'perfect' && (this.s.look.chains ?? 0) > 0) this.tickets += 1;
     this.combo = Math.min(this.combo + 1, stComboCap(this.s));
     this.best = Math.max(this.best, this.combo);
     if (j === 'perfect' || j === 'great') this.golds++;
@@ -256,7 +264,8 @@ export class ShowEngine {
     this.ev.raid(true);
     this.raidCd = 20;
     this.nextN = 0;
-    this.ev.say('РЕЙД-БОСС! Поток нот — держи темп!');
+    const boss = RAID_NAMES[this.v.id] ?? 'РЕЙД-БОСС';
+    this.ev.say(`${boss} идёт! Поток нот — держи темп!`);
     this.ev.blip(300);
   }
 }
