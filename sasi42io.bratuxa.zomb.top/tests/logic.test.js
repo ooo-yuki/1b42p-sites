@@ -268,4 +268,21 @@ const sbt = __hook.stepBot(
 assert.ok(Math.abs(sbt - -Math.PI / 2) < 0.13, 'stepBot steers to tornado, got ' + sbt);
 
 console.log('logic.test.js: OK smart AI (dodgeTurn wall/body, bestFood tornado x4)');
+
+// --- звук и мясорубка: рыг/труба молча no-op в vm, BOT_N=25, топ общий ---
+assert.strictEqual(__hook.BOT_N, 25, 'meatgrinder: 25 bots');
+assert.strictEqual(typeof __hook.burp, 'function', 'burp must be in __hook');
+assert.strictEqual(typeof __hook.clang, 'function', 'clang must be in __hook');
+assert.strictEqual(__hook.burp(true), undefined, 'burp no-op without AudioContext');
+assert.strictEqual(__hook.clang(), undefined, 'clang no-op without AudioContext');
+assert.ok(html.includes('burp(s === player)'), 'every eaten food burps (player louder)');
+assert.ok(html.includes('clang();'), 'death clangs (bot + player)');
+assert.ok(!html.includes('mute') && !html.includes('Mute'), 'no mute button by design');
+assert.ok(html.includes('var n = BOT_N') && html.includes('bots.length < BOT_N'), 'spawn + respawn keep 25');
+assert.ok(
+  html.includes('bots.concat([player])') && html.includes('.slice(0, 10)'),
+  'top-10 already shared: bots compete'
+);
+
+console.log('logic.test.js: OK sound (burp/clang) + meatgrinder (25 bots, shared top-10)');
 process.exit(0);

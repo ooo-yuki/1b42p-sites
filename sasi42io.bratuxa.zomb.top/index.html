@@ -254,7 +254,8 @@ function getDir() { return { x: __dir.x, y: __dir.y }; }
 function setPaused(b) { __paused = !!b; return __paused; }
 function togglePause() { __paused = !__paused; return __paused; }
 function isPaused() { return __paused; }
-window.__hook = { spawnFood: spawnFood, eatFood: eatFood, stepBot: stepBot, dodgeTurn: dodgeTurn, bestFood: bestFood, collide: collide, hitsWall: hitsWall, dropLoot: dropLoot, setDir: setDir, getDir: getDir, setPaused: setPaused, togglePause: togglePause, isPaused: isPaused, SHOP_PRICES: SHOP_PRICES, SKIN_COLORS: SKIN_COLORS, shopGain: shopGain, shopSpeed: shopSpeed, shopPickupR: shopPickupR, shopSkinColor: shopSkinColor, shieldHas: shieldHas, shieldUse: shieldUse };
+var BOT_N = 25; // мясорубка: ботов на арене
+window.__hook = { spawnFood: spawnFood, eatFood: eatFood, stepBot: stepBot, dodgeTurn: dodgeTurn, bestFood: bestFood, collide: collide, hitsWall: hitsWall, dropLoot: dropLoot, setDir: setDir, getDir: getDir, setPaused: setPaused, togglePause: togglePause, isPaused: isPaused, BOT_N: BOT_N, burp: burp, clang: clang, SHOP_PRICES: SHOP_PRICES, SKIN_COLORS: SKIN_COLORS, shopGain: shopGain, shopSpeed: shopSpeed, shopPickupR: shopPickupR, shopSkinColor: shopSkinColor, shieldHas: shieldHas, shieldUse: shieldUse };
 
 /* ===== игра ===== */
 var W = 3000, H = 3000;
@@ -291,7 +292,7 @@ function newGame() {
   try { var sm = document.getElementById('shieldMark'); if (sm) sm.style.display = 'none'; } catch (e) {}
   for (var i = 0; i < 14; i++) player.segs.push({ x: player.x - i * 8, y: player.y });
   bots = [];
-  var n = 8 + ((Math.random() * 4) | 0); // 8–11
+  var n = BOT_N; // мясорубка: 25 рыл
   for (var j = 0; j < n; j++) {
     var bx = rnd(W), by = rnd(H);
     var b = { x: bx, y: by, angle: rnd(Math.PI * 2), score: 10 + rnd(60), len: 12, segs: [], color: COLORS[j % COLORS.length], name: NAMES[j % NAMES.length], kind: KINDS[j % KINDS.length], star: 0, bolt: 0, starT: 0, boltT: 0 };
@@ -409,6 +410,55 @@ function tickTimers(s, dt) {
   if (s.starT > 0) { s.starT -= dt / 60; if (s.starT <= 0) s.star = 0; }
   if (s.boltT > 0) { s.boltT -= dt / 60; if (s.boltT <= 0) s.bolt = 0; }
 }
+/* --- звук: рыг и труба (WebAudio-синтез без файлов; vm-safe: без AudioContext молча no-op) --- */
+var AC = null, lastBurp = 0;
+function ac() {
+  if (AC) return AC;
+  try {
+    var C = typeof AudioContext !== 'undefined' ? AudioContext : (typeof webkitAudioContext !== 'undefined' ? webkitAudioContext : null);
+    if (!C) return null;
+    AC = new C();
+  } catch (e) { return null; }
+  return AC;
+}
+if (typeof window !== 'undefined') {
+  try {
+    window.addEventListener('pointerdown', function () { var c = ac(); if (c && c.state === 'suspended') c.resume(); });
+    window.addEventListener('keydown', function () { var c = ac(); if (c && c.state === 'suspended') c.resume(); });
+  } catch (e) {}
+}
+function burp(loud) {
+  // рыг: синус 170→65 Гц, 0.2с; троттлинг 90мс против каши из 25 рыл
+  try {
+    var c = ac(); if (!c) return;
+    var t = c.currentTime;
+    if (t - lastBurp < 0.09) return;
+    lastBurp = t;
+    var o = c.createOscillator(), g = c.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(170, t);
+    o.frequency.exponentialRampToValueAtTime(65, t + 0.16);
+    g.gain.setValueAtTime(loud ? 0.22 : 0.1, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    o.connect(g); g.connect(c.destination);
+    o.start(t); o.stop(t + 0.22);
+  } catch (e) {}
+}
+function clang() {
+  // труба: 4 негармоничных треугольника, затухание 0.8с
+  try {
+    var c = ac(); if (!c) return;
+    var t = c.currentTime, fs = [622, 941, 1323, 1771];
+    for (var i = 0; i < fs.length; i++) {
+      var o = c.createOscillator(), g = c.createGain();
+      o.type = 'triangle'; o.frequency.value = fs[i];
+      g.gain.setValueAtTime(0.16 / (i + 1), t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+      o.connect(g); g.connect(c.destination);
+      o.start(t); o.stop(t + 0.85);
+    }
+  } catch (e) {}
+}
 function eatCheck(s) {
   var mag = (s === player && shopHas('buff_magnet')); // магазин: магнит
   var pr = shopPickupR(mag);
@@ -416,6 +466,7 @@ function eatCheck(s) {
     if (collide(s.x, s.y, foods[i].x, foods[i].y, pr)) {
       var mult = (s.star ? 2 : 1) * ((s === player && shopHas('buff_score')) ? 2.5 : 1); // магазин: очки ×2.5
       s.score = eatFood(s.score, foods[i].pts, mult);
+      burp(s === player); // рыг при каждой съеденной пище (игрок громче)
       foods[i] = placeFood();
     }
   }
@@ -442,6 +493,7 @@ function playerDie() {
   if (!alive) return;
   var why = arguments.length ? arguments[0] : '';
   if (why !== 'giveup' && shieldBlock()) return;
+  if (why !== 'giveup') clang(); // труба по смерти (сдача — не смерть)
   die(player);
   alive = false;
   if (player.score > best) { best = Math.floor(player.score); try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {} }
@@ -488,6 +540,7 @@ function frame(t) {
           playerDie();
         } else {
           die(s);
+          clang(); // труба по смерти бота
           var bi = bots.indexOf(s);
           if (bi >= 0) bots.splice(bi, 1);
         }
@@ -497,8 +550,8 @@ function frame(t) {
   }
   // стены-убийцы: игрок касается границы — смерть через общий flow (ботов не трогаем)
   if (alive && hitsWall(player.x, player.y, W, H)) playerDie();
-  // боты не вымирают полностью: держим 8–11
-  while (bots.length < 8) {
+  // боты не вымирают полностью: держим BOT_N
+  while (bots.length < BOT_N) {
     var bx = rnd(W), by = rnd(H);
     var nb = { x: bx, y: by, angle: rnd(Math.PI * 2), score: 10 + rnd(40), len: 12, segs: [{ x: bx, y: by }], color: COLORS[(Math.random() * COLORS.length) | 0], name: NAMES[(Math.random() * NAMES.length) | 0], kind: ['coward', 'normal', 'hunter'][(Math.random() * 3) | 0], star: 0, bolt: 0, starT: 0, boltT: 0 };
     bots.push(nb);
