@@ -376,7 +376,7 @@ export default function App() {
   const gameRef = useRef<Game | null>(null);
   const [menu, setMenu] = useState(true);
   const [loading, setLoading] = useState<{ show: boolean; pct: number }>({ show: false, pct: 0 });
-  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, med: 0, lvl: 1, boss: 0, fps: 60 });
+  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, med: 0, lvl: 1, boss: 0, fps: 60, quality: 'fast' });
   const [scores, setScores] = useState<ScoreRow[]>([]);
   const [duelTop, setDuelTop] = useState<Array<{ login: string; wins: number }>>([]);
   const [gstats, setGstats] = useState<{ games: number; best: number; online: number } | null>(null);
@@ -494,6 +494,22 @@ async function loadStats(): Promise<void> {
   /** экран смерти PvP: ресаун в случайной точке или выход в меню */
   const [pvpDead, setPvpDead] = useState(false);
   const pvpDeadRef = useRef(false);
+  /** Баннер «сервер перезагрузился»: кикнуло TTL — заходи заново */
+  const [restartKick, setRestartKick] = useState(false);
+  /** список игроков сервера на Tab (в бою) */
+  const [showMates, setShowMates] = useState(false);
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (e.code !== 'Tab') return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+      if (chatOpenRef.current) return;
+      e.preventDefault();
+      setShowMates((v) => !v);
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, []);
   /** наблюдатель Бэкрумса: цели из пульса, выбранный ник — в рефе (пульс без замыканий) */
   const [specActive, setSpecActive] = useState(false);
   const [specTargets, setSpecTargets] = useState<Array<{ sid: string; nick: string; hp: number; dead: boolean }>>([]);
@@ -655,7 +671,7 @@ async function loadStats(): Promise<void> {
     if (!canvasRef.current) return;
     if (gameRef.current) { gameRef.current.destroy(); gameRef.current = null; }
     const game = new Game(canvasRef.current, null, {
-      onHud: (h) => setHud(h),
+      onHud: (h) => { setHud(h); setQuality((q) => (q === h.quality ? q : h.quality)); },
       onBusted: () => undefined,
       onSwing: () => { swing(); tryDuelHit(); },
       onNetHit: (nid, dmg) => {
@@ -734,6 +750,7 @@ async function loadStats(): Promise<void> {
       stalkCount: () => game.debugStalkers(),
       spec: (on: boolean, x: number, z: number) => game.setSpec(on, x, z),
       specOn: () => game.debugSpec(),
+      mkroom: (name: string, mode: MapId) => createRoom(name, mode),
       charaSet: (id: string) => { game.unlockChar(id); return game.setChar(id); },
       switchW: () => game.switchWeapon(),
       medBuy: () => game.buyMedkit(),
@@ -867,18 +884,18 @@ async function loadStats(): Promise<void> {
   }, []);
   useEffect(() => { refreshRooms(); }, [refreshRooms]);
 
-  const createRoom = useCallback(async () => {
+  const createRoom = useCallback(async (nameOverride?: string, modeOverride?: MapId) => {
     try {
       const r = await fetch('/api/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nick, name: roomDraft, char: gameRef.current?.getChar() ?? 'mtt', mode: draftMode, token: token() }),
+        body: JSON.stringify({ nick: nickRef.current, name: nameOverride ?? roomDraft, char: gameRef.current?.getChar() ?? 'mtt', mode: modeOverride ?? draftMode, token: token() }),
       });
       if (!r.ok) return;
       const d = (await r.json()) as { id: string; sid: string; mode: MapId; spawn: { x: number; z: number; yaw: number } | null };
       roomRef.current = { id: d.id, sid: d.sid, mode: d.mode };
       setRoomId(d.id);
-      setRoomName(roomDraft || `Комната ${nick}`);
+      setRoomName(nameOverride || roomDraft || `Комната ${nickRef.current}`);
       setRoomMode(d.mode);
       setMapChoice(d.mode);
       spawnRef.current = d.spawn;
@@ -917,6 +934,7 @@ async function loadStats(): Promise<void> {
       setIsOwner(false);
       setWaiting(!!d.pending);
       setLobby(null);
+      setRestartKick(false);
       refreshRooms();
     } catch { /* noop */ }
   }, [nick, refreshRooms]);
@@ -947,6 +965,7 @@ async function loadStats(): Promise<void> {
     setSpecActive(false);
     setSpecTargets([]);
     specSelNick.current = '';
+    setShowMates(false);
     gameRef.current?.setSpec(false);
     if (id && sid) {
       try {
@@ -993,27 +1012,6 @@ async function loadStats(): Promise<void> {
     } catch { /* noop */ }
   }, []);
 
-  /** Наблюдатель возвращается в бой: ресаун в случайной точке */
-  const specPlay = useCallback(async () => {
-    const { id, sid } = roomRef.current;
-    const g = gameRef.current;
-    if (!id || !sid || !g) return;
-    try {
-      const r = await fetch(`/api/rooms/${id}/play`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sid }),
-      });
-      if (!r.ok) return;
-      const d = (await r.json()) as { rx?: number; rz?: number };
-      specSelNick.current = '';
-      setSpecTargets([]);
-      setSpecActive(false);
-      g.setSpec(false);
-      g.pvpRespawn(typeof d.rx === 'number' ? d.rx : 0, typeof d.rz === 'number' ? d.rz : 22);
-    } catch { /* noop */ }
-  }, []);
-
   // действия создателя в лобби
   const lobbyAct = useCallback(async (action: 'approve' | 'deny' | 'kick' | 'start', target?: string) => {
     const { id, sid } = roomRef.current;
@@ -1053,7 +1051,14 @@ async function loadStats(): Promise<void> {
             signal: ctl.signal,
           });
         } finally { window.clearTimeout(to); }
-        if (r.status === 404) { leaveRoom(); return; }
+        if (r.status === 404) {
+          // комнаты нет: TTL выкинул всех (рестарт сервера) или комнату снесли —
+          // в меню с баннером, заходим заново
+          leaveRoom();
+          toMenu();
+          setRestartKick(true);
+          return;
+        }
         if (!r.ok) {
           // вылет из комнаты: молча просимся назад тем же ником (не чаще раза в 5с),
           // создатель примет — игра продолжится; заявитель просто ждёт; комнаты нет — в меню
@@ -1068,7 +1073,12 @@ async function loadStats(): Promise<void> {
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ nick: nickRef.current, char: g.getChar(), token: localStorage.getItem(TOKEN_KEY) ?? '' }),
                 });
-                if (jr.status === 404) { leaveRoom(); return; }
+                if (jr.status === 404) {
+                  leaveRoom();
+                  toMenu();
+                  setRestartKick(true);
+                  return;
+                }
                 const jd = (await jr.json()) as { sid?: string };
                 if (typeof jd.sid === 'string' && jd.sid) roomRef.current = { ...roomRef.current, sid: jd.sid };
               } catch { /* noop */ }
@@ -1558,6 +1568,15 @@ async function loadStats(): Promise<void> {
             </div>
           )}
           <div id="fps">{hud.fps} FPS</div>
+          {showMates && roomId && (
+            <div id="matesList">
+              <div id="matesTitle">👥 НА СЕРВЕРЕ — {mates.length + 1} (Tab — закрыть)</div>
+              <div className="mrow sme">🫵 {nick} · {hud.hp}❤️{roomMode === 'pvp' ? ` · ${myFrags}💀` : ''}</div>
+              {mates.map((m, i) => (
+                <div className="mrow" key={i}>🎭 {m.nick} · {m.hp}❤️{typeof m.frags === 'number' ? ` · ${m.frags}💀` : ''}{m.dead ? ' · 💀' : ''}</div>
+              ))}
+            </div>
+          )}
           {specActive && (roomMode === 'endless' || roomMode === 'pvp' || roomMode === 'invasion') && (
             <div id="specBar">
               <div id="specTitle">👁 НАБЛЮДАТЕЛЬ — тебя не видят{restartIn > 0 ? ` · ♻️ ${fmtRestart(restartIn)}` : ''}</div>
@@ -1566,7 +1585,7 @@ async function loadStats(): Promise<void> {
                   <button key={t.sid} id={`spec-${t.sid}`} className={'wbtn' + (specSelNick.current === t.nick ? ' cur' : '')} onClick={() => void specWatch(t.sid, t.nick)}>👁 {t.nick} {t.dead ? '💀' : `${t.hp}❤️`}</button>
                 )) : <span>Ждём бойцов…</span>}
               </div>
-              <button id="specPlay" className="wbtn" onClick={() => void specPlay()}>⚔️ ВЕРНУТЬСЯ В БОЙ</button>
+              <button id="specLobbyBtn2" className="wbtn" onClick={() => { toMenu(); void leaveRoom(); }}>🚪 ВЫЙТИ В ЛОББИ</button>
             </div>
           )}
           {duel && duel.active && (
@@ -1624,7 +1643,7 @@ async function loadStats(): Promise<void> {
             <div>☠️ ТЕБЯ ЗАВАЛИЛИ!</div>
             <div id="deadScore">Фраги: {myFrags} 💀</div>
             <button id="pvpRespawn" onClick={() => { const g = gameRef.current; if (g) { const sp = g.randomSpawn(); g.pvpRespawn(sp.x, sp.z); } pvpDeadRef.current = false; setPvpDead(false); }}>🎲 ВОЗРОДИТЬСЯ В СЛУЧАЙНОЙ ТОЧКЕ</button>
-            <button id="pvpMenu" onClick={() => { pvpDeadRef.current = false; setPvpDead(false); toMenu(); }}>🚪 ВЫЙТИ В МЕНЮ</button>
+            <button id="pvpMenu" onClick={() => { pvpDeadRef.current = false; setPvpDead(false); toMenu(); void leaveRoom(); }}>🚪 ВЫЙТИ В МЕНЮ</button>
           </div>
         </div>
       )}
@@ -2146,24 +2165,22 @@ async function loadStats(): Promise<void> {
                     onChange={(e) => setRoomDraft(e.target.value)}
                     placeholder="Название комнаты"
                   />
-                  <button className="wbtn" id="roomCreate" onClick={createRoom}>СОЗДАТЬ</button>
+                  <button className="wbtn" id="roomCreate" onClick={() => createRoom()}>СОЗДАТЬ</button>
                 </div>
                 <div className="srow">
                   <span>Режим</span>
                   {MAPS.map((m) => (
                     <button key={m.id} className={'wbtn' + (draftMode === m.id ? ' cur' : '')} id={`mode-${m.id}`} onClick={() => setDraftMode(m.id)}>{m.name}</button>
                   ))}
-                  {(['pvp', 'endless', 'invasion'] as MapId[]).map((mid) => (
-                    <button key={mid} className={'wbtn' + (draftMode === mid ? ' cur' : '')} id={`mode-${mid}`} onClick={() => setDraftMode(mid)}>{modeName(mid)}</button>
-                  ))}
                 </div>
+                <div><small>Официальные сервера (PvP, Бэкрумс, Нашествие) — во вкладке 🖥️.</small></div>
                 {roomsList.filter((r) => !r.official).length > 0 ? roomsList.filter((r) => !r.official).map((r) => (
                   <div className="srow" key={r.id}>
                     <span>{modeIcon(r.mode)} {r.name} · {r.id} · 👥 {r.count}/{modeCap(r.mode)}{(r.restartIn ?? 0) > 0 ? ` · ♻️ ${fmtRestart(r.restartIn ?? 0)}` : ''}</span>
                     <button className="wbtn" id={`join-${r.id}`} onClick={() => joinRoom(r.id)}>ВОЙТИ</button>
                   </div>
                 )) : <div>Пока пусто — создай первую! Официальные сервера живут во вкладке 🖥️.</div>}
-                <button className="wclose" onClick={refreshRooms}>🔄 ОБНОВИТЬ</button>
+                <button className="wclose" id="roomsRefresh" onClick={refreshRooms}>🔄 ОБНОВИТЬ</button>
               </>
             )}
           </div>
@@ -2171,6 +2188,7 @@ async function loadStats(): Promise<void> {
           <div className={'mtab' + (menuTab === 'servers' ? ' show' : '')}>
           <div className="board" id="serversSec">
             <h3>🖥️ Сервера</h3>
+            {restartKick && <div id="kickBanner">♻️ Сервер перезагрузился — все вылетели в меню. Заходи заново!</div>}
             <div className="srow">
               <span>API 42 LIVE:</span>
               <b>{apiPing >= 0 ? `🟢 ${apiPing} мс` : '🔴 нет связи'}</b>

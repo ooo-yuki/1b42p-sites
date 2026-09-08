@@ -21,9 +21,8 @@ async function boot(page: Page): Promise<void> {
 }
 
 async function createAndGo(page: Page, mode: string): Promise<void> {
-  await page.click('#nav-rooms');
-  await page.click(`#mode-${mode}`);
-  await page.click('#roomCreate');
+  // официальные режимы создаются только кодом (из вкладки комнат кнопки убраны)
+  await page.evaluate((m) => (window as unknown as { __mtt: { mkroom: (name: string, mode: string) => Promise<void> } }).__mtt.mkroom('Тест', m), mode);
   await page.click('#nav-play');
   await page.click('#goBtn');
   await page.waitForTimeout(2500);
@@ -97,7 +96,7 @@ test('нашествие: орда 11 скалолазов на 1-й волне'
   expect(foes.some((f) => f.climb)).toBe(true);
 });
 
-test('наблюдатель: смерть → watch → возврат в бой', async ({ page }) => {
+test('наблюдатель: смерть → watch → без вмешательства → выход в лобби', async ({ page }) => {
   await boot(page);
   await createAndGo(page, 'endless');
   // гасим щит выстрелом, потом смертельный урон
@@ -111,8 +110,10 @@ test('наблюдатель: смерть → watch → возврат в бо�
   await expect(page.locator('#specBar')).toBeVisible({ timeout: 10000 });
   const on = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.specOn());
   expect(on).toBe(true);
-  await page.click('#specPlay');
-  await expect(page.locator('#specBar')).toBeHidden({ timeout: 10000 });
-  const hp = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.hp());
-  expect(hp).toBeGreaterThan(0);
+  // наблюдатель не вмешивается: удары в пустоту
+  const hits = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.attack());
+  expect(hits).toBe(0);
+  // возрождения нет — только выход в лобби (в меню, не обратно на сервер)
+  await page.click('#specLobbyBtn2');
+  await expect(page.locator('#menu')).toBeVisible({ timeout: 10000 });
 });

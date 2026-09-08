@@ -181,35 +181,15 @@ function restartIn(room: Room): number {
   return Math.max(0, Math.round(room.ttlSec - (Date.now() - room.created) / 1000));
 }
 
-/** Рестарт игры на месте: новая волна жизни, статистика в ноль, игроки остаются. */
-function resetRoom(room: Room): void {
-  room.created = Date.now();
-  room.round = 1;
-  room.lastWinner = '';
-  room.mobs.clear();
-  room.mobHost = '';
-  room.chat = [];
-  room.started = true;
-  for (const m of room.players.values()) {
-    m.hp = 100; m.duelHp = 100; m.score = 0; m.kills = 0; m.wave = 1; m.respawn = null;
-    m.frags = 0; m.dead = false; m.atk = 0; m.ts = Date.now();
-  }
-  for (const m of room.pending.values()) m.ts = Date.now();
-}
-
 /**
- * Проверка TTL. Возвращает 'gone' если комнату удалили (пользовательская истекла),
- * 'reset' если игру перезапустили на месте, 'ok' если всё свежо.
+ * Проверка TTL. Истёкшие комнаты удаляются — всех выкидывает в меню,
+ * игра начинается заново чистым заходом. Официальные пересоздаёт ensureOfficial.
  */
-function checkExpiry(room: Room): 'ok' | 'reset' | 'gone' {
+function checkExpiry(room: Room): 'ok' | 'gone' {
   if (!room.ttlSec) return 'ok';
   if (Date.now() - room.created <= room.ttlSec * 1000) return 'ok';
-  if (room.official) { resetRoom(room); return 'reset'; }
-  if (room.players.size === 0 && room.pending.size === 0) { rooms.delete(room.id); return 'gone'; }
-  // пользовательская комната с игроками: рестарт игры, как на официальных
-  resetRoom(room);
-  room.started = false;
-  return 'reset';
+  rooms.delete(room.id);
+  return 'gone';
 }
 
 function randSpawnXZ(): { x: number; z: number } {
@@ -346,6 +326,13 @@ async function roomsApi(req: Request): Promise<Response | null> {
       if (checkExpiry(r) === 'gone') continue;
       if (r.players.size === 0 && r.pending.size === 0 && !r.official) { rooms.delete(r.id); continue; }
       out.push({ id: r.id, name: r.name, mode: r.mode, count: r.players.size, started: r.started, official: r.official, restartIn: restartIn(r) });
+    }
+    // протухшие официальные снесли проверкой выше — сразу пересоздаём, тройка всегда в списке
+    ensureOfficial();
+    for (const def of OFFICIAL_DEFS) {
+      if (out.some((o) => (o as { id: string }).id === def.id)) continue;
+      const r = rooms.get(def.id);
+      if (r) out.push({ id: r.id, name: r.name, mode: r.mode, count: r.players.size, started: r.started, official: r.official, restartIn: restartIn(r) });
     }
     return Response.json(out);
   }
@@ -492,6 +479,9 @@ async function roomsApi(req: Request): Promise<Response | null> {
     if (w) { w.ts = Date.now(); return Response.json({ error: 'waiting' }, { status: 403 }); }
     return Response.json({ error: 'nosid' }, { status: 403 });
   }
+
+  // TTL истёк — комнаты больше нет: всех выкидывает (клиент уводит в меню)
+  if (checkExpiry(room) === 'gone') return Response.json({ error: 'noroom' }, { status: 404 });
 
   // удар по дуэлянту: урон ставит сервер, победу и новый раунд — тоже он
   if (req.method === 'POST' && action === 'hit') {
@@ -656,7 +646,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     me.dead = body.dead === true;
     me.ts = Date.now();
     prune(room);
-    checkExpiry(room);
+    if (checkExpiry(room) === 'gone') return Response.json({ error: 'noroom' }, { status: 404 });
     // официальные моб-режимы: хост мобов — первый боец (детерминированно, без флэппинга)
     if (room.official && (room.mode === 'endless' || room.mode === 'invasion')) {
       const cur = room.mobHost !== '' ? room.players.get(room.mobHost) : undefined;

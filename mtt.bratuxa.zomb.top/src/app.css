@@ -305,3 +305,8 @@ html,body{margin:0;height:100%;overflow:hidden;background:#060a12;color:#e8edff;
 #specBar{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:7;text-align:center;background:rgba(10,10,18,.85);border:2px solid #7b61ff;padding:8px 14px;font-size:14px;font-weight:800;color:#ece7d8;max-width:92vw}
 #specTitle{color:#b7a6ff;margin-bottom:6px}
 #specTargets{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:6px}
+#matesList{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:7;background:rgba(10,10,18,.88);border:2px solid #ffd23f;padding:8px 14px;font-size:14px;font-weight:800;color:#ece7d8;max-width:92vw;max-height:50vh;overflow-y:auto}
+#matesTitle{color:#ffd23f;margin-bottom:4px}
+#matesList .mrow{padding:1px 0}
+#matesList .sme{color:#39d353}
+#kickBanner{background:rgba(60,20,10,.92);border:2px solid #ff9f1c;border-radius:8px;padding:8px 12px;font-weight:800;color:#ffd23f;margin:8px 0}

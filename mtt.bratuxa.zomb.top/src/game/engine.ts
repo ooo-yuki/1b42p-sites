@@ -113,6 +113,8 @@ export interface HudState {
   boss: number;
   /** Сглаженный FPS движка. */
   fps: number;
+  /** Текущее качество картинки (авто-сброс при просадке). */
+  quality: Quality;
 }
 
 export interface WeaponDef {
@@ -458,6 +460,10 @@ export class Game {
   private bfsBudget = 3;
   /** Сглаженный FPS для счётчика. */
   private fpsE = 60;
+  /** Кадров подряд с просадкой (авто-сброс качества). */
+  private lowT = 0;
+  /** Счётчик кадров (LOD дальних врагов). */
+  private frame = 0;
   /** Пространственная сетка солидов (ячейка 6м): hitSolid смотрит 3×3 клетки вместо всех стен. */
   private solidGrid = new Map<string, typeof this.solids>();
   private static readonly GRID = 6;
@@ -531,7 +537,7 @@ export class Game {
     this.custom = opts.custom ?? null;
     // Бэкрумс большой: лабиринт ~120м. Размер задаёт сам строитель через halfOverride.
     this.half = map === 'duel' ? 32 : HALF;
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
     this.loadQuality();
     this.loadChar();
     // старый сейв мог держать закрытого бойца — откатываем на МТТ
@@ -3285,6 +3291,7 @@ export class Game {
       dash: Math.round(this.dashCd * 10) / 10,
       kick: Math.round(this.wallKickCd * 10) / 10,
       fps: Math.round(this.fpsE),
+      quality: this.quality,
     });
   }
 
@@ -3353,10 +3360,11 @@ export class Game {
     }
     const last = snaps[n - 1];
     const prev = snaps[n - 2];
-    // слепки кончились (пропуск пульса): тянемся дальше с той же скоростью, не стоим
+    // слепки кончились (пропуск пульса): тянемся дальше с той же скоростью, не стоим.
+    // Прогноз max 0.5с — дальше замираем на последнем слепке, а не улетаем в мусор.
     if (prev && last.t > prev.t) {
       const dt = last.t - prev.t;
-      const extra = Math.min(rt - last.t, 1500) / dt;
+      const extra = Math.min(rt - last.t, 500) / dt;
       return { x: last.x + (last.x - prev.x) * extra, z: last.z + (last.z - prev.z) * extra };
     }
     return { x: last.x, z: last.z };
@@ -3364,13 +3372,19 @@ export class Game {
 
   setRemotes(list: RemotePlayer[]): void {
     const seen = new Set<string>();
-    for (const p of list.slice(0, 8)) {
+    for (const p of list.slice(0, 12)) {
       const nick = String(p.nick ?? '').slice(0, 20) || 'Братуха';
-      seen.add(nick);
+      // ключ строя: fid с сервера (уникален), иначе ник (соло/дуэль)
+      const pfid0 = Math.floor(Number(p.fid));
+      const key = Number.isFinite(pfid0) && pfid0 >= 0 ? 'fid:' + pfid0 : 'nick:' + nick;
+      seen.add(key);
       const char = p.char === 'krysa' ? 'krysa' : 'mtt';
       const weapon = p.weapon === 'bat' || p.weapon === 'axe' || p.weapon === 'pistol' || p.weapon === 'shotgun' ? p.weapon : 'fists';
       let r: Remote | undefined = undefined;
-      for (const q of this.remotes) if (q.nick === nick) { r = q; break; }
+      for (const q of this.remotes) {
+        const qk = q.fid >= 0 ? 'fid:' + q.fid : 'nick:' + q.nick;
+        if (qk === key) { r = q; break; }
+      }
       if (!r) {
         const g = new THREE.Group();
         const body = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.charTexture(char), transparent: true }));
@@ -3398,6 +3412,7 @@ export class Game {
         r.weapon = weapon;
         this.remotes.push(r);
       } else {
+        if (r.nick !== nick) r.nick = nick;
         if (r.char !== char) {
           r.char = char;
           const body = r.g.children[0] as THREE.Sprite;
@@ -3426,7 +3441,8 @@ export class Game {
       this.drawRemote(rr);
     }
     this.remotes = this.remotes.filter((r) => {
-      if (!seen.has(r.nick)) { this.scene.remove(r.g); return false; }
+      const k = r.fid >= 0 ? 'fid:' + r.fid : 'nick:' + r.nick;
+      if (!seen.has(k)) { this.scene.remove(r.g); return false; }
       return true;
     });
   }
@@ -3561,6 +3577,16 @@ export class Game {
     // FPS-метр (сглаживание) + свежий бюджет BFS на кадр
     if (dt > 0.0005) this.fpsE += (1 / dt - this.fpsE) * 0.05;
     this.bfsBudget = 3;
+    this.frame++;
+    // авто-качество: 4с просадки ниже 28 FPS на nice — тихо сбрасываем на fast
+    if (this.started) {
+      if (this.fpsE < 28 && this.quality === 'nice') this.lowT += dt;
+      else this.lowT = 0;
+      if (this.lowT > 4) {
+        this.lowT = 0;
+        this.setQuality('fast');
+      }
+    }
     if (this.started && !this.dead) {
       const km = this.keyMap;
       // поворот стрелками
@@ -3804,6 +3830,8 @@ export class Game {
           }
           this.pushHud();
         } else if (d > 2.1) {
+          // LOD: дальние (>45м) шевелятся через кадр — глаз не заметит, процессор скажет спасибо
+          if (d <= 45 || (this.frame & 1) === 0 || e.god) {
           const eyH = e.kind === 'fly' ? 3.2 : e.ey;
           // пеший местный: виден напрямую — в лоб; за стеной — по вейпоинтам BFS.
           // Летуны и сетевые куклы — старым ходом (небо и слепки не знают стен).
@@ -3856,6 +3884,7 @@ export class Game {
             const gt = this.groundAt(e.g.position.x, e.g.position.z);
             if (e.ey > gt) e.ey += (gt - e.ey) * Math.min(1, dt * 4);
           }
+          } // LOD: дальние двигаются через кадр
         } else if (e.hitCd <= 0 && this.shieldT <= 0) {
           e.hitCd = e.kind === 'boss' ? 1.2 : 0.95;
           // босс бьёт втрое злее

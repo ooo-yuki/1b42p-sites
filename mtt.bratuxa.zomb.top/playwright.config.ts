@@ -9,7 +9,7 @@ export default defineConfig({
     baseURL: 'https://mtt.bratuxa.zomb.top',
     launchOptions: {
       executablePath: '/usr/local/bin/chromium',
-      args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--disable-gpu-sandbox', '--no-sandbox'],
+      args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--disable-gpu-sandbox', '--no-sandbox', '--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding'],
     },
   },
 });
