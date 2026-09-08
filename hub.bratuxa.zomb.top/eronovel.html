@@ -6,8 +6,8 @@
 <title>Без слов — Визуальная новелла</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #0a0a0f; color: #e0d0c0; font-family: 'Segoe UI', sans-serif; height: 100vh; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-#scene { width: 100%; max-width: 900px; aspect-ratio: 16/9; position: relative; overflow: hidden; border-radius: 8px; box-shadow: 0 0 60px rgba(180,80,200,0.2); }
+body { background: #0a0a0f; color: #e0d0c0; font-family: 'Segoe UI', sans-serif; height: 100vh; overflow-x: hidden; }
+#scene { width: 100%; max-width: 900px; aspect-ratio: 16/9; position: relative; overflow: hidden; border-radius: 8px; box-shadow: 0 0 60px rgba(180,80,200,0.2); margin: 20px auto; }
 #bg { width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; }
 #dialogue { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(10,5,20,0.95)); padding: 40px 30px 25px; }
 #speaker { color: #c090e0; font-weight: bold; font-size: 0.9em; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 2px; }
@@ -15,7 +15,7 @@ body { background: #0a0a0f; color: #e0d0c0; font-family: 'Segoe UI', sans-serif;
 #choices { position: absolute; bottom: 80px; left: 30px; right: 30px; display: flex; flex-direction: column; gap: 10px; }
 .choice { background: rgba(150,80,180,0.2); border: 1px solid rgba(180,100,220,0.4); color: #d0b0e0; padding: 12px 20px; border-radius: 6px; cursor: pointer; transition: all 0.2s; text-align: left; font-size: 0.95em; }
 .choice:hover { background: rgba(180,100,220,0.35); border-color: rgba(200,130,255,0.7); transform: translateX(5px); }
-#nav { margin-top: 15px; display: flex; gap: 12px; }
+#nav { margin: 15px auto; display: flex; gap: 12px; justify-content: center; }
 #nav button { background: rgba(140,70,180,0.3); border: 1px solid rgba(180,100,220,0.5); color: #c0a0d0; padding: 8px 22px; border-radius: 5px; cursor: pointer; font-size: 0.9em; transition: all 0.2s; }
 #nav button:hover { background: rgba(170,90,210,0.5); }
 #nsfw-badge { position: absolute; top: 15px; right: 15px; background: rgba(200,50,100,0.8); color: #fff; font-size: 0.7em; padding: 4px 10px; border-radius: 4px; font-weight: bold; letter-spacing: 1px; }
@@ -25,6 +25,17 @@ body { background: #0a0a0f; color: #e0d0c0; font-family: 'Segoe UI', sans-serif;
 #title-screen p { color: #9080a0; font-size: 0.9em; }
 #title-screen button { background: linear-gradient(135deg, #8030b0, #6020a0); border: none; color: #fff; padding: 14px 40px; border-radius: 8px; font-size: 1.1em; cursor: pointer; box-shadow: 0 0 25px rgba(150,50,200,0.5); transition: all 0.2s; }
 #title-screen button:hover { transform: scale(1.05); box-shadow: 0 0 40px rgba(180,80,240,0.7); }
+
+/* ART GALLERY */
+#gallery { max-width: 900px; margin: 30px auto; padding: 0 16px 60px; }
+#gallery h2 { color: #c090e0; text-align: center; font-size: 1.6em; margin-bottom: 24px; letter-spacing: 3px; text-shadow: 0 0 20px rgba(180,80,220,0.5); }
+.art-block { margin-bottom: 50px; scroll-margin-top: 20px; }
+.art-block h3 { color: #a070c0; font-size: 1.1em; margin-bottom: 14px; letter-spacing: 1px; }
+.art-block svg { width: 100%; border-radius: 12px; border: 1px solid rgba(180,100,220,0.3); box-shadow: 0 0 40px rgba(180,80,200,0.15); }
+
+/* back button */
+#back-btn { display: block; margin: 0 auto 20px; background: rgba(140,70,180,0.3); border: 1px solid rgba(180,100,220,0.5); color: #c0a0d0; padding: 8px 22px; border-radius: 5px; cursor: pointer; font-size: 0.9em; text-align: center; text-decoration: none; width: fit-content; }
+#back-btn:hover { background: rgba(170,90,210,0.5); }
 </style>
 </head>
 <body>
@@ -50,98 +61,157 @@ body { background: #0a0a0f; color: #e0d0c0; font-family: 'Segoe UI', sans-serif;
 <div id="nav" class="hidden">
   <button onclick="saveGame()">💾</button>
   <button onclick="loadGame()">📂</button>
+  <button onclick="showGallery()">🎨 Арты</button>
+</div>
+
+<!-- ART GALLERY -->
+<div id="gallery" class="hidden">
+  <a id="back-btn" href="#" onclick="hideGallery();return false">← Назад к игре</a>
+
+  <h2>🎨 АРТЫ 18+</h2>
+
+  <div class="art-block" id="art1">
+    <h3>Картина I — «Свет фонаря»</h3>
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="glow1" cx="50%" cy="40%" r="60%">
+          <stop offset="0%" stop-color="#d090f0" stop-opacity="0.5"/>
+          <stop offset="100%" stop-color="#0a0a0f" stop-opacity="1"/>
+        </radialGradient>
+        <radialGradient id="skin1" cx="50%" cy="30%" r="70%">
+          <stop offset="0%" stop-color="#e8c8b0"/>
+          <stop offset="100%" stop-color="#c09080"/>
+        </radialGradient>
+        <filter id="blur1"><feGaussianBlur stdDeviation="3"/></filter>
+      </defs>
+      <!-- bg -->
+      <rect width="800" height="500" fill="url(#glow1)"/>
+      <!-- window light cone -->
+      <polygon points="500,0 650,500 350,500" fill="#ffd080" opacity="0.07"/>
+      <!-- silhouette body — girl lying -->
+      <ellipse cx="400" cy="420" rx="220" ry="60" fill="#1a0a2e" opacity="0.8"/>
+      <!-- torso curve -->
+      <path d="M 280 350 Q 340 280 400 260 Q 460 280 520 350 Q 460 420 400 440 Q 340 420 280 350Z" fill="url(#skin1)" opacity="0.9"/>
+      <!-- breasts -->
+      <ellipse cx="370" cy="300" rx="45" ry="38" fill="#d8a898" opacity="0.85"/>
+      <ellipse cx="430" cy="300" rx="45" ry="38" fill="#d8a898" opacity="0.85"/>
+      <!-- nipples -->
+      <circle cx="370" cy="300" r="6" fill="#c08070" opacity="0.7"/>
+      <circle cx="430" cy="300" r="6" fill="#c08070" opacity="0.7"/>
+      <!-- neck -->
+      <rect x="385" y="230" width="30" height="40" rx="12" fill="url(#skin1)"/>
+      <!-- head -->
+      <ellipse cx="400" cy="200" rx="55" ry="65" fill="url(#skin1)"/>
+      <!-- hair dark flowing -->
+      <path d="M 345 190 Q 320 150 360 130 Q 400 110 440 130 Q 480 150 455 190 Q 440 170 400 168 Q 360 170 345 190Z" fill="#1a0a0a"/>
+      <path d="M 340 200 Q 310 240 300 300 Q 330 260 350 220Z" fill="#1a0a0a" opacity="0.9"/>
+      <path d="M 460 200 Q 490 240 500 300 Q 470 260 450 220Z" fill="#1a0a0a" opacity="0.9"/>
+      <!-- face eyes closed -->
+      <path d="M 375 198 Q 388 204 401 198" stroke="#8a5060" stroke-width="2" fill="none" opacity="0.7"/>
+      <path d="M 415 198 Q 428 204 441 198" stroke="#8a5060" stroke-width="2" fill="none" opacity="0.7"/>
+      <!-- lips -->
+      <ellipse cx="400" cy="222" rx="18" ry="9" fill="#c87888" opacity="0.8"/>
+      <ellipse cx="400" cy="218" rx="15" ry="5" fill="#d88898" opacity="0.5"/>
+      <!-- arm left reaching -->
+      <path d="M 280 350 Q 250 300 260 250 Q 270 220 290 210" stroke="url(#skin1)" stroke-width="28" stroke-linecap="round" fill="none" opacity="0.9"/>
+      <!-- hand left -->
+      <circle cx="290" cy="208" r="16" fill="url(#skin1)" opacity="0.9"/>
+      <!-- man's silhouette in shadow right -->
+      <ellipse cx="580" cy="440" rx="80" ry="40" fill="#0a0510" opacity="0.9"/>
+      <path d="M 520 380 Q 540 300 570 280 Q 600 300 620 380 Q 600 440 570 460 Q 540 440 520 380Z" fill="#0a0510" opacity="0.95"/>
+      <!-- arm reaching from shadow -->
+      <path d="M 540 320 Q 500 300 460 290 Q 420 285 390 290" stroke="#c8a090" stroke-width="20" stroke-linecap="round" fill="none" opacity="0.8"/>
+      <!-- hand touching -->
+      <circle cx="388" cy="290" r="14" fill="#d0b0a0" opacity="0.85"/>
+      <!-- fingers -->
+      <line x1="378" y1="282" x2="370" y2="272" stroke="#c0a090" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
+      <line x1="388" y1="278" x2="384" y2="265" stroke="#c0a090" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
+      <line x1="398" y1="280" x2="400" y2="268" stroke="#c0a090" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
+      <!-- blanket draped over hip -->
+      <path d="M 280 380 Q 340 360 400 355 Q 460 360 520 380 L 510 460 Q 400 470 290 460Z" fill="#2a1040" opacity="0.7"/>
+      <!-- light rays from window -->
+      <line x1="550" y1="0" x2="400" y2="300" stroke="#ffd090" stroke-width="1" opacity="0.12"/>
+      <line x1="580" y1="0" x2="400" y2="300" stroke="#ffd090" stroke-width="1" opacity="0.1"/>
+      <line x1="520" y1="0" x2="400" y2="300" stroke="#ffd090" stroke-width="1" opacity="0.08"/>
+      <!-- 18+ badge -->
+      <rect x="14" y="14" width="44" height="22" rx="4" fill="#c03070" opacity="0.9"/>
+      <text x="36" y="30" font-family="Arial" font-size="12" font-weight="bold" fill="#fff" text-anchor="middle">18+</text>
+    </svg>
+  </div>
+
+  <div class="art-block" id="art2">
+    <h3>Картина II — «Только запах»</h3>
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="glow2" cx="50%" cy="50%" r="60%">
+          <stop offset="0%" stop-color="#2a1a3e" stop-opacity="1"/>
+          <stop offset="100%" stop-color="#050308" stop-opacity="1"/>
+        </radialGradient>
+        <radialGradient id="skin2" cx="50%" cy="30%" r="70%">
+          <stop offset="0%" stop-color="#e0c0b0"/>
+          <stop offset="100%" stop-color="#b08070"/>
+        </radialGradient>
+      </defs>
+      <!-- bg dark purple -->
+      <rect width="800" height="500" fill="url(#glow2)"/>
+      <!-- subtle fog layers -->
+      <ellipse cx="200" cy="400" rx="300" ry="100" fill="#1a0a2e" opacity="0.3" filter="url(#blur1)"/>
+      <ellipse cx="600" cy="420" rx="250" ry="80" fill="#0a0515" opacity="0.4" filter="url(#blur1)"/>
+      <!-- bed shadow -->
+      <rect x="100" y="350" width="600" height="120" rx="20" fill="#0d0818"/>
+      <!-- pillow -->
+      <ellipse cx="350" cy="340" rx="140" ry="60" fill="#1a1028"/>
+      <ellipse cx="350" cy="330" rx="120" ry="45" fill="#2a1840" opacity="0.6"/>
+      <!-- girl's head on pillow, back view, hair spread -->
+      <ellipse cx="350" cy="310" rx="65" ry="60" fill="url(#skin2)"/>
+      <!-- hair spread on pillow -->
+      <path d="M 285 310 Q 200 280 160 320 Q 140 360 180 400 Q 240 380 285 340Z" fill="#1a0a0a" opacity="0.95"/>
+      <path d="M 415 310 Q 500 280 540 320 Q 560 360 520 400 Q 460 380 415 340Z" fill="#1a0a0a" opacity="0.95"/>
+      <path d="M 285 310 Q 260 340 270 380 Q 300 360 300 320Z" fill="#1a0a0a" opacity="0.9"/>
+      <path d="M 415 310 Q 440 340 430 380 Q 400 360 400 320Z" fill="#1a0a0a" opacity="0.9"/>
+      <!-- shoulder / back -->
+      <path d="M 260 340 Q 220 380 210 440 Q 240 420 260 380Z" fill="url(#skin2)" opacity="0.8"/>
+      <path d="M 440 340 Q 480 380 490 440 Q 460 420 440 380Z" fill="url(#skin2)" opacity="0.8"/>
+      <!-- spine curve hint -->
+      <path d="M 350 360 Q 345 400 350 440" stroke="#a07060" stroke-width="2" fill="none" opacity="0.3"/>
+      <!-- blanket up to waist -->
+      <path d="M 100 440 Q 200 420 350 415 Q 500 420 600 440 L 600 500 L 100 500Z" fill="#18082a"/>
+      <!-- note on pillow — «下次见» -->
+      <rect x="420" y="295" width="70" height="35" rx="4" fill="#e8d8a0" opacity="0.9" transform="rotate(-8,455,312)"/>
+      <text x="455" y="318" font-family="serif" font-size="14" fill="#3a2060" text-anchor="middle" transform="rotate(-8,455,312)" opacity="0.8">下次见</text>
+      <!-- scent lines / fog wisps rising -->
+      <path d="M 300 300 Q 290 270 300 240 Q 310 210 300 180" stroke="#a080c0" stroke-width="1.5" fill="none" opacity="0.25"/>
+      <path d="M 320 295 Q 315 260 325 230" stroke="#a080c0" stroke-width="1" fill="none" opacity="0.2"/>
+      <path d="M 380 295 Q 385 260 375 230" stroke="#a080c0" stroke-width="1" fill="none" opacity="0.2"/>
+      <path d="M 400 300 Q 410 270 400 240" stroke="#a080c0" stroke-width="1.5" fill="none" opacity="0.25"/>
+      <!-- faint window light right -->
+      <rect x="620" y="50" width="180" height="250" rx="4" fill="none" stroke="#ffd080" stroke-width="0.5" opacity="0.15"/>
+      <line x1="620" y1="50" x2="620" y2="300" stroke="#ffd080" stroke-width="0.5" opacity="0.1"/>
+      <line x1="710" y1="50" x2="710" y2="300" stroke="#ffd080" stroke-width="0.5" opacity="0.1"/>
+      <line x1="620" y1="120" x2="800" y2="120" stroke="#ffd080" stroke-width="0.5" opacity="0.08"/>
+      <line x1="620" y1="190" x2="800" y2="190" stroke="#ffd080" stroke-width="0.5" opacity="0.08"/>
+      <rect x="620" y="50" width="180" height="250" rx="4" fill="#ffd080" opacity="0.03"/>
+      <!-- morning glow on horizon -->
+      <rect x="0" y="0" width="800" height="30" fill="#c090e0" opacity="0.06"/>
+      <!-- 18+ badge -->
+      <rect x="14" y="14" width="44" height="22" rx="4" fill="#c03070" opacity="0.9"/>
+      <text x="36" y="30" font-family="Arial" font-size="12" font-weight="bold" fill="#fff" text-anchor="middle">18+</text>
+    </svg>
+  </div>
 </div>
 
 <script>
 const scenes = [
-  {
-    bg: "https://i.pinimg.com/736x/2a/1a/3e/2a1a3e4f7e2d4c8b3a9f8e7d6c5b4a3.jpg",
-    speaker: "",
-    text: "Ничего не было. Потом — что-то.",
-    choices: [
-      { text: "Открыть глаза", next: 1 },
-      { text: "Остаться в темноте", next: 2 }
-    ]
-  },
-  {
-    bg: "https://i.pinimg.com/736x/5c/3b/8a/5c3b8a1f9e2d4c8b3a9f8e7d6c5b4a3.jpg",
-    speaker: "",
-    text: "Комната. Свет фонаря за окном. Кто-то рядом.",
-    choices: [
-      { text: "Шепнуть: «Ты кто?»", next: 3 },
-      { text: "Молчать и слушать", next: 4 }
-    ]
-  },
-  {
-    bg: "",
-    speaker: "",
-    text: "Темнота обнимает. Дыхание замедляется. Сны приходят без слов.",
-    choices: [
-      { text: "Проснуться", next: 1 }
-    ]
-  },
-  {
-    bg: "https://i.pinimg.com/736x/8d/4c/9b/8d4c9b1f9e2d4c8b3a9f8e7d6c5b4a3.jpg",
-    speaker: "Незнакомка",
-    text: "Я — та, кого ты искал. Или та, кто нашёл тебя.",
-    choices: [
-      { text: "Протянуть руку", next: 5 },
-      { text: "Отодвинуться", next: 6 }
-    ]
-  },
-  {
-    bg: "https://i.pinimg.com/736x/7e/5d/0a/7e5d0a1f9e2d4c8b3a9f8e7d6c5b4a3.jpg",
-    speaker: "",
-    text: "Шаги. Скрип кровати. Запах — чего-то цветочного, но с горечью.",
-    choices: [
-      { text: "Приоткрыть глаза", next: 3 }
-    ]
-  },
-  {
-    bg: "https://i.pinimg.com/736x/9a/6e/1b/9a6e1b1f9e2d4c8b3a9f8e7d6c5b4a3.jpg",
-    speaker: "Незнакомка",
-    text: "Хороший выбор. Я люблю смелых.",
-    nsfw: true,
-    choices: [
-      { text: "Целовать", next: 7 },
-      { text: "Остановиться", next: 8 }
-    ]
-  },
-  {
-    bg: "https://i.pinimg.com/736x/6b/4f/2c/6b4f2c1f9e2d4c8b3a9f8e7d6c5b4a3.jpg",
-    speaker: "Незнакомка",
-    text: "Тогда я подожду. У меня много времени.",
-    choices: [
-      { text: "Передумать", next: 5 },
-      { text: "Встать и уйти", next: 9 }
-    ]
-  },
-  {
-    bg: "https://i.pinimg.com/736x/0c/7a/3d/0c7a3d1f9e2d4c8b3a9f8e7d6c5b4a3.jpg",
-    speaker: "",
-    text: "Всё, что было после — остаётся только между вами двумя. Без слов. Без свидетелей.",
-    nsfw: true,
-    choices: [
-      { text: "Конец", next: -1 }
-    ]
-  },
-  {
-    bg: "https://i.pinimg.com/736x/3d/8b/4e/3d8b4e1f9e2d4c8b3a9f8e7d6c5b4a3.jpg",
-    speaker: "",
-    text: "Утро. Она исчезла. На подушке — только запах и записка: «下次见».",
-    choices: [
-      { text: "Конец", next: -1 }
-    ]
-  },
-  {
-    bg: "https://i.pinimg.com/736x/1e/9c/5f/1e9c5f1f9e2d4c8b3a9f8e7d6c5b4a3.jpg",
-    speaker: "",
-    text: "Коридор. Дверь. Свет. Ты вышел — но что-то осталось внутри.",
-    choices: [
-      { text: "Оглянуться", next: 3 },
-      { text: "Конец", next: -1 }
-    ]
-  }
+  { bg: "https://i.pinimg.com/736x/2a/1a/3e/2a1a3e4f7e2d4c8b3a9f8e7d6c5b4a3.jpg", speaker: "", text: "Ничего не было. Потом — что-то.", choices: [{ text: "Открыть глаза", next: 1 }, { text: "Остаться в темноте", next: 2 }] },
+  { bg: "https://i.pinimg.com/736x/5c/3b/8a/5c3b8a1f9e2d4c8b3a9f8e7d6c5b4a3.jpg", speaker: "", text: "Комната. Свет фонаря за окном. Кто-то рядом.", choices: [{ text: "Шепнуть: «Ты кто?»", next: 3 }, { text: "Молчать и слушать", next: 4 }] },
+  { bg: "", speaker: "", text: "Темнота обнимает. Дыхание замедляется. Сны приходят без слов.", choices: [{ text: "Проснуться", next: 1 }] },
+  { bg: "https://i.pinimg.com/736x/8d/4c/9b/8d4c9b1f9e2d4c8b3a9f8e7d6c5b4a3.jpg", speaker: "Незнакомка", text: "Я — та, кого ты искал. Или та, кто нашёл тебя.", choices: [{ text: "Протянуть руку", next: 5 }, { text: "Отодвинуться", next: 6 }] },
+  { bg: "https://i.pinimg.com/736x/7e/5d/0a/7e5d0a1f9e2d4c8b3a9f8e7d6c5b4a3.jpg", speaker: "", text: "Шаги. Скрип кровати. Запах — чего-то цветочного, но с горечью.", choices: [{ text: "Приоткрыть глаза", next: 3 }] },
+  { bg: "https://i.pinimg.com/736x/9a/6e/1b/9a6e1b1f9e2d4c8b3a9f8e7d6c5b4a3.jpg", speaker: "Незнакомка", text: "Хороший выбор. Я люблю смелых.", nsfw: true, choices: [{ text: "Целовать", next: 7 }, { text: "Остановиться", next: 8 }] },
+  { bg: "https://i.pinimg.com/736x/6b/4f/2c/6b4f2c1f9e2d4c8b3a9f8e7d6c5b4a3.jpg", speaker: "Незнакомка", text: "Тогда я подожду. У меня много времени.", choices: [{ text: "Передумать", next: 5 }, { text: "Встать и уйти", next: 9 }] },
+  { bg: "https://i.pinimg.com/736x/0c/7a/3d/0c7a3d1f9e2d4c8b3a9f8e7d6c5b4a3.jpg", speaker: "", text: "Всё, что было после — остаётся только между вами двумя. Без слов. Без свидетелей.", nsfw: true, choices: [{ text: "Конец", next: -1 }] },
+  { bg: "https://i.pinimg.com/736x/3d/8b/4e/3d8b4e1f9e2d4c8b3a9f8e7d6c5b4a3.jpg", speaker: "", text: "Утро. Она исчезла. На подушке — только запах и записка: «下次见».", choices: [{ text: "Конец", next: -1 }] },
+  { bg: "https://i.pinimg.com/736x/1e/9c/5f/1e9c5f1f9e2d4c8b3a9f8e7d6c5b4a3.jpg", speaker: "", text: "Коридор. Дверь. Свет. Ты вышел — но что-то осталось внутри.", choices: [{ text: "Оглянуться", next: 3 }, { text: "Конец", next: -1 }] }
 ];
 
 let current = 0;
@@ -153,21 +223,15 @@ function startGame() {
 }
 
 function showScene(idx) {
-  if (idx < 0) {
-    location.reload();
-    return;
-  }
+  if (idx < 0) { location.reload(); return; }
   current = idx;
   const s = scenes[idx];
-
   document.getElementById('bg').src = s.bg || 'https://i.pinimg.com/736x/0a/1a/2e/0a1a2e1f9e2d4c8b3a9f8e7d6c5b4a3.jpg';
   document.getElementById('bg').classList.remove('hidden');
   document.getElementById('dialogue').classList.remove('hidden');
   document.getElementById('nsfw-badge').classList.toggle('hidden', !s.nsfw);
-
   document.getElementById('speaker').textContent = s.speaker || '';
   document.getElementById('text').textContent = s.text;
-
   const choicesEl = document.getElementById('choices');
   choicesEl.classList.remove('hidden');
   choicesEl.innerHTML = '';
@@ -180,24 +244,21 @@ function showScene(idx) {
   });
 }
 
-function typeText(el, text, cb) {
-  el.textContent = '';
-  let i = 0;
-  const interval = setInterval(() => {
-    el.textContent += text[i];
-    i++;
-    if (i >= text.length) { clearInterval(interval); cb && cb(); }
-  }, 30);
+function showGallery() {
+  document.getElementById('scene').classList.add('hidden');
+  document.getElementById('nav').classList.add('hidden');
+  document.getElementById('gallery').classList.remove('hidden');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function saveGame() {
-  localStorage.setItem('eronel_save', current);
-  alert('💾 Сохранено');
+function hideGallery() {
+  document.getElementById('gallery').classList.add('hidden');
+  document.getElementById('scene').classList.remove('hidden');
+  document.getElementById('nav').classList.remove('hidden');
 }
-function loadGame() {
-  const s = localStorage.getItem('eronel_save');
-  if (s !== null) showScene(parseInt(s));
-}
+
+function saveGame() { localStorage.setItem('eronel_save', current); alert('💾 Сохранено'); }
+function loadGame() { const s = localStorage.getItem('eronel_save'); if (s !== null) showScene(parseInt(s)); }
 </script>
 </body>
 </html>
