@@ -99,6 +99,20 @@ describe('wallets', () => {
   });
 });
 
+describe('scores', () => {
+  test('топ держит лучший результат', async () => {
+    const b = await fresh();
+    const r = await b.register('Тест-Топ', 'п');
+    if (!r.ok) throw new Error('register failed');
+    const uid = r.uid;
+    await (b as unknown as { submitScore: (uid: number, game: string, pts: number, season: string) => Promise<void> }).submitScore(uid, 'defense', 100, '2026-W37');
+    await (b as unknown as { submitScore: (uid: number, game: string, pts: number, season: string) => Promise<void> }).submitScore(uid, 'defense', 60, '2026-W37');
+    const top = await (b as unknown as { top: (game: string, season: string, limit: number) => Promise<{ pts: number }[]> }).top('defense', '2026-W37', 10);
+    if (top[0]?.pts !== 100) throw new Error('top must keep best');
+    await closePgBank(b);
+  });
+});
+
 describe('podval league', () => {
   test('таблица сезона — по убыванию очков, лимит режет, лучший результат хранится', async () => {
     const b = await fresh();

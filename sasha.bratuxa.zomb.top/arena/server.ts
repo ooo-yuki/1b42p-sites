@@ -1324,6 +1324,24 @@ const server = import.meta.main ? Bun.serve({
     if (u.pathname === '/api/bank/leaders' && req.method === 'GET') {
       return Response.json({ ok: true, leaders: await bank.leaders(20) });
     }
+    if (u.pathname === '/api/score/submit' && req.method === 'POST') {
+      const me = await bank.verify(tokenOf(req));
+      if (!me) return Response.json({ ok: false, error: 'Войди в кассу' }, { status: 401 });
+      const body = await req.json().catch(() => ({})) as { game?: string; pts?: number; season?: string };
+      const game = String(body.game ?? 'podval').slice(0, 24);
+      const pts = Math.trunc(Number(body.pts));
+      const season = String(body.season ?? 'all');
+      if (!Number.isInteger(pts) || pts < 0 || pts > 99999999) {
+        return Response.json({ ok: false, error: 'Очки: целое 0..99999999' }, { status: 400 });
+      }
+      await bank.submitScore(me.uid, game, pts, season);
+      return Response.json({ ok: true });
+    }
+    if (u.pathname === '/api/score/top' && req.method === 'GET') {
+      const game = (u.searchParams.get('game') ?? 'podval').slice(0, 24);
+      const season = u.searchParams.get('season') ?? 'all';
+      return Response.json({ ok: true, top: await bank.top(game, season, 20) });
+    }
     if (u.pathname === '/api/podval/submit' && req.method === 'POST') {
       const me = await bank.verify(tokenOf(req));
       if (!me) return Response.json({ ok: false, error: 'Войди в кассу' }, { status: 401 });
@@ -1336,6 +1354,7 @@ const server = import.meta.main ? Bun.serve({
       if (!/^\d{4}-W\d{2}$/.test(season)) {
         return Response.json({ ok: false, error: 'Сезон: YYYY-Www' }, { status: 400 });
       }
+      await bank.submitScore(me.uid, 'podval', pts, season);
       await bank.podvalSubmit(me.nick, pts, season);
       return Response.json({ ok: true });
     }
@@ -1344,7 +1363,7 @@ const server = import.meta.main ? Bun.serve({
       if (!/^\d{4}-W\d{2}$/.test(season)) {
         return Response.json({ ok: false, error: 'Сезон: YYYY-Www' }, { status: 400 });
       }
-      return Response.json({ ok: true, league: await bank.podvalTop(season, 20) });
+      return Response.json({ ok: true, league: await bank.top('podval', season, 20) });
     }
     return new Response('arena42', { status: 404 });
   },
