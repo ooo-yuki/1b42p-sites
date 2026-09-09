@@ -7,6 +7,7 @@ import {
 import { TEX, DefenseTex, pixToDataUri, type TexName } from './defense/textures';
 import { readBest, writeBest, type Best } from './defense/save';
 import GameTop from './lib/GameTop';
+import AccountBar from './lib/AccountBar';
 
 /* Оборона штаба 42: canvas tower-defense на 10 волн.
    Вьюха только рисует и шлёт команды движку; симуляция — engine.ts. */
@@ -348,6 +349,7 @@ export default function Defense(): JSX.Element {
   return (
     <main id="df-col">
       <p className="kicker">Саша ⁴² — <b>оборона штаба</b></p>
+      <AccountBar />
       <div id="df-hud">
         <div className="pill ghost"><Waves data-icon="inline-start" /> {waveTitle}</div>
         <div className={`pill ${g.lives <= 3 ? 'solid risk' : 'ghost'}`}><Heart data-icon="inline-start" /> {g.lives}</div>

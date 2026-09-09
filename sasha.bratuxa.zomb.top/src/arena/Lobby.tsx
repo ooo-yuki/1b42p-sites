@@ -5,6 +5,7 @@ import { arenaClick } from './sound';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import AccountBar from '../lib/AccountBar';
 import type { GameDef, PoolView } from './proto';
 
 /* Центр клуба: выбор игры голосами, поиск, пул, ожидание, доп-лобби. */
@@ -76,6 +77,7 @@ export default function Lobby({ me, online, pool, games, searching, busy, myVote
         <span className="tk-label">в клубе сейчас</span>
         <b className="tk-num tnum">{online === null ? '…' : online}</b>
       </div>
+      <AccountBar />
 
       <ToggleGroup type="single" value={myVote}
         onValueChange={v => { arenaClick(); onVoteGame(v === '' ? 'any' : v); }}

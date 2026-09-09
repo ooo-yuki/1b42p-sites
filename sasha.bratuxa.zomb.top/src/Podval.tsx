@@ -16,6 +16,8 @@ import {
 } from './podval/formulas';
 import { divisionOf, fetchLeague, leaguePts, seasonId, submitScore } from './podval/league';
 import './lib/gametop.css';
+import { loadToken } from './lib/auth';
+import AccountBar from './lib/AccountBar';
 import { SAVE_KEY, freshSave, loadSave, type Save } from './podval/save';
 
 /* Нейросеть в подвале: айдл-стратегия Саши ⁴².
@@ -65,7 +67,6 @@ function tickNumbers(p: Save, evm: number, anomaly: string, rnd: () => number = 
   return { inc, hall, dsRate };
 }
 
-const TOKEN_KEY = 'sasha_casino_token';
 const leagueFetch = (u: string, i?: Record<string, unknown>) =>
   fetch(u, i as RequestInit) as unknown as Promise<{ ok: boolean; json: () => Promise<unknown> }>;
 
@@ -372,7 +373,7 @@ export default function Podval(): JSX.Element {
   const loadLeague = async () => {
     setLeague(await fetchLeague(leagueFetch));
     try {
-      const t = localStorage.getItem(TOKEN_KEY);
+      const t = loadToken();
       if (t) {
         const me = (await (await fetch('/api/bank/me', {
           headers: { Authorization: `Bearer ${t}` },
@@ -383,7 +384,7 @@ export default function Podval(): JSX.Element {
   };
   const submitPts = async () => {
     try {
-      const t = localStorage.getItem(TOKEN_KEY);
+      const t = loadToken();
       if (!t) { setLeagueMsg('Войди в кассу казино — без ника в лигу не берут.'); return; }
       const pts = leaguePts({ coins: sRef.current.coins, cycles: sRef.current.cycles, hybrids: sRef.current.hybrids.length });
       const ok = await submitScore(leagueFetch, t, pts);
@@ -440,6 +441,7 @@ export default function Podval(): JSX.Element {
             Старая видеокарта гудит, соседи стучат по батарее. Размечай датасеты, качай железо
             и вырасти LLM с {MODEL_LEVELS[0].ver} до {MODEL_LEVELS[MODEL_LEVELS.length - 1].ver}.
           </p>
+          <AccountBar />
           <ToggleGroup type="single" value={tab} onValueChange={(v) => { if (v) setTab(v); }} aria-label="Разделы подвала">
             <ToggleGroupItem value="podval">Подвал</ToggleGroupItem>
             <ToggleGroupItem value="iron">Железо</ToggleGroupItem>

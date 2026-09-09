@@ -1,0 +1,10 @@
+/* Счёт Саши: одна строка на всех страницах. Токены DESIGN.md. */
+.accbar{
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  background:#0d1428; border:1px solid rgba(255,255,255,.12); border-radius:16px;
+  padding:10px 14px; font-family:"Segoe UI",system-ui,sans-serif;
+  font-size:.9rem; line-height:1.55; color:#fff;
+}
+.acc-nick{font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:40vw}
+.accbar .acc-input{max-width:150px; flex:1 1 120px}
+.acc-err{flex-basis:100%; margin:0; color:#ff8a8a; font-size:13px}

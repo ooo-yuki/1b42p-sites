@@ -11,6 +11,7 @@ import { loadSave, storeSave } from './fabrika/save';
 import type { ShowSummary } from './fabrika/show';
 import { blip } from './fabrika/audio';
 import GameTop from './lib/GameTop';
+import AccountBar from './lib/AccountBar';
 
 const REDUCED =
   typeof window !== 'undefined' &&
@@ -165,6 +166,7 @@ export default function Fabrika(): JSX.Element {
     <>
       <Masthead h={save.h} f={save.f} fans={fans(save.total)} seasons={save.seasons} />
       <GameTop game="fabrika" />
+      <AccountBar />
       <div id="tabs" role="tablist" aria-label="Сцены фабрики">
         <div data-slot="tabs-list">
           {TABS.map((t) => {
