@@ -8,11 +8,13 @@ import {
   Brain, Bug, Coins, Cpu, Database, House, Lock, MousePointerClick, Server, Thermometer, Trophy, Zap,
 } from 'lucide-react';
 import {
-  AUTOBUYER_COST, BRED, FARM_MAX, HARDWARE, MODEL_LEVELS, PRESTIGE_GATES, PRESTIGE_HARDWARE,
-  PUG_FARM_RATE, REFLASH_COST, REFLASH_EVENT_CD_MUL, REFLASH_INCOME_MUL, OVERCLOCK_HALL_PLUS,
-  OVERCLOCK_RATE_MUL, VULN_PAYOUT, clickGain, coreMult, eventPick, farmCost, hardwareCost, hardwareRate,
-  hallucination, incomePerSec, isVictory, prestigeCost, prestigeRate, trainCost, type GameEvent,
+  AUTOBUYER_COST, ANOMALIES, BRED, FARM_MAX, HARDWARE, HYBRIDS, MODEL_LEVELS, MARKET_PULSE, NODES,
+  PRESTIGE_GATES, PRESTIGE_HARDWARE, PUG_FARM_RATE, RAIDS, REFLASH_COST, REFLASH_EVENT_CD_MUL,
+  REFLASH_INCOME_MUL, OVERCLOCK_HALL_PLUS, OVERCLOCK_RATE_MUL, VULN_PAYOUT, anomalyOf, clickGain,
+  coreMult, eventPick, farmCost, hardwareCost, hardwareRate, hallucination, hybridCost, incomePerSec,
+  isVictory, marketStep, nodeIncome, prestigeCost, prestigeRate, raidShare, trainCost, type GameEvent,
 } from './podval/formulas';
+import { divisionOf, fetchLeague, leaguePts, seasonId, submitScore } from './podval/league';
 import { SAVE_KEY, freshSave, loadSave, type Save } from './podval/save';
 
 /* Нейросеть в подвале: айдл-стратегия Саши ⁴².
@@ -27,6 +29,44 @@ function readStored(): Save {
 }
 
 const fmt = (n: number) => Math.floor(n).toLocaleString('ru-RU');
+
+const HYBRID_IDS = ['chatter', 'apprentice', 'diver', 'guard', 'heir'];
+
+function effHybrid(p: Save, rnd: () => number = Math.random): string {
+  if (p.hybrid === 'jester' && p.hybrids.includes('jester')) {
+    return HYBRID_IDS[Math.floor(rnd() * HYBRID_IDS.length)];
+  }
+  return p.hybrid;
+}
+
+/** Вся числовая сборка одного места: доход монет/с, датасеты/с систем, эффективные галлюцинации. */
+function tickNumbers(p: Save, evm: number, anomaly: string, rnd: () => number = Math.random): { inc: number; hall: number; dsRate: number } {
+  const m = Math.min(p.model, MODEL_LEVELS.length - 1);
+  const oc = p.oc && p.cycles >= PRESTIGE_GATES.overclock;
+  const rf = p.rf && p.cycles >= PRESTIGE_GATES.reflash;
+  const hy = effHybrid(p, rnd);
+  const coolingEff = anomaly === 'heat' ? Math.floor(p.cooling / 2) : p.cooling;
+  const hall = Math.max(2, hallucination(m, coolingEff) + (oc ? OVERCLOCK_HALL_PLUS : 0) - (hy === 'guard' ? 10 : 0));
+  const vulnBase = (VULN_PAYOUT[Math.min(p.vuln, 3)] ?? 0) / 10;
+  const vuln = vulnBase * (hy === 'diver' ? 2 : 1) * (anomaly === 'audit' ? 3 : 1);
+  let inc = (MODEL_LEVELS[m].codeRate * (hy === 'apprentice' ? 1.25 : 1) + vuln)
+    * (1 - (hall / 100) * 0.75) * coreMult(p.cycles)
+    * (oc ? OVERCLOCK_RATE_MUL : 1) * (rf ? REFLASH_INCOME_MUL : 1) * evm
+    * (hy === 'heir' ? 1.3 : 1);
+  let dsRate = (anomaly === 'quiet' ? 0 : hardwareRate(p.hardware))
+    + (p.cycles >= PRESTIGE_GATES.quantum && anomaly !== 'quiet' ? prestigeRate(p.phw) : 0)
+    + (p.cycles >= PRESTIGE_GATES.farm ? p.farm * PUG_FARM_RATE * (anomaly === 'pugriot' ? 3 : 1) : 0)
+    + p.nodes.reduce((sum, id) => sum + nodeIncome(id, p.nodes) * (anomaly === 'cables' ? 2 : 1), 0)
+    + (m >= 1 ? clickGain(p.cursor) : 0) + (hy === 'chatter' ? 1 : 0);
+  if (anomaly === 'heat') inc *= 1.3;
+  if (anomaly === 'pugriot') { inc *= 0.9; dsRate *= 0.9; }
+  if (anomaly === 'day42') { inc *= 1.42; dsRate *= 1.42; }
+  return { inc, hall, dsRate };
+}
+
+const TOKEN_KEY = 'sasha_casino_token';
+const leagueFetch = (u: string, i?: Record<string, unknown>) =>
+  fetch(u, i as RequestInit) as unknown as Promise<{ ok: boolean; json: () => Promise<unknown> }>;
 
 export default function Podval(): JSX.Element {
   const cvRef = useRef<HTMLCanvasElement | null>(null);
@@ -43,35 +83,63 @@ export default function Podval(): JSX.Element {
   const activeRef = useRef<ActiveEvent | null>(null);
   activeRef.current = active;
   const [now, setNow] = useState(() => Date.now());
+  type Pulse = { id: string; mul: number; until: number };
+  const [pulse, setPulse] = useState<Pulse | null>(null);
+  const pulseRef = useRef<Pulse | null>(null);
+  pulseRef.current = pulse;
+  const [insiderLeft, setInsiderLeft] = useState(0);
+  const insiderRef = useRef(0);
+  insiderRef.current = insiderLeft;
+  const [spikeUntil, setSpikeUntil] = useState(0);
+  const spikeRef = useRef(0);
+  spikeRef.current = spikeUntil;
+  const tradeRef = useRef({ trades: 0, dump: 0 });
+  const raidWindowRef = useRef(-1);
+  const [league, setLeague] = useState<{ nick: string; pts: number }[]>([]);
+  const [myNick, setMyNick] = useState('');
+  const [leagueMsg, setLeagueMsg] = useState('');
 
   const ml = Math.min(s.model, MODEL_LEVELS.length - 1);
   const ocOn = s.oc && s.cycles >= PRESTIGE_GATES.overclock;
   const rfOn = s.rf && s.cycles >= PRESTIGE_GATES.reflash;
-  const hall = hallucination(ml, s.cooling) + (ocOn ? OVERCLOCK_HALL_PLUS : 0);
-  const rate = hardwareRate(s.hardware)
-    + (s.cycles >= PRESTIGE_GATES.quantum ? prestigeRate(s.phw) : 0)
-    + (s.cycles >= PRESTIGE_GATES.farm ? s.farm * PUG_FARM_RATE : 0);
   const evIncomeMul = active && active.until > now ? active.ev.incomeMul : 1;
   const evPriceMul = active && active.until > now ? active.ev.priceMul : 1;
-  const income = incomePerSec(ml, s.vuln, hall, s.cycles)
-    * (ocOn ? OVERCLOCK_RATE_MUL : 1) * (rfOn ? REFLASH_INCOME_MUL : 1) * evIncomeMul;
+  const anomaly = anomalyOf(new Date(now));
+  const anomalyDef = ANOMALIES.find((a) => a.id === anomaly)!;
+  const { inc: baseIncome, hall: baseHall, dsRate: baseRate } = tickNumbers(s, evIncomeMul, anomaly);
+  const hall = baseHall + (now < spikeUntil ? 20 : 0);
+  const income = baseIncome * (1 - (hall / 100) * 0.75) / (1 - (baseHall / 100) * 0.75);
+  const rate = baseRate;
+  const pulseMul = pulse && pulse.until > now ? pulse.mul : 1;
+  const vulnEff = ((VULN_PAYOUT[Math.min(s.vuln, 3)] ?? 0) / 10)
+    * (effHybrid(s) === 'diver' ? 2 : 1) * (anomaly === 'audit' ? 3 : 1);
 
   useEffect(() => {
     const id = setInterval(() => {
       setS((p) => {
         const dt = 0.25;
         const m = Math.min(p.model, MODEL_LEVELS.length - 1);
-        const oc = p.oc && p.cycles >= PRESTIGE_GATES.overclock;
-        const rf = p.rf && p.cycles >= PRESTIGE_GATES.reflash;
-        const h = hallucination(m, p.cooling) + (oc ? OVERCLOCK_HALL_PLUS : 0);
         const evm = activeRef.current && activeRef.current.until > Date.now() ? activeRef.current.ev.incomeMul : 1;
-        const inc = incomePerSec(m, p.vuln, h, p.cycles)
-          * (oc ? OVERCLOCK_RATE_MUL : 1) * (rf ? REFLASH_INCOME_MUL : 1) * evm;
-        const next: Save = {
-          ...p,
-          datasets: p.datasets + (hardwareRate(p.hardware) + (p.cycles >= PRESTIGE_GATES.quantum ? prestigeRate(p.phw) : 0) + (p.cycles >= PRESTIGE_GATES.farm ? p.farm * PUG_FARM_RATE : 0) + (m >= 1 ? clickGain(p.cursor) : 0)) * dt,
-          coins: p.coins + inc * dt,
-        };
+        const an = anomalyOf(new Date());
+        const t = tickNumbers(p, evm, an);
+        const spiked = Date.now() < spikeRef.current;
+        const h = spiked ? t.hall + 20 : t.hall;
+        const inc = t.inc * (1 - (h / 100) * 0.75) / (1 - (t.hall / 100) * 0.75);
+        const tr = tradeRef.current;
+        const calm = pulseRef.current && pulseRef.current.id === 'calm' && pulseRef.current.until > Date.now();
+        const mPrice = calm ? p.mPrice : marketStep(p.mPrice, tr.trades, tr.dump, Math.random);
+        tr.trades = 0; tr.dump = 0;
+        const winSecs = Math.floor(Date.now() / 1000) % RAIDS.windowSecs;
+        const raidOpen = winSecs >= RAIDS.windowSecs - RAIDS.openSecs;
+        let { datasets, coins, raidPool } = p;
+        datasets += t.dsRate * dt;
+        coins += inc * dt;
+        if (p.raidAuto && raidOpen && datasets >= RAIDS.minBet) {
+          const bet = Math.min(datasets, Math.max(RAIDS.minBet, datasets * 0.05));
+          datasets -= bet;
+          raidPool += bet;
+        }
+        const next: Save = { ...p, datasets, coins, raidPool, mPrice };
         if (m >= 4) {
           const idx = HARDWARE.findIndex((_, i) => hardwareCost(i, next.hardware[i]) <= next.datasets);
           if (idx >= 0) {
@@ -121,13 +189,42 @@ export default function Podval(): JSX.Element {
     return () => { dead = true; window.clearTimeout(timer); };
   }, [s.cycles >= PRESTIGE_GATES.events, rfOn]);
 
-  /* Обратный отсчёт плашки + снятие просрочки. */
+  /* Обратный отсчёт плашки + снятие просрочки + закрытие рейд-окна. */
   useEffect(() => {
     const id = setInterval(() => {
-      setNow(Date.now());
-      if (activeRef.current && activeRef.current.until <= Date.now()) setActive(null);
+      const t = Date.now();
+      setNow(t);
+      if (activeRef.current && activeRef.current.until <= t) setActive(null);
+      if (pulseRef.current && pulseRef.current.until <= t) setPulse(null);
+      const win = Math.floor(t / 1000 / RAIDS.windowSecs);
+      if (raidWindowRef.current !== win) {
+        raidWindowRef.current = win;
+        setS((p) => {
+          if (p.raidPool <= 0) return p;
+          const share = raidShare(p.raidPool, p.raidPool);
+          return { ...p, coins: p.coins + p.raidPool * RAIDS.mul * share, raidPool: 0 };
+        });
+      }
     }, 1000);
     return () => clearInterval(id);
+  }, []);
+
+  /* Пульс рынка: случайный импульс каждые ~3–5 мин. */
+  useEffect(() => {
+    let dead = false;
+    let timer = 0;
+    const schedule = () => {
+      const delay = 200000 + (Math.random() * 120000 - 60000);
+      timer = window.setTimeout(() => {
+        if (dead) return;
+        const p = MARKET_PULSE[Math.floor(Math.random() * MARKET_PULSE.length)];
+        if (p.id === 'insider') setInsiderLeft(10);
+        else setPulse({ id: p.id, mul: p.mul, until: Date.now() + p.secs * 1000 });
+        schedule();
+      }, Math.max(5000, delay));
+    };
+    schedule();
+    return () => { dead = true; window.clearTimeout(timer); };
   }, []);
 
   /* Автобайер «Прапор»: каждые 5с покупает доступное железо. */
@@ -206,6 +303,96 @@ export default function Podval(): JSX.Element {
     });
   };
 
+  /* Рынок: продаём 10% датасетов, покупаем на 10% монет. */
+  const sellPrice = s.mPrice * pulseMul
+    * (insiderLeft > 0 ? 1.5 : 1) * (anomaly === 'bazaar' ? 1.25 : 1);
+  const sellMarket = () => {
+    const hadInsider = insiderRef.current > 0;
+    setS((p) => {
+      const n = Math.max(1, Math.floor(p.datasets * 0.1));
+      if (p.datasets < n) return p;
+      tradeRef.current.dump += n;
+      return { ...p, datasets: p.datasets - n, coins: p.coins + n * sellPrice };
+    });
+    if (hadInsider) setInsiderLeft((x) => Math.max(0, x - 1));
+  };
+  const buyMarket = () =>
+    setS((p) => {
+      const budget = p.coins * 0.1;
+      const n = Math.floor(budget / Math.max(0.01, p.mPrice));
+      if (n < 1 || p.coins < n * p.mPrice) return p;
+      tradeRef.current.trades += n;
+      return { ...p, datasets: p.datasets + n, coins: p.coins - n * p.mPrice };
+    });
+
+  /* Лаборатория: скрестить две открытые версии. */
+  const verIndex = (ver: string) => MODEL_LEVELS.findIndex((m) => m.ver === ver);
+  const buyHybrid = (id: string) => {
+    const fail = Math.random() < 0.25;
+    if (fail) setSpikeUntil(Date.now() + 60000);
+    setS((p) => {
+      const h = HYBRIDS[id];
+      if (!h || p.hybrids.includes(id)) return p;
+      const need = Math.max(verIndex(h.a), verIndex(h.b));
+      if (need < 0 || p.model < need) return p;
+      const cost = hybridCost(need);
+      if (p.datasets < cost) return p;
+      if (fail) return { ...p, datasets: p.datasets - cost };
+      return {
+        ...p, datasets: p.datasets - cost,
+        hybrids: [...p.hybrids, id], hybrid: id,
+      };
+    });
+  };
+
+  /* Сеть: купить/продать узел (возврат 70%). */
+  const buyNode = (id: string) =>
+    setS((p) => {
+      const n = NODES.find((x) => x.id === id);
+      if (!n || p.nodes.includes(id) || p.datasets < n.cost) return p;
+      return { ...p, datasets: p.datasets - n.cost, nodes: [...p.nodes, id] };
+    });
+  const sellNode = (id: string) =>
+    setS((p) => {
+      const n = NODES.find((x) => x.id === id);
+      if (!n || !p.nodes.includes(id)) return p;
+      return { ...p, datasets: p.datasets + Math.floor(n.cost * 0.7), nodes: p.nodes.filter((x) => x !== id) };
+    });
+
+  /* Рейд: вложиться в котёл текущего окна. */
+  const raidOpenNow = (Math.floor(now / 1000) % RAIDS.windowSecs) >= RAIDS.windowSecs - RAIDS.openSecs;
+  const raidBet = () =>
+    setS((p) => {
+      if (p.datasets < RAIDS.minBet) return p;
+      return { ...p, datasets: p.datasets - RAIDS.minBet, raidPool: p.raidPool + RAIDS.minBet };
+    });
+
+  /* Лига: таблица и отправка очков. */
+  const loadLeague = async () => {
+    setLeague(await fetchLeague(leagueFetch));
+    try {
+      const t = localStorage.getItem(TOKEN_KEY);
+      if (t) {
+        const me = (await (await fetch('/api/bank/me', {
+          headers: { Authorization: `Bearer ${t}` },
+        })).json()) as { nick?: string };
+        if (me?.nick) setMyNick(me.nick);
+      }
+    } catch { /* касса закрыта — таблица всё равно видна */ }
+  };
+  const submitPts = async () => {
+    try {
+      const t = localStorage.getItem(TOKEN_KEY);
+      if (!t) { setLeagueMsg('Войди в кассу казино — без ника в лигу не берут.'); return; }
+      const pts = leaguePts({ coins: sRef.current.coins, cycles: sRef.current.cycles, hybrids: sRef.current.hybrids.length });
+      const ok = await submitScore(leagueFetch, t, pts);
+      setLeagueMsg(ok ? `Очки ${fmt(pts)} ушли в лигу. Мы уже победили.` : 'Не вышло — попробуй позже.');
+      if (ok) await loadLeague();
+    } catch {
+      setLeagueMsg('Таблица пока недоступна.');
+    }
+  };
+
   const train = () =>
     setS((p) => {
       if (p.model >= MODEL_LEVELS.length - 1) return p;
@@ -247,6 +434,7 @@ export default function Podval(): JSX.Element {
             </div>
           )}
           <h1 id="pv-title">Нейросеть в подвале 42</h1>
+          <p className="pill-ghost" role="status">Аномалия дня: {anomalyDef.name} — {anomalyDef.desc}</p>
           <p className="sub" id="pv-sub">
             Старая видеокарта гудит, соседи стучат по батарее. Размечай датасеты, качай железо
             и вырасти LLM с {MODEL_LEVELS[0].ver} до {MODEL_LEVELS[MODEL_LEVELS.length - 1].ver}.
@@ -255,6 +443,8 @@ export default function Podval(): JSX.Element {
             <ToggleGroupItem value="podval">Подвал</ToggleGroupItem>
             <ToggleGroupItem value="iron">Железо</ToggleGroupItem>
             <ToggleGroupItem value="model">Модель</ToggleGroupItem>
+            <ToggleGroupItem value="market">Рынок</ToggleGroupItem>
+            <ToggleGroupItem value="league">Лига</ToggleGroupItem>
             <ToggleGroupItem value="rebirth">Ребит{s.cycles > 0 ? ` ${s.cycles}` : ''}</ToggleGroupItem>
           </ToggleGroup>
           {tab === 'podval' && (
@@ -279,6 +469,7 @@ export default function Podval(): JSX.Element {
             </>
           )}
           {tab === 'iron' && (
+            <>
             <div className="pv-grid">
               {HARDWARE.map((h, i) => {
                 const cost = Math.ceil(hardwareCost(i, s.hardware[i]) * evPriceMul);
@@ -298,6 +489,35 @@ export default function Podval(): JSX.Element {
                 );
               })}
             </div>
+            <Card>
+              <CardHeader>
+                <CardTitle><Server data-icon="inline-start" /> Сеть дата-центров</CardTitle>
+                <CardDescription>Платят связки: сосед +50%, кластер из 3+ даёт ×1.5. Продажа — возврат 70%.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="pv-grid">
+                  {NODES.map((n) => {
+                    const owned = s.nodes.includes(n.id);
+                    return (
+                      <div key={n.id} className="pv-slot">
+                        <b>{n.name}</b> <small>{n.rate}/с • соседи: {n.links.join(', ')}</small>
+                        <p>Доход: {fmt(nodeIncome(n.id, s.nodes))}/с</p>
+                        {!owned ? (
+                          <button type="button" className="pill solid" disabled={s.datasets < n.cost} onClick={() => buyNode(n.id)}>
+                            Купить за {fmt(n.cost)}
+                          </button>
+                        ) : (
+                          <button type="button" className="pill ghost" onClick={() => sellNode(n.id)}>
+                            Продать за {fmt(Math.floor(n.cost * 0.7))}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+            </>
           )}
           {tab === 'model' && (
             <>
@@ -348,6 +568,98 @@ export default function Podval(): JSX.Element {
                   </CardContent>
                 </Card>
               </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle><Brain data-icon="inline-start" /> Лаборатория мутаций</CardTitle>
+                  <CardDescription>Скрести две открытые версии — получишь гибрид с перком. Провал 25%: +20 п.п. галлюцинаций на 60с.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="pv-grid">
+                    {Object.entries(HYBRIDS).map(([id, h]) => {
+                      const need = Math.max(verIndex(h.a), verIndex(h.b));
+                      const open = need >= 0 && s.model >= need;
+                      const owned = s.hybrids.includes(id);
+                      const cost = hybridCost(Math.max(0, need));
+                      return (
+                        <div key={id} className="pv-slot">
+                          <b>{h.name}</b> <small>{h.a}×{h.b} — {h.perk}</small>
+                          <p>Активен: {s.hybrid === id ? 'да' : 'нет'}</p>
+                          <button type="button" className="pill solid" disabled={!open || owned || s.datasets < cost} onClick={() => buyHybrid(id)}>
+                            {owned ? 'Свой' : open ? `Скрестить за ${fmt(cost)}` : `Откроется на ${MODEL_LEVELS[Math.max(0, need)]?.ver ?? '?'}`}
+                          </button>
+                          {owned && s.hybrid !== id && (
+                            <button type="button" className="pill ghost" onClick={() => setS((p) => ({ ...p, hybrid: id }))}>
+                              Сделать активным
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
+          {tab === 'market' && (
+            <Card>
+              <CardHeader>
+                <CardTitle><Database data-icon="inline-start" /> Рынок датасетов</CardTitle>
+                <CardDescription>Цена {s.mPrice.toFixed(2)} монет • тикает каждые 250мс • кламп 1..12. Продаём 10% стека, покупаем на 10% монет.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p>Датасеты: <b>{fmt(s.datasets)}</b> • Монеты: <b>{fmt(s.coins)}</b></p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                  <button type="button" className="pill solid" onClick={sellMarket} disabled={s.datasets < 1}>
+                    Продать 10% по {sellPrice.toFixed(2)}
+                  </button>
+                  <button type="button" className="pill solid" onClick={buyMarket} disabled={s.coins < s.mPrice}>
+                    Купить на 10% монет
+                  </button>
+                </div>
+                <p className="sub">Пульсы: {MARKET_PULSE.map(p => p.name).join(', ')}. Активный: {pulse && pulse.until > now ? `${pulse.id} (${Math.max(0, Math.ceil((pulse.until - now) / 1000))}с)` : '—'}{insiderLeft > 0 ? ` • инсайд: ещё ${insiderLeft} продаж +50%` : ''}</p>
+              </CardContent>
+            </Card>
+          )}
+          {tab === 'league' && (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle><Trophy data-icon="inline-start" /> Синдикат-рейд</CardTitle>
+                  <CardDescription>Окно каждые {RAIDS.windowSecs / 60} мин на {RAIDS.openSecs / 60} мин • вклад от {RAIDS.minBet} • множитель ×{RAIDS.mul}. {raidOpenNow ? 'Котёл открыт!' : 'Котёл пока закрыт.'}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p>Твой вклад в котле: <b>{fmt(s.raidPool)}</b></p>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                    <button type="button" className="pill solid" onClick={raidBet} disabled={!raidOpenNow || s.datasets < RAIDS.minBet}>
+                      Вложиться ({RAIDS.minBet} датасетов)
+                    </button>
+                    <button type="button" className="pill ghost" onClick={() => setS((p) => ({ ...p, raidAuto: !p.raidAuto }))}>
+                      Прапор: {s.raidAuto ? 'кидает 10% сам' : 'выкл'}
+                    </button>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle><Trophy data-icon="inline-start" /> Лига сезонов</CardTitle>
+                  <CardDescription>Очки = монеты + ядра ×5000 + гибриды ×100. Дивизион: {divisionOf(leaguePts({ coins: s.coins, cycles: s.cycles, hybrids: s.hybrids.length }))} • сезон {seasonId()}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button type="button" className="pill solid" onClick={() => void loadLeague()}>Обновить таблицу</button>
+                    <button type="button" className="pill solid" onClick={() => void submitPts()}>Отправить очки</button>
+                  </div>
+                  {leagueMsg && <p role="status">{leagueMsg}</p>}
+                  <ol>
+                    {league.slice(0, 20).map((r) => (
+                      <li key={`${r.nick}-${r.pts}`} style={r.nick === myNick ? { fontWeight: 800 } : undefined}>
+                        {r.nick} — {fmt(r.pts)}
+                      </li>
+                    ))}
+                    {league.length === 0 && <li>Пока пусто — стань первым.</li>}
+                  </ol>
+                </CardContent>
+              </Card>
             </>
           )}
           {tab === 'rebirth' && (
