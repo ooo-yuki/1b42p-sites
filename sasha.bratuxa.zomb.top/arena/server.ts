@@ -1365,6 +1365,7 @@ const server = import.meta.main ? Bun.serve({
       const r = await bank.tgLogin(parsed.id, parsed.nick);
       if (!r.ok) return Response.json({ ok: false, error: r.error });
       const me = await bank.verify(r.token);
+      console.log(`[bank] tg-вход id=${parsed.id} nick=${me?.nick ?? parsed.nick}${Bun.env.SASHA_BOT_TOKEN ? '' : ' БЕЗ ПРОВЕРКИ'}`);
       return Response.json({ ok: true, token: r.token, nick: me?.nick ?? parsed.nick });
     }
     if (u.pathname === '/api/bank/sync' && req.method === 'POST') {
