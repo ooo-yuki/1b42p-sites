@@ -113,6 +113,23 @@ describe('scores', () => {
   });
 });
 
+describe('arena wins', () => {
+  test('победы копятся по играм', async () => {
+    const b = await fresh();
+    const r = await b.register('Тест-Чемп', 'п');
+    if (!r.ok) throw new Error('register failed');
+    const uid = r.uid;
+    await (b as unknown as { recordWin: (uid: number, game: string) => Promise<void> }).recordWin(uid, 'dice');
+    await (b as unknown as { recordWin: (uid: number, game: string) => Promise<void> }).recordWin(uid, 'dice');
+    await (b as unknown as { recordWin: (uid: number, game: string) => Promise<void> }).recordWin(uid, 'chess');
+    const all = await (b as unknown as { arenaTop: (game: string, limit: number) => Promise<{ wins: number }[]> }).arenaTop('all', 10);
+    const dice = await (b as unknown as { arenaTop: (game: string, limit: number) => Promise<{ wins: number }[]> }).arenaTop('dice', 10);
+    if (all[0]?.wins !== 3) throw new Error('all must be 3');
+    if (dice[0]?.wins !== 2) throw new Error('dice must be 2');
+    await closePgBank(b);
+  });
+});
+
 describe('podval league', () => {
   test('таблица сезона — по убыванию очков, лимит режет, лучший результат хранится', async () => {
     const b = await fresh();

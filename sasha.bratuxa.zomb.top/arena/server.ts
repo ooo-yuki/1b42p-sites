@@ -250,6 +250,25 @@ function killTimer(r: Room): void {
   if (r.timer) { clearTimeout(r.timer); r.timer = null; }
 }
 
+/* Победа в летопись: гость без ника в users — молча пропускаем. */
+function noteArenaWin(winnerId: string | null, game: string): void {
+  try {
+    if (!winnerId) return;
+    const c = clients.get(winnerId);
+    if (!c) return;
+    const nick = String(c.name ?? '').trim();
+    if (!nick || /^Боец-\d+$/.test(nick)) return;
+    void (async () => {
+      try {
+        const rows = await bank.sql`SELECT id FROM users WHERE nick = ${nick}` as { id: number }[];
+        const uid = rows[0]?.id;
+        if (!uid) return;
+        await bank.recordWin(uid, game);
+      } catch { /* летопись не должна ронять бой */ }
+    })();
+  } catch { /* молча */ }
+}
+
 function destroyRoom(code: string): void {
   const r = rooms.get(code);
   if (!r) return;
@@ -577,6 +596,7 @@ function finishDurak(r: Room, winner: string | null): void {
   killTimer(r);
   r.phase = 'over';
   r.winner = winner;
+  noteArenaWin(winner, r.game);
   r.alive = winner ? [winner] : [];
   r.rolls = {};
   const wname = (winner && clients.get(winner)?.name) ?? '???';
@@ -671,6 +691,7 @@ function finishChess(r: Room): void {
   killTimer(r);
   r.phase = 'over';
   r.winner = st.winner;
+  noteArenaWin(st.winner, r.game);
   r.alive = st.winner ? [st.winner] : [];
   r.rolls = {};
   const wname = (st.winner && clients.get(st.winner)?.name) ?? null;
@@ -802,6 +823,7 @@ function finishCheckers(r: Room): void {
   killTimer(r);
   r.phase = 'over';
   r.winner = st.winner;
+  noteArenaWin(st.winner, r.game);
   r.alive = st.winner ? [st.winner] : [];
   r.rolls = {};
   const wname = (st.winner && clients.get(st.winner)?.name) ?? null;
@@ -910,6 +932,7 @@ function finishMono(r: Room): void {
   killTimer(r);
   r.phase = 'over';
   r.winner = st.winner;
+  noteArenaWin(st.winner, r.game);
   r.alive = st.winner ? [st.winner] : [];
   r.rolls = {};
   const wname = (st.winner && clients.get(st.winner)?.name) ?? '???';
@@ -1086,6 +1109,7 @@ function finishBj(r: Room): void {
   killTimer(r);
   r.phase = 'over';
   r.winner = st.winner;
+  noteArenaWin(st.winner, r.game);
   r.alive = st.winner ? [st.winner] : [];
   r.rolls = {};
   const wname = (st.winner && clients.get(st.winner)?.name) ?? null;
@@ -1180,6 +1204,7 @@ function finishGame(r: Room): void {
   r.phase = 'over';
   r.winner = r.alive[0] ?? null;
   r.contenders = [];
+  noteArenaWin(r.winner, r.game);
   const wname = (r.winner && clients.get(r.winner)?.name) ?? '???';
   broadcast(r, { t: 'over', winner: r.winner, name: wname });
   broadcast(r, roomState(r));
@@ -1323,6 +1348,10 @@ const server = import.meta.main ? Bun.serve({
     }
     if (u.pathname === '/api/bank/leaders' && req.method === 'GET') {
       return Response.json({ ok: true, leaders: await bank.leaders(20) });
+    }
+    if (u.pathname === '/api/arena/top' && req.method === 'GET') {
+      const game = (u.searchParams.get('game') ?? 'all').slice(0, 24);
+      return Response.json({ ok: true, top: await bank.arenaTop(game, 20) });
     }
     if (u.pathname === '/api/score/submit' && req.method === 'POST') {
       const me = await bank.verify(tokenOf(req));
