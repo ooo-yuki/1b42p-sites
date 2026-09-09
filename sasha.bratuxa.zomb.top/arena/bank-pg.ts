@@ -12,6 +12,7 @@ export type PgBank = {
   register: (nick: string, pass: string) => Promise<{ ok: true; uid: number; token: string; balance: number } | { ok: false; error: string }>;
   login: (nick: string, pass: string) => Promise<{ ok: true; uid: number; token: string; balance: number } | { ok: false; error: string }>;
   verify: (token: string) => Promise<{ uid: number; nick: string } | null>;
+  tgLogin: (tgId: number, nick: string) => Promise<{ ok: true; uid: number; token: string } | { ok: false; error: string }>;
   applyDelta: (uid: number, delta: number) => Promise<{ balance: number } | null>;
   leaders: (limit: number) => Promise<{ nick: string; balance: number }[]>;
   wallet: (uid: number, game: string) => Promise<number>;
@@ -200,7 +201,38 @@ export function openPgBank(url: string): PgBank {
     return rows as { nick: string; pts: number }[];
   };
 
-  return { sql, register, login, verify, applyDelta, leaders, wallet, walletDelta, submitScore, top, recordWin, arenaTop, podvalSubmit, podvalTop };
+  /* ТГ-АППА: счёт привязан к Telegram-ID. Создавать не надо — касса
+     выдаст или найдёт сама. Пароль случайный: вход только через телегу. */
+  const tgLogin: PgBank['tgLogin'] = async (tgId, nickRaw) => {
+    if (!Number.isInteger(tgId) || tgId <= 0) return { ok: false, error: 'Телеграм не опознан' };
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS tg_id BIGINT`;
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS users_tg_id ON users (tg_id)`;
+    const t = Date.now();
+    const found = await sql`SELECT id FROM users WHERE tg_id = ${tgId}`;
+    if (found[0]) {
+      const uid = (found[0] as { id: number }).id;
+      const token = mintToken();
+      await sql`INSERT INTO sessions (token, uid, exp) VALUES (${token}, ${uid}, ${t + TOKEN_DAYS * 86400_000})`;
+      return { ok: true, uid, token };
+    }
+    let base = String(nickRaw ?? '').replace(/[^A-Za-zА-Яа-яЁё0-9_-]/g, '').slice(0, 12);
+    if (base.length < 2) base = `Боец-${String(Math.abs(tgId) % 9000 + 1000)}`;
+    const hash = Bun.password.hashSync(crypto.randomUUID() + crypto.randomUUID());
+    for (let i = 0; i < 20; i++) {
+      const nick = i === 0 ? base : `${base.slice(0, 13)}-${i}`;
+      try {
+        const rows = await sql`INSERT INTO users (nick, pass_hash, balance, created, tg_id)
+          VALUES (${nick}, ${hash}, ${START_MONEY}, ${t}, ${tgId}) RETURNING id`;
+        const uid = rows[0].id as number;
+        const token = mintToken();
+        await sql`INSERT INTO sessions (token, uid, exp) VALUES (${token}, ${uid}, ${t + TOKEN_DAYS * 86400_000})`;
+        return { ok: true, uid, token };
+      } catch { /* ник занят — пробуем с суффиксом */ }
+    }
+    return { ok: false, error: 'Тесный строй — попробуй позже' };
+  };
+
+  return { sql, register, login, verify, tgLogin, applyDelta, leaders, wallet, walletDelta, submitScore, top, recordWin, arenaTop, podvalSubmit, podvalTop };
 }
 
 export async function closePgBank(b: PgBank): Promise<void> {

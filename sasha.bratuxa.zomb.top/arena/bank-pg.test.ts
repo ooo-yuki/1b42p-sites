@@ -57,6 +57,20 @@ describe('pgbank auth', () => {
     if ('balance' in (me as object)) throw new Error('verify must not carry balance');
     await closePgBank(b);
   });
+
+  test('тг-вход: один ID — один счёт, второй заход — тот же боец', async () => {
+    const b = await fresh();
+    const first = await b.tgLogin(424242, 'Саша_Тг');
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const again = await b.tgLogin(424242, 'Саша_Тг');
+    expect(again.ok).toBe(true);
+    if (!again.ok) return;
+    expect(again.uid).toBe(first.uid);
+    expect((await b.verify(again.token))?.nick).toBe('Саша_Тг');
+    expect((await b.tgLogin(-1, 'х')).ok).toBe(false);
+    await closePgBank(b);
+  });
 });
 
 describe('pgbank money', () => {

@@ -3,9 +3,11 @@ import { KeyRound, LogOut, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { loadToken, saveToken } from './auth';
+import { isTgLocked, tgAutoLogin, tgReady } from './tg';
 import './accountbar.css';
 
-/* Единый счёт Саши: вход, профиль, выход. Один на все игры. */
+/* Единый счёт Саши: вход, профиль, выход. Один на все игры.
+   В тг-аппе счёт закреплён: входит сам, формы и выхода нет. */
 
 type Me = { nick: string } | null;
 
@@ -27,16 +29,41 @@ export default function AccountBar(): JSX.Element {
   const [pass, setPass] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  /* Закреп тг-счёта: скрипт телеграма подгружается позже, поэтому ждём tgReady. */
+  const [tg, setTg] = useState(false);
+  const [tgBusy, setTgBusy] = useState(false);
 
   useEffect(() => {
+    const enterTg = (): void => {
+      if (loadToken()) return; // тихий вход уже идёт
+      setTgBusy(true);
+      void tgAutoLogin().then(r => {
+        setTgBusy(false);
+        if (r.ok) {
+          saveToken(r.token);
+          setMe({ nick: r.nick });
+        } else {
+          setErr(r.error);
+        }
+      });
+    };
     const t = loadToken();
-    if (!t) return;
-    call<{ ok: boolean; nick?: string }>('/api/bank/me', t)
-      .then(r => {
-        if (r.ok && r.nick) setMe({ nick: r.nick });
-        else { saveToken(null); }
-      })
-      .catch(() => { /* касса спит — молча гостем */ });
+    if (t) {
+      call<{ ok: boolean; nick?: string }>('/api/bank/me', t)
+        .then(r => {
+          if (r.ok && r.nick) setMe({ nick: r.nick });
+          else {
+            saveToken(null);
+            if (isTgLocked()) { setTg(true); enterTg(); }
+          }
+        })
+        .catch(() => { /* касса спит — молча гостем */ });
+    }
+    tgReady(() => {
+      if (!isTgLocked()) return;
+      setTg(true);
+      enterTg();
+    });
   }, []);
 
   const go = async (path: '/api/bank/login' | '/api/bank/register'): Promise<void> => {
@@ -67,12 +94,30 @@ export default function AccountBar(): JSX.Element {
   };
 
   if (me) {
+    if (tg) {
+      /* Закреп: только ник, выйти и сменить нельзя. */
+      return (
+        <div className="accbar" role="status" aria-label={`Счёт телеграма: ${me.nick}`}>
+          <span className="acc-nick" title="Счёт привязан к телеграму — он всегда с тобой">{me.nick}</span>
+        </div>
+      );
+    }
     return (
       <div className="accbar" role="status" aria-label={`Вошёл как ${me.nick}`}>
         <span className="acc-nick" title="Твой счёт — один на все игры">{me.nick}</span>
         <Button variant="ghost" size="sm" onClick={logout} aria-label="Выйти из счёта">
           <LogOut data-icon="inline-start" /> Выйти
         </Button>
+      </div>
+    );
+  }
+
+  if (tg) {
+    /* Закреп без счёта: ждём кассу, формы нет — менять нечего. */
+    return (
+      <div className="accbar" role="status" aria-label="Счёт телеграма привязывается">
+        <span className="acc-nick">{tgBusy ? 'Счёт телеграма…' : 'Счёт телеграма'}</span>
+        {err && <p className="acc-err" role="alert">{err}</p>}
       </div>
     );
   }

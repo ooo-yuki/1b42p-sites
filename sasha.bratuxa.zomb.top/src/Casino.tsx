@@ -11,7 +11,7 @@ import type { Api, Tone } from './casino/shared';
 import AuthGate from './casino/AuthGate';
 import Leaders from './casino/Leaders';
 import { loadToken, saveToken } from './lib/auth';
-import { isTgApp, tgReady } from './lib/tg';
+import { isTgApp, isTgLocked, tgAutoLogin, tgReady } from './lib/tg';
 import { me, syncDelta, type BankUser } from './casino/bank';
 import './casino/bank.css';
 import Crash from './casino/Crash';
@@ -97,9 +97,42 @@ export default function Casino(): JSX.Element {
   /* Замок сброса: пока ставка в игре, баланс трогать нельзя — иначе сброс
      посреди раунда дарил бы 1000 поверх будущего выигрыша. */
   const [betBusy, setBetBusy] = useState(false);
-  /* В ТГ-аппе пополнение (сброс) прячем: внутри телеграма только игра. */
+  /* В ТГ-аппе пополнение прячем: внутри телеграма только игра. */
   const [inTg, setInTg] = useState<boolean>(() => isTgApp());
-  useEffect(() => { tgReady(setInTg); }, []);
+  /* Закреп тг-счёта: входит сам, выйти и сменить нельзя. */
+  const [tgLock, setTgLock] = useState<boolean>(() => isTgLocked());
+  const bindTg = (): void => {
+    say('Счёт телеграма привязывается…');
+    void tgAutoLogin().then(r => {
+      if (!r.ok) {
+        setGuest(true);
+        say(`Касса спит (${r.error}). Гость в зале — счёт местный`);
+        return;
+      }
+      saveToken(r.token);
+      setToken(r.token);
+      me(r.token).then(m => {
+        if (m.ok && m.nick && typeof m.balance === 'number') {
+          setUser({ nick: m.nick, balance: m.balance });
+          setBalance(m.balance);
+          say(`Счёт телеграма с тобой, ${m.nick}. Ставки идут в таблицу`);
+        } else {
+          setGuest(true);
+          say('Гость в зале. Счёт местный, в таблицу не идёт');
+        }
+      }).catch(() => {
+        setGuest(true);
+        say('Гость в зале. Счёт местный, в таблицу не идёт');
+      });
+    });
+  };
+  useEffect(() => { tgReady((inTgNow) => {
+    setInTg(inTgNow);
+    if (!isTgLocked()) return;
+    setTgLock(true);
+    if (token || user) return;
+    bindTg();
+  }); }, []);
   const betBusyRef = useRef(0);
   const balRef = useRef(balance);
   balRef.current = balance;
@@ -151,6 +184,7 @@ export default function Casino(): JSX.Element {
     saveToken(null);
     setToken(null);
     setUser(null);
+    if (isTgLocked()) { bindTg(); return; } // закреп сам перепривяжется
     say('Касса забыла. Войди заново');
   };
 
@@ -246,7 +280,7 @@ export default function Casino(): JSX.Element {
           <Badge variant="secondary" className="tabular-nums"><Coins data-icon="inline-start" /> {balance}</Badge>
           {user && <Badge variant="secondary">{user.nick}</Badge>}
           <span className="sp" />
-          {user && <Button variant="outline" size="sm" onClick={exit} title="Выйти из кассы">Выйти</Button>}
+          {user && !tgLock && <Button variant="outline" size="sm" onClick={exit} title="Выйти из кассы">Выйти</Button>}
           <Button variant="outline" size="sm" onClick={resetBalance} disabled={betBusy}
             title={betBusy ? 'Ставка в игре — сброс после финиша' : 'Сбросить баланс к стартовой тысяче'}>
             <RotateCcw data-icon="inline-start" /> {betBusy ? 'Ставка в игре…' : confirmReset ? 'Точно сбросить?' : 'Сброс'}</Button>
@@ -277,7 +311,7 @@ export default function Casino(): JSX.Element {
                 </a>
               ))}
             </div>
-            {(!user && !guest) && (
+            {(!user && !guest && !tgLock) && (
               <AuthGate onAuth={enter} onGuest={() => { setGuest(true); say('Гость в зале. Счёт местный, в таблицу не идёт'); }} />
             )}
             <Separator className="lobby-sep" />
@@ -298,7 +332,7 @@ export default function Casino(): JSX.Element {
               <Badge variant="secondary">{cur?.tag}</Badge>
             </div>
             {cur && <p className="gdesc">{cur.desc}</p>}
-            {(!user && !guest)
+            {(!user && !guest && !tgLock)
               ? <AuthGate onAuth={enter} onGuest={() => { setGuest(true); say('Гость в зале. Счёт местный, в таблицу не идёт'); }} />
               : <Game api={api} />}
           </main>

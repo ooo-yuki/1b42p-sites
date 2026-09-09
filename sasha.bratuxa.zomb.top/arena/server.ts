@@ -4,6 +4,7 @@
    Поток: выбор игры → поиск (пул) → голос за заход → бой → реванш.
    Число игроков диктуют правила игры, не кнопки. Фишек нет: победа — в летопись. */
 
+import { createHmac } from 'node:crypto';
 import { openPgBank } from './bank-pg';
 
 /* Касса живёт в Neon Postgres (проект sasha-bank): URL — из секретного
@@ -1301,6 +1302,38 @@ function tokenOf(req: Request): string {
   return h.startsWith('Bearer ') ? h.slice(7) : '';
 }
 
+/* ТГ-АППА: разбор initData. Токен бота — из env SASHA_BOT_TOKEN (секрет,
+   в git не едет). С токеном — проверка подписи и свежести, без токена —
+   доверяем ID (касса предупредит в лог; проверка включится сама). */
+function parseTgInitData(initData: string, botToken: string): { ok: true; id: number; nick: string } | { ok: false; error: string } {
+  try {
+    const p = new URLSearchParams(initData);
+    const userRaw = p.get('user');
+    if (!userRaw) return { ok: false, error: 'Телеграм не опознан' };
+    const u = JSON.parse(userRaw) as { id?: unknown; username?: unknown; first_name?: unknown };
+    if (!Number.isInteger(u.id) || (u.id as number) <= 0) return { ok: false, error: 'Телеграм не опознан' };
+    if (botToken) {
+      const hash = p.get('hash') ?? '';
+      const authDate = Number(p.get('auth_date') ?? 0);
+      if (!hash || !authDate || Date.now() - authDate * 1000 > 86400_000) {
+        return { ok: false, error: 'Телега протухла — перезайди в аппу' };
+      }
+      const check = [...p.entries()].filter(([k]) => k !== 'hash')
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([k, v]) => `${k}=${v}`).join('\n');
+      const secret = createHmac('sha256', 'WebAppData').update(botToken).digest();
+      const calc = createHmac('sha256', secret).update(check).digest('hex');
+      if (calc !== hash) return { ok: false, error: 'Телега не прошла проверку' };
+    } else {
+      console.warn('[bank] SASHA_BOT_TOKEN пуст — тг-вход без проверки подписи');
+    }
+    const nick = String(u.username ?? u.first_name ?? '').trim();
+    return { ok: true, id: u.id as number, nick };
+  } catch {
+    return { ok: false, error: 'Телеграм не опознан' };
+  }
+}
+
 const server = import.meta.main ? Bun.serve({
   port: PORT,
   async fetch(req, srv) {
@@ -1324,6 +1357,15 @@ const server = import.meta.main ? Bun.serve({
     if (u.pathname === '/api/bank/me' && req.method === 'GET') {
       const me = await bank.verify(tokenOf(req));
       return Response.json(me ? { ok: true, ...me } : { ok: false });
+    }
+    if (u.pathname === '/api/bank/tg-login' && req.method === 'POST') {
+      const { initData } = await req.json().catch(() => ({})) as { initData?: string };
+      const parsed = parseTgInitData(String(initData ?? ''), Bun.env.SASHA_BOT_TOKEN ?? '');
+      if (!parsed.ok) return Response.json({ ok: false, error: parsed.error });
+      const r = await bank.tgLogin(parsed.id, parsed.nick);
+      if (!r.ok) return Response.json({ ok: false, error: r.error });
+      const me = await bank.verify(r.token);
+      return Response.json({ ok: true, token: r.token, nick: me?.nick ?? parsed.nick });
     }
     if (u.pathname === '/api/bank/sync' && req.method === 'POST') {
       const me = await bank.verify(tokenOf(req));
