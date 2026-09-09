@@ -1304,8 +1304,22 @@ const server = import.meta.main ? Bun.serve({
       const me = await bank.verify(tokenOf(req));
       if (!me) return Response.json({ ok: false, error: 'Войди в кассу' }, { status: 401 });
       const { delta } = await req.json().catch(() => ({})) as { delta?: number };
-      const r = await bank.applyDelta(me.uid, Math.trunc(Number(delta)));
-      return Response.json(r ? { ok: true, balance: r.balance } : { ok: false, error: 'Касса пуста' });
+      const bal = await bank.walletDelta(me.uid, 'casino', Math.trunc(Number(delta)));
+      return Response.json(bal !== null ? { ok: true, balance: bal } : { ok: false, error: 'Касса пуста' });
+    }
+    if (u.pathname === '/api/wallet' && req.method === 'GET') {
+      const me = await bank.verify(tokenOf(req));
+      if (!me) return Response.json({ ok: false, error: 'Войди в кассу' }, { status: 401 });
+      const game = (u.searchParams.get('game') ?? 'casino').slice(0, 24);
+      return Response.json({ ok: true, balance: await bank.wallet(me.uid, game), game });
+    }
+    if (u.pathname === '/api/wallet/sync' && req.method === 'POST') {
+      const me = await bank.verify(tokenOf(req));
+      if (!me) return Response.json({ ok: false, error: 'Войди в кассу' }, { status: 401 });
+      const body = await req.json().catch(() => ({})) as { game?: string; delta?: number };
+      const game = String(body.game ?? 'casino').slice(0, 24);
+      const bal = await bank.walletDelta(me.uid, game, Math.trunc(Number(body.delta)));
+      return Response.json(bal !== null ? { ok: true, balance: bal, game } : { ok: false, error: 'Касса пуста' });
     }
     if (u.pathname === '/api/bank/leaders' && req.method === 'GET') {
       return Response.json({ ok: true, leaders: await bank.leaders(20) });

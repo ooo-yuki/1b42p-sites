@@ -84,6 +84,21 @@ describe('pgbank money', () => {
   });
 });
 
+describe('wallets', () => {
+  test('два кошелька не смешиваются', async () => {
+    const b = await fresh();
+    const r = await b.register('Тест-Кошель', 'п');
+    if (!r.ok) throw new Error('register failed');
+    const uid = r.uid;
+    await (b as unknown as { walletDelta: (uid: number, game: string, d: number) => Promise<unknown> }).walletDelta(uid, 'casino', 100);
+    await (b as unknown as { walletDelta: (uid: number, game: string, d: number) => Promise<unknown> }).walletDelta(uid, 'podval', 5);
+    const c = await (b as unknown as { wallet: (uid: number, game: string) => Promise<number> }).wallet(uid, 'casino');
+    const p = await (b as unknown as { wallet: (uid: number, game: string) => Promise<number> }).wallet(uid, 'podval');
+    if (c !== 1100 || p !== 5) throw new Error(`wallets leak: casino=${c} podval=${p}`);
+    await closePgBank(b);
+  });
+});
+
 describe('podval league', () => {
   test('таблица сезона — по убыванию очков, лимит режет, лучший результат хранится', async () => {
     const b = await fresh();

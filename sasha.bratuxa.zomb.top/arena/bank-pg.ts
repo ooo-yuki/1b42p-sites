@@ -14,6 +14,8 @@ export type PgBank = {
   verify: (token: string) => Promise<{ uid: number; nick: string } | null>;
   applyDelta: (uid: number, delta: number) => Promise<{ balance: number } | null>;
   leaders: (limit: number) => Promise<{ nick: string; balance: number }[]>;
+  wallet: (uid: number, game: string) => Promise<number>;
+  walletDelta: (uid: number, game: string, delta: number) => Promise<number | null>;
   podvalSubmit: (nick: string, pts: number, season: string) => Promise<void>;
   podvalTop: (season: string, limit: number) => Promise<{ nick: string; pts: number }[]>;
 };
@@ -78,6 +80,47 @@ export function openPgBank(url: string): PgBank {
     return rows as { nick: string; balance: number }[];
   };
 
+  const GAME_START: Record<string, number> = { casino: 1000, podval: 0, defense: 0, fabrika: 0, terminal: 0 };
+
+  const ensureWallets = async (): Promise<void> => {
+    await sql`CREATE TABLE IF NOT EXISTS wallets (
+      uid INTEGER NOT NULL, game TEXT NOT NULL, balance INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (uid, game)
+    )`;
+  };
+
+  const wallet: PgBank['wallet'] = async (uid, game) => {
+    await ensureWallets();
+    const g = String(game).slice(0, 24);
+    const rows = await sql`SELECT balance FROM wallets WHERE uid = ${uid} AND game = ${g}`;
+    const row = rows[0] as { balance: number } | undefined;
+    if (row) return row.balance;
+    // переезд старых фантиков один раз для casino
+    let start = GAME_START[g] ?? 0;
+    if (g === 'casino') {
+      try {
+        const urow = await sql`SELECT balance FROM users WHERE id = ${uid}`;
+        const legacy = (urow[0] as { balance: number } | undefined)?.balance ?? 0;
+        if (legacy > 0) start = legacy;
+        await sql`UPDATE users SET balance = 0 WHERE id = ${uid} AND balance <> 0`;
+      } catch { /* старый кошелёк пуст */ }
+    }
+    await sql`INSERT INTO wallets (uid, game, balance) VALUES (${uid}, ${g}, ${start}) ON CONFLICT (uid, game) DO NOTHING`;
+    const again = await sql`SELECT balance FROM wallets WHERE uid = ${uid} AND game = ${g}`;
+    return ((again[0] as { balance: number } | undefined)?.balance ?? start);
+  };
+
+  const walletDelta: PgBank['walletDelta'] = async (uid, game, delta) => {
+    if (!Number.isInteger(delta)) return null;
+    await ensureWallets();
+    await wallet(uid, game);
+    const g = String(game).slice(0, 24);
+    const updated = await sql`UPDATE wallets SET balance = balance + ${delta}
+      WHERE uid = ${uid} AND game = ${g} AND balance + ${delta} >= 0 RETURNING balance`;
+    const row = updated[0] as { balance: number } | undefined;
+    return row ? row.balance : null;
+  };
+
   const podvalSubmit: PgBank['podvalSubmit'] = async (nick, pts, season) => {
     await sql`CREATE TABLE IF NOT EXISTS podval_league (
       nick TEXT NOT NULL, pts INTEGER NOT NULL, season TEXT NOT NULL, ts BIGINT NOT NULL,
@@ -96,7 +139,7 @@ export function openPgBank(url: string): PgBank {
     return rows as { nick: string; pts: number }[];
   };
 
-  return { sql, register, login, verify, applyDelta, leaders, podvalSubmit, podvalTop };
+  return { sql, register, login, verify, applyDelta, leaders, wallet, walletDelta, podvalSubmit, podvalTop };
 }
 
 export async function closePgBank(b: PgBank): Promise<void> {
