@@ -357,6 +357,7 @@ export default function Defense(): JSX.Element {
           type="button"
           className="pill ghost"
           onClick={() => setPaused((p) => !p)}
+          disabled={!running}
           aria-label={paused ? 'Продолжить' : 'Пауза'}
         >
           {paused ? <Play data-icon="inline-start" /> : <Pause data-icon="inline-start" />}
@@ -376,6 +377,11 @@ export default function Defense(): JSX.Element {
         aria-label="Поле обороны 9 на 9. Тап по клетке ставит турель, повторный тап продаёт."
       />
 
+      {!running && !cards && !won && !lost && (
+        <button type="button" id="df-wave" className="pill solid" onClick={startWave}>
+          <Swords data-icon="inline-start" /> {endless ? `Энллесс ${g.wave + 1}!` : `Волна ${g.wave + 1}!`}
+        </button>
+      )}
       <div id="df-shop" role="group" aria-label="Выбор турели">
         {Object.entries(TURRETS).map(([id, t]) => {
           if (id === 'tesla' && best.medals < MEDAL_GATES.tesla) {
@@ -407,12 +413,6 @@ export default function Defense(): JSX.Element {
         ))}
       </div>
       <p className="mg-note">Тап по клетке — поставить, тап по турели — продать за 70%. Тап по дороге не строит.</p>
-
-      {!running && !cards && !won && !lost && (
-        <button type="button" id="df-wave" className="pill solid" onClick={startWave}>
-          <Swords data-icon="inline-start" /> {endless ? `Энллесс ${g.wave + 1}!` : `Волна ${g.wave + 1}!`}
-        </button>
-      )}
       {paused && !won && !lost && <p className="mg-note">Пауза. Турели держат строй.</p>}
 
       {cards && (
