@@ -15,6 +15,7 @@ import {
   isVictory, marketStep, nodeIncome, prestigeCost, prestigeRate, raidShare, trainCost, type GameEvent,
 } from './podval/formulas';
 import { divisionOf, fetchLeague, leaguePts, seasonId, submitScore } from './podval/league';
+import './lib/gametop.css';
 import { SAVE_KEY, freshSave, loadSave, type Save } from './podval/save';
 
 /* Нейросеть в подвале: айдл-стратегия Саши ⁴².
@@ -434,7 +435,7 @@ export default function Podval(): JSX.Element {
             </div>
           )}
           <h1 id="pv-title">Нейросеть в подвале 42</h1>
-          <p className="pill-ghost" role="status">Аномалия дня: {anomalyDef.name} — {anomalyDef.desc}</p>
+          <p className="gtop" role="status">Аномалия дня: {anomalyDef.name} — {anomalyDef.desc}</p>
           <p className="sub" id="pv-sub">
             Старая видеокарта гудит, соседи стучат по батарее. Размечай датасеты, качай железо
             и вырасти LLM с {MODEL_LEVELS[0].ver} до {MODEL_LEVELS[MODEL_LEVELS.length - 1].ver}.
@@ -606,7 +607,7 @@ export default function Podval(): JSX.Element {
                 <CardTitle><Database data-icon="inline-start" /> Рынок датасетов</CardTitle>
                 <CardDescription>Цена {s.mPrice.toFixed(2)} монет • тикает каждые 250мс • кламп 1..12. Продаём 10% стека, покупаем на 10% монет.</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="tnum">
                 <p>Датасеты: <b>{fmt(s.datasets)}</b> • Монеты: <b>{fmt(s.coins)}</b></p>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
                   <button type="button" className="pill solid" onClick={sellMarket} disabled={s.datasets < 1}>
@@ -627,7 +628,7 @@ export default function Podval(): JSX.Element {
                   <CardTitle><Trophy data-icon="inline-start" /> Синдикат-рейд</CardTitle>
                   <CardDescription>Окно каждые {RAIDS.windowSecs / 60} мин на {RAIDS.openSecs / 60} мин • вклад от {RAIDS.minBet} • множитель ×{RAIDS.mul}. {raidOpenNow ? 'Котёл открыт!' : 'Котёл пока закрыт.'}</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="tnum">
                   <p>Твой вклад в котле: <b>{fmt(s.raidPool)}</b></p>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
                     <button type="button" className="pill solid" onClick={raidBet} disabled={!raidOpenNow || s.datasets < RAIDS.minBet}>
@@ -644,7 +645,7 @@ export default function Podval(): JSX.Element {
                   <CardTitle><Trophy data-icon="inline-start" /> Лига сезонов</CardTitle>
                   <CardDescription>Очки = монеты + ядра ×5000 + гибриды ×100. Дивизион: {divisionOf(leaguePts({ coins: s.coins, cycles: s.cycles, hybrids: s.hybrids.length }))} • сезон {seasonId()}</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="tnum">
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <button type="button" className="pill solid" onClick={() => void loadLeague()}>Обновить таблицу</button>
                     <button type="button" className="pill solid" onClick={() => void submitPts()}>Отправить очки</button>

@@ -1,0 +1,13 @@
+/* GameTop — маленький топ игры. Токены DESIGN.md: ночь, пилюля 999px, кобальт, дим. */
+.gtop{
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  background:#0d1428; color:#fff;
+  border:1px solid rgba(255,255,255,.12); border-radius:999px;
+  padding:8px 16px; font-family:"Segoe UI",system-ui,sans-serif;
+  font-size:.9rem; line-height:1.55;
+  font-variant-numeric:tabular-nums;
+}
+.gtop svg{flex:none}
+.gtop b{font-weight:800}
+.gtop .dim{color:#808080}
+.tnum{font-variant-numeric:tabular-nums}
