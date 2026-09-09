@@ -47,6 +47,16 @@ describe('pgbank auth', () => {
     expect(await b.verify('мусор')).toBeNull();
     await closePgBank(b);
   });
+
+  test('verify отдаёт человека без баланса', async () => {
+    const b = await fresh();
+    const r = await b.register('ТестБоец', 'pw');
+    if (!r.ok) throw new Error('register failed');
+    const me = await b.verify(r.token);
+    if (!me || me.nick !== 'ТестБоец') throw new Error('verify failed');
+    if ('balance' in (me as object)) throw new Error('verify must not carry balance');
+    await closePgBank(b);
+  });
 });
 
 describe('pgbank money', () => {

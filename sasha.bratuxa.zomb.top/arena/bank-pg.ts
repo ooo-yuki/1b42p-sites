@@ -11,7 +11,7 @@ export type PgBank = {
   sql: SQL;
   register: (nick: string, pass: string) => Promise<{ ok: true; uid: number; token: string; balance: number } | { ok: false; error: string }>;
   login: (nick: string, pass: string) => Promise<{ ok: true; uid: number; token: string; balance: number } | { ok: false; error: string }>;
-  verify: (token: string) => Promise<{ uid: number; nick: string; balance: number } | null>;
+  verify: (token: string) => Promise<{ uid: number; nick: string } | null>;
   applyDelta: (uid: number, delta: number) => Promise<{ balance: number } | null>;
   leaders: (limit: number) => Promise<{ nick: string; balance: number }[]>;
   podvalSubmit: (nick: string, pts: number, season: string) => Promise<void>;
@@ -57,9 +57,9 @@ export function openPgBank(url: string): PgBank {
 
   const verify: PgBank['verify'] = async (token) => {
     if (!token || token.length < 10) return null;
-    const rows = await sql`SELECT u.id AS uid, u.nick, u.balance FROM sessions s
+    const rows = await sql`SELECT u.id AS uid, u.nick FROM sessions s
       JOIN users u ON u.id = s.uid WHERE s.token = ${token} AND s.exp > ${Date.now()}`;
-    const row = rows[0] as { uid: number; nick: string; balance: number } | undefined;
+    const row = rows[0] as { uid: number; nick: string } | undefined;
     return row ?? null;
   };
 
