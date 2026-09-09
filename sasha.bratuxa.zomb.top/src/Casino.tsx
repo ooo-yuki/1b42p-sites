@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ItemIcon } from './casino-icons';
 import { Separator } from '@/components/ui/separator';
-import { Coins, House, RotateCcw, Trophy } from 'lucide-react';
+import { Coins, CreditCard, House, RotateCcw, Trophy } from 'lucide-react';
 import type { Api, Tone } from './casino/shared';
 import AuthGate from './casino/AuthGate';
 import Leaders from './casino/Leaders';
@@ -250,6 +250,15 @@ export default function Casino(): JSX.Element {
           {!inTg && <Button variant="outline" size="sm" onClick={resetBalance} disabled={betBusy}
             title={betBusy ? 'Ставка в игре — сброс после финиша' : 'Сбросить баланс к стартовой тысяче'}>
             <RotateCcw data-icon="inline-start" /> {betBusy ? 'Ставка в игре…' : confirmReset ? 'Точно сбросить?' : 'Сброс'}</Button>}
+          {!inTg && <Button size="sm" asChild>
+            <a
+              href="https://finance.ozon.ru/apps/sbp/ozonbankpay/019fa8eb-037e-75f9-a3d9-fe258db9e911"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="no-underline"
+              title="Пополнить через Озон Банк (СБП)"
+            ><CreditCard data-icon="inline-start" /> Пополнить</a>
+          </Button>}
         </div>
         {view === 'lobby' || !Game ? (
           <main className="lobby">
