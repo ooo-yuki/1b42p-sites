@@ -66,19 +66,13 @@ section{padding:50px 16px;max-width:1100px;margin:0 auto}
 #news a.big{color:var(--gold);font-weight:bold;font-size:20px}
 footer{padding:18px;color:var(--gold);border-top:2px solid var(--gold);font-weight:bold}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
-/* ЛУЧШИЕ ИГРЫ — бегущая строка с карточками */
-#best .marquee{overflow:hidden;border:2px solid var(--gold);border-radius:16px;background:#141414cc;padding:14px 0}
-#best .track{display:flex;width:max-content;animation:bestscroll 22s linear infinite}
-#best .marquee:hover .track{animation-play-state:paused}
-@keyframes bestscroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-#best .bcard{position:relative;flex:0 0 auto;width:min(420px,78vw);margin:0 8px;border-radius:12px;overflow:hidden;border:2px solid var(--gold);box-shadow:0 0 18px #ffd70055}
-#best .bcard img{display:block;width:100%;height:auto}
-#best .bcard span{position:absolute;left:0;right:0;bottom:0;padding:8px 12px;font-weight:bold;background:linear-gradient(180deg,transparent,#000d);color:var(--gold)}
-#best .bcard.mini{width:280px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:18px 14px;background:linear-gradient(135deg,#1a1a2e,#16213e);text-decoration:none}
-#best .bcard.mini .me{font-size:46px}
-#best .bcard.mini b{color:#fff;font-size:19px;letter-spacing:1px}
-#best .bcard.mini i{color:var(--gold);font-style:normal;font-weight:bold;font-size:15px}
-#best .bcard.mini span{position:static;background:none;padding:0}
+/* ЛУЧШИЕ ИГРЫ — витрина одной игры */
+#best .spotlight{max-width:640px;margin:0 auto;border:2px solid var(--gold);border-radius:16px;overflow:hidden;box-shadow:0 0 25px #ffd70066;background:#141414cc}
+#best .spotlight a{position:relative;display:block;overflow:hidden}
+#best .spotlight img{display:block;width:100%;height:auto;animation:bestzoom 12s ease-in-out infinite alternate}
+@keyframes bestzoom{from{transform:scale(1)}to{transform:scale(1.08)}}
+#best .spotlight a:hover img{animation-play-state:paused}
+#best .spotlight span{position:absolute;left:0;right:0;bottom:0;padding:10px 14px;font-weight:bold;font-size:19px;background:linear-gradient(180deg,transparent,#000d);color:var(--gold)}
 </style>
 </head>
 <body>
@@ -104,16 +98,9 @@ footer{padding:18px;color:var(--gold);border-top:2px solid var(--gold);font-weig
 <section id="best">
 <h2 class="sec-title">⭐ Лучшие игры</h2>
 <p class="sec-sub">Зал славы батальона — кликай и в бой!</p>
-<div class="marquee"><div class="track">
-<a class="bcard" href="https://mtt.bratuxa.zomb.top"><img src="mtt-best.jpg" alt="42 LIVE — боевая арена 42 VS СБРОД"><span>🏎️ 42 LIVE — в бой! →</span></a>
-<a class="bcard mini" href="https://sasi42io.bratuxa.zomb.top/"><span class="me">🐍</span><b>ЗМЕЙКА 42</b><i>Играть →</i></a>
-<a class="bcard mini" href="https://chaev.bratuxa.zomb.top"><span class="me">🦖</span><b>ЧАЕВ 42</b><i>Играть →</i></a>
-<a class="bcard mini" href="https://miqqil.bratuxa.zomb.top"><span class="me">🎯</span><b>ТАНКИ</b><i>Играть →</i></a>
-<a class="bcard" href="https://mtt.bratuxa.zomb.top" aria-hidden="true" tabindex="-1"><img src="mtt-best.jpg" alt=""><span>🏎️ 42 LIVE — в бой! →</span></a>
-<a class="bcard mini" href="https://sasi42io.bratuxa.zomb.top/" aria-hidden="true" tabindex="-1"><span class="me">🐍</span><b>ЗМЕЙКА 42</b><i>Играть →</i></a>
-<a class="bcard mini" href="https://chaev.bratuxa.zomb.top" aria-hidden="true" tabindex="-1"><span class="me">🦖</span><b>ЧАЕВ 42</b><i>Играть →</i></a>
-<a class="bcard mini" href="https://miqqil.bratuxa.zomb.top" aria-hidden="true" tabindex="-1"><span class="me">🎯</span><b>ТАНКИ</b><i>Играть →</i></a>
-</div></div>
+<div class="spotlight">
+<a href="https://mtt.bratuxa.zomb.top"><img src="mtt-best.jpg" alt="42 LIVE — боевая арена 42 VS СБРОД"><span>🏎️ 42 LIVE — в бой! →</span></a>
+</div>
 </section>
 
 <section id="games">
