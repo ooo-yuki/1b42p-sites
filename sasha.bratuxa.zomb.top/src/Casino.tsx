@@ -11,6 +11,7 @@ import type { Api, Tone } from './casino/shared';
 import AuthGate from './casino/AuthGate';
 import Leaders from './casino/Leaders';
 import { loadToken, saveToken } from './lib/auth';
+import { isTgApp, tgReady } from './lib/tg';
 import { me, syncDelta, type BankUser } from './casino/bank';
 import './casino/bank.css';
 import Crash from './casino/Crash';
@@ -96,6 +97,9 @@ export default function Casino(): JSX.Element {
   /* Замок сброса: пока ставка в игре, баланс трогать нельзя — иначе сброс
      посреди раунда дарил бы 1000 поверх будущего выигрыша. */
   const [betBusy, setBetBusy] = useState(false);
+  /* В ТГ-аппе пополнение (сброс) прячем: внутри телеграма только игра. */
+  const [inTg, setInTg] = useState<boolean>(() => isTgApp());
+  useEffect(() => { tgReady(setInTg); }, []);
   const betBusyRef = useRef(0);
   const balRef = useRef(balance);
   balRef.current = balance;
@@ -243,9 +247,9 @@ export default function Casino(): JSX.Element {
           {user && <Badge variant="secondary">{user.nick}</Badge>}
           <span className="sp" />
           {user && <Button variant="outline" size="sm" onClick={exit} title="Выйти из кассы">Выйти</Button>}
-          <Button variant="outline" size="sm" onClick={resetBalance} disabled={betBusy}
+          {!inTg && <Button variant="outline" size="sm" onClick={resetBalance} disabled={betBusy}
             title={betBusy ? 'Ставка в игре — сброс после финиша' : 'Сбросить баланс к стартовой тысяче'}>
-            <RotateCcw data-icon="inline-start" /> {betBusy ? 'Ставка в игре…' : confirmReset ? 'Точно сбросить?' : 'Сброс'}</Button>
+            <RotateCcw data-icon="inline-start" /> {betBusy ? 'Ставка в игре…' : confirmReset ? 'Точно сбросить?' : 'Сброс'}</Button>}
         </div>
         {view === 'lobby' || !Game ? (
           <main className="lobby">
