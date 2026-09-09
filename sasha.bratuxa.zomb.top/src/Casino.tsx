@@ -247,9 +247,9 @@ export default function Casino(): JSX.Element {
           {user && <Badge variant="secondary">{user.nick}</Badge>}
           <span className="sp" />
           {user && <Button variant="outline" size="sm" onClick={exit} title="Выйти из кассы">Выйти</Button>}
-          {!inTg && <Button variant="outline" size="sm" onClick={resetBalance} disabled={betBusy}
+          <Button variant="outline" size="sm" onClick={resetBalance} disabled={betBusy}
             title={betBusy ? 'Ставка в игре — сброс после финиша' : 'Сбросить баланс к стартовой тысяче'}>
-            <RotateCcw data-icon="inline-start" /> {betBusy ? 'Ставка в игре…' : confirmReset ? 'Точно сбросить?' : 'Сброс'}</Button>}
+            <RotateCcw data-icon="inline-start" /> {betBusy ? 'Ставка в игре…' : confirmReset ? 'Точно сбросить?' : 'Сброс'}</Button>
           {!inTg && <Button size="sm" asChild>
             <a
               href="https://finance.ozon.ru/apps/sbp/ozonbankpay/019fa8eb-037e-75f9-a3d9-fe258db9e911"
