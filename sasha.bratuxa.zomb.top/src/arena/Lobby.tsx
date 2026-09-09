@@ -35,6 +35,16 @@ function fmtElapsed(since: number, now: number): string {
 export default function Lobby({ me, online, pool, games, searching, busy, myVote,
   onVoteGame, onSearch, onStop, onVoteEnter, onVoteWait, onCreate, onJoin }: Props): JSX.Element {
   const [code, setCode] = useState('');
+  const [tab, setTab] = useState<string>('all');
+  const [hall, setHall] = useState<{ nick: string; wins: number }[]>([]);
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/arena/top?game=${encodeURIComponent(tab)}`)
+      .then(r => r.json() as Promise<{ ok: boolean; top: { nick: string; wins: number }[] }>)
+      .then(j => { if (alive) setHall(j.ok ? j.top.slice(0, 5) : []); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [tab]);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!searching) return;
@@ -159,6 +169,16 @@ export default function Lobby({ me, online, pool, games, searching, busy, myVote
           </Button>
         </div>
       </details>
+
+      <section className="pill-ghost" aria-label="Зал славы">
+        <b>Зал славы</b> — {hall.length === 0 ? 'пока пусто' : hall.map(h => `${h.nick} — ${h.wins}`).join(' • ')}
+        <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {['all', 'dice', 'durak', 'chess', 'checkers', 'monopoly', 'bj'].map(g => (
+            <button key={g} type="button" className="pill ghost" data-state={tab === g ? 'on' : 'off'}
+              onClick={() => setTab(g)}>{g === 'all' ? 'Все' : g}</button>
+          ))}
+        </div>
+      </section>
 
       <ol className="arules">
         <li>Голосуй за игру, жми поиск — клуб соберёт пати.</li>

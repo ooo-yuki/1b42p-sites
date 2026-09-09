@@ -6,6 +6,7 @@ import {
 } from './defense/engine';
 import { TEX, DefenseTex, pixToDataUri, type TexName } from './defense/textures';
 import { readBest, writeBest, type Best } from './defense/save';
+import GameTop from './lib/GameTop';
 
 /* Оборона штаба 42: canvas tower-defense на 10 волн.
    Вьюха только рисует и шлёт команды движку; симуляция — engine.ts. */
@@ -363,6 +364,7 @@ export default function Defense(): JSX.Element {
         </button>
       </div>
       <p className="mg-note">Рекорд энллесса: {best.bestEndless > 0 ? `волна ${best.bestEndless}` : '—'}</p>
+      <GameTop game="defense" />
 
       <canvas
         ref={cvRef}
