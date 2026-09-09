@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { useRain, useIntro, useBeacon } from './hooks';
 import { ChartLine, Dices, Eye, Joystick, Trophy, Users } from 'lucide-react';
+import AccountBar from './lib/AccountBar';
 
 export default function Landing(): JSX.Element {
   const cvRef = useRef<HTMLCanvasElement | null>(null);
@@ -25,6 +26,7 @@ export default function Landing(): JSX.Element {
             Красно-синяя территория батальона.
             <br />А внутри — мини-игры: зал автоматов, офлайн и онлайн.
           </p>
+          <AccountBar />
           <a id="mgBtn" className="pill solid" href="minigames.html">
             <Joystick data-icon="inline-start" /> Мини-игры
           </a>
