@@ -454,7 +454,10 @@ function syncVisuals(unitsArr, dt) {
     g.rotation.y = s.yaw;
     if (s.dead) { entry.deadT += dt; continue; }
     if (entry.deadT > 0) { M.unwreck(entry.u3d); entry.deadT = 0; }
-    if (entry.u3d.tur && entry.u3d.tur !== g) entry.u3d.tur.rotation.y = s.turYaw - s.yaw;
+    // Башня: ствол в модели смотрит в локальный -z, а ствол симуляции — dir=(sin turYaw, -cos turYaw).
+    // При rotation.y=turYaw модель даёт (-sin turYaw, -cos turYaw) — отзеркалено по X,
+    // поэтому визуально пушка доворачивалась ПРОТИВ камеры. Мировая ротация -turYaw чинит.
+    if (entry.u3d.tur && entry.u3d.tur !== g) entry.u3d.tur.rotation.y = -s.turYaw - s.yaw;
     M.animateVehicle(entry.u3d, dt, s.speed2d || 0);
     const pct = clamp(100 * s.hp / s.maxhp, 0, 100);
     if (entry.barEl && Math.abs(pct - entry.hpPct) > 0.5) { entry.barEl.style.width = pct + '%'; entry.hpPct = pct; }
@@ -887,8 +890,8 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'Space') e.preventDefault();
   if (e.code === 'KeyC') camDist = camDist === 14 ? 20 : camDist === 20 ? 9 : 14;
-  if (e.code === 'ArrowUp') camPitch = clamp(camPitch + 0.05, PITCH_MIN, PITCH_MAX);
-  if (e.code === 'ArrowDown') camPitch = clamp(camPitch - 0.05, PITCH_MIN, PITCH_MAX);
+  if (e.code === 'ArrowUp') camPitch = clamp(camPitch - 0.05, PITCH_MIN, PITCH_MAX); // вверх = смотрим вверх
+  if (e.code === 'ArrowDown') camPitch = clamp(camPitch + 0.05, PITCH_MIN, PITCH_MAX);
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
 document.addEventListener('pointerlockchange', () => {
@@ -897,7 +900,8 @@ document.addEventListener('pointerlockchange', () => {
 document.addEventListener('mousemove', e => {
   if (pointerLocked) {
     camYaw -= (e.movementX || 0) * MOUSE_SENS;
-    camPitch = clamp(camPitch - (e.movementY || 0) * MOUSE_SENS, PITCH_MIN, PITCH_MAX);
+    // Мышь вверх (movementY<0) = смотрим вверх: камера ниже (pitch меньше). Было наоборот.
+    camPitch = clamp(camPitch + (e.movementY || 0) * MOUSE_SENS, PITCH_MIN, PITCH_MAX);
   }
 });
 addEventListener('mousedown', e => {
@@ -916,7 +920,7 @@ addEventListener('mousedown', e => { if (e.button === 2) rmb = { x: e.clientX, y
 addEventListener('mousemove', e => {
   if (rmb && !pointerLocked) {
     camYaw -= (e.clientX - rmb.x) * 0.004;
-    camPitch = clamp(camPitch + (rmb.y - e.clientY) * 0.005, PITCH_MIN, PITCH_MAX);
+    camPitch = clamp(camPitch - (rmb.y - e.clientY) * 0.005, PITCH_MIN, PITCH_MAX); // курсор вверх = смотрим вверх
     rmb = { x: e.clientX, y: e.clientY };
   }
 });
@@ -958,7 +962,7 @@ if (isTouchDevice) document.body.classList.add('touch');
       if (t.identifier === jid) jmove(t);
       else if (t.identifier === aimId) {
         camYaw -= (t.clientX - lx) * 0.006;
-        camPitch = clamp(camPitch - (t.clientY - ly) * 0.006, PITCH_MIN, PITCH_MAX);
+        camPitch = clamp(camPitch + (t.clientY - ly) * 0.006, PITCH_MIN, PITCH_MAX); // свайп вверх = смотрим вверх
         lx = t.clientX; ly = t.clientY;
       }
     }
