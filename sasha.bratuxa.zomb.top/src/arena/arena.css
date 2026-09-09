@@ -241,6 +241,15 @@ button.mo-cell:hover{filter:brightness(1.2)}
 .aprivate summary{cursor:pointer; padding:10px 16px; font-size:13.5px; color:#808080}
 .aprivate summary:hover{color:#fff}
 .aprivate .aroom-row{padding:0 16px 14px}
+/* зал славы: топ побед, вкладки по играм */
+.ahall{width:100%; background:#0d1428; border:1px solid rgba(255,255,255,.12); border-radius:12px;
+  padding:12px 16px; font-size:13.5px; display:flex; flex-direction:column; gap:10px}
+.ahall b{font-weight:800}
+.ahall-tabs{display:flex; flex-wrap:wrap; gap:6px}
+.ahall-tab{font-size:12px; color:#808080; border:1px solid rgba(128,128,128,.4);
+  border-radius:999px; padding:5px 12px; background:transparent; cursor:pointer}
+.ahall-tab:hover{color:#fff; border-color:#fff}
+.ahall-tab[data-state="on"]{color:#fff; border-color:#0060AA; box-shadow:0 0 14px rgba(0,96,170,.5)}
 .ar-game{font-size:12.5px; color:#808080; border:1px solid rgba(128,128,128,.4);
   border-radius:999px; padding:5px 12px}
 /* дурак: сукно, карты, рубашки */

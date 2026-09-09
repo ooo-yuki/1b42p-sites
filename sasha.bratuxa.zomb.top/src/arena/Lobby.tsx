@@ -170,14 +170,15 @@ export default function Lobby({ me, online, pool, games, searching, busy, myVote
         </div>
       </details>
 
-      <section className="pill-ghost" aria-label="Зал славы">
+      <section className="ahall" aria-label="Зал славы">
         <b>Зал славы</b> — {hall.length === 0 ? 'пока пусто' : hall.map(h => `${h.nick} — ${h.wins}`).join(' • ')}
-        <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <ToggleGroup type="single" value={tab} onValueChange={v => { if (v) setTab(v); }} className="ahall-tabs" aria-label="Топ по игре">
           {['all', 'dice', 'durak', 'chess', 'checkers', 'monopoly', 'bj'].map(g => (
-            <button key={g} type="button" className="pill ghost" data-state={tab === g ? 'on' : 'off'}
-              onClick={() => setTab(g)}>{g === 'all' ? 'Все' : g}</button>
+            <ToggleGroupItem key={g} value={g} className="ahall-tab" aria-label={`Топ ${g}`}>
+              {g === 'all' ? 'Все' : g}
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
       </section>
 
       <ol className="arules">
