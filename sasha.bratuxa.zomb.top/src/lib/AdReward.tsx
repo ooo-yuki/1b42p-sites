@@ -28,7 +28,9 @@ export default function AdReward({ game }: { game: string }): JSX.Element {
     setMsg('Кручу рекламу…');
     const done = await showRewardAd();
     if (!done) {
-      setMsg('Реклама не завелась — попробуй ещё');
+      // SDK без blockId или реклама не завелась — открываем ссылку, общак не ждёт.
+      try { window.open(SHRINKME_URL, '_blank', 'noopener'); } catch { /* приватный режим */ }
+      setMsg('Реклама не завелась — открыл ссылку');
       setBusy(false);
       return;
     }

@@ -340,8 +340,8 @@ export default function Casino(): JSX.Element {
               : <Game api={api} />}
           </main>
         )}
+        <Ads />
       </div>
-      <Ads />
     </div>
   );
 }
