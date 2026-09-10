@@ -8,6 +8,7 @@ import { TEX, DefenseTex, pixToDataUri, type TexName } from './defense/textures'
 import { readBest, writeBest, type Best } from './defense/save';
 import GameTop from './lib/GameTop';
 import AccountBar from './lib/AccountBar';
+import Ads from './lib/Ads';
 
 /* Оборона штаба 42: canvas tower-defense на 10 волн.
    Вьюха только рисует и шлёт команды движку; симуляция — engine.ts. */
@@ -461,6 +462,7 @@ export default function Defense(): JSX.Element {
       <a id="dfHome" className="pill ghost" href="./minigames.html">
         <Home data-icon="inline-start" /> К витрине
       </a>
+      <Ads />
     </main>
   );
 }

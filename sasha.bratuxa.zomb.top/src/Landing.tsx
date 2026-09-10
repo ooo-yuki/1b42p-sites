@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { useRain, useIntro, useBeacon } from './hooks';
 import { ChartLine, Dices, Eye, Joystick, Trophy, Users } from 'lucide-react';
 import AccountBar from './lib/AccountBar';
+import Ads from './lib/Ads';
 
 export default function Landing(): JSX.Element {
   const cvRef = useRef<HTMLCanvasElement | null>(null);
@@ -45,6 +46,7 @@ export default function Landing(): JSX.Element {
         </div>
       </main>
       <div id="hint">а ещё 42 спрятаны… ищи <Eye aria-hidden /></div>
+      <Ads />
     </>
   );
 }

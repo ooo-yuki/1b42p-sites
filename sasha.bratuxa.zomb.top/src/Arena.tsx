@@ -3,6 +3,7 @@ import { Trophy } from 'lucide-react';
 import Lobby from './arena/Lobby';
 import Room, { type ChatLine, type FeedLine } from './arena/Room';
 import Settings from './arena/Settings';
+import Ads from './lib/Ads';
 import {
   addWin, arenaWsUrl, clearWins, loadMuted, loadName, loadWins, saveMuted, saveName,
   type CMsg, type DCard, type GameDef, type PoolView, type RoomView, type SMsg,
@@ -393,6 +394,7 @@ export default function Arena(): JSX.Element {
             onClearWins={() => { clearWins(); setWins(0); }} />
         </div>
       </main>
+      <Ads />
     </div>
   );
 }

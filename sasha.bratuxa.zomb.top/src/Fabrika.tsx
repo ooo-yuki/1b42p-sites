@@ -10,6 +10,7 @@ import { defaultSave, fans, fameMult, fmt, lvlCost, unlocked, type Save } from '
 import { loadSave, storeSave } from './fabrika/save';
 import type { ShowSummary } from './fabrika/show';
 import { blip } from './fabrika/audio';
+import Ads from './lib/Ads';
 import GameTop from './lib/GameTop';
 import AccountBar from './lib/AccountBar';
 
@@ -294,6 +295,7 @@ export default function Fabrika(): JSX.Element {
           </div>
         </div>
       )}
+      <Ads />
     </>
   );
 }

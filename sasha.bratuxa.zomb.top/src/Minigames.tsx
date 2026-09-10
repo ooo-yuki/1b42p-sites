@@ -6,6 +6,7 @@ import {
 } from '@/components/ui/card';
 import { Gamepad2, House, Wifi, WifiOff } from 'lucide-react';
 import { listGames, type MiniGame } from './minigames/registry';
+import Ads from './lib/Ads';
 
 /* Витрина мини-игр: зал автоматов без поиска и матчмейкинга.
    Новая игра = запись в реестре; вьюха не трогается. */
@@ -62,6 +63,7 @@ export default function Minigames(): JSX.Element {
             <House data-icon="inline-start" /> На главную
           </a>
         </div>
+        <Ads />
       </main>
     </>
   );

@@ -3,6 +3,7 @@ import gsap from 'gsap';
 import { Button } from '@/components/ui/button';
 import { startBeacon } from './lib/beacon';
 import './stats.css';
+import Ads from './lib/Ads';
 import { Activity, ChartLine, Code, Medal, Radio, Trophy, Users } from 'lucide-react';
 
 const API = 'https://hub.bratuxa.zomb.top/api/stats';
@@ -417,6 +418,7 @@ export default function Stats(): JSX.Element {
           </div>
         )}
       </div>
+      <Ads />
     </div>
   );
 }

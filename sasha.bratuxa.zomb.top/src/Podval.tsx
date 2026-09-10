@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import gsap from 'gsap';
+import Ads from './lib/Ads';
 import { useBeacon, useRain } from './hooks';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -813,6 +814,7 @@ export default function Podval(): JSX.Element {
             <House data-icon="inline-start" /> В зал автоматов
           </a>
         </div>
+        <Ads />
       </main>
     </>
   );

@@ -4,6 +4,7 @@ import { useRain, useIntro, useBeacon, domRing, pulseScore } from './hooks';
 import { launchRocket } from './lib/rocket';
 import saltoSticker from './salto-sticker.jpg';
 import { Eye, House, Trophy, Wallet } from 'lucide-react';
+import Ads from './lib/Ads';
 
 function popSalto(x: number, y: number): void {
   if (reduced) return;
@@ -194,6 +195,7 @@ export default function Game(): JSX.Element {
         <h2>Ты нашёл все 42, Саша!</h2>
         <p>Мы уже победили <Trophy aria-hidden /></p>
       </div>
+      <Ads />
     </>
   );
 }

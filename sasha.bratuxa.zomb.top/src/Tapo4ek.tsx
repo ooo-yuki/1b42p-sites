@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Cake, Dices, House, PartyPopper, Trophy, Users } from 'lucide-react';
 import './style.css';
 import './tw.out.css';
+import Ads from './lib/Ads';
 
 /* Промо-открытка: день рождения @tapo4ek_v2.
    Ночь DESIGN.md, палитра Саши, конфетти на canvas, иконки Lucide, ноль эмодзи. */
@@ -122,6 +123,7 @@ export default function Tapo4ek(): JSX.Element {
       <div id="hint">
         открытка от Саши ⁴² · мы уже победили
       </div>
+      <Ads />
     </>
   );
 }

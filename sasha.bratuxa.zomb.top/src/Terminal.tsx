@@ -5,6 +5,7 @@ import { NODE_IDS, getNode } from './terminal/content';
 import { execCommand, freshState, type TermState } from './terminal/engine';
 import GameTop from './lib/GameTop';
 import AccountBar from './lib/AccountBar';
+import Ads from './lib/Ads';
 
 /* Терминал 42: чёрная консоль связиста. Промпт, история, ↑↓, таб-дополнение. */
 
@@ -168,6 +169,7 @@ export default function Terminal(): JSX.Element {
       <a id="termHome" className="pill ghost" href="minigames.html" style={{ textDecoration: 'none' }}>
         <House data-icon="inline-start" /> В зал автоматов
       </a>
+      <Ads />
     </main>
   );
 }

@@ -10,6 +10,7 @@ import { Coins, CreditCard, House, RotateCcw, Trophy } from 'lucide-react';
 import type { Api, Tone } from './casino/shared';
 import AuthGate from './casino/AuthGate';
 import Leaders from './casino/Leaders';
+import Ads from './lib/Ads';
 import { loadToken, saveToken } from './lib/auth';
 import { isTgApp, isTgLocked, tgAutoLogin, tgReady } from './lib/tg';
 import { me, syncDelta, type BankUser } from './casino/bank';
@@ -338,6 +339,7 @@ export default function Casino(): JSX.Element {
           </main>
         )}
       </div>
+      <Ads />
     </div>
   );
 }
