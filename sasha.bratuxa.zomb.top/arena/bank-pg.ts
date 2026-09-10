@@ -233,33 +233,32 @@ export function openPgBank(url: string): PgBank {
     return { ok: false, error: 'Тесный строй — попробуй позже' };
   };
 
-  /* ADGRAM-НАГРАДА: досмотрел рекламу — касса капает 100 фантиков.
-     Лимит 10 в день на счёт, иначе URL награды печатал бы деньги. */
+  /* ADGRAM-НАГРАДА: находит счёт по telegram_id, капает 100 фантиков.
+     Счёта нет — не заводим, отдаём ошибку. Лимит 10 в день на счёт. */
   const AD_REWARD = 100;
   const AD_DAILY_MAX = 10;
   const adReward: PgBank['adReward'] = async (tgId) => {
-    if (!Number.isInteger(tgId) || tgId <= 0) return { ok: false, error: 'Телеграм не опознан' };
-    const found = await tgLogin(tgId, '');
-    if (!found.ok) return { ok: false, error: 'Тесный строй — попробуй позже' };
+    if (!Number.isInteger(tgId) || tgId <= 0) return { ok: false, error: 'no user' };
+    const urow = await sql`SELECT id, nick FROM users WHERE tg_id = ${tgId}`;
+    const u = urow[0] as { id: number; nick: string } | undefined;
+    if (!u) return { ok: false, error: 'no user' };
     await sql`CREATE TABLE IF NOT EXISTS adsgram_claims (
       uid INTEGER NOT NULL, day TEXT NOT NULL, n INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (uid, day)
     )`;
     const day = new Date().toISOString().slice(0, 10);
     const rows = await sql`INSERT INTO adsgram_claims (uid, day, n)
-      VALUES (${found.uid}, ${day}, 1)
+      VALUES (${u.id}, ${day}, 1)
       ON CONFLICT (uid, day) DO UPDATE SET n = adsgram_claims.n + 1
       RETURNING n`;
     const n = (rows[0] as { n: number }).n;
     if (n > AD_DAILY_MAX) {
-      await sql`UPDATE adsgram_claims SET n = ${AD_DAILY_MAX} WHERE uid = ${found.uid} AND day = ${day}`;
-      return { ok: false, error: 'На сегодня хватит — приходи завтра' };
+      await sql`UPDATE adsgram_claims SET n = ${AD_DAILY_MAX} WHERE uid = ${u.id} AND day = ${day}`;
+      return { ok: false, error: 'limit' };
     }
-    const balance = await walletDelta(found.uid, 'casino', AD_REWARD);
-    if (balance === null) return { ok: false, error: 'Касса пуста' };
-    const urow = await sql`SELECT nick FROM users WHERE id = ${found.uid}`;
-    const nick = (urow[0] as { nick: string } | undefined)?.nick ?? 'боец';
-    return { ok: true, nick, balance, n };
+    const balance = await walletDelta(u.id, 'casino', AD_REWARD);
+    if (balance === null) return { ok: false, error: 'empty' };
+    return { ok: true, nick: u.nick, balance, n };
   };
 
   return { sql, register, login, verify, tgLogin, adReward, applyDelta, leaders, wallet, walletDelta, submitScore, top, recordWin, arenaTop, podvalSubmit, podvalTop };

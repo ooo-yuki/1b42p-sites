@@ -1369,10 +1369,16 @@ const server = import.meta.main ? Bun.serve({
       return Response.json({ ok: true, token: r.token, nick: me?.nick ?? parsed.nick });
     }
     if (u.pathname === '/api/adsgram/reward' && req.method === 'GET') {
+      const secret = u.searchParams.get('secret') ?? '';
+      const want = Bun.env.BATALION42_SECRET_KEY ?? '';
+      if (!want || secret !== want) {
+        return new Response('forbidden', { status: 403 });
+      }
       const tgId = Math.trunc(Number(u.searchParams.get('userid')));
       const r = await bank.adReward(tgId);
-      if (r.ok) console.log(`[bank] adsgram-награда nick=${r.nick} +100 (№${r.n} за день)`);
-      return Response.json(r);
+      if (!r.ok) return new Response(r.error, { status: 404 });
+      console.log(`[bank] adsgram-награда nick=${r.nick} +100 (№${r.n} за день)`);
+      return new Response('ok', { status: 200 });
     }
     if (u.pathname === '/api/bank/sync' && req.method === 'POST') {
       const me = await bank.verify(tokenOf(req));

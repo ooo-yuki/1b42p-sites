@@ -72,19 +72,21 @@ describe('pgbank auth', () => {
     await closePgBank(b);
   });
 
-  test('adsgram-награда: капает 100, на 11-й в день — отказ', async () => {
+  test('adsgram-награда: находит по tg_id, чужим не капает, на 11-й — отказ', async () => {
     const b = await fresh();
-    const r1 = await b.adReward(777777);
+    expect((await b.adReward(778899)).ok).toBe(false); // счёта нет — не заводим
+    const t = await b.tgLogin(778899, 'Рекламный');
+    expect(t.ok).toBe(true);
+    const r1 = await b.adReward(778899);
     expect(r1.ok).toBe(true);
     if (!r1.ok) return;
     expect(r1.balance).toBe(1100);
     expect(r1.n).toBe(1);
     for (let i = 0; i < 9; i++) {
-      const r = await b.adReward(777777);
+      const r = await b.adReward(778899);
       if (!r.ok) throw new Error('лимит сработал рано');
     }
-    const over = await b.adReward(777777);
-    expect(over.ok).toBe(false);
+    expect((await b.adReward(778899)).ok).toBe(false);
     expect((await b.adReward(-5)).ok).toBe(false);
     await closePgBank(b);
   });
