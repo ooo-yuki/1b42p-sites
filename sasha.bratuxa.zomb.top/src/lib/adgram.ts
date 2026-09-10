@@ -33,6 +33,8 @@ function loadSdk(): Promise<boolean> {
 /** Показать rewarded/interstitial. true — досмотрел (награда положена). */
 export async function showRewardAd(): Promise<boolean> {
   try {
+    // blockId нет или левый — SDK не трогаем (иначе орёт попапом), сразу ссылка.
+    if (!/^(int-\d+|\d+)$/.test(ADSGRAM_BLOCK_ID)) return false;
     if (!(await loadSdk()) || !window.Adsgram) return false;
     const c = window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID });
     const r = await c.show();
