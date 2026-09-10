@@ -5,6 +5,7 @@ import { NODE_IDS, getNode } from './terminal/content';
 import { execCommand, freshState, type TermState } from './terminal/engine';
 import GameTop from './lib/GameTop';
 import AccountBar from './lib/AccountBar';
+import AdReward from './lib/AdReward';
 import Ads from './lib/Ads';
 
 /* Терминал 42: чёрная консоль связиста. Промпт, история, ↑↓, таб-дополнение. */
@@ -144,6 +145,7 @@ export default function Terminal(): JSX.Element {
   return (
     <main id="term-wrap">
       <AccountBar />
+      <AdReward game="terminal" />
       <GameTop game="terminal" />
       <div id="term" ref={boxRef} onClick={() => inputRef.current?.focus()} role="log" aria-label="Терминал 42">
         {rows.map((r, i) => (

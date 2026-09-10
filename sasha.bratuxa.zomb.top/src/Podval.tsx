@@ -19,6 +19,7 @@ import { divisionOf, fetchLeague, leaguePts, seasonId, submitScore } from './pod
 import './lib/gametop.css';
 import { loadToken } from './lib/auth';
 import AccountBar from './lib/AccountBar';
+import AdReward from './lib/AdReward';
 import { SAVE_KEY, freshSave, loadSave, type Save } from './podval/save';
 
 /* Нейросеть в подвале: айдл-стратегия Саши ⁴².
@@ -443,6 +444,7 @@ export default function Podval(): JSX.Element {
             и вырасти LLM с {MODEL_LEVELS[0].ver} до {MODEL_LEVELS[MODEL_LEVELS.length - 1].ver}.
           </p>
           <AccountBar />
+          <AdReward game="podval" />
           <ToggleGroup type="single" value={tab} onValueChange={(v) => { if (v) setTab(v); }} aria-label="Разделы подвала">
             <ToggleGroupItem value="podval">Подвал</ToggleGroupItem>
             <ToggleGroupItem value="iron">Железо</ToggleGroupItem>

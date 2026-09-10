@@ -1377,8 +1377,18 @@ const server = import.meta.main ? Bun.serve({
       const tgId = Math.trunc(Number(u.searchParams.get('userid')));
       const r = await bank.adReward(tgId);
       if (!r.ok) return new Response(r.error, { status: 404 });
-      console.log(`[bank] adsgram-награда nick=${r.nick} +100 (№${r.n} за день)`);
+      console.log(`[bank] adsgram-награда nick=${r.nick} +100`);
       return new Response('ok', { status: 200 });
+    }
+    if (u.pathname === '/api/adsgram/claim' && req.method === 'POST') {
+      const me = await bank.verify(tokenOf(req));
+      if (!me) return Response.json({ ok: false, error: 'Войди в кассу' }, { status: 401 });
+      const body = await req.json().catch(() => ({})) as { game?: string };
+      const game = String(body.game ?? 'casino').slice(0, 24);
+      const balance = await bank.walletDelta(me.uid, game, 100);
+      if (balance === null) return Response.json({ ok: false, error: 'Касса пуста' });
+      console.log(`[bank] adsgram-клейм nick=${me.nick} game=${game} +100`);
+      return Response.json({ ok: true, balance, game });
     }
     if (u.pathname === '/api/bank/sync' && req.method === 'POST') {
       const me = await bank.verify(tokenOf(req));

@@ -11,6 +11,7 @@ import type { Api, Tone } from './casino/shared';
 import AuthGate from './casino/AuthGate';
 import Leaders from './casino/Leaders';
 import Ads from './lib/Ads';
+import AdReward from './lib/AdReward';
 import { loadToken, saveToken } from './lib/auth';
 import { isTgApp, isTgLocked, tgAutoLogin, tgReady } from './lib/tg';
 import { me, syncDelta, type BankUser } from './casino/bank';
@@ -294,6 +295,7 @@ export default function Casino(): JSX.Element {
               title="Пополнить через Озон Банк (СБП)"
             ><CreditCard data-icon="inline-start" /> Пополнить</a>
           </Button>}
+          <AdReward game="casino" />
         </div>
         {view === 'lobby' || !Game ? (
           <main className="lobby">

@@ -72,21 +72,18 @@ describe('pgbank auth', () => {
     await closePgBank(b);
   });
 
-  test('adsgram-награда: находит по tg_id, чужим не капает, на 11-й — отказ', async () => {
+  test('adsgram-награда: находит по tg_id, чужим не капает, лимита нет', async () => {
     const b = await fresh();
     expect((await b.adReward(778899)).ok).toBe(false); // счёта нет — не заводим
     const t = await b.tgLogin(778899, 'Рекламный');
     expect(t.ok).toBe(true);
-    const r1 = await b.adReward(778899);
-    expect(r1.ok).toBe(true);
-    if (!r1.ok) return;
-    expect(r1.balance).toBe(1100);
-    expect(r1.n).toBe(1);
-    for (let i = 0; i < 9; i++) {
+    let last = 0;
+    for (let i = 0; i < 15; i++) {
       const r = await b.adReward(778899);
-      if (!r.ok) throw new Error('лимит сработал рано');
+      if (!r.ok) throw new Error('лимит откуда-то взялся');
+      last = r.balance;
     }
-    expect((await b.adReward(778899)).ok).toBe(false);
+    expect(last).toBe(1000 + 15 * 100); // жми хоть 420 раз — капает всегда
     expect((await b.adReward(-5)).ok).toBe(false);
     await closePgBank(b);
   });

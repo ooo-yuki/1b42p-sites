@@ -13,6 +13,7 @@ import { blip } from './fabrika/audio';
 import Ads from './lib/Ads';
 import GameTop from './lib/GameTop';
 import AccountBar from './lib/AccountBar';
+import AdReward from './lib/AdReward';
 
 const REDUCED =
   typeof window !== 'undefined' &&
@@ -168,6 +169,7 @@ export default function Fabrika(): JSX.Element {
       <Masthead h={save.h} f={save.f} fans={fans(save.total)} seasons={save.seasons} />
       <GameTop game="fabrika" />
       <AccountBar />
+      <AdReward game="fabrika" />
       <div id="tabs" role="tablist" aria-label="Сцены фабрики">
         <div data-slot="tabs-list">
           {TABS.map((t) => {

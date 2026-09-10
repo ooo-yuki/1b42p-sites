@@ -1,0 +1,13 @@
+/* Кнопка награды: пилюля в ночь, цифры всегда tabular-nums. */
+.adreward, a.adreward {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #0d1428; color: #fff;
+  border: 1px solid rgba(255, 255, 255, .16); border-radius: 999px;
+  padding: 6px 14px; font-size: 14px; font-weight: 600;
+  text-decoration: none; cursor: pointer; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+a.adreward:hover, button.adreward:hover:not(:disabled) { border-color: #2f6fed; }
+button.adreward:disabled { opacity: .6; cursor: wait; }
+.adreward-wrap { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.adreward-msg { font-size: 13px; color: #808080; font-variant-numeric: tabular-nums; }
