@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Казино 42 — только фантики!</title>
+<style>
+html,body{margin:0;background:#070b18;color:#fff;font-family:system-ui,sans-serif;text-align:center;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px}
+h1{color:#ffd700}.card{background:#ffffff10;border:2px solid #ffd700;border-radius:14px;padding:16px;max-width:480px;width:100%}
+#slots{font-size:64px;margin:10px;letter-spacing:8px}
+button{font-size:18px;font-weight:bold;border-radius:12px;padding:12px 22px;border:3px solid #8a6d00;background:linear-gradient(180deg,#ffd700,#c90);cursor:pointer;margin:6px}
+#bal{font-size:22px;margin:8px}#msg{min-height:26px;margin:6px;color:#bbb}
+small{color:#888}
+</style>
+</head>
+<body>
+<h1>🎰 Казино 42 🎰</h1>
+<p>только фантики! без реальных денег, честно-честно ^_^</p>
+<div class="card">
+<div id="bal">💰 Фантики: <b id="n">100</b></div>
+<div id="slots">🍒 🍒 🍒</div>
+<button id="spin">КРУТИТЬ (10 фантиков)</button>
+<button id="reset">+100 бесплатно</button>
+<div id="msg">жми крутить, удачи!</div>
+</div>
+<small>сделано соней с любовью • играй весело, не на деньги • 1Б42П</small>
+<script>
+let b=100;const s=['🍒','🍋','⭐','💎','7️⃣','🍀'];
+function render(){document.getElementById('n').textContent=b;}
+document.getElementById('spin').onclick=()=>{
+ if(b<10){document.getElementById('msg').textContent='фантиков нет! жми +100 бесплатно';return;}
+ b-=10;
+ const r=[s[Math.floor(Math.random()*s.length)],s[Math.floor(Math.random()*s.length)],s[Math.floor(Math.random()*s.length)]];
+ document.getElementById('slots').textContent=r.join(' ');
+ if(r[0]===r[1]&&r[1]===r[2]){b+=100;document.getElementById('msg').textContent='🎉 ДЖЕКПОТ! +100 фантиков!';}
+ else if(r[0]===r[1]||r[1]===r[2]||r[0]===r[2]){b+=25;document.getElementById('msg').textContent='о, пара! +25 фантиков ^_^';}
+ else{document.getElementById('msg').textContent='мимо... попробуй ещё!';}
+ render();
+};
+document.getElementById('reset').onclick=()=>{b+=100;render();document.getElementById('msg').textContent='+100 фантиков, держи!';};
+render();
+</script>
+</body>
+</html>
