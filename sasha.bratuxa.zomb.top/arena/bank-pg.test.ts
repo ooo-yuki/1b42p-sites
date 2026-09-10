@@ -71,6 +71,23 @@ describe('pgbank auth', () => {
     expect((await b.tgLogin(-1, 'х')).ok).toBe(false);
     await closePgBank(b);
   });
+
+  test('adsgram-награда: капает 100, на 11-й в день — отказ', async () => {
+    const b = await fresh();
+    const r1 = await b.adReward(777777);
+    expect(r1.ok).toBe(true);
+    if (!r1.ok) return;
+    expect(r1.balance).toBe(1100);
+    expect(r1.n).toBe(1);
+    for (let i = 0; i < 9; i++) {
+      const r = await b.adReward(777777);
+      if (!r.ok) throw new Error('лимит сработал рано');
+    }
+    const over = await b.adReward(777777);
+    expect(over.ok).toBe(false);
+    expect((await b.adReward(-5)).ok).toBe(false);
+    await closePgBank(b);
+  });
 });
 
 describe('pgbank money', () => {

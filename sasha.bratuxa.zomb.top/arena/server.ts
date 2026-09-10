@@ -1368,6 +1368,12 @@ const server = import.meta.main ? Bun.serve({
       console.log(`[bank] tg-вход id=${parsed.id} nick=${me?.nick ?? parsed.nick}${Bun.env.SASHA_BOT_TOKEN ? '' : ' БЕЗ ПРОВЕРКИ'}`);
       return Response.json({ ok: true, token: r.token, nick: me?.nick ?? parsed.nick });
     }
+    if (u.pathname === '/api/adsgram/reward' && req.method === 'GET') {
+      const tgId = Math.trunc(Number(u.searchParams.get('userid')));
+      const r = await bank.adReward(tgId);
+      if (r.ok) console.log(`[bank] adsgram-награда nick=${r.nick} +100 (№${r.n} за день)`);
+      return Response.json(r);
+    }
     if (u.pathname === '/api/bank/sync' && req.method === 'POST') {
       const me = await bank.verify(tokenOf(req));
       if (!me) return Response.json({ ok: false, error: 'Войди в кассу' }, { status: 401 });

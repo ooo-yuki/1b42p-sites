@@ -13,6 +13,7 @@ export type PgBank = {
   login: (nick: string, pass: string) => Promise<{ ok: true; uid: number; token: string; balance: number } | { ok: false; error: string }>;
   verify: (token: string) => Promise<{ uid: number; nick: string } | null>;
   tgLogin: (tgId: number, nick: string) => Promise<{ ok: true; uid: number; token: string } | { ok: false; error: string }>;
+  adReward: (tgId: number) => Promise<{ ok: true; nick: string; balance: number; n: number } | { ok: false; error: string }>;
   applyDelta: (uid: number, delta: number) => Promise<{ balance: number } | null>;
   leaders: (limit: number) => Promise<{ nick: string; balance: number }[]>;
   wallet: (uid: number, game: string) => Promise<number>;
@@ -232,7 +233,36 @@ export function openPgBank(url: string): PgBank {
     return { ok: false, error: 'Тесный строй — попробуй позже' };
   };
 
-  return { sql, register, login, verify, tgLogin, applyDelta, leaders, wallet, walletDelta, submitScore, top, recordWin, arenaTop, podvalSubmit, podvalTop };
+  /* ADGRAM-НАГРАДА: досмотрел рекламу — касса капает 100 фантиков.
+     Лимит 10 в день на счёт, иначе URL награды печатал бы деньги. */
+  const AD_REWARD = 100;
+  const AD_DAILY_MAX = 10;
+  const adReward: PgBank['adReward'] = async (tgId) => {
+    if (!Number.isInteger(tgId) || tgId <= 0) return { ok: false, error: 'Телеграм не опознан' };
+    const found = await tgLogin(tgId, '');
+    if (!found.ok) return { ok: false, error: 'Тесный строй — попробуй позже' };
+    await sql`CREATE TABLE IF NOT EXISTS adsgram_claims (
+      uid INTEGER NOT NULL, day TEXT NOT NULL, n INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (uid, day)
+    )`;
+    const day = new Date().toISOString().slice(0, 10);
+    const rows = await sql`INSERT INTO adsgram_claims (uid, day, n)
+      VALUES (${found.uid}, ${day}, 1)
+      ON CONFLICT (uid, day) DO UPDATE SET n = adsgram_claims.n + 1
+      RETURNING n`;
+    const n = (rows[0] as { n: number }).n;
+    if (n > AD_DAILY_MAX) {
+      await sql`UPDATE adsgram_claims SET n = ${AD_DAILY_MAX} WHERE uid = ${found.uid} AND day = ${day}`;
+      return { ok: false, error: 'На сегодня хватит — приходи завтра' };
+    }
+    const balance = await walletDelta(found.uid, 'casino', AD_REWARD);
+    if (balance === null) return { ok: false, error: 'Касса пуста' };
+    const urow = await sql`SELECT nick FROM users WHERE id = ${found.uid}`;
+    const nick = (urow[0] as { nick: string } | undefined)?.nick ?? 'боец';
+    return { ok: true, nick, balance, n };
+  };
+
+  return { sql, register, login, verify, tgLogin, adReward, applyDelta, leaders, wallet, walletDelta, submitScore, top, recordWin, arenaTop, podvalSubmit, podvalTop };
 }
 
 export async function closePgBank(b: PgBank): Promise<void> {
