@@ -2842,6 +2842,8 @@ async function loadStats(): Promise<void> {
               {devXray ? '👁 РЕНТГЕН: ВКЛ' : '👁 РЕНТГЕН: ВЫКЛ'}
             </button>
             <button id="devUsersBtn" className="wbtn" disabled={devUsersBusy} onClick={async () => {
+              // повторное нажатие — закрыть список
+              if (devUsers !== null) { setDevUsers(null); return; }
               setDevUsersBusy(true);
               try {
                 const r = await fetch(`/api/dev/users?token=${encodeURIComponent(token())}`);
@@ -2858,7 +2860,7 @@ async function loadStats(): Promise<void> {
                 {devUsers.map((x) => (
                   <div key={x.login} className="srow">
                     <span>{x.login}{x.blocked ? ' ⛔' : ''}</span>
-                    {!x.blocked && <button className="wbtn" onClick={async () => {
+                    {!x.blocked && x.login !== authed && <button className="wbtn" onClick={async () => {
                       if (!window.confirm(`Заблокировать ${x.login}? Выкинет из аккаунта навсегда.`)) return;
                       try {
                         const r = await fetch('/api/dev/block', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), login: x.login }) });
