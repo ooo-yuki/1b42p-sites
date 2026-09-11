@@ -1,4 +1,5 @@
 import { Database } from 'bun:sqlite';
+import { canCreate, canJoin, visibleInList } from './shared/szeged-gate';
 
 const PORT = 8095;
 const db = new Database('data/mtt.db', { create: true });
@@ -149,7 +150,7 @@ interface Member {
 interface ChatMsg { nick: string; text: string; t: number }
 /** Общий моб комнаты: симулирует владелец (хост), сервер раздаёт всем. god = неубиваемый (сталкеры Бэкрумса). */
 interface Mob { id: number; kind: string; x: number; z: number; hp: number; dead: boolean; wave: number; god: boolean }
-interface Room { id: string; name: string; mode: 'arena' | 'duel' | 'backrooms' | 'pvp' | 'endless' | 'invasion'; created: number; /** Сид карты бэкрумса: один на всех в комнате, новый на каждую комнату/рестарт. */ seed: number; /** TTL-рестарт сек (0 = без рестарта) */ ttlSec: number; /** официальная комната батальона — живёт всегда, рестарт сбрасывает игру на месте */ official: boolean; round: number; lastWinner: string; owner: string; started: boolean; players: Map<string, Member>; pending: Map<string, Member>; chat: ChatMsg[]; mobs: Map<number, Mob>; mobHost: string; /** тихий вылет: ключ→когда ушёл (грейс-возврат без заявки) */ gone: Map<string, number>; /** кик = бан: ключ→до когда нельзя */ banned: Map<string, number>; /** выбрались через дверь: ключ→когда (до рестарта только наблюдатели) */ escaped: Map<string, number>; }
+interface Room { id: string; name: string; mode: 'arena' | 'duel' | 'backrooms' | 'pvp' | 'endless' | 'invasion' | 'szeged'; created: number; /** Сид карты бэкрумса: один на всех в комнате, новый на каждую комнату/рестарт. */ seed: number; /** TTL-рестарт сек (0 = без рестарта) */ ttlSec: number; /** официальная комната батальона — живёт всегда, рестарт сбрасывает игру на месте */ official: boolean; round: number; lastWinner: string; owner: string; started: boolean; players: Map<string, Member>; pending: Map<string, Member>; chat: ChatMsg[]; mobs: Map<number, Mob>; mobHost: string; /** тихий вылет: ключ→когда ушёл (грейс-возврат без заявки) */ gone: Map<string, number>; /** кик = бан: ключ→до когда нельзя */ banned: Map<string, number>; /** выбрались через дверь: ключ→когда (до рестарта только наблюдатели) */ escaped: Map<string, number>; }
 const rooms = new Map<string, Room>();
 const STALE_MS = 12000;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -206,6 +207,7 @@ function roomCap(room: Room): number {
 
 /** TTL-рестарт по режиму, сек: Арена 20 мин, Бэкрумс 10 мин, Нашествие 30 мин, PvP 20 мин, Endless 5 мин. */
 function ttlFor(mode: Room['mode']): number {
+  if (mode === 'szeged') return 1200;
   if (mode === 'arena') return 1200;
   if (mode === 'backrooms') return 600;
   if (mode === 'invasion') return 1800;
@@ -444,6 +446,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
       prune(r);
       if (checkExpiry(r) === 'gone') continue;
       if (r.players.size === 0 && r.pending.size === 0 && !r.official) { rooms.delete(r.id); continue; }
+      if (r.mode === 'szeged' && !visibleInList(loginByToken(u.searchParams.get('token')))) continue;
       out.push({ id: r.id, name: r.name, mode: r.mode, count: r.players.size, started: r.started, official: r.official, restartIn: restartIn(r) });
     }
     // протухшие официальные снесли проверкой выше — сразу пересоздаём, тройка всегда в списке
@@ -468,7 +471,8 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const login = loginByToken(body.token);
     const name = String(body.name ?? '').slice(0, 24).trim() || `Комната ${nick}`;
     const rawMode = String(body.mode ?? 'arena');
-    const mode: Room['mode'] = rawMode === 'duel' ? 'duel' : rawMode === 'backrooms' ? 'backrooms' : rawMode === 'pvp' ? 'pvp' : rawMode === 'endless' ? 'endless' : rawMode === 'invasion' ? 'invasion' : 'arena';
+    const mode: Room['mode'] = rawMode === 'duel' ? 'duel' : rawMode === 'backrooms' ? 'backrooms' : rawMode === 'pvp' ? 'pvp' : rawMode === 'endless' ? 'endless' : rawMode === 'invasion' ? 'invasion' : rawMode === 'szeged' ? 'szeged' : 'arena';
+    if (mode === 'szeged' && !canCreate(login)) return Response.json({ error: 'forbidden' }, { status: 403 });
     const id = newCode();
     const sid = newSid();
     const sp = duelSpawn(0);
@@ -493,6 +497,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     if (room.players.size + room.pending.size >= cap) return Response.json({ error: 'full' }, { status: 403 });
     const nick = cleanNick(body.nick);
     const login = loginByToken(body.token);
+    if (room.mode === 'szeged' && !canJoin(login)) return Response.json({ error: 'forbidden' }, { status: 403 });
     const key = login || ('nick:' + nick);
     if ((room.banned.get(key) ?? 0) > Date.now()) return Response.json({ error: 'banned' }, { status: 403 });
     const sid = newSid();
