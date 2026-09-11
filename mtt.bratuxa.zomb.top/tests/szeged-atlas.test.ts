@@ -84,6 +84,17 @@ test('szeged proc tiles: 4 процедурные плитки в меше и в
   }
 });
 
+test('szeged curated: фасады и черепица владельца в атласе (фото исходника нет)', () => {
+  const m = mesh as unknown as { atlas_tiles: Record<string, number[]> };
+  for (const p of ['cur-wall1.jpg', 'cur-wall2.jpg', 'cur-wall3.jpg', 'cur-wall4.jpg', 'cur-roof.jpg']) {
+    expect(m.atlas_tiles[p], `нет curated-тайла ${p}`).toBeDefined();
+  }
+  // ни одного исходного material_* фото в атласе быть не должно
+  for (const name of Object.keys(m.atlas_tiles)) {
+    expect(name.startsWith('material_'), `исходное фото в атласе: ${name}`).toBe(false);
+  }
+});
+
 test('szeged white fallback: белой плашки почти нет (<2% углов)', () => {
   const m = mesh as unknown as { uv: number[]; atlas_tiles: Record<string, number[]> };
   // белая плашка 8x8 в (2,2): uu≈0.0029; легитимные углы туда не попадают
@@ -99,7 +110,8 @@ test('szeged white fallback: белой плашки почти нет (<2% уг
 test('szeged atlas: тайлы ≤512px, зазоры ≥16px (anti-mip-bleed)', () => {
   const tiles = (mesh as unknown as { atlas_tiles: Record<string, number[]> }).atlas_tiles;
   const rects = Object.values(tiles);
-  expect(rects.length).toBeGreaterThan(10);
+  // curated-атлас худой: белая плашка + 4 процедурки + 5 проверенных фото
+  expect(rects.length).toBeGreaterThanOrEqual(8);
   for (const r of rects) {
     expect(r[2]).toBeLessThanOrEqual(512);
     expect(r[3]).toBeLessThanOrEqual(512);

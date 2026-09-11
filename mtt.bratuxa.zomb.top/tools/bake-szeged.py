@@ -615,6 +615,26 @@ def main():
     proc_images = {pname: _proc_tile(kind)
                    for pname, kind in PROC_TILES.items()}
 
+    # ---- curated tiles: проверенные текстуры (фасады + черепица) ----
+    # Приказ владельца: фото исходника УБРАТЬ, класть только эти + свои.
+    # Дубли повторять можно, искажений быть не должно (пропорции фото).
+    CUR_DIR = here / 'szeged-curated'
+    CUR_WALLS = ['cur-wall1.jpg', 'cur-wall2.jpg',
+                 'cur-wall3.jpg', 'cur-wall4.jpg']
+    CUR_ROOF = 'cur-roof.jpg'
+    CUR_MAP = {'wall1.jpg': 'cur-wall1.jpg', 'wall2.jpg': 'cur-wall2.jpg',
+               'wall3.jpg': 'cur-wall3.jpg', 'wall4.jpg': 'cur-wall4.jpg',
+               'roof.jpg': CUR_ROOF}
+    cur_aspect = {}
+    for _s, _d in CUR_MAP.items():
+        _p = CUR_DIR / _s
+        if _p.is_file():
+            try:
+                with Image.open(_p) as _im:
+                    cur_aspect[_d] = _im.size[1] / max(1, _im.size[0])
+            except Exception:
+                pass
+
     def _box_uv(nx, ny, nz, X, Y, Z, s=4.0, sv=None):
         # planar box-mapping: проекция по доминантной оси нормали,
         # 1 тайл на s метров по u и sv метров по v (sv — пропорция фото,
@@ -641,17 +661,8 @@ def main():
     # плашку. unresolved при этом честно хранит исходные имена.
     tex_avail = {p.name for p in Path(a.tex_dir).iterdir()} \
         if Path(a.tex_dir).is_dir() else set()
-    # пропорции исходников (h/w) — для честного box-ретайлинга: тайл ложится
-    # без сплющивания (только заголовки, быстро).
-    fn_aspect = {}
-    for _fn in set(fn_tris):
-        _p = Path(a.tex_dir) / _fn
-        if _p.is_file():
-            try:
-                with Image.open(_p) as _im:
-                    fn_aspect[_fn] = _im.size[1] / max(1, _im.size[0])
-            except Exception:
-                pass
+    # пропорции curated (h/w) уже сняты выше в cur_aspect; исходные фото не
+    # используем — fn_aspect не нужен.
     resolved = sorted(fn for fn in set(fn_tris) if fn in tex_avail)
     fallback = {}
     for fn in set(fn_tris):
@@ -689,36 +700,9 @@ def main():
     n_missing_corners = 0
     n_box_corners = 0
     aabbs = []
-    for tris, aabb, _ in meshes:
+    for mi, (tris, aabb, _) in enumerate(meshes):
         npx = []
         for corners, color, fn, uvraws in tris:
-            # stretch-fix: фото, растянутое больше чем на 6x6м/тайл цельным
-            # куском (span>0.5), — переложить box-тайлингом того же тайла
-            # (4м, пропорция фото): резко вместо мыла. Мелкий настоящий
-            # тайлинг (span мелкий) и кропы не трогаем.
-            retile = False
-            rsv = 4.0
-            if fn is not None and fn in tex_avail and \
-                    all(u is not None for u in uvraws):
-                _bp = [((c[0] - cx) * scale, c[1] * scale, (c[2] - cz) * scale)
-                       for c in corners]
-                _ax, _ay, _az = _bp[0]
-                _bx, _by, _bz = _bp[1]
-                _dx, _dy, _dz = _bp[2]
-                _ux, _uy, _uz = _bx - _ax, _by - _ay, _bz - _az
-                _vx, _vy, _vz = _dx - _ax, _dy - _ay, _dz - _az
-                _cxp = _uy * _vz - _uz * _vy
-                _cyp = _uz * _vx - _ux * _vz
-                _czp = _ux * _vy - _uy * _vx
-                _A = 0.5 * math.sqrt(_cxp * _cxp + _cyp * _cyp + _czp * _czp)
-                (_u0, _v0), (_u1, _v1), (_u2, _v2) = uvraws  # type: ignore[misc]
-                _a = abs((_u1 - _u0) * (_v2 - _v0) -
-                         (_u2 - _u0) * (_v1 - _v0)) / 2
-                _sp = max(abs(_u1 - _u0), abs(_u2 - _u0), abs(_u2 - _u1),
-                          abs(_v1 - _v0), abs(_v2 - _v0), abs(_v2 - _v1))
-                if _a > 1e-9 and _sp > 0.5 and (_A / _a) > 36.0:
-                    retile = True
-                    rsv = 4.0 * fn_aspect.get(fn, 1.0)
             cr, cg, cb = (clean(round(v, 3)) for v in color)
             ckey = (cr, cg, cb)
             ci = col_map.get(ckey)
@@ -749,57 +733,43 @@ def main():
                 pos_index.append(pi)
                 nor_index.append(ni)
                 npx.append((X, Y, Z))
-                if fn is not None and uvraw is not None:
-                    if fn in tex_avail:
-                        if retile:
-                            # растянутое фото: тот же тайл, box-тайлинг 4м
-                            bu, bv = _box_uv(NX, NY, NZ, X, Y, Z, 4.0, rsv)
-                            used_files.add(fn)
-                            corner_tex.append((fn, bu, bv))
-                            n_box_corners += 1
+                if fn is not None:
+                    # curated: фото исходника НЕ используем вообще (ни свои
+                    # UV, ни чужие) — только проверенные плитки box-тайлингом
+                    # без искажений. Стена — один фасад на меш (дом цельный),
+                    # крыша — черепица, низ — асфальт, испод — штукатурка.
+                    # uvraw исходника игнорируется (есть или нет — неважно).
+                    if uvraw is None:
+                        no_uv_tris += 1
+                    if NY > 0.5:
+                        if Y < 0.5:
+                            _cp, _cs = PROC_ASPH, 4.0
                         else:
-                            used_files.add(fn)
-                            corner_tex.append((fn, uvraw[0], uvraw[1]))
-                            n_tex_corners += 1
-                    elif fn in fallback:
-                        used_files.add(fallback[fn])
-                        corner_tex.append((fallback[fn], uvraw[0], uvraw[1]))
-                        missing_files.add(fn)
-                        n_fallback_corners += 1
-                        # файл отсутствует: угол семплит ЧУЖОЙ тайл, а не
-                        # свою текстуру — честно идёт в missing, не в textured
-                        n_missing_corners += 1
+                            _cp, _cs = CUR_ROOF, 3.0
+                    elif NY < -0.5:
+                        _cp, _cs = PROC_COOL, 4.0
                     else:
+                        _cp, _cs = CUR_WALLS[mi % len(CUR_WALLS)], 8.0
+                    _csv = _cs * cur_aspect.get(_cp, 1.0)
+                    _bu, _bv = _box_uv(NX, NY, NZ, X, Y, Z, _cs, _csv)
+                    used_files.add(_cp)
+                    corner_tex.append((_cp, _bu, _bv))
+                    n_box_corners += 1
+                    n_tex_corners += 1  # curated — настоящие фото в атласе
+                    if fn not in tex_avail:
+                        # честный учёт: исходного файла нет на диске
                         missing_files.add(fn)
-                        corner_tex.append((None, 0.0, 0.0))
                         n_missing_corners += 1
                 else:
-                    if fn is not None:
-                        # материал с текстурой, но у блока нет TEXCOORD:
-                        # box-mapping в его же тайл (или его fallback) —
-                        # угол НЕ белый, идёт в box-учёт.
-                        no_uv_tris += 1
-                        tgt = fn if fn in tex_avail else fallback.get(fn)
-                        if tgt is None:
-                            missing_files.add(fn)
-                            corner_tex.append((None, 0.0, 0.0))
-                            n_missing_corners += 1
-                        else:
-                            bu, bv = _box_uv(NX, NY, NZ, X, Y, Z, 4.0,
-                                             4.0 * fn_aspect.get(tgt, 1.0))
-                            used_files.add(tgt)
-                            corner_tex.append((tgt, bu, bv))
-                            n_box_corners += 1
-                    else:
-                        # плоский исходник без текстуры: box-mapping в
-                        # процедурный тайл по нормали/высоте/тинту; tint
-                        # diffuse поверх сохраняется (col_index как был).
-                        pname = _proc_pick(NY, Y, cr, cb)
-                        bu, bv = _box_uv(NX, NY, NZ, X, Y, Z)
-                        used_files.add(pname)
-                        corner_tex.append((pname, bu, bv))
-                        n_flat_corners += 1
-                        n_box_corners += 1
+                    # плоский исходник без текстуры: box-mapping в
+                    # процедурный тайл по нормали/высоте/тинту; tint
+                    # diffuse поверх сохраняется (col_index как был).
+                    pname = _proc_pick(NY, Y, cr, cb)
+                    bu, bv = _box_uv(NX, NY, NZ, X, Y, Z)
+                    used_files.add(pname)
+                    corner_tex.append((pname, bu, bv))
+                    n_flat_corners += 1
+                    n_box_corners += 1
         xs = [p[0] for p in npx]; ys = [p[1] for p in npx]
         zs = [p[2] for p in npx]
         aabbs.append((min(xs), max(xs), min(ys), max(ys),
@@ -810,6 +780,18 @@ def main():
     for fn in sorted(used_files):
         if fn in proc_images:
             continue  # процедурные — из памяти, на диске их нет и не надо
+        if fn in CUR_MAP.values():
+            _cp = CUR_DIR / [s for s, d in CUR_MAP.items() if d == fn][0]
+            try:
+                _im = Image.open(_cp).convert('RGB')
+                _im.load()
+            except Exception as e:
+                print(f'atlas: skip curated {fn}: {e}', flush=True)
+                missing_files.add(fn)
+                continue
+            _im.thumbnail((TILE_MAX, TILE_MAX), Image.Resampling.LANCZOS)
+            tiles[fn] = _im
+            continue
         try:
             im = Image.open(Path(a.tex_dir) / fn).convert("RGB")
             im.load()
@@ -1064,7 +1046,9 @@ def main():
           f"fallback={fallback or '-'} fb_corners={n_fallback_corners} "
           f"no_uv_tris={no_uv_tris}",
           flush=True)
-    n_all_corners = n_tex_corners + n_flat_corners + n_missing_corners
+    # n_all: disjoint покрытие всех углов (tex+flat); missing — подмножество
+    # tex (исходника нет, но угол одет в curated), box — всего box-углов.
+    n_all_corners = n_tex_corners + n_flat_corners
     if n_all_corners > 0:
         pt = 100.0 * n_tex_corners / n_all_corners
         pf = 100.0 * n_flat_corners / n_all_corners
