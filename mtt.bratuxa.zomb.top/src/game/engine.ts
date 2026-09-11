@@ -1290,7 +1290,7 @@ export class Game {
     const H = this.half;
     // свет дня: небо сверху, земля снизу (объём вместо плоского фона) +
     // тёплое солнце; ACES из buildWorld не даст выгореть белому.
-    scene.add(new THREE.HemisphereLight(0xbfd9ff, 0x8a7a66, 0.6));
+    scene.add(new THREE.HemisphereLight(0xbfd9ff, 0x8a7a66, 0.75));
     const sun = new THREE.DirectionalLight(0xffe7c4, 1.5);
     sun.position.set(120, 180, 60);
     sun.castShadow = true;
@@ -2565,6 +2565,8 @@ export class Game {
     // остальные карты — как были, без изменений.
     this.renderer.toneMapping = this.map === 'szeged'
       ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+    // ACES затемняет середину — компенсируем экспозицией (только Szeged)
+    this.renderer.toneMappingExposure = this.map === 'szeged' ? 1.35 : 1.0;
     if (this.map === 'duel') { this.buildDuel(); return; }
     if (this.map === 'backrooms' || this.map === 'endless') { this.buildBackrooms(); return; }
     if (this.map === 'custom') { this.buildCustom(); return; }
