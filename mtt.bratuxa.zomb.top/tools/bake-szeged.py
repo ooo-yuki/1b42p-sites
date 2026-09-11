@@ -15,8 +15,9 @@ Reads tools/szeged-src/model.dae + tools/szeged-src/textures/model/*, writes:
     Consumer expands corner c of triangle t as:
       P=positions[3*pos_index[c]], N=normals[3*nor_index[c]],
       C=colors[3*col_index[t]], UV=uv[2*c:2*c+2].
-  src/assets/szeged-atlas.jpg   2048-wide shelf-packed atlas (tiles<=256px,
-    JPEG q~82, budget <=1.5MB; tiles shrink-wrapped with 4px padding).
+  src/assets/szeged-atlas.jpg   2048-wide shelf-packed atlas (tiles<=512px,
+    JPEG q~82 (прижать до 40 при переполнении 1.5MB), shrink-wrapped with
+    16px padding + 2px edge-extend против mip-кровотечения).
   src/assets/szeged.solids.json [{x,z,hx,hz,h}] (meters)
   tools/szeged-spawn.json {x,z} — RECOMMENDED_SPAWN (см. ниже).
 
@@ -76,9 +77,11 @@ CELL = 2.0
 WHITE = (1.0, 1.0, 1.0)
 
 ATLAS_W = 2048
-TILE_MAX = 256
-TILE_PAD = 4
+TILE_MAX = 512
+TILE_PAD = 16
+EDGE_EXT = 2
 ATLAS_Q = 82
+ATLAS_Q_MIN = 40
 ATLAS_BUDGET = int(1.5 * 1024 * 1024)
 WHITE_TILE = 8
 
@@ -294,6 +297,8 @@ def main():
     # per-mesh transformed tris + aabb + center
     meshes = []  # (tris_xyz_list, aabb, center)
     # tri entry: (corners, color, texfile|None, uvraws[(u,v)|None x3])
+    fn_tris = {}  # texfile -> triangle count (для fallback-ранжирования)
+    fn_rgb = {}  # texfile -> first seen diffuse rgb
     for gid, (pos, vnor, tblocks) in geoms.items():
         tris = []  # [([(x,y,z,nx,ny,nz) x3], color, texfile, [(u,v)|None x3])]
         for stride, v_off, n_off, tri_nor, t_off, tri_tex, idx, color, fn, mid in tblocks:
@@ -339,6 +344,10 @@ def main():
                     for c in corners:
                         c[3], c[4], c[5] = nx, ny, nz
                 tris.append((corners, color, fn, uvraws))
+                if fn is not None:
+                    fn_tris[fn] = fn_tris.get(fn, 0) + 1
+                    if fn not in fn_rgb:
+                        fn_rgb[fn] = color
         if not tris:
             continue
         xs = [c[0] for t, _, _, _ in tris for c in t]
@@ -355,18 +364,144 @@ def main():
 
     if a.true_scale:
         # кроп по ядру: центр меша (мировые метры; x=x_su, z=-y_su при
-        # flip по умолчанию) должен лежать внутри ядра
+        # flip по умолчанию) должен лежать внутри ядра; ИСКЛЮЧЕНИЕ — плоская
+        # земля (h<1м, площадь>25м² — те же FLAT-пороги, что flat-skip для
+        # солидов): её включаем по ПЕРЕСЕЧЕНИЮ bbox с ядром, иначе плиты,
+        # частично накрывающие ядро, выкидываются и в земле дыры (сквозь
+        # них скайбокс). Из солидов такие меши по-прежнему исключаются
+        # (flat-skip ниже живёт).
         if a.flip_z:
             wz0, wz1 = CORE_Y0, CORE_Y1
         else:
             wz0, wz1 = -CORE_Y1, -CORE_Y0
-        kept = [m for m in meshes
-                if CORE_X0 <= m[2][0] <= CORE_X1
-                and wz0 <= m[2][2] <= wz1]
+
+        def in_core(m):
+            cx, _, cz = m[2]
+            if CORE_X0 <= cx <= CORE_X1 and wz0 <= cz <= wz1:
+                return True
+            x0, x1, y0, y1, z0, z1 = m[1]
+            flat = (y1 - y0) < 1.0 and (x1 - x0) * (z1 - z0) > 25.0
+            return flat and x0 <= CORE_X1 and x1 >= CORE_X0 \
+                and z0 <= wz1 and z1 >= wz0
+
+        kept = [m for m in meshes if in_core(m)]
+        n_flat_kept = sum(1 for m in kept
+                          if not (CORE_X0 <= m[2][0] <= CORE_X1
+                                  and wz0 <= m[2][2] <= wz1))
         n_dropped = len(meshes) - len(kept)
         meshes = kept
         if not meshes:
             sys.exit("true-scale: ядро пусто, нечего печь")
+        # Плоские плиты-«апроны» тянутся на сотни метров за ядро: включаем их
+        # целиком — и честный масштаб схлопывается (ядро 350м тонет в 935м
+        # бокса). Поэтому треугольники плоских мешей с центром ВНЕ ядра
+        # подрезаем по окну ядра (Sutherland–Hodgman в XZ, атрибуты — lerp
+        # по ребру): покрытие ядра полное, бокс остаётся ядерным.
+        n_clipped_tris = 0
+        clipped = []
+        for tris, aabb, center in meshes:
+            cx, _, cz = center
+            if CORE_X0 <= cx <= CORE_X1 and wz0 <= cz <= wz1:
+                clipped.append([tris, aabb, center])
+                continue
+            x0, x1, y0, y1, z0, z1 = aabb
+            if not ((y1 - y0) < 1.0 and (x1 - x0) * (z1 - z0) > 25.0):
+                clipped.append([tris, aabb, center])
+                continue
+            RX = (CORE_X0, CORE_X1)
+            RZ = (wz0, wz1)
+            new_tris = []
+            for corners, color, fn, uvraws in tris:
+                # вершина: [x,y,z,nx,ny,nz] + uvraw; полигон в XZ
+                poly = [([c[0], c[1], c[2], c[3], c[4], c[5]],
+                         list(u) if u is not None else None)
+                        for c, u in zip(corners, uvraws)]
+
+                def clip_edge(poly, axis, bound, keep_le):
+                    out = []
+                    for (p1, u1), (p2, u2) in zip(poly, poly[1:] + poly[:1]):
+                        v1, v2 = p1[axis], p2[axis]
+                        i1 = (v1 <= bound) if keep_le else (v1 >= bound)
+                        i2 = (v2 <= bound) if keep_le else (v2 >= bound)
+                        if i1:
+                            out.append((p1, u1))
+                        if i1 != i2:
+                            t = (bound - v1) / (v2 - v1)
+                            pm = [a + (b - a) * t
+                                  for a, b in zip(p1, p2)]
+                            um = None
+                            if u1 is not None and u2 is not None:
+                                um = [a + (b - a) * t
+                                      for a, b in zip(u1, u2)]
+                            out.append((pm, um))
+                    return out
+
+                for axis, bound, keep_le in ((0, RX[0], False),
+                                             (0, RX[1], True),
+                                             (2, RZ[0], False),
+                                             (2, RZ[1], True)):
+                    poly = clip_edge(poly, axis, bound, keep_le)
+                    if len(poly) < 3:
+                        break
+                if len(poly) < 3:
+                    continue
+                # веер от вершины 0; вырожденные отбрасываем
+                for i in range(1, len(poly) - 1):
+                    vs = [poly[0], poly[i], poly[i + 1]]
+                    ax, az = vs[0][0][0], vs[0][0][2]
+                    bx, bz = vs[1][0][0], vs[1][0][2]
+                    cxx, czz = vs[2][0][0], vs[2][0][2]
+                    if abs((bx - ax) * (czz - az)
+                           - (cxx - ax) * (bz - az)) < 1e-9:
+                        continue
+                    nc = [[v[0], v[1], v[2], v[3], v[4], v[5]]
+                          for v, _ in vs]
+                    nu = [tuple(v[1]) if v[1] is not None else None
+                          for v in vs]
+                    new_tris.append((nc, color, fn, nu))
+                    n_clipped_tris += 1
+            if new_tris:
+                xs = [c[0] for t, _, _, _ in new_tris for c in t]
+                ys = [c[1] for t, _, _, _ in new_tris for c in t]
+                zs = [c[2] for t, _, _, _ in new_tris for c in t]
+                naabb = (min(xs), max(xs), min(ys), max(ys),
+                         min(zs), max(zs))
+                ncen = ((naabb[0] + naabb[1]) / 2,
+                        (naabb[2] + naabb[3]) / 2,
+                        (naabb[4] + naabb[5]) / 2)
+                clipped.append([new_tris, naabb, ncen])
+        meshes = clipped
+        # Страховочная земля: в исходнике есть настоящие пустоты (ни земли,
+        # ни зданий — сквозь них скайбокс). Плоскость y=-0.3 по окну ядра
+        # (+2м поля) ячейками 10м, намотка вверх: белая плашка + земляной
+        # тинт. Из солидов вылетает по flat-skip, дыры закрыты навсегда.
+        GROUND_Y = -0.3
+        GROUND_CELL = 10.0
+        GROUND_TINT = (0.42, 0.4, 0.37)
+        GM = 2.0
+        plane_tris = []
+        _gx = CORE_X0 - GM
+        while _gx < CORE_X1 + GM - 1e-9:
+            _x1 = min(_gx + GROUND_CELL, CORE_X1 + GM)
+            _gz = wz0 - GM
+            while _gz < wz1 + GM - 1e-9:
+                _z1 = min(_gz + GROUND_CELL, wz1 + GM)
+                q = [[_gx, GROUND_Y, _gz, 0.0, 1.0, 0.0],
+                     [_x1, GROUND_Y, _gz, 0.0, 1.0, 0.0],
+                     [_x1, GROUND_Y, _z1, 0.0, 1.0, 0.0],
+                     [_gx, GROUND_Y, _z1, 0.0, 1.0, 0.0]]
+                plane_tris.append(([q[0], q[2], q[1]], GROUND_TINT, None,
+                                   [None, None, None]))
+                plane_tris.append(([q[0], q[3], q[2]], GROUND_TINT, None,
+                                   [None, None, None]))
+                _gz = _z1
+            _gx = _x1
+        paabb = (CORE_X0 - GM, CORE_X1 + GM, GROUND_Y, GROUND_Y,
+                 wz0 - GM, wz1 + GM)
+        pcen = ((paabb[0] + paabb[1]) / 2, GROUND_Y,
+                (paabb[4] + paabb[5]) / 2)
+        meshes.append([plane_tris, paabb, pcen])
+        n_ground_tris = len(plane_tris)
     else:
         # outlier meshes: center further than 3 sigma from median of centers
         centers = [m[2] for m in meshes]
@@ -376,6 +511,9 @@ def main():
         sigma = statistics.pstdev(dists) if len(dists) > 1 else 0.0
         kept = [m for m, d in zip(meshes, dists) if d <= mdist + 3 * sigma]
         n_dropped = len(meshes) - len(kept)
+        n_flat_kept = 0
+        n_clipped_tris = 0
+        n_ground_tris = 0
         meshes = kept
 
     # global bbox, downscale to <=120m on bigger XZ side, center XZ at origin
@@ -388,6 +526,36 @@ def main():
     else:
         scale = min(1.0, MAX_SIDE / max(sx, sz))
     cx, cz = (gx0 + gx1) / 2, (gz0 + gz1) / 2
+    # baked-координаты окна ядра (для ground-coverage теста): X=(x-cx)*scale
+    if a.true_scale:
+        wz0b, wz1b = (CORE_Y0, CORE_Y1) if a.flip_z else (-CORE_Y1, -CORE_Y0)
+        core_rect = [clean(round((CORE_X0 - cx) * scale, 3)),
+                     clean(round((CORE_X1 - cx) * scale, 3)),
+                     clean(round((wz0b - cz) * scale, 3)),
+                     clean(round((wz1b - cz) * scale, 3))]
+    else:
+        core_rect = None
+    # Fallback-текстуры: отсутствующие на диске файлы (крыши сидят на
+    # material_1..4.jpg — их нет) мапим на ближайшую resolved по
+    # diffuse-цвету (ничья — чаще используемая, затем имя), а не на белую
+    # плашку. unresolved при этом честно хранит исходные имена.
+    tex_avail = {p.name for p in Path(a.tex_dir).iterdir()} \
+        if Path(a.tex_dir).is_dir() else set()
+    resolved = sorted(fn for fn in set(fn_tris) if fn in tex_avail)
+    fallback = {}
+    for fn in set(fn_tris):
+        if fn in tex_avail:
+            continue
+        rgb = fn_rgb.get(fn, WHITE)
+
+        def key(r, _rgb=rgb):
+            dr = fn_rgb.get(r, WHITE)
+            return (sum((x - y) ** 2 for x, y in zip(dr, _rgb)),
+                    -fn_tris.get(r, 0), r)
+
+        if resolved:
+            fallback[fn] = min(resolved, key=key)
+    n_fallback_corners = 0
 
     # global dedup: positions round(3), normals round(2), colors round(3)
     pos_map, nor_map, col_map = {}, {}, {}
@@ -432,10 +600,14 @@ def main():
                 nor_index.append(ni)
                 npx.append((X, Y, Z))
                 if fn is not None and uvraw is not None:
-                    p = Path(a.tex_dir) / fn
-                    if p.is_file():
+                    if fn in tex_avail:
                         used_files.add(fn)
                         corner_tex.append((fn, uvraw[0], uvraw[1]))
+                    elif fn in fallback:
+                        used_files.add(fallback[fn])
+                        corner_tex.append((fallback[fn], uvraw[0], uvraw[1]))
+                        missing_files.add(fn)
+                        n_fallback_corners += 1
                     else:
                         missing_files.add(fn)
                         corner_tex.append((None, 0.0, 0.0))
@@ -466,35 +638,56 @@ def main():
                       for (t, u, v) in corner_tex]
         for fn in list(missing_files):
             tiles.pop(fn, None)
-    rects = {}  # fn -> (x, y, w, h) in PIL coords
-    # white tile first at (0,0)
-    rects["@white"] = (0, 0, WHITE_TILE, WHITE_TILE)
-    sx0 = WHITE_TILE + TILE_PAD
-    y = 0
+    rects = {}  # fn -> (x, y, w, h) in PIL coords (сам тайл, без extend)
+    # edge-extend: растягиваем крайние пиксели тайла на EDGE_EXT px в паддинг,
+    # чтобы мипы на минификации семплили свой цвет, а не соседа. Extend живёт
+    # строго внутри TILE_PAD=16, расстояние между тайлами держится.
+    E = EDGE_EXT
+
+    def edge_extend(im, e=E):
+        w, h = im.size
+        ext = Image.new("RGB", (w + 2 * e, h + 2 * e))
+        ext.paste(im, (e, e))
+        nz = Image.Resampling.NEAREST
+        ext.paste(im.crop((0, 0, 1, h)).resize((e, h), nz), (0, e))
+        ext.paste(im.crop((w - 1, 0, w, h)).resize((e, h), nz), (w + e, e))
+        ext.paste(im.crop((0, 0, w, 1)).resize((w, e), nz), (e, 0))
+        ext.paste(im.crop((0, h - 1, w, h)).resize((w, e), nz), (e, h + e))
+        for (px, py, dx, dy) in ((0, 0, 0, 0), (w - 1, 0, w + e, 0),
+                                 (0, h - 1, 0, h + e),
+                                 (w - 1, h - 1, w + e, h + e)):
+            ext.paste(im.crop((px, py, px + 1, py + 1)).resize((e, e), nz),
+                      (dx, dy))
+        return ext
+
+    # white tile first; поле E по краям — extend крайних тайлов не вылезает
+    rects["@white"] = (E, E, WHITE_TILE, WHITE_TILE)
+    sx0 = E + WHITE_TILE + TILE_PAD
+    y = E
     row_h = WHITE_TILE
     x = sx0
     for fn in sorted(tiles, key=lambda f: (-tiles[f].height, -tiles[f].width, f)):
         w, h = tiles[fn].size
-        if x + w > ATLAS_W:
+        if x + w + E > ATLAS_W:
             y += row_h + TILE_PAD
-            x = 0
+            x = E
             row_h = 0
         rects[fn] = (x, y, w, h)
         x += w + TILE_PAD
         row_h = max(row_h, h)
-    H = y + row_h
+    H = y + row_h + E
     atlas = Image.new("RGB", (ATLAS_W, H), (0, 0, 0))
     wx, wy, ww, wh = rects["@white"]
     white = Image.new("RGB", (ww, wh), (255, 255, 255))
     atlas.paste(white, (wx, wy))
     for fn, im in tiles.items():
         rx, ry, w, h = rects[fn]
-        atlas.paste(im, (rx, ry))
+        atlas.paste(edge_extend(im), (rx - E, ry - E))
     Path(a.atlas_out).parent.mkdir(parents=True, exist_ok=True)
     aq = ATLAS_Q
     while True:
         atlas.save(a.atlas_out, "JPEG", quality=aq, optimize=True)
-        if os.path.getsize(a.atlas_out) <= ATLAS_BUDGET or aq <= 60:
+        if os.path.getsize(a.atlas_out) <= ATLAS_BUDGET or aq <= ATLAS_Q_MIN:
             break
         aq -= 4
     atlas_bytes = os.path.getsize(a.atlas_out)
@@ -623,7 +816,9 @@ def main():
                 "nor_index": nor_index,
                 "col_index": col_index,
                 "atlas": Path(a.atlas_out).name,
-                "unresolved": sorted(missing_files)}
+                "unresolved": sorted(missing_files),
+                "core_rect": core_rect,
+                "atlas_tiles": {fn: list(rects[fn]) for fn in sorted(rects)}}
     solids_out = [{k: r3(s[k]) for k in ("x", "z", "hx", "hz", "h")}
                   for s in solids]
 
@@ -652,7 +847,10 @@ def main():
           f"raw_tris={n_raw_tris} uverts={len(positions) // 3} "
           f"unormals={len(normals) // 3} ucolors={len(colors) // 3} "
           f"tris={len(col_index)} solids={len(solids)} "
-          f"flat_skipped={n_flat_skipped} split={n_split} quant={q} "
+          f"flat_skipped={n_flat_skipped} flat_kept={n_flat_kept} "
+          f"clipped_tris={n_clipped_tris} "
+          f"ground_tris={n_ground_tris} "
+          f"split={n_split} quant={q} "
           f"size={W:.1f}x{D:.1f} scale={scale:.4f} "
           f"mesh={mbytes / 1048576:.2f}MB solids={sbytes // 1024}KB",
           flush=True)
@@ -660,6 +858,7 @@ def main():
           f"atlas_bytes={atlas_bytes} jpeg_q={aq} "
           f"tex_resolved={len(tiles)}/{len(image_file)} "
           f"missing={sorted(missing_files) or '-'} "
+          f"fallback={fallback or '-'} fb_corners={n_fallback_corners} "
           f"no_uv_tris={no_uv_tris}",
           flush=True)
     # коридор-чек: BFS по сетке 2м от спавна к спавну (углы ядра, как в

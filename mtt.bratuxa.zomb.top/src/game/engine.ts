@@ -1288,8 +1288,8 @@ export class Game {
     }
     this.half = Math.max(x1 - x0, z1 - z0) / 2 + 10;
     const H = this.half;
-    scene.add(new THREE.AmbientLight(0xffffff, 0.95));
-    const sun = new THREE.DirectionalLight(0xfff2dd, 1.1);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const sun = new THREE.DirectionalLight(0xfff2dd, 0.9);
     sun.position.set(120, 180, 60);
     sun.castShadow = true;
     sun.shadow.mapSize.width = 1024;
@@ -1329,6 +1329,7 @@ export class Game {
     geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(szegedMesh.uv), 2));
     const atlasTex = new THREE.TextureLoader().load(szegedAtlasUrl);
     atlasTex.colorSpace = THREE.SRGBColorSpace;
+    atlasTex.anisotropy = 4;
     const mesh = new THREE.Mesh(
       geo,
       new THREE.MeshStandardMaterial({ map: atlasTex, color: 0xffffff, vertexColors: true, roughness: 0.9 }),
