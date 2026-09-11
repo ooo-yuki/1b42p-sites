@@ -737,6 +737,22 @@ async function loadStats(): Promise<void> {
   const [devXray, setDevXraySt] = useState(false);
   const [devUsers, setDevUsers] = useState<Array<{ login: string; created: number; blocked: boolean }> | null>(null);
   const [devUsersBusy, setDevUsersBusy] = useState(false);
+  /** Живые координаты игрока для дев-панели (опрос движка, пока панель открыта). */
+  const [devPos, setDevPos] = useState<{ x: number; z: number; py: number } | null>(null);
+  useEffect(() => {
+    if (!devUnlocked || !devOpen) { setDevPos(null); return; }
+    const tick = () => {
+      const g = gameRef.current;
+      if (!g) { setDevPos(null); return; }
+      try {
+        const p = g.debugPos();
+        setDevPos({ x: p.x, z: p.z, py: p.py });
+      } catch { /* движок ещё не готов */ }
+    };
+    tick();
+    const id = window.setInterval(tick, 250);
+    return () => window.clearInterval(id);
+  }, [devUnlocked, devOpen]);
   const hudRef = useRef(hud);
   hudRef.current = hud;
   // ник в рефах: пульс и переподключение живут в []-эффекте и видят только протухшее замыкание
@@ -2876,6 +2892,9 @@ async function loadStats(): Promise<void> {
                 ))}
               </div>
             )}
+            <div id="devPos">
+              {devPos ? `📍 X: ${devPos.x.toFixed(1)} Z: ${devPos.z.toFixed(1)} Y: ${devPos.py.toFixed(1)}` : '📍 X: — Z: — Y: —'}
+            </div>
             {canSee(authed, devUnlocked) && (
               <button id="devSzegedBtn" className="wbtn" onClick={() => createRoom(undefined, 'szeged')}>
                 🗺️ НА SZEGED
