@@ -11,7 +11,11 @@ Reads tools/szeged-src/model.dae + tools/szeged-src/textures/model/*, writes:
     constant across a triangle's 3 corners, so per-tri storage suffices.
     uv is a flat pair array, ONE PAIR PER CORNER (len=tris*3*2), already in
     atlas coordinates honoring three.js flipY (uv (0,0) = bottom-left):
-      u=(x+u_dae*w)/W, v=1-(y+v_dae*h)/H   (u_dae/v_dae fract()'d).
+      u=(x+u_dae*w)/W, v=1-(y+(1-v_dae)*h)/H   (u_dae/v_dae fract()'d).
+    V-invert inside the tile ((1-v_dae)) because SketchUp writes TEXCOORD
+    in GL convention (v=0 = BOTTOM of the image) while PIL tiles are stored
+    top-down (row 0 = TOP of the image): v_dae=0 must sample the BOTTOM row
+    of the tile. White @white fallback (no texture) untouched.
     Consumer expands corner c of triangle t as:
       P=positions[3*pos_index[c]], N=normals[3*nor_index[c]],
       C=colors[3*col_index[t]], UV=uv[2*c:2*c+2].
@@ -702,7 +706,9 @@ def main():
         else:
             rx, ry, w, h = rects[t]
             uu = (rx + u_raw * w) / ATLAS_W
-            vv = 1.0 - (ry + v_raw * h) / H
+            # GL TEXCOORD (v=0 = низ картинки) vs PIL-тайл сверху вниз:
+            # инверт v внутри тайла; белый фолбэк (t is None) не трогать.
+            vv = 1.0 - (ry + (1.0 - v_raw) * h) / H
         uv += [clean(round(uu, 4)), clean(round(vv, 4))]
 
     fx0 = min(a[0] for a in aabbs); fx1 = max(a[1] for a in aabbs)

@@ -26,6 +26,42 @@ test('szeged unresolved: меньше 10, список в ошибке', () => {
   expect(un.length, `unresolved textures: ${JSON.stringify(un)}`).toBeLessThan(10);
 });
 
+test('szeged v-flip: v_raw=0 семплит НИЗ тайла (GL-инверт внутри тайла)', () => {
+  // bake кладёт vv = 1-(ry+(1-v_raw)*h)/H: SketchUp пишет TEXCOORD
+  // в GL-соглашении (v=0 = НИЗ картинки), а PIL-тайл лежит сверху вниз
+  // (row 0 = верх). Без (1-v_raw) все текстуры перевёрнуты вверх ногами.
+  const vv = (ry: number, h: number, H: number, v_raw: number) =>
+    1 - (ry + (1 - v_raw) * h) / H;
+  const ry = 100, h = 200, H = 2000;
+  // v_raw=0 → низ тайла в PIL (ry+h) → низ в GL: vv = 1-(ry+h)/H
+  expect(vv(ry, h, H, 0)).toBeCloseTo(1 - (ry + h) / H, 12);
+  // v_raw=1 → верх тайла: vv = 1-ry/H
+  expect(vv(ry, h, H, 1)).toBeCloseTo(1 - ry / H, 12);
+  // середина тайла неподвижна при инверте
+  expect(vv(ry, h, H, 0.5)).toBeCloseTo(1 - (ry + h / 2) / H, 12);
+});
+
+test('szeged white fallback: земля без текстуры — одна uv-точка (инверт не трогает)', () => {
+  const m = mesh as unknown as { colors: number[]; col_index: number[]; uv: number[] };
+  // GROUND_TINT из bake (0.42, 0.4, 0.37), round(3) — только страховочная земля
+  let gci = -1;
+  for (let i = 0; i < m.colors.length; i += 3) {
+    if (m.colors[i] === 0.42 && m.colors[i + 1] === 0.4 && m.colors[i + 2] === 0.37) { gci = i / 3; break; }
+  }
+  expect(gci).toBeGreaterThanOrEqual(0);
+  const seen = new Set<string>();
+  for (let t = 0; t < m.col_index.length; t++) {
+    if (m.col_index[t] === gci) {
+      for (let c = 0; c < 3; c++) {
+        const k = t * 3 + c;
+        seen.add(`${m.uv[2 * k]},${m.uv[2 * k + 1]}`);
+      }
+    }
+  }
+  expect(seen.size).toBeGreaterThan(0);
+  expect(seen.size).toBe(1);
+});
+
 test('szeged atlas: тайлы ≤512px, зазоры ≥16px (anti-mip-bleed)', () => {
   const tiles = (mesh as unknown as { atlas_tiles: Record<string, number[]> }).atlas_tiles;
   const rects = Object.values(tiles);
