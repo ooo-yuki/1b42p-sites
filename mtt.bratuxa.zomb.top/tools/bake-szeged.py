@@ -1,30 +1,41 @@
 #!/usr/bin/env python3
-"""Bake Szeged DAE (SketchUp, Z_UP, inches) -> mesh + solids JSON.
+"""Bake Szeged DAE (SketchUp, Z_UP, inches) -> textured mesh + atlas + solids.
 
-Reads tools/szeged-src/model.dae, writes:
+Reads tools/szeged-src/model.dae + tools/szeged-src/textures/model/*, writes:
   src/assets/szeged.mesh.json   indexed mesh, meters, Y_UP, center at 0:
-    {format:"szeged-mesh-2", positions, normals, colors,
-     pos_index, nor_index, col_index}
+    {format:"szeged-mesh-3", positions, normals, colors, uv,
+     pos_index, nor_index, col_index, atlas, unresolved}
     positions/normals/colors are flat triples (unique entries only);
     pos_index/nor_index address one VERTEX each (per corner, len=tris*3);
     col_index addresses one color (per triangle, len=tris) — color is
     constant across a triangle's 3 corners, so per-tri storage suffices.
+    uv is a flat pair array, ONE PAIR PER CORNER (len=tris*3*2), already in
+    atlas coordinates honoring three.js flipY (uv (0,0) = bottom-left):
+      u=(x+u_dae*w)/W, v=1-(y+v_dae*h)/H   (u_dae/v_dae fract()'d).
     Consumer expands corner c of triangle t as:
       P=positions[3*pos_index[c]], N=normals[3*nor_index[c]],
-      C=colors[3*col_index[t]].
+      C=colors[3*col_index[t]], UV=uv[2*c:2*c+2].
+  src/assets/szeged-atlas.jpg   2048-wide shelf-packed atlas (tiles<=256px,
+    JPEG q~82, budget <=1.5MB; tiles shrink-wrapped with 4px padding).
   src/assets/szeged.solids.json [{x,z,hx,hz,h}] (meters)
-  tools/szeged-spawn.json {x,z} — RECOMMENDED_SPAWN: ближайшая к центру
-  модели (0,0) точка, свободная кругом r=2м от солидов (дистанция круг-AABB
-  как engine solidHit, все солиды без скидок по h). Формат solids зафиксирован
-  массивом (тесты/движок), поэтому спавн живёт отдельным файлом.
-  Перепёк карту — обнови и захардкоженную копию в server.ts (SZEGED_SPAWN).
+  tools/szeged-spawn.json {x,z} — RECOMMENDED_SPAWN (см. ниже).
 
-Pipeline: parse only <triangles> (per-<input> offsets honored, UV ignored) ->
-material diffuse color per tri -> inches->meters (*0.0254),
+РЕШЕНИЕ ПО ПАЛИТРЕ (зафиксировано): col_index/palette ОСТАВЛЕНЫ как tint —
+mesh-3 = mesh-2 + uv + atlas. Diffuse-цвет материала всегда пишется в colors
+и умножается поверх атласа (движок: vertexColors=true, material.color=white).
+Белый severe-fallback убран: нетекстурированные треугольники смотрят в белую
+8x8-плашку атласа (uv в её центр), а tint несёт их diffuse-цвет; текстуры,
+чьи файлы не нашлись на диске, тоже идут в белую плашку и попадают в список
+unresolved (их diffuse-tint при этом сохраняется).
+
+Pipeline: parse <triangles> (per-<input> offsets honored, TEXCOORD first set
+used, UV fract()'d for tiling) -> material: diffuse tint + texture file via
+effect sampler->surface->image chain -> inches->meters (*0.0254),
 Z_UP->Y_UP (x,y,z)->(x,z,-y) [--flip-z gives (x,z,y)] ->
 drop meshes whose center is further than 3 sigma from median of centers ->
 downscale so bbox <=120m on bigger XZ side, bbox center XZ at (0,0) ->
 vertex dedup (positions round(3), normals round(2), colors round(3)) ->
+atlas shelf-pack (PIL, tiles max side 256, LANCZOS) -> uv in atlas coords ->
 per-mesh AABBs -> drop near-flat large slabs (h<1м, area>25м²: земля) ->
 voxel merge on 2m grid -> drop boxes h<0.3, area<0.09 -> split hx,hz<=12м.
 
@@ -33,18 +44,25 @@ voxel merge on 2m grid -> drop boxes h<0.3, area<0.09 -> split hx,hz<=12м.
 дюймы->метры x0.0254 без ужимания; ужать (равномерно, включая Y) только если
 ядро больше TRUE_MAX_SIDE=350м на большей стороне XZ.
 
-stdlib only.
+Исходники текстур (tools/szeged-src/textures/) в git НЕ коммитятся
+(.gitignore: szeged-src/); коммитятся только bake-скрипт, атлас, меш,
+движок и тесты.
+
+Needs PIL (atlas packing).
 """
 import argparse
 import json
 import math
+import os
 import statistics
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from PIL import Image
+
 C = "{http://www.collada.org/2005/11/COLLADASchema}"
-FORMAT = "szeged-mesh-2"
+FORMAT = "szeged-mesh-3"
 INCH = 0.0254
 MAX_SIDE = 120.0
 TRUE_MAX_SIDE = 350.0
@@ -57,30 +75,48 @@ CORE_Y0, CORE_Y1 = -900.0, -550.0
 CELL = 2.0
 WHITE = (1.0, 1.0, 1.0)
 
+ATLAS_W = 2048
+TILE_MAX = 256
+TILE_PAD = 4
+ATLAS_Q = 82
+ATLAS_BUDGET = int(1.5 * 1024 * 1024)
+WHITE_TILE = 8
+
 
 def floats(text):
     return [float(v) for v in text.split()]
 
 
-def effect_diffuse(root, effect_id):
-    """Diffuse RGB of an effect; white fallback when textured/missing."""
+def effect_style(root, effect_id):
+    """(diffuse rgb, texture sampler sid|None) of an effect.
+
+    Diffuse color is ALWAYS returned (white default) — it becomes the tint
+    multiplied over the atlas. Textured effects additionally carry the
+    sampler sid from <texture>; untextured ones carry None (-> white tile).
+    """
     for e in root.iter(C + "effect"):
         if e.get("id") != effect_id:
             continue
+        rgb = WHITE
         d = e.find(".//" + C + "diffuse")
-        if d is None:
-            return WHITE
-        col = d.find(C + "color")
-        if col is None or not col.text:
-            return WHITE  # textured or procedural -> flat white
-        r, g, b = floats(col.text)[:3]
-        return (r, g, b)
-    return WHITE
+        if d is not None:
+            col = d.find(C + "color")
+            if col is not None and col.text:
+                r, g, b = floats(col.text)[:3]
+                rgb = (r, g, b)
+        tex = e.find(".//" + C + "texture")
+        samp = tex.get("texture") if tex is not None else None
+        return (rgb, samp)
+    return (WHITE, None)
 
 
 def clean(v):
     """round() may yield -0.0; normalize it to 0.0 for compact output."""
     return 0.0 if v == 0 else v
+
+
+def fract(v):
+    return v - math.floor(v)
 
 
 def recommended_spawn(solids, rad=2.0, bound=183.0, step=1.0):
@@ -126,8 +162,12 @@ def main():
                     help="crop to dense core + honest inch->meter scale, "
                     "shrink only if core exceeds 350m")
     ap.add_argument("--src", default=str(here / "szeged-src" / "model.dae"))
+    ap.add_argument("--tex-dir",
+                    default=str(here / "szeged-src" / "textures" / "model"))
     ap.add_argument("--mesh-out",
                     default=str(here.parent / "src" / "assets" / "szeged.mesh.json"))
+    ap.add_argument("--atlas-out",
+                    default=str(here.parent / "src" / "assets" / "szeged-atlas.jpg"))
     ap.add_argument("--solids-out",
                     default=str(here.parent / "src" / "assets" / "szeged.solids.json"))
     a = ap.parse_args()
@@ -136,17 +176,48 @@ def main():
     tree = ET.parse(a.src)
     root = tree.getroot()
 
-    # material id -> diffuse rgb
-    mat_color = {}
+    # image id -> texture filename (model/material_*.jpg)
+    image_file = {}
+    for im in root.iter(C + "image"):
+        f = im.find(C + "init_from")
+        if f is not None and f.text:
+            image_file[im.get("id")] = f.text.strip()
+
+    # profile_COMMON newparams: surface sid -> image id; sampler sid -> surface sid
+    surf_img = {}
+    samp_surf = {}
+    for p in root.iter(C + "profile_COMMON"):
+        for n in p.findall(C + "newparam"):
+            sid = n.get("sid")
+            s = n.find(C + "surface")
+            if s is not None:
+                f = s.find(C + "init_from")
+                if f is not None and f.text:
+                    surf_img[sid] = f.text.strip()
+            s2 = n.find(C + "sampler2D")
+            if s2 is not None:
+                src = s2.find(C + "source")
+                if src is not None and src.text:
+                    samp_surf[sid] = src.text.strip()
+
+    # material id -> (diffuse rgb, texture basename|None)
+    mat_style = {}
     for m in root.iter(C + "material"):
         ie = m.find(C + "instance_effect")
         if ie is None:
-            mat_color[m.get("id")] = WHITE
+            mat_style[m.get("id")] = (WHITE, None)
         else:
-            mat_color[m.get("id")] = effect_diffuse(
-                root, ie.get("url", "").lstrip("#"))
+            rgb, samp = effect_style(root, ie.get("url", "").lstrip("#"))
+            fn = None
+            if samp is not None:
+                surf = samp_surf.get(samp, samp)
+                img_id = surf_img.get(surf, surf)
+                init = image_file.get(img_id)
+                if init is not None:
+                    fn = init.split("/")[-1]
+            mat_style[m.get("id")] = (rgb, fn)
 
-    # geometry id -> {symbol: rgb} via instance_geometry bindings (first wins)
+    # geometry id -> {symbol: (rgb, basename|None, material id)}
     geom_sym = {}
     for ig in root.iter(C + "instance_geometry"):
         gid = ig.get("url", "").lstrip("#")
@@ -155,7 +226,9 @@ def main():
             sym = im.get("symbol")
             if sym in slot:
                 continue
-            slot[sym] = mat_color.get(im.get("target", "").lstrip("#"), WHITE)
+            mid = im.get("target", "").lstrip("#")
+            rgb, fn = mat_style.get(mid, (WHITE, None))
+            slot[sym] = (rgb, fn, mid)
 
     geoms = {}
     for g in root.iter(C + "geometry"):
@@ -197,12 +270,18 @@ def main():
             v_off = offs["VERTEX"][0]
             n_off, n_src = offs.get("NORMAL", (None, None))
             tri_nor = srcs.get(n_src) if n_src else None
+            # first TEXCOORD set wins (SketchUp writes one)
+            t_off, tri_tex = None, None
+            if "TEXCOORD" in offs:
+                t_off = offs["TEXCOORD"][0]
+                tri_tex = srcs.get(offs["TEXCOORD"][1])
             p = t.find(C + "p")
             if p is None or not p.text:
                 continue
             idx = [int(v) for v in p.text.split()]
-            color = sym.get(t.get("material"), WHITE)
-            tris.append((stride, v_off, n_off, tri_nor, idx, color))
+            rgb, fn, mid = sym.get(t.get("material"), (WHITE, None, t.get("material")))
+            tris.append((stride, v_off, n_off, tri_nor, t_off, tri_tex,
+                         idx, rgb, fn, mid))
         if tris:
             geoms[g.get("id")] = (pos_src, vert_nor, tris)
 
@@ -213,12 +292,14 @@ def main():
         return (nx, nz, flip * ny)
 
     # per-mesh transformed tris + aabb + center
-    meshes = []  # (tris_xyz_list, color_list, aabb, center)
+    meshes = []  # (tris_xyz_list, aabb, center)
+    # tri entry: (corners, color, texfile|None, uvraws[(u,v)|None x3])
     for gid, (pos, vnor, tblocks) in geoms.items():
-        tris = []  # [([(x,y,z,nx,ny,nz) x3], color)]
-        for stride, v_off, n_off, tri_nor, idx, color in tblocks:
+        tris = []  # [([(x,y,z,nx,ny,nz) x3], color, texfile, [(u,v)|None x3])]
+        for stride, v_off, n_off, tri_nor, t_off, tri_tex, idx, color, fn, mid in tblocks:
             for k in range(0, len(idx), stride * 3):
                 corners = []
+                uvraws = []
                 for c in range(3):
                     base = k + c * stride
                     vi = idx[base + v_off]
@@ -235,6 +316,12 @@ def main():
                     else:
                         nx = ny = nz = None  # -> face normal below
                     corners.append([x, y, z, nx, ny, nz])
+                    if fn is not None and t_off is not None and tri_tex is not None:
+                        ti = idx[base + t_off]
+                        uvraws.append((fract(tri_tex[ti * 2]),
+                                       fract(tri_tex[ti * 2 + 1])))
+                    else:
+                        uvraws.append(None)
                 if any(c[3] is None for c in corners):
                     ax, ay, az = corners[0][:3]
                     bx, by, bz = corners[1][:3]
@@ -251,12 +338,12 @@ def main():
                         nx, ny, nz = 0.0, 1.0, 0.0
                     for c in corners:
                         c[3], c[4], c[5] = nx, ny, nz
-                tris.append((corners, color))
+                tris.append((corners, color, fn, uvraws))
         if not tris:
             continue
-        xs = [c[0] for t, _ in tris for c in t]
-        ys = [c[1] for t, _ in tris for c in t]
-        zs = [c[2] for t, _ in tris for c in t]
+        xs = [c[0] for t, _, _, _ in tris for c in t]
+        ys = [c[1] for t, _, _, _ in tris for c in t]
+        zs = [c[2] for t, _, _, _ in tris for c in t]
         aabb = (min(xs), max(xs), min(ys), max(ys), min(zs), max(zs))
         cx = (aabb[0] + aabb[1]) / 2
         cy = (aabb[2] + aabb[3]) / 2
@@ -306,10 +393,14 @@ def main():
     pos_map, nor_map, col_map = {}, {}, {}
     positions, normals, colors = [], [], []
     pos_index, nor_index, col_index = [], [], []
+    corner_tex = []  # per corner: (texfile|None, u_raw, v_raw)
+    used_files = set()
+    missing_files = set()
+    no_uv_tris = 0
     aabbs = []
     for tris, aabb, _ in meshes:
         npx = []
-        for corners, color in tris:
+        for corners, color, fn, uvraws in tris:
             cr, cg, cb = (clean(round(v, 3)) for v in color)
             ckey = (cr, cg, cb)
             ci = col_map.get(ckey)
@@ -318,7 +409,7 @@ def main():
                 col_map[ckey] = ci
                 colors += [cr, cg, cb]
             col_index.append(ci)
-            for (x, y, z, nx, ny, nz) in corners:
+            for (x, y, z, nx, ny, nz), uvraw in zip(corners, uvraws):
                 X = clean(round((x - cx) * scale, 3))
                 Y = clean(round(y * scale, 3))
                 Z = clean(round((z - cz) * scale, 3))
@@ -340,10 +431,86 @@ def main():
                 pos_index.append(pi)
                 nor_index.append(ni)
                 npx.append((X, Y, Z))
+                if fn is not None and uvraw is not None:
+                    p = Path(a.tex_dir) / fn
+                    if p.is_file():
+                        used_files.add(fn)
+                        corner_tex.append((fn, uvraw[0], uvraw[1]))
+                    else:
+                        missing_files.add(fn)
+                        corner_tex.append((None, 0.0, 0.0))
+                else:
+                    if fn is not None:
+                        no_uv_tris += 1
+                    corner_tex.append((None, 0.0, 0.0))
         xs = [p[0] for p in npx]; ys = [p[1] for p in npx]
         zs = [p[2] for p in npx]
         aabbs.append((min(xs), max(xs), min(ys), max(ys),
                       min(zs), max(zs)))
+
+    # ---- atlas: tiles <=256px, shelf pack into ATLAS_W-wide strip ----
+    tiles = {}  # fn -> PIL image (RGB, thumbnailed)
+    for fn in sorted(used_files):
+        try:
+            im = Image.open(Path(a.tex_dir) / fn).convert("RGB")
+            im.load()
+        except Exception as e:
+            print(f"atlas: skip {fn}: {e}", flush=True)
+            missing_files.add(fn)
+            continue
+        im.thumbnail((TILE_MAX, TILE_MAX), Image.Resampling.LANCZOS)
+        tiles[fn] = im
+    # drop corners whose tile failed to load -> white
+    if missing_files:
+        corner_tex = [(None if t in missing_files else t, u, v)
+                      for (t, u, v) in corner_tex]
+        for fn in list(missing_files):
+            tiles.pop(fn, None)
+    rects = {}  # fn -> (x, y, w, h) in PIL coords
+    # white tile first at (0,0)
+    rects["@white"] = (0, 0, WHITE_TILE, WHITE_TILE)
+    sx0 = WHITE_TILE + TILE_PAD
+    y = 0
+    row_h = WHITE_TILE
+    x = sx0
+    for fn in sorted(tiles, key=lambda f: (-tiles[f].height, -tiles[f].width, f)):
+        w, h = tiles[fn].size
+        if x + w > ATLAS_W:
+            y += row_h + TILE_PAD
+            x = 0
+            row_h = 0
+        rects[fn] = (x, y, w, h)
+        x += w + TILE_PAD
+        row_h = max(row_h, h)
+    H = y + row_h
+    atlas = Image.new("RGB", (ATLAS_W, H), (0, 0, 0))
+    wx, wy, ww, wh = rects["@white"]
+    white = Image.new("RGB", (ww, wh), (255, 255, 255))
+    atlas.paste(white, (wx, wy))
+    for fn, im in tiles.items():
+        rx, ry, w, h = rects[fn]
+        atlas.paste(im, (rx, ry))
+    Path(a.atlas_out).parent.mkdir(parents=True, exist_ok=True)
+    aq = ATLAS_Q
+    while True:
+        atlas.save(a.atlas_out, "JPEG", quality=aq, optimize=True)
+        if os.path.getsize(a.atlas_out) <= ATLAS_BUDGET or aq <= 60:
+            break
+        aq -= 4
+    atlas_bytes = os.path.getsize(a.atlas_out)
+
+    # ---- uv per corner in atlas coords (three.js flipY convention) ----
+    wcx, wcy = wx + ww / 2, wy + wh / 2
+    white_uv = ((wcx) / ATLAS_W, 1.0 - (wcy) / H)
+    uv = []
+    for (t, u_raw, v_raw) in corner_tex:
+        if t is None:
+            uu, vv = white_uv
+        else:
+            rx, ry, w, h = rects[t]
+            uu = (rx + u_raw * w) / ATLAS_W
+            vv = 1.0 - (ry + v_raw * h) / H
+        uv += [clean(round(uu, 4)), clean(round(vv, 4))]
 
     fx0 = min(a[0] for a in aabbs); fx1 = max(a[1] for a in aabbs)
     fz0 = min(a[4] for a in aabbs); fz1 = max(a[5] for a in aabbs)
@@ -451,9 +618,12 @@ def main():
                 "positions": positions,
                 "normals": normals,
                 "colors": colors,
+                "uv": uv,
                 "pos_index": pos_index,
                 "nor_index": nor_index,
-                "col_index": col_index}
+                "col_index": col_index,
+                "atlas": Path(a.atlas_out).name,
+                "unresolved": sorted(missing_files)}
     solids_out = [{k: r3(s[k]) for k in ("x", "z", "hx", "hz", "h")}
                   for s in solids]
 
@@ -465,7 +635,6 @@ def main():
         json.dump(solids_out, f, separators=(",", ":"))
         f.write("\n")
 
-    import os
     # RECOMMENDED_SPAWN: ближайшая к (0,0) свободная кругом r=2м точка.
     # bound = half арены - 2м от края (half как в engine buildSzeged).
     spawn = recommended_spawn(solids, bound=max(W, D) / 2 + 10 - 2)
@@ -486,6 +655,12 @@ def main():
           f"flat_skipped={n_flat_skipped} split={n_split} quant={q} "
           f"size={W:.1f}x{D:.1f} scale={scale:.4f} "
           f"mesh={mbytes / 1048576:.2f}MB solids={sbytes // 1024}KB",
+          flush=True)
+    print(f"atlas={ATLAS_W}x{H} tiles={len(tiles)} "
+          f"atlas_bytes={atlas_bytes} jpeg_q={aq} "
+          f"tex_resolved={len(tiles)}/{len(image_file)} "
+          f"missing={sorted(missing_files) or '-'} "
+          f"no_uv_tris={no_uv_tris}",
           flush=True)
     # коридор-чек: BFS по сетке 2м от спавна к спавну (углы ядра, как в
     # engine buildSzeged). Путь обязан существовать, иначе улицы замурованы.

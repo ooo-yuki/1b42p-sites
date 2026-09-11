@@ -31,6 +31,7 @@ import hitUrl from '../assets/hit.mp3';
 import wallkickUrl from '../assets/wallkick.mp3';
 import deathUrl from '../assets/death.mp3';
 import szegedMesh from '../assets/szeged.mesh.json';
+import szegedAtlasUrl from '../assets/szeged-atlas.jpg';
 import szegedSolids from '../assets/szeged.solids.json';
 import szegedSpawn from '../../tools/szeged-spawn.json';
 
@@ -1159,7 +1160,7 @@ export class Game {
       endless: [brFloorUrl, brWallUrl, brCeilUrl],
       random: [travaUrl, brickUrl, edgeUrl, house2Url],
       custom: [travaUrl, brickUrl],
-      szeged: [],
+      szeged: [szegedAtlasUrl],
       pvp: [travaUrl, brickUrl, edgeUrl, house2Url],
       invasion: [dom1Url, travaUrl, facadeUrl, brickUrl, edgeUrl],
     };
@@ -1273,8 +1274,8 @@ export class Game {
     }
   }
 
-  // Сегед: приватная карта МТТ — запечённый индексный меш (формат szeged-mesh-2).
-  // Экспанд угла c треугольника t: P=positions[3*pos_index[c]], N=normals[3*nor_index[c]], C=colors[3*col_index[t]].
+  // Сегед: приватная карта МТТ — запечённый индексный меш (формат szeged-mesh-3).
+  // Экспанд угла c треугольника t: P=positions[3*pos_index[c]], N=normals[3*nor_index[c]], C=colors[3*col_index[t]], UV=uv[2*c:2*c+2].
   private buildSzeged(): void {
     const scene = this.scene;
     // half ядра: половина большей стороны запечённого bbox + 10м
@@ -1325,9 +1326,12 @@ export class Game {
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(szegedMesh.uv), 2));
+    const atlasTex = new THREE.TextureLoader().load(szegedAtlasUrl);
+    atlasTex.colorSpace = THREE.SRGBColorSpace;
     const mesh = new THREE.Mesh(
       geo,
-      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }),
+      new THREE.MeshStandardMaterial({ map: atlasTex, color: 0xffffff, vertexColors: true, roughness: 0.9 }),
     );
     mesh.castShadow = true;
     mesh.receiveShadow = true;

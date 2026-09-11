@@ -3,7 +3,7 @@ import { statSync } from 'node:fs';
 import mesh from '../src/assets/szeged.mesh.json';
 import solids from '../src/assets/szeged.solids.json';
 test('mesh: индексная схема, силуэт и бюджет', () => {
-  expect(mesh.format).toBe('szeged-mesh-2');
+  expect(mesh.format).toBe('szeged-mesh-3');
   expect(mesh.positions.length % 3).toBe(0);
   expect(mesh.normals.length % 3).toBe(0);
   expect(mesh.colors.length % 3).toBe(0);
