@@ -48,7 +48,8 @@ PROC_WARM = "zz_plaster_warm.png"
 PROC_COOL = "zz_plaster_cool.png"
 PROC_ASPH = "zz_asphalt.png"
 PROC_TILES = {PROC_ROOF: "roof", PROC_WARM: "plaster_warm",
-              PROC_COOL: "plaster_cool", PROC_ASPH: "asphalt"}
+              PROC_COOL: "plaster_cool", PROC_ASPH: "asphalt",
+              "zz_clock.png": "clockface"}
 # Брусчатка улиц: пока процедурный асфальт; задача 4 меняет одну строку.
 STREET_TILE = PROC_ASPH  # task4: pavement
 
@@ -179,6 +180,52 @@ class Baker:
 
 def proc_tile(kind, prng):
     S = 256
+    if kind == "clockface":
+        # Циферблат Биг-Бена: каменный фон (края однородные — стык бесшовный),
+        # слоновая кость, чёрный обод, 12 меток, стрелки ~10:09, центр.
+        base = (118, 116, 110)
+        im = Image.new("RGB", (S, S))
+        px = im.load()
+        assert px is not None
+        for yy in range(S):
+            for xx in range(S):
+                n = prng.randint(-5, 5)
+                px[xx, yy] = (base[0] + n, base[1] + n, base[2] + n)
+        cx = cy = S // 2
+        R = 104
+        for yy in range(S):
+            for xx in range(S):
+                dx, dy = xx - cx, yy - cy
+                r = math.sqrt(dx * dx + dy * dy)
+                if r <= R:
+                    px[xx, yy] = (238, 232, 214)  # слоновая кость
+                if R - 5 <= r <= R:
+                    px[xx, yy] = (20, 20, 22)  # обод
+        for h in range(12):  # часовые метки
+            ang = h * math.pi / 6
+            big = (h % 3 == 0)
+            wdt = 5 if big else 3
+            leng = 20 if big else 12
+            for t in range(leng):
+                rr = R - 8 - t
+                ex = int(round(cx + rr * math.sin(ang)))
+                ey = int(round(cy - rr * math.cos(ang)))
+                for o in range(-wdt // 2, wdt // 2 + 1):
+                    px[min(S - 1, max(0, ex + o)),
+                       min(S - 1, max(0, ey))] = (20, 20, 22)
+        def hand(ang, leng, wdt):
+            for t in range(leng):
+                ex = int(round(cx + t * math.sin(ang)))
+                ey = int(round(cy - t * math.cos(ang)))
+                for ox in range(-wdt, wdt + 1):
+                    for oy in range(-wdt, wdt + 1):
+                        X, Y = ex + ox, ey + oy
+                        if 0 <= X < S and 0 <= Y < S:
+                            px[X, Y] = (15, 15, 17)
+        hand(-2.35, 52, 3)  # часовая ~10:09
+        hand(1.05, 78, 2)   # минутная
+        px[cx, cy] = (15, 15, 17)
+        return im
     if kind == "roof":
         base, amp = (148, 146, 142), 8
     elif kind == "plaster_warm":
@@ -697,6 +744,69 @@ def main():
         fsv = 8.0 * cur_aspect.get(facade, 1.0)
         build_balcony(hx, hz, w, d, side, dirx, facade, fsv)
 
+    # ---- Task 3: мосты + Биг-Бен + башенки + арки ----
+    # Мосты: deck h=1.2 через канал (z+-4.6), ступени 0.4/0.8 с обеих сторон,
+    # парапеты h=2.2 (=deck+1) сегментами над берегами — пролёт над водой
+    # открыт, иначе колонны парапетов затыкают проход под мостом в движке.
+    BRIDGE_H = 1.2
+    BRIDGE_XS = (-50.0, 0.0, 50.0)
+    for bx in BRIDGE_XS:
+        b.add_box(bx, BRIDGE_H - 0.075, 0.0, 6.0, 0.15, 9.2,
+                  PROC_COOL, WHITE, 4.0)
+        b.add_solid(bx, 0.0, 3.0, 4.6, BRIDGE_H, deck=True, tag="bridge")
+        for sgn in (1, -1):
+            for (zc, top) in ((sgn * 5.5, 0.5), (sgn * 4.9, 1.0)):
+                b.add_box(bx, top / 2, zc, 6.0, top, 0.6,
+                          PROC_COOL, WHITE, 4.0)
+                b.add_solid(bx, zc, 3.0, 0.3, top, tag="step")
+            for sx in (bx - 2.9, bx + 2.9):
+                for zc in (5.0, -5.0):
+                    b.add_box(sx, BRIDGE_H + 0.5, zc, 0.2, 1.0, 3.0,
+                              PROC_COOL, WHITE, 4.0)
+                    b.add_solid(sx, zc, 0.1, 1.5, BRIDGE_H + 1.0,
+                                tag="parapet")
+    # Биг-Бен на площади: башня 8x8x30, пояс циферблатов, шпиль-пирамида.
+    BB = (0.0, -58.0)
+    b.add_box(BB[0], 15.0 - 0.05, BB[1], 8.0, 30.0 + 0.05, 8.0,
+              PROC_WARM, WHITE, 8.0)
+    b.add_solid(BB[0], BB[1], 4.0, 4.0, 30.0, tag="tower")
+    b.add_box(BB[0], 26.5, BB[1], 8.4, 3.0, 8.4,
+              "zz_clock.png", WHITE, 8.0, 3.0)
+    bx0, bx1, bz0, bz1 = BB[0] - 4.0, BB[0] + 4.0, BB[1] - 4.0, BB[1] + 4.0
+    apex = (BB[0], 36.0, BB[1])
+    bb_out = (BB[0], 29.0, BB[1])
+    for (p1, p2) in (((bx0, 30.0, bz0), (bx1, 30.0, bz0)),
+                     ((bx1, 30.0, bz0), (bx1, 30.0, bz1)),
+                     ((bx1, 30.0, bz1), (bx0, 30.0, bz1)),
+                     ((bx0, 30.0, bz1), (bx0, 30.0, bz0))):
+        b.add_tri(p1, p2, apex, CUR_ROOF if CUR_ROOF not in missing_cur
+                  else PROC_ROOF, WHITE, 3.0, None, bb_out)
+    # 2 башенки 5x5x18 по краям площади + пирамидки.
+    for (tx, tz) in ((-15.0, -32.0), (15.0, -32.0)):
+        b.add_box(tx, 9.0 - 0.05, tz, 5.0, 18.0 + 0.05, 5.0,
+                  PROC_WARM, WHITE, 8.0)
+        b.add_solid(tx, tz, 2.5, 2.5, 18.0, tag="turret")
+        cap = (tx, 21.0, tz)
+        t_out = (tx, 17.0, tz)
+        for (p1, p2) in (((tx - 2.5, 18.0, tz - 2.5), (tx + 2.5, 18.0, tz - 2.5)),
+                         ((tx + 2.5, 18.0, tz - 2.5), (tx + 2.5, 18.0, tz + 2.5)),
+                         ((tx + 2.5, 18.0, tz + 2.5), (tx - 2.5, 18.0, tz + 2.5)),
+                         ((tx - 2.5, 18.0, tz + 2.5), (tx - 2.5, 18.0, tz - 2.5))):
+            b.add_tri(p1, p2, cap, CUR_ROOF if CUR_ROOF not in missing_cur
+                      else PROC_ROOF, WHITE, 3.0, None, t_out)
+    # Арки в переулках: 2 столба h=4.5 + перекладина deck h=5 (низ 4.0).
+    ARCHES = [(-38.0, 20.0, 40.0, 55.0), (38.0, -25.0, -55.0)]
+    for (acx, *azs) in ARCHES:
+        for az in azs:
+            for sgn in (1, -1):
+                sx = acx + sgn * 2.4
+                b.add_box(sx, 4.5 / 2 - 0.05, az, 0.6, 4.5 + 0.05, 0.8,
+                          PROC_WARM, WHITE, 4.0)
+                b.add_solid(sx, az, 0.3, 0.4, 4.5, tag="arch")
+            b.add_box(acx, 4.5, az, 5.6, 1.0, 0.8,
+                      PROC_WARM, WHITE, 4.0)
+            b.add_solid(acx, az, 2.8, 0.4, 5.0, deck=True, tag="archtop")
+
     # ---- атлас: процедурки + curated, shelf-pack как в bake ----
     proc_images = {pname: proc_tile(kind, prng)
                    for pname, kind in PROC_TILES.items()}
@@ -814,6 +924,10 @@ def main():
           f"balconies={len(balcony_spots)} terraces={len(terrace_ids)} "
           f"steps={t2tags.get('step', 0)} walls={t2tags.get('wall', 0)} "
           f"rails={t2tags.get('rail', 0)} parapets={t2tags.get('parapet', 0)}",
+          flush=True)
+    print(f"t3 bridges=3 arches=5 tower=1 turrets=2 "
+          f"bridge_solids={sum(1 for s in b.solids if s.get('tag') == 'bridge')} "
+          f"arch_solids={sum(1 for s in b.solids if s.get('tag') in ('arch', 'archtop'))}",
           flush=True)
     print(f"atlas={ATLAS_W}x{H} tiles={len(tiles)} "
           f"atlas_bytes={atlas_bytes} jpeg_q={aq}", flush=True)

@@ -36,7 +36,8 @@ test('london interior: счётчики дверей/балконов/терра
     expect(deck).toBeDefined();
     expect(r.h).toBeCloseTo(deck!.h + 1, 6);
   }
-  for (const p of byTag('parapet')) {
+  // террасные парапеты (h=10); мостовые h=2.2 проверяет london-bridge
+  for (const p of byTag('parapet').filter((s) => s.h > 5)) {
     const deck = terraces.find(
       (d) => Math.abs(p.x - d.x) <= d.hx + 1 && Math.abs(p.z - d.z) <= d.hz + 1,
     );
