@@ -94,27 +94,54 @@ def floats(text):
     return [float(v) for v in text.split()]
 
 
-def effect_style(root, effect_id):
-    """(diffuse rgb, texture sampler sid|None) of an effect.
+def effect_style(effect_el, image_file):
+    """(diffuse rgb, texture basename|None) of one <effect> element.
 
     Diffuse color is ALWAYS returned (white default) — it becomes the tint
     multiplied over the atlas. Textured effects additionally carry the
-    sampler sid from <texture>; untextured ones carry None (-> white tile).
+    resolved texture basename; untextured ones carry None (-> white tile).
+
+    sampler->surface->image chain is resolved LOCALLY: sids are looked up
+    only among this effect's own profile_COMMON newparams (COLLADA sid
+    scope is the effect). Global sid tables are wrong: SketchUp reuses
+    identical sids across effects, so a global dict lets the last writer
+    rebind everyone's materials to чужое фото. newparam без sid
+    игнорируется честно — на него нельзя сослаться из <texture>.
     """
-    for e in root.iter(C + "effect"):
-        if e.get("id") != effect_id:
-            continue
-        rgb = WHITE
-        d = e.find(".//" + C + "diffuse")
-        if d is not None:
-            col = d.find(C + "color")
-            if col is not None and col.text:
-                r, g, b = floats(col.text)[:3]
-                rgb = (r, g, b)
-        tex = e.find(".//" + C + "texture")
-        samp = tex.get("texture") if tex is not None else None
-        return (rgb, samp)
-    return (WHITE, None)
+    rgb = WHITE
+    d = effect_el.find(".//" + C + "diffuse")
+    if d is not None:
+        col = d.find(C + "color")
+        if col is not None and col.text:
+            r, g, b = floats(col.text)[:3]
+            rgb = (r, g, b)
+    tex = effect_el.find(".//" + C + "texture")
+    samp = tex.get("texture") if tex is not None else None
+    fn = None
+    if samp is not None:
+        surf_img = {}
+        samp_surf = {}
+        for p in effect_el.findall(C + "profile_COMMON"):
+            for n in p.findall(C + "newparam"):
+                sid = n.get("sid")
+                if sid is None:
+                    continue
+                s = n.find(C + "surface")
+                if s is not None:
+                    f = s.find(C + "init_from")
+                    if f is not None and f.text:
+                        surf_img[sid] = f.text.strip()
+                s2 = n.find(C + "sampler2D")
+                if s2 is not None:
+                    src = s2.find(C + "source")
+                    if src is not None and src.text:
+                        samp_surf[sid] = src.text.strip()
+        surf = samp_surf.get(samp, samp)
+        img_id = surf_img.get(surf, surf)
+        init = image_file.get(img_id)
+        if init is not None:
+            fn = init.split("/")[-1]
+    return (rgb, fn)
 
 
 def clean(v):
@@ -190,39 +217,24 @@ def main():
         if f is not None and f.text:
             image_file[im.get("id")] = f.text.strip()
 
-    # profile_COMMON newparams: surface sid -> image id; sampler sid -> surface sid
-    surf_img = {}
-    samp_surf = {}
-    for p in root.iter(C + "profile_COMMON"):
-        for n in p.findall(C + "newparam"):
-            sid = n.get("sid")
-            s = n.find(C + "surface")
-            if s is not None:
-                f = s.find(C + "init_from")
-                if f is not None and f.text:
-                    surf_img[sid] = f.text.strip()
-            s2 = n.find(C + "sampler2D")
-            if s2 is not None:
-                src = s2.find(C + "source")
-                if src is not None and src.text:
-                    samp_surf[sid] = src.text.strip()
-
-    # material id -> (diffuse rgb, texture basename|None)
+    # material id -> (diffuse rgb, texture basename|None).
+    # Цепочка texture->sampler->surface->image резолвится ЛОКАЛЬНО внутри
+    # каждого <effect> (см. effect_style): никаких глобальных surf_img /
+    # samp_surf — sid'ы SketchUp повторяются между эффектами.
     mat_style = {}
+    effects = {}
+    for e in root.iter(C + "effect"):
+        effects[e.get("id")] = e
     for m in root.iter(C + "material"):
         ie = m.find(C + "instance_effect")
         if ie is None:
             mat_style[m.get("id")] = (WHITE, None)
         else:
-            rgb, samp = effect_style(root, ie.get("url", "").lstrip("#"))
-            fn = None
-            if samp is not None:
-                surf = samp_surf.get(samp, samp)
-                img_id = surf_img.get(surf, surf)
-                init = image_file.get(img_id)
-                if init is not None:
-                    fn = init.split("/")[-1]
-            mat_style[m.get("id")] = (rgb, fn)
+            el = effects.get(ie.get("url", "").lstrip("#"))
+            if el is None:
+                mat_style[m.get("id")] = (WHITE, None)
+            else:
+                mat_style[m.get("id")] = effect_style(el, image_file)
 
     # geometry id -> {symbol: (rgb, basename|None, material id)}
     geom_sym = {}
@@ -569,6 +581,11 @@ def main():
     used_files = set()
     missing_files = set()
     no_uv_tris = 0
+    # честный учёт углов: с реальной текстурой / плоские (fn None -> белая
+    # плашка) / отсутствующие файлы (-> белая плашка, имена в unresolved)
+    n_tex_corners = 0
+    n_flat_corners = 0
+    n_missing_corners = 0
     aabbs = []
     for tris, aabb, _ in meshes:
         npx = []
@@ -607,17 +624,25 @@ def main():
                     if fn in tex_avail:
                         used_files.add(fn)
                         corner_tex.append((fn, uvraw[0], uvraw[1]))
+                        n_tex_corners += 1
                     elif fn in fallback:
                         used_files.add(fallback[fn])
                         corner_tex.append((fallback[fn], uvraw[0], uvraw[1]))
                         missing_files.add(fn)
                         n_fallback_corners += 1
+                        # файл отсутствует: угол семплит ЧУЖОЙ тайл, а не
+                        # свою текстуру — честно идёт в missing, не в textured
+                        n_missing_corners += 1
                     else:
                         missing_files.add(fn)
                         corner_tex.append((None, 0.0, 0.0))
+                        n_missing_corners += 1
                 else:
                     if fn is not None:
                         no_uv_tris += 1
+                        n_missing_corners += 1
+                    else:
+                        n_flat_corners += 1
                     corner_tex.append((None, 0.0, 0.0))
         xs = [p[0] for p in npx]; ys = [p[1] for p in npx]
         zs = [p[2] for p in npx]
@@ -637,9 +662,18 @@ def main():
         im.thumbnail((TILE_MAX, TILE_MAX), Image.Resampling.LANCZOS)
         tiles[fn] = im
     # drop corners whose tile failed to load -> white
+    n_load_fail_corners = 0
     if missing_files:
-        corner_tex = [(None if t in missing_files else t, u, v)
-                      for (t, u, v) in corner_tex]
+        dropped = []
+        for (t, u, v) in corner_tex:
+            if t is not None and t in missing_files:
+                dropped.append((None, u, v))
+                n_load_fail_corners += 1
+            else:
+                dropped.append((t, u, v))
+        corner_tex = dropped
+        n_tex_corners -= n_load_fail_corners
+        n_missing_corners += n_load_fail_corners
         for fn in list(missing_files):
             tiles.pop(fn, None)
     rects = {}  # fn -> (x, y, w, h) in PIL coords (сам тайл, без extend)
@@ -866,6 +900,20 @@ def main():
           f"missing={sorted(missing_files) or '-'} "
           f"fallback={fallback or '-'} fb_corners={n_fallback_corners} "
           f"no_uv_tris={no_uv_tris}",
+          flush=True)
+    n_all_corners = n_tex_corners + n_flat_corners + n_missing_corners
+    if n_all_corners > 0:
+        pt = 100.0 * n_tex_corners / n_all_corners
+        pf = 100.0 * n_flat_corners / n_all_corners
+        pm = 100.0 * n_missing_corners / n_all_corners
+    else:
+        pt = pf = pm = 0.0
+    # углы с fn, но без UV (no_uv_tris, счёт покорнерный) идут в missing:
+    # текстура есть, но угол всё равно лёг в белую плашку.
+    print(f"corners={n_all_corners} textured={n_tex_corners} ({pt:.1f}%) "
+          f"flat={n_flat_corners} ({pf:.1f}%) "
+          f"missing={n_missing_corners} ({pm:.1f}%) "
+          f"load_fail_corners={n_load_fail_corners}",
           flush=True)
     # коридор-чек: BFS по сетке 2м от спавна к спавну (углы ядра, как в
     # engine buildSzeged). Путь обязан существовать, иначе улицы замурованы.
