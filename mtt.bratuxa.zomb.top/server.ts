@@ -205,7 +205,7 @@ function roomCap(room: Room): number {
   return 8;
 }
 
-/** TTL-рестарт по режиму, сек: Арена 20 мин, Бэкрумс 10 мин, Нашествие 30 мин, PvP 20 мин, Endless 5 мин. */
+/** TTL-рестарт по режиму, сек: Арена 20 мин, Бэкрумс 10 мин, Нашествие 30 мин, PvP 20 мин, Endless 5 мин, Szeged 20 мин (1200). */
 function ttlFor(mode: Room['mode']): number {
   if (mode === 'szeged') return 1200;
   if (mode === 'arena') return 1200;
@@ -493,11 +493,12 @@ async function roomsApi(req: Request): Promise<Response | null> {
   if (req.method === 'POST' && action === 'join') {
     prune(room);
     if (checkExpiry(room) === 'gone') return Response.json({ error: 'noroom' }, { status: 404 });
+    const joinLogin = loginByToken(body.token);
+    if (room.mode === 'szeged' && !canJoin(joinLogin)) return Response.json({ error: 'forbidden' }, { status: 403 });
     const cap = roomCap(room);
     if (room.players.size + room.pending.size >= cap) return Response.json({ error: 'full' }, { status: 403 });
     const nick = cleanNick(body.nick);
-    const login = loginByToken(body.token);
-    if (room.mode === 'szeged' && !canJoin(login)) return Response.json({ error: 'forbidden' }, { status: 403 });
+    const login = joinLogin;
     const key = login || ('nick:' + nick);
     if ((room.banned.get(key) ?? 0) > Date.now()) return Response.json({ error: 'banned' }, { status: 403 });
     const sid = newSid();
@@ -537,6 +538,11 @@ async function roomsApi(req: Request): Promise<Response | null> {
     if (selfW) selfW.ts = Date.now();
     prune(room);
     if (checkExpiry(room) === 'gone') return Response.json({ error: 'noroom' }, { status: 404 });
+    // szeged-комнаты чужим не существуют: тот же гейт, что в списке (token, иначе sid-участник)
+    if (room.mode === 'szeged') {
+      const who = loginByToken(u.searchParams.get('token')) ?? selfP?.login ?? selfW?.login ?? null;
+      if (!visibleInList(who)) return Response.json({ error: 'noroom' }, { status: 404 });
+    }
     const isOwner = sid !== '' && sid === room.owner;
     const mine = sid !== '' && (room.players.has(sid) || room.pending.has(sid));
     // чужим состав комнаты не показываем — только факт существования
