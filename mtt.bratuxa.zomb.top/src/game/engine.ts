@@ -5315,8 +5315,11 @@ export class Game {
             // на дома — только если игрок наверху (py>2.5): иначе в обход по BFS,
             // а не на стену. Низкое (до 1.9м) прыгаем всегда — это запасной путь.
             const wantUp = this.py > 2.5;
-            if (dh > 0 && dh <= 1.9 && e.ey - ownG <= 0.05 && e.evy <= 0) { e.evy = 6; e.climbHold = false; this.jumpDBG++; }
-            else if (wantUp && dh > 1.9 && dh <= 12) { e.ey = Math.min(top, e.ey + 2.5 * dt); e.evy = 0; e.climbHold = true; this.climbDBG++; }
+            // низкое у земли (забор, ящик) — прыжком; «почти долез» наверху —
+            // лазаньем: вершина прыжка 1.8м до края не дотягивает и выходит вечный
+            // подпрыг-откат у самой крыши. Порог 2.5м — ступень игрока (1.1м) с запасом
+            if (dh > 0 && dh <= 1.9 && top - ownG <= 2.5 && e.ey - ownG <= 0.05 && e.evy <= 0) { e.evy = 6; e.climbHold = false; this.jumpDBG++; }
+            else if (wantUp && dh > 0 && dh <= 12) { e.ey = Math.min(top, e.ey + 2.5 * dt); e.evy = 0; e.climbHold = true; this.climbDBG++; }
             else if (wantUp && qFound && dh <= 0 && dh > -1.2 && top - ownG <= 12 && e.evy <= 0) {
               // дополз до верха, а нос ещё в стене — перевал через край на крышу.
               // Наверху тесно (голова упрётся) — отпускаем: сползёт вниз, а не зависнет
