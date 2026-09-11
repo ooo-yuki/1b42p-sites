@@ -3,7 +3,7 @@ import mesh from '../src/assets/szeged.mesh.json';
 import solids from '../src/assets/szeged.solids.json';
 import spawn from '../tools/szeged-spawn.json';
 
-type Solid = { x: number; z: number; hx: number; hz: number; h: number };
+type Solid = { x: number; z: number; hx: number; hz: number; h: number; deck?: boolean };
 
 /** hitSolid-подобная проверка: круг против AABB как engine solidHit (y=0). */
 function blocked(px: number, pz: number, rad = 2.0): boolean {
@@ -23,7 +23,7 @@ function arenaHalf(): number {
   return Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs)) / 2 + 10;
 }
 
-test('szeged spawn: формат {x,z} из tools/szeged-spawn.json', async () => {
+test('london spawn: формат {x,z} из tools/szeged-spawn.json', async () => {
   expect(typeof spawn.x).toBe('number');
   expect(typeof spawn.z).toBe('number');
   expect(Number.isFinite(spawn.x)).toBe(true);
@@ -33,7 +33,7 @@ test('szeged spawn: формат {x,z} из tools/szeged-spawn.json', async () =
   expect({ x: spawn.x, z: spawn.z }).toEqual(raw);
 });
 
-test('szeged spawn: внутри арены, свободен кругом r=2м, у центра', () => {
+test('london spawn: внутри арены, свободен кругом r=2м, у площади', () => {
   const half = arenaHalf();
   expect(Math.abs(spawn.x)).toBeLessThanOrEqual(half);
   expect(Math.abs(spawn.z)).toBeLessThanOrEqual(half);
@@ -44,6 +44,6 @@ test('szeged spawn: внутри арены, свободен кругом r=2м
   for (const [cx, cz] of [[-S, -S], [S, -S], [-S, S], [S, S]] as Array<[number, number]>) {
     expect([spawn.x, spawn.z]).not.toEqual([cx, cz]);
   }
-  // baked-точка обязана быть рядом с центром, а не на окраине
-  expect(Math.hypot(spawn.x, spawn.z)).toBeLessThanOrEqual(20);
+  // baked-точка у площади (0,-45): London-спаун (-2,-47), дистанция до центра ~47м
+  expect(Math.hypot(spawn.x, spawn.z)).toBeLessThanOrEqual(60);
 });

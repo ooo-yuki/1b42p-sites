@@ -1,5 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { canCreate, canJoin, visibleInList } from './shared/szeged-gate';
+import szegedSpawnJson from './tools/szeged-spawn.json';
 
 const PORT = 8095;
 const db = new Database('data/mtt.db', { create: true });
@@ -237,9 +238,9 @@ function randSpawnXZ(): { x: number; z: number } {
   return { x: Math.round((Math.random() * 100 - 50) * 10) / 10, z: Math.round((Math.random() * 100 - 50) * 10) / 10 };
 }
 
-/** Szeged-спавн игрока: свободная точка у центра из tools/szeged-spawn.json
- * (bake RECOMMENDED_SPAWN). Захардкожено — обновлять при перепеке карты. */
-const SZEGED_SPAWN = { x: -6, z: 0 };
+/** London-спавн игрока (id карты внутри — szeged): baked-точка tools/szeged-spawn.json
+ * из tools/build-london.py (единый источник, не хардкод). */
+const SZEGED_SPAWN: { x: number; z: number } = { x: szegedSpawnJson.x, z: szegedSpawnJson.z };
 
 /** Три официальных сервера батальона: живут всегда, prune их пересоздаёт. */
 const OFFICIAL_DEFS = [

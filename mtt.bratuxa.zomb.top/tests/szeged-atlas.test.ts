@@ -5,7 +5,7 @@ import mesh from '../src/assets/szeged.mesh.json';
 const ATLAS = new URL('../src/assets/szeged-atlas.jpg', import.meta.url);
 
 test('szeged atlas: файл существует и не пуст', () => {
-  expect(existsSync(ATLAS), 'нет src/assets/szeged-atlas.jpg — запусти tools/bake-szeged.py').toBe(true);
+  expect(existsSync(ATLAS), 'нет src/assets/szeged-atlas.jpg — запусти tools/build-london.py').toBe(true);
   const bytes = statSync(ATLAS).size;
   expect(bytes).toBeGreaterThan(10 * 1024);
   expect(bytes).toBeLessThan(1.5 * 1024 * 1024);

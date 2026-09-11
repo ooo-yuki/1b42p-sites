@@ -88,13 +88,13 @@ function ptTriDist2(px: number, py: number, pz: number, t: Tri): number {
   return qx * qx + qy * qy + qz * qz;
 }
 
-test('szeged core_rect: окно ядра вшито в меш', () => {
+test('london core_rect: окно ядра вшито в меш', () => {
   expect(Array.isArray(mesh.core_rect)).toBe(true);
-  expect(x1 - x0).toBeGreaterThan(250);
-  expect(z1 - z0).toBeGreaterThan(250);
+  expect(x1 - x0).toBeGreaterThan(150);
+  expect(z1 - z0).toBeGreaterThan(150);
 });
 
-test('szeged ground: сетка 10м по ядру — под каждой точкой up-лицо в пределах 2м', () => {
+test('london ground: сетка 10м по ядру — под каждой точкой up-лицо в пределах 2м', () => {
   const tris = buildUpTris();
   expect(tris.length).toBeGreaterThan(1000);
   const pts: Array<[number, number]> = [];
@@ -103,7 +103,7 @@ test('szeged ground: сетка 10м по ядру — под каждой то�
       pts.push([+gx.toFixed(3), +gz.toFixed(3)]);
     }
   }
-  expect(pts.length).toBeGreaterThan(500);
+  expect(pts.length).toBeGreaterThan(200);
   const missing: string[] = [];
   for (const [px, pz] of pts) {
     let ok = false;

@@ -53,7 +53,7 @@ test('solids: улицы проходимы — BFS 2м между 4 спавн�
   const half = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs)) / 2 + 10;
   const S = half - 10;
   const spawns: Array<[number, number]> = [[-S, -S], [S, -S], [-S, S], [S, S]];
-  type Solid = { x: number; z: number; hx: number; hz: number; h: number };
+  type Solid = { x: number; z: number; hx: number; hz: number; h: number; deck?: boolean };
   const blocked = (px: number, pz: number, rad = 1.0): boolean => {
     for (const s of (solids as Solid[])) {
       if (s.h < 0.5) continue;

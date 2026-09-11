@@ -94,7 +94,7 @@ export type MapId = 'arena' | 'duel' | 'backrooms' | 'custom' | 'random' | 'pvp'
 export const MAPS: Array<{ id: MapId; name: string; desc: string }> = [
   { id: 'arena', name: '🌍 Арена', desc: 'Новый город: витрины, переулки, Г/П-дома, площадь с фонтаном' },
   { id: 'duel', name: '⚔️ Дуэль', desc: 'Ночной двор 1×1 для разборок' },
-  { id: 'szeged', name: '🗺️ Szeged', desc: 'Приватная карта МТТ' },
+  { id: 'szeged', name: '🇬🇧 London', desc: 'Приватная карта МТТ' },
   { id: 'backrooms', name: '🟨 Бэкрумс', desc: 'Случайный лабиринт — новый каждый раз' },
   { id: 'random', name: '🎲 Случайная', desc: 'Дикий ландшафт: холмы, скалы, озеро — новый каждый раз' },
 ];
@@ -1279,7 +1279,7 @@ export class Game {
   private buildSzeged(): void {
     const scene = this.scene;
     // half ядра: половина большей стороны запечённого bbox + 10м
-    // (true-scale ядро ~350м -> half ~185)
+    // (London-поле 170м -> half ~95)
     let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
     for (let i = 0; i < szegedMesh.positions.length; i += 3) {
       const x = szegedMesh.positions[i]!, z = szegedMesh.positions[i + 2]!;
@@ -1340,7 +1340,8 @@ export class Game {
     mesh.receiveShadow = true;
     scene.add(mesh);
     for (const s of szegedSolids) {
-      this.solids.push({ x: s.x, z: s.z, hx: s.hx, hz: s.hz, h: s.h });
+      // deck: настилы (мосты/террасы) — низ проход свободный, верх опора (solidHit/groundAt уже умеют)
+      this.solids.push({ x: s.x, z: s.z, hx: s.hx, hz: s.hz, h: s.h, ...('deck' in s && s.deck ? { deck: true as const } : {}) });
     }
     // спавн: первичный — baked RECOMMENDED_SPAWN (tools/szeged-spawn.json,
     // ближайшая к (0,0) свободная кругом r=2м точка); фолбэк — спираль от
