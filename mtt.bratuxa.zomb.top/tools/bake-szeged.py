@@ -583,9 +583,22 @@ def main():
         TAU = 2 * math.pi
         for yy in range(S):
             wy = math.sin(TAU * 2 * yy / S) * math.sin(TAU * 3 * yy / S)
+            wy2 = math.sin(TAU * 5 * yy / S + 1.3) * math.sin(TAU * 7 * yy / S)
             for xx in range(S):
                 wx = math.sin(TAU * 3 * xx / S) * math.sin(TAU * 2 * xx / S)
-                n = _prng.randint(-amp, amp) + int(6 * wx * wy)
+                wx2 = math.sin(TAU * 7 * xx / S) * math.sin(TAU * 5 * xx / S + 0.7)
+                # два слоя пятен (целые периоды — шва нет) + зерно
+                n = _prng.randint(-amp, amp) + int(7 * wx * wy) + int(6 * wx2 * wy2)
+                if kind == 'roof':
+                    # листы мембраны 128px: лёгкая шахматная разница тона
+                    n += 7 if ((xx // 128) + (yy // 128)) % 2 == 0 else -7
+                if kind == 'asphalt':
+                    # крупный щебень: редкие тёмные/светлые вкрапления
+                    r0 = _prng.random()
+                    if r0 < 0.02:
+                        n -= 28
+                    elif r0 > 0.98:
+                        n += 24
                 r = min(255, max(0, base[0] + n))
                 g = min(255, max(0, base[1] + n))
                 b = min(255, max(0, base[2] + n))

@@ -1288,8 +1288,10 @@ export class Game {
     }
     this.half = Math.max(x1 - x0, z1 - z0) / 2 + 10;
     const H = this.half;
-    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-    const sun = new THREE.DirectionalLight(0xfff2dd, 0.7);
+    // свет дня: небо сверху, земля снизу (объём вместо плоского фона) +
+    // тёплое солнце; ACES из buildWorld не даст выгореть белому.
+    scene.add(new THREE.HemisphereLight(0xbfd9ff, 0x8a7a66, 0.6));
+    const sun = new THREE.DirectionalLight(0xffe7c4, 1.5);
     sun.position.set(120, 180, 60);
     sun.castShadow = true;
     sun.shadow.mapSize.width = 1024;
@@ -2559,6 +2561,10 @@ export class Game {
   }
 
   private buildWorld(): void {
+    // Szeged — киношный свет (ACES filmic: не выгорает, цвета глубже),
+    // остальные карты — как были, без изменений.
+    this.renderer.toneMapping = this.map === 'szeged'
+      ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
     if (this.map === 'duel') { this.buildDuel(); return; }
     if (this.map === 'backrooms' || this.map === 'endless') { this.buildBackrooms(); return; }
     if (this.map === 'custom') { this.buildCustom(); return; }
