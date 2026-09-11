@@ -409,7 +409,8 @@ async function roomsApi(req: Request): Promise<Response | null> {
   // админ-статистика МТТ: онлайн по комнатам — кто где и что делает
   if (p === '/api/admin/stats' && req.method === 'GET') {
     const login = loginByToken(u.searchParams.get('token'));
-    if (!ADMIN_LOGIN || login !== ADMIN_LOGIN) return Response.json({ error: 'forbidden' }, { status: 403 });
+    const isOwner = !!login && (login === ADMIN_LOGIN || login === 'МТТ' || login === devOwner());
+    if (!isOwner) return Response.json({ error: 'forbidden' }, { status: 403 });
     const out: object[] = [];
     let totalPlayers = 0;
     for (const r of rooms.values()) {
