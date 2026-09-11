@@ -27,17 +27,19 @@ test('mesh: индексная схема, силуэт и бюджет', () => 
   expect(Math.min(...mesh.col_index)).toBeGreaterThanOrEqual(0);
   const xs: number[] = []; const zs: number[] = [];
   for (let i = 0; i < mesh.positions.length; i += 3) { xs.push(mesh.positions[i]); zs.push(mesh.positions[i + 2]); }
-  expect(Math.max(...xs) - Math.min(...xs)).toBeLessThanOrEqual(160);
-  expect(Math.max(...zs) - Math.min(...zs)).toBeLessThanOrEqual(160);
+  // true-scale ядро: до ~350м на большей стороне
+  expect(Math.max(...xs) - Math.min(...xs)).toBeLessThanOrEqual(360);
+  expect(Math.max(...zs) - Math.min(...zs)).toBeLessThanOrEqual(360);
+  expect(Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs))).toBeGreaterThan(150);
   const bytes = statSync(new URL('../src/assets/szeged.mesh.json', import.meta.url)).size;
   expect(bytes).toBeLessThan(2.5 * 1024 * 1024);
 });
 test('solids: внутри арены, счёт в бюджете', () => {
   expect(solids.length).toBeGreaterThan(10);
-  expect(solids.length).toBeLessThanOrEqual(1500);
+  expect(solids.length).toBeLessThanOrEqual(2000);
   for (const s of solids) {
-    expect(Math.abs(s.x)).toBeLessThanOrEqual(80);
-    expect(Math.abs(s.z)).toBeLessThanOrEqual(80);
+    expect(Math.abs(s.x)).toBeLessThanOrEqual(180);
+    expect(Math.abs(s.z)).toBeLessThanOrEqual(180);
     expect(s.hx).toBeGreaterThan(0); expect(s.hz).toBeGreaterThan(0); expect(s.h).toBeGreaterThan(0);
   }
 });

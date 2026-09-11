@@ -1276,18 +1276,28 @@ export class Game {
   // Экспанд угла c треугольника t: P=positions[3*pos_index[c]], N=normals[3*nor_index[c]], C=colors[3*col_index[t]].
   private buildSzeged(): void {
     const scene = this.scene;
+    // half ядра: половина большей стороны запечённого bbox + 10м
+    // (true-scale ядро ~350м -> half ~185)
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (let i = 0; i < szegedMesh.positions.length; i += 3) {
+      const x = szegedMesh.positions[i]!, z = szegedMesh.positions[i + 2]!;
+      if (x < x0) x0 = x; if (x > x1) x1 = x;
+      if (z < z0) z0 = z; if (z > z1) z1 = z;
+    }
+    this.half = Math.max(x1 - x0, z1 - z0) / 2 + 10;
+    const H = this.half;
     scene.add(new THREE.AmbientLight(0xffffff, 0.95));
     const sun = new THREE.DirectionalLight(0xfff2dd, 1.1);
-    sun.position.set(40, 70, 20);
+    sun.position.set(120, 180, 60);
     sun.castShadow = true;
     sun.shadow.mapSize.width = 1024;
     sun.shadow.mapSize.height = 1024;
-    sun.shadow.camera.left = -70;
-    sun.shadow.camera.right = 70;
-    sun.shadow.camera.top = 70;
-    sun.shadow.camera.bottom = -70;
+    sun.shadow.camera.left = -H - 5;
+    sun.shadow.camera.right = H + 5;
+    sun.shadow.camera.top = H + 5;
+    sun.shadow.camera.bottom = -H - 5;
     sun.shadow.camera.near = 10;
-    sun.shadow.camera.far = 220;
+    sun.shadow.camera.far = 600;
     sun.shadow.bias = -0.0004;
     scene.add(sun);
     // индексный меш -> плоские атрибуты (цвет постоянен на треугольник)
@@ -1324,16 +1334,17 @@ export class Game {
     for (const s of szegedSolids) {
       this.solids.push({ x: s.x, z: s.z, hx: s.hx, hz: s.hz, h: s.h });
     }
-    // спавн: 4 угла, если занято — ищем свободное
-    const cand: Array<[number, number]> = [[-40, -40], [40, -40], [-40, 40], [40, 40]];
+    // спавн: 4 угла ядра, если занято — ищем свободное
+    const S = this.half - 10;
+    const cand: Array<[number, number]> = [[-S, -S], [S, -S], [-S, S], [S, S]];
     for (const [qx, qz] of cand) {
       if (!this.hitSolid(qx, qz, 1.5)) { this.px = qx; this.pz = qz; this.yaw = 0; return; }
     }
     for (let t = 0; t < 30; t++) {
-      const qx = Math.random() * 80 - 40, qz = Math.random() * 80 - 40;
+      const qx = Math.random() * 2 * S - S, qz = Math.random() * 2 * S - S;
       if (!this.hitSolid(qx, qz, 1.5)) { this.px = qx; this.pz = qz; this.yaw = 0; return; }
     }
-    this.px = -40; this.pz = -40; this.yaw = 0;
+    this.px = -S; this.pz = -S; this.yaw = 0;
   }
 
   /**

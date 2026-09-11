@@ -22,6 +22,11 @@ downscale so bbox <=120m on bigger XZ side, bbox center XZ at (0,0) ->
 vertex dedup (positions round(3), normals round(2), colors round(3)) ->
 per-mesh AABBs -> voxel merge on 2m grid -> drop boxes h<0.3, area<0.09.
 
+--true-scale: вместо 3-сигма фильтра — кроп по плотному ядру
+(CORE_X0..X1, CORE_Y0..Y1 в метрах SketchUp-плоскости) и ЧЕСТНЫЙ масштаб:
+дюймы->метры x0.0254 без ужимания; ужать (равномерно, включая Y) только если
+ядро больше TRUE_MAX_SIDE=350м на большей стороне XZ.
+
 stdlib only.
 """
 import argparse
@@ -36,6 +41,13 @@ C = "{http://www.collada.org/2005/11/COLLADASchema}"
 FORMAT = "szeged-mesh-2"
 INCH = 0.0254
 MAX_SIDE = 120.0
+TRUE_MAX_SIDE = 350.0
+# Плотное ядро карты в метрах SketchUp-плоскости (x, глубина y):
+# окно 350x350 с макс. плотностью мешей (сетка 50м + скользящее окно 350м,
+# шаг 10м): x[100,450], y[-900,-550] — 547/1902 мешей, ~13.8k/53.7k tris.
+# В мировых координатах bake: world x = x, world z = -y (flip по умолчанию).
+CORE_X0, CORE_X1 = 100.0, 450.0
+CORE_Y0, CORE_Y1 = -900.0, -550.0
 CELL = 2.0
 WHITE = (1.0, 1.0, 1.0)
 
@@ -70,6 +82,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--flip-z", action="store_true",
                     help="map (x,y,z)->(x,z,y) instead of (x,z,-y)")
+    ap.add_argument("--true-scale", action="store_true",
+                    help="crop to dense core + honest inch->meter scale, "
+                    "shrink only if core exceeds 350m")
     ap.add_argument("--src", default=str(here / "szeged-src" / "model.dae"))
     ap.add_argument("--mesh-out",
                     default=str(here.parent / "src" / "assets" / "szeged.mesh.json"))
@@ -211,21 +226,40 @@ def main():
     n_raw_meshes = len(meshes)
     n_raw_tris = sum(len(m[0]) for m in meshes)
 
-    # outlier meshes: center further than 3 sigma from median of centers
-    centers = [m[2] for m in meshes]
-    med = [statistics.median([c[i] for c in centers]) for i in range(3)]
-    dists = [math.dist(c, med) for c in centers]
-    mdist = statistics.median(dists)
-    sigma = statistics.pstdev(dists) if len(dists) > 1 else 0.0
-    kept = [m for m, d in zip(meshes, dists) if d <= mdist + 3 * sigma]
-    n_dropped = len(meshes) - len(kept)
-    meshes = kept
+    if a.true_scale:
+        # кроп по ядру: центр меша (мировые метры; x=x_su, z=-y_su при
+        # flip по умолчанию) должен лежать внутри ядра
+        if a.flip_z:
+            wz0, wz1 = CORE_Y0, CORE_Y1
+        else:
+            wz0, wz1 = -CORE_Y1, -CORE_Y0
+        kept = [m for m in meshes
+                if CORE_X0 <= m[2][0] <= CORE_X1
+                and wz0 <= m[2][2] <= wz1]
+        n_dropped = len(meshes) - len(kept)
+        meshes = kept
+        if not meshes:
+            sys.exit("true-scale: ядро пусто, нечего печь")
+    else:
+        # outlier meshes: center further than 3 sigma from median of centers
+        centers = [m[2] for m in meshes]
+        med = [statistics.median([c[i] for c in centers]) for i in range(3)]
+        dists = [math.dist(c, med) for c in centers]
+        mdist = statistics.median(dists)
+        sigma = statistics.pstdev(dists) if len(dists) > 1 else 0.0
+        kept = [m for m, d in zip(meshes, dists) if d <= mdist + 3 * sigma]
+        n_dropped = len(meshes) - len(kept)
+        meshes = kept
 
     # global bbox, downscale to <=120m on bigger XZ side, center XZ at origin
     gx0 = min(m[1][0] for m in meshes); gx1 = max(m[1][1] for m in meshes)
     gz0 = min(m[1][4] for m in meshes); gz1 = max(m[1][5] for m in meshes)
     sx, sz = gx1 - gx0, gz1 - gz0
-    scale = min(1.0, MAX_SIDE / max(sx, sz))
+    if a.true_scale:
+        # честный масштаб: ужать только если ядро больше 350м
+        scale = min(1.0, TRUE_MAX_SIDE / max(sx, sz))
+    else:
+        scale = min(1.0, MAX_SIDE / max(sx, sz))
     cx, cz = (gx0 + gx1) / 2, (gz0 + gz1) / 2
 
     # global dedup: positions round(3), normals round(2), colors round(3)
@@ -323,10 +357,11 @@ def main():
         return boxes
 
     solids = []
+    budget = 2000 if a.true_scale else 1500
     for quant in (0.0, 0.5, 1.0, 2.0):
         q = quant if quant > 0 else 1e-9
         solids = voxel_merge(aabbs, q)
-        if len(solids) <= 1500:
+        if len(solids) <= budget:
             break
 
     r3 = lambda v: clean(round(v, 3))
