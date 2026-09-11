@@ -1288,8 +1288,8 @@ export class Game {
     }
     this.half = Math.max(x1 - x0, z1 - z0) / 2 + 10;
     const H = this.half;
-    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-    const sun = new THREE.DirectionalLight(0xfff2dd, 0.9);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+    const sun = new THREE.DirectionalLight(0xfff2dd, 0.7);
     sun.position.set(120, 180, 60);
     sun.castShadow = true;
     sun.shadow.mapSize.width = 1024;
