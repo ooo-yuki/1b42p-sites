@@ -39,8 +39,10 @@ db.run(`CREATE TABLE IF NOT EXISTS promo_redeems (
   ts INTEGER NOT NULL,
   PRIMARY KEY (login, code)
 )`);
-/** Промокоды батальона: код → фантиков на аккаунт. */
-const PROMOS: Record<string, number> = { G1PRT: 2500 };
+/** Промокоды батальона: код → фантиков на аккаунт, 'ALL' — все бойцы, 'DEV' — панель разработчика. */
+const PROMOS: Record<string, number | 'ALL' | 'DEV'> = { G1PRT: 2500, ALLTT: 'ALL', MTT: 999999, LXX42P2ILX: 'DEV' };
+/** Коды на весь сервер разом: кто первый забрал — остальным «taken». */
+const PROMO_ONCE_GLOBAL = new Set(['MTT', 'LXX42P2ILX']);
 
 async function registerUser(login: string, pass: string): Promise<{ ok: boolean; error?: string; token?: string }> {
   if (String(pass ?? '').length < 4 || String(pass ?? '').length > 64) return { ok: false, error: 'passlen' };
@@ -127,7 +129,7 @@ interface Member {
 interface ChatMsg { nick: string; text: string; t: number }
 /** Общий моб комнаты: симулирует владелец (хост), сервер раздаёт всем. god = неубиваемый (сталкеры Бэкрумса). */
 interface Mob { id: number; kind: string; x: number; z: number; hp: number; dead: boolean; wave: number; god: boolean }
-interface Room { id: string; name: string; mode: 'arena' | 'duel' | 'backrooms' | 'pvp' | 'endless' | 'invasion'; created: number; /** Сид карты бэкрумса: один на всех в комнате, новый на каждую комнату/рестарт. */ seed: number; /** TTL-рестарт сек (0 = без рестарта) */ ttlSec: number; /** официальная комната батальона — живёт всегда, рестарт сбрасывает игру на месте */ official: boolean; round: number; lastWinner: string; owner: string; started: boolean; players: Map<string, Member>; pending: Map<string, Member>; chat: ChatMsg[]; mobs: Map<number, Mob>; mobHost: string; /** тихий вылет: ключ→когда ушёл (грейс-возврат без заявки) */ gone: Map<string, number>; /** кик = бан: ключ→до когда нельзя */ banned: Map<string, number>; }
+interface Room { id: string; name: string; mode: 'arena' | 'duel' | 'backrooms' | 'pvp' | 'endless' | 'invasion'; created: number; /** Сид карты бэкрумса: один на всех в комнате, новый на каждую комнату/рестарт. */ seed: number; /** TTL-рестарт сек (0 = без рестарта) */ ttlSec: number; /** официальная комната батальона — живёт всегда, рестарт сбрасывает игру на месте */ official: boolean; round: number; lastWinner: string; owner: string; started: boolean; players: Map<string, Member>; pending: Map<string, Member>; chat: ChatMsg[]; mobs: Map<number, Mob>; mobHost: string; /** тихий вылет: ключ→когда ушёл (грейс-возврат без заявки) */ gone: Map<string, number>; /** кик = бан: ключ→до когда нельзя */ banned: Map<string, number>; /** выбрались через дверь: ключ→когда (до рестарта только наблюдатели) */ escaped: Map<string, number>; }
 const rooms = new Map<string, Room>();
 const STALE_MS = 12000;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -182,11 +184,13 @@ function roomCap(room: Room): number {
   return 8;
 }
 
-/** TTL-рестарт по режиму, сек: PvP 20 мин, Бэкрумс 5 мин, Нашествие 10 мин. */
+/** TTL-рестарт по режиму, сек: Арена 20 мин, Бэкрумс 10 мин, Нашествие 30 мин, PvP 20 мин, Endless 5 мин. */
 function ttlFor(mode: Room['mode']): number {
+  if (mode === 'arena') return 1200;
+  if (mode === 'backrooms') return 600;
+  if (mode === 'invasion') return 1800;
   if (mode === 'pvp') return 1200;
-  if (mode === 'endless') return 300;
-  if (mode === 'invasion') return 600;
+  if (mode === 'endless') return 600;
   return 0;
 }
 
@@ -226,17 +230,17 @@ function ensureOfficial(): void {
       id: def.id, name: def.name, mode, created: Date.now(), seed: newSeed(), ttlSec: ttlFor(mode),
       official: true, round: 1, lastWinner: '', owner: '', started: true,
       players: new Map(), pending: new Map(), chat: [], mobs: new Map(),
-      mobHost: '', gone: new Map(), banned: new Map(),
+      mobHost: '', gone: new Map(), banned: new Map(), escaped: new Map(),
     });
   }
 }
 
 function cleanChar(v: unknown): string {
-  return v === 'krysa' ? 'krysa' : v === 'shuba' ? 'shuba' : 'mtt';
+  return v === 'krysa' ? 'krysa' : v === 'shuba' ? 'shuba' : v === 'chuma' ? 'chuma' : v === 'gidroxis' ? 'gidroxis' : 'mtt';
 }
 
 function pubList(m: Member): object {
-  return { nick: m.nick, login: m.login, char: m.char, x: m.x, z: m.z, hp: m.hp, score: m.score, kills: m.kills, frags: m.frags, spec: m.spec, wave: m.wave, weapon: m.weapon, py: m.py, atk: m.atk, dead: m.dead };
+  return { nick: m.nick, login: m.login, char: m.char, x: m.x, z: m.z, yaw: m.yaw, hp: m.hp, score: m.score, kills: m.kills, frags: m.frags, spec: m.spec, wave: m.wave, weapon: m.weapon, py: m.py, atk: m.atk, dead: m.dead };
 }
 
 // только для лобби создателя: sid нужен кнопкам ПРИНЯТЬ/КИК (beat его не отдаёт)
@@ -300,7 +304,30 @@ async function roomsApi(req: Request): Promise<Response | null> {
     if (!r.ok) return Response.json({ error: r.error }, { status: r.error === 'badpass' ? 401 : 400 });
     return Response.json({ ok: true });
   }
-  // промокод: только с аккаунтом (токен), каждый код — один раз на логин
+  // смена логина: нужен живой токен + пароль; статистику, промокоды и дуэли тянем за собой
+  if (p === '/api/login-change' && req.method === 'POST') {
+    let body: Record<string, unknown> = {};
+    try { body = await req.json() as Record<string, unknown>; } catch { return Response.json({ error: 'bad' }, { status: 400 }); }
+    const login = loginByToken(body.token);
+    if (!login) return Response.json({ error: 'nouser' }, { status: 401 });
+    const row = db.query('SELECT phash FROM users WHERE login = ?').get(login) as { phash: string } | null;
+    if (!row) return Response.json({ error: 'nouser' }, { status: 401 });
+    const good = await Bun.password.verify(String(body.pass ?? ''), row.phash);
+    if (!good) return Response.json({ error: 'badpass' }, { status: 401 });
+    const next = cleanLogin(body.login);
+    if (!next) return Response.json({ error: 'badlogin' }, { status: 400 });
+    if (next === login) return Response.json({ ok: true, login });
+    const taken = db.query('SELECT login FROM users WHERE login = ?').get(next) as { login: string } | null;
+    if (taken) return Response.json({ error: 'taken' }, { status: 409 });
+    db.run('UPDATE users SET login = ? WHERE login = ?', [next, login]);
+    db.run('UPDATE sessions SET login = ? WHERE login = ?', [next, login]);
+    db.run('UPDATE duel_top SET login = ? WHERE login = ?', [next, login]);
+    db.run('UPDATE promo_redeems SET login = ? WHERE login = ?', [next, login]);
+    try { db.run('UPDATE scores SET login = ? WHERE login = ?', [next, login]); } catch { /* старый сейв без колонки */ }
+    return Response.json({ ok: true, login: next });
+  }
+  // промокод: только с аккаунтом (токен). G1PRT — один раз на логин,
+  // ALLTT (все бойцы) — бесконечный: хоть каждый день жми, бойцы уже твои.
   if (p === '/api/promo' && req.method === 'POST') {
     let body: Record<string, unknown> = {};
     try { body = await req.json() as Record<string, unknown>; } catch { return Response.json({ error: 'bad' }, { status: 400 }); }
@@ -308,7 +335,25 @@ async function roomsApi(req: Request): Promise<Response | null> {
     if (!login) return Response.json({ error: 'nologin' }, { status: 401 });
     const code = String(body.code ?? '').trim().toUpperCase().slice(0, 24);
     const reward = PROMOS[code];
-    if (!reward) return Response.json({ error: 'badcode' }, { status: 404 });
+    if (reward === undefined) return Response.json({ error: 'badcode' }, { status: 404 });
+    if (reward === 'ALL') return Response.json({ ok: true, code, unlockAll: true });
+    // DEV-панель: один на весь сервер. Свой же повтор — молча разблокируем заново
+    // (смена устройства/чистка localStorage), чужому — «taken».
+    if (reward === 'DEV') {
+      const taken = db.query('SELECT login FROM promo_redeems WHERE code = ? LIMIT 1').get(code) as { login: string } | null;
+      if (taken) {
+        if (taken.login === login) return Response.json({ ok: true, code, dev: true });
+        return Response.json({ error: 'taken' }, { status: 409 });
+      }
+      db.run('INSERT INTO promo_redeems (login, code, ts) VALUES (?, ?, ?)', [login, code, Date.now()]);
+      return Response.json({ ok: true, code, dev: true });
+    }
+    // код на весь сервер: хоть кто-то уже забрал — остальным отказ (проверка до
+    // личной записи; SELECT+INSERT идут подряд без await — гонки нет)
+    if (PROMO_ONCE_GLOBAL.has(code)) {
+      const taken = db.query('SELECT login FROM promo_redeems WHERE code = ? LIMIT 1').get(code) as { login: string } | null;
+      if (taken) return Response.json({ error: 'taken' }, { status: 409 });
+    }
     const used = db.query('SELECT login FROM promo_redeems WHERE login = ? AND code = ?').get(login, code) as { login: string } | null;
     if (used) return Response.json({ error: 'used' }, { status: 409 });
     db.run('INSERT INTO promo_redeems (login, code, ts) VALUES (?, ?, ?)', [login, code, Date.now()]);
@@ -383,7 +428,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const sid = newSid();
     const sp = duelSpawn(0);
     const pvpSp = mode === 'pvp' || mode === 'endless' || mode === 'invasion' ? randSpawnXZ() : { x: 0, z: 22 };
-    const room: Room = { id, name, mode, created: Date.now(), seed: newSeed(), ttlSec: ttlFor(mode), official: false, round: 1, lastWinner: '', owner: sid, started: false, players: new Map(), pending: new Map(), chat: [], mobs: new Map(), mobHost: '', gone: new Map(), banned: new Map() };
+    const room: Room = { id, name, mode, created: Date.now(), seed: newSeed(), ttlSec: ttlFor(mode), official: false, round: 1, lastWinner: '', owner: sid, started: false, players: new Map(), pending: new Map(), chat: [], mobs: new Map(), mobHost: '', gone: new Map(), banned: new Map(), escaped: new Map() };
     room.players.set(sid, { sid, nick, login, char: cleanChar(body.char), x: mode === 'duel' ? sp.x : pvpSp.x, z: mode === 'duel' ? sp.z : pvpSp.z, yaw: mode === 'duel' ? sp.yaw : 0, hp: 100, score: 0, kills: 0, wave: 1, weapon: 'fists', py: 0, atk: 0, dead: false, duelHp: 100, wins: 0, spawnIdx: 0, frags: 0, spec: false, specTarget: '', respawn: null, ts: Date.now() });
     rooms.set(id, room);
     return Response.json({ id, sid, mode, seed: room.seed, spawn: mode === 'duel' ? sp : null, restartIn: restartIn(room) });
@@ -406,7 +451,10 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const key = login || ('nick:' + nick);
     if ((room.banned.get(key) ?? 0) > Date.now()) return Response.json({ error: 'banned' }, { status: 403 });
     const sid = newSid();
-    const wantSpec = body.spec === true && (room.mode === 'endless' || room.mode === 'pvp' || room.mode === 'invasion');
+    // выбравшийся через дверь возвращается только наблюдателем (до рестарта); ключ — как в memberKey
+    const joinKey = login || ('nick:' + nick);
+    const joinEscaped = room.mode === 'endless' && room.escaped.has(joinKey);
+    const wantSpec = (body.spec === true && (room.mode === 'endless' || room.mode === 'pvp' || room.mode === 'invasion')) || joinEscaped;
     const sp = room.mode === 'pvp' || room.mode === 'endless' || room.mode === 'invasion' ? randSpawnXZ() : { x: 0, z: 22 };
     const member = { sid, nick, login, char: cleanChar(body.char), x: sp.x, z: sp.z, yaw: 0, hp: 100, score: 0, kills: 0, wave: 1, weapon: 'fists', py: 0, atk: 0, dead: false, duelHp: 100, wins: 0, spawnIdx: room.players.size, frags: 0, spec: wantSpec, specTarget: '', respawn: null, ts: Date.now() };
     // грейс-возврат: свой тихо вылетел <2мин назад, место свободно — сразу в игру без заявки
@@ -416,15 +464,15 @@ async function roomsApi(req: Request): Promise<Response | null> {
       room.gone.delete(key);
       room.pending.delete(sid);
       room.players.set(sid, member);
-      return Response.json({ sid, name: room.name, mode: room.mode, seed: room.seed, pending: false });
+      return Response.json({ sid, name: room.name, mode: room.mode, seed: room.seed, pending: false, escaped: joinEscaped });
     }
     // официальные сервера: сразу в игру, без заявки
     if (room.official) {
       room.players.set(sid, member);
-      return Response.json({ sid, name: room.name, mode: room.mode, seed: room.seed, pending: false, official: true });
+      return Response.json({ sid, name: room.name, mode: room.mode, seed: room.seed, pending: false, official: true, escaped: joinEscaped });
     }
     room.pending.set(sid, member);
-    return Response.json({ sid, name: room.name, mode: room.mode, seed: room.seed, pending: true });
+    return Response.json({ sid, name: room.name, mode: room.mode, seed: room.seed, pending: true, escaped: joinEscaped });
   }
 
   // состояние лобби для меню: кто внутри, кто просится, запущена ли игра
@@ -511,6 +559,19 @@ async function roomsApi(req: Request): Promise<Response | null> {
 
   // TTL истёк — комнаты больше нет: всех выкидывает (клиент уводит в меню)
   if (checkExpiry(room) === 'gone') return Response.json({ error: 'noroom' }, { status: 404 });
+
+  // дверь выхода из Бесконечного Бэкрумса: живой боец выбрался — +2500 фантиков
+  // (раз за рестарт), до рестарта вход только наблюдателем. Призрак дверь не трогает.
+  if (req.method === 'POST' && action === 'escape') {
+    if (room.mode !== 'endless') return Response.json({ error: 'nomode' }, { status: 403 });
+    if (me.spec) return Response.json({ error: 'nospec' }, { status: 403 });
+    if (me.dead || me.hp <= 0) return Response.json({ error: 'dead' }, { status: 403 });
+    const key = memberKey(me);
+    if (room.escaped.has(key)) return Response.json({ error: 'used' }, { status: 409 });
+    room.escaped.set(key, Date.now());
+    me.ts = Date.now();
+    return Response.json({ ok: true, fantiki: 2500 });
+  }
 
   // удар по дуэлянту: урон ставит сервер, победу и новый раунд — тоже он
   if (req.method === 'POST' && action === 'hit') {
@@ -619,7 +680,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
       if (cur && cur.dead && cur.wave === wave) continue;
       room.mobs.set(id, {
         id, kind,
-        x: num(raw.x, -70, 70), z: num(raw.z, -70, 70),
+        x: num(raw.x, -160, 160), z: num(raw.z, -160, 160),
         hp: Math.round(num(raw.hp, 0, 100000)),
         dead: raw.dead === true,
         wave,
@@ -658,8 +719,8 @@ async function roomsApi(req: Request): Promise<Response | null> {
   // пульс: обновить себя, забрать остальных (+ дуэль-блок, + чат)
   if (req.method === 'POST' && action === 'beat') {
     me.char = cleanChar(body.char ?? me.char);
-    me.x = num(body.x, -70, 70);
-    me.z = num(body.z, -70, 70);
+    me.x = num(body.x, -160, 160);
+    me.z = num(body.z, -160, 160);
     me.yaw = num(body.yaw, -10, 10);
     // PvP: hp ставит только сервер через pvphit (иначе жертва затёрла бы урон своим старым значением)
     if (room.mode !== 'pvp') me.hp = Math.round(num(body.hp, 0, 10000));

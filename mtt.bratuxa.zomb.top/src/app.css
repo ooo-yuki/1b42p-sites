@@ -164,7 +164,7 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(-
 #caseFull #caseRoulette{max-width:none;width:100%;margin:0;display:grid;gap:1vh}
 #caseFull #casePointer{font-size:clamp(30px,5vw,52px)}
 #caseFull #caseWin{padding:3vh 0;width:100%}
-#caseTrack{display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:8px;padding:0 140px;width:max-content;transition-property:transform;transition-timing-function:cubic-bezier(.12,.8,.08,1)}
+#caseTrack{display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:8px;padding:0 140px;width:max-content;will-change:transform}
 #caseFull .rcard{flex:0 0 clamp(140px,18vw,200px);width:clamp(140px,18vw,200px);height:clamp(170px,24vw,240px)}
 #caseFull .rcard img{width:70%;height:52%}
 #caseFull .rcard .remo{font-size:42px}
@@ -210,8 +210,13 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(-
 #weapon.shotgun img{width:62%;margin:0 auto;display:block;mix-blend-mode:screen;filter:none}
 #weapon.walk img{animation:wbob .38s steps(2) infinite}
 @keyframes wbob{0%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-10px) rotate(2deg)}100%{transform:translateY(0) rotate(-2deg)}}
-#weapon.swing{animation:wswing .25s ease-out}
+/* замах ближнего боя — дуга; огнестрел — откат назад, а не взмах */
+#weapon.play:not(.ranged){animation:wswing .25s ease-out}
 @keyframes wswing{0%{transform:rotate(0)}40%{transform:rotate(-38deg) translateY(-12px)}100%{transform:rotate(0)}}
+#weapon.play.ranged{animation:wrecoil .3s ease-out}
+@keyframes wrecoil{0%{transform:translateY(0) rotate(0)}25%{transform:translateY(30px) rotate(2.5deg)}100%{transform:translateY(0) rotate(0)}}
+/* спрайты на чёрном фоне (кулаки, бита, дробовик): screen топит черноту */
+#weapon.screen img{mix-blend-mode:screen;filter:none}
 #cross{position:fixed;left:50%;top:50%;width:32px;height:32px;transform:translate(-50%,-50%);z-index:5;pointer-events:none;opacity:1;mix-blend-mode:difference}
 #cross i{position:absolute;background:#fff;border-radius:2px}
 #cross i:first-child{left:14px;top:4px;width:3px;height:24px}
@@ -322,6 +327,10 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(-
 #scoreboard .sme{color:#39d353}
 #restartBadge{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:6;background:var(--panel);
   border:1px solid var(--amber);border-radius:20px;padding:6px 16px;font-size:14px;font-weight:800;color:var(--amber);font-family:var(--font-d)}
+#doorPulse{position:fixed;top:52px;left:50%;transform:translateX(-50%);z-index:6;background:rgba(4,32,12,.92);
+  border:1px solid #39d353;border-radius:20px;padding:6px 16px;font-size:14px;font-weight:800;color:#39d353;font-family:var(--font-d);
+  box-shadow:0 0 18px rgba(57,211,83,.55);animation:doorblink 1s ease-in-out infinite}
+@keyframes doorblink{0%,100%{opacity:1}50%{opacity:.55}}
 #fps{position:fixed;left:12px;bottom:12px;z-index:6;font-size:13px;font-weight:800;font-family:var(--font-d);color:#39d353;
   background:var(--panel);border:1px solid rgba(57,211,83,.5);border-radius:9px;padding:5px 11px}
 #specBar{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:7;text-align:center;background:var(--panel);
@@ -369,3 +378,9 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(-
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
 }
+/* DEV-панель: баннер сбоку + выдвижная панель (пока пустая) */
+#devBanner{position:fixed;right:0;top:40%;z-index:60;width:44px;height:64px;border-radius:10px 0 0 10px;border:1px solid #5a4a22;border-right:none;background:#1a1408;color:#fff;font-size:22px;cursor:pointer;box-shadow:-2px 0 12px rgba(0,0,0,.5)}
+#devPanel{position:fixed;right:0;top:0;z-index:61;width:min(320px,86vw);height:100%;background:#14100a;border-left:1px solid #5a4a22;color:#fff;padding:14px;box-shadow:-4px 0 24px rgba(0,0,0,.6);overflow-y:auto}
+#devPanelHead{display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:16px;margin-bottom:10px}
+#devClose{background:transparent;border:1px solid #5a4a22;color:#9a8a5a;border-radius:8px;font-size:15px;padding:6px 12px;cursor:pointer}
+#devPanelBody{opacity:.8;font-size:14px}

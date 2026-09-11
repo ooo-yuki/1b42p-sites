@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Game, WEAPONS, CHARS, MAPS, hashSeed, KEY_ACTIONS, DEFAULT_KEYS, UPG_MAX, upgCost, superCd, superRange, CASE_PRICE, type HudState, type KeyMap, type Quality, type MapId, type CustomMap, type UpgState, type CaseDrop } from './game/engine';
+import { Game, WEAPONS, CHARS, MAPS, hashSeed, KEY_ACTIONS, DEFAULT_KEYS, UPG_MAX, upgCost, superCd, superRange, CASE_PRICE, type HudState, type KeyMap, type Quality, type MapId, type CustomMap, type UpgState, type CaseDrop, type RemoteMob } from './game/engine';
 import oruzh1Url from './assets/oruzh1.png';
 import oruzh2Url from './assets/oruzh2.png';
 import pistolUrl from './assets/pistol.png';
@@ -8,9 +8,12 @@ import batUrl from './assets/bat.png';
 import charMttUrl from './assets/char-mtt.png';
 import charKrysaUrl from './assets/char-krysa.png';
 import charShubaUrl from './assets/char-shuba.png';
+import charChumaUrl from './assets/char-chuma.png';
+import charGidroxisUrl from './assets/char-gidroxis.png';
 import jumpscareUrl from './assets/jumpscare.jpg';
+import menuBgUrl from './assets/menu-bg.jpg';
 
-const CHARIMG: Record<string, string> = { mtt: charMttUrl, krysa: charKrysaUrl, shuba: charShubaUrl };
+const CHARIMG: Record<string, string> = { mtt: charMttUrl, krysa: charKrysaUrl, shuba: charShubaUrl, chuma: charChumaUrl, gidroxis: charGidroxisUrl };
 
 /** Подробные описания способностей бойцов для меню. */
 const CHAR_ABILITIES: Record<string, { lines: string[]; sup: string }> = {
@@ -36,7 +39,23 @@ const CHAR_ABILITIES: Record<string, { lines: string[]; sup: string }> = {
       '💨 Скорость ×1.05 — чуть бодрее МТТ',
       '👻 Не видят враги — супер прячет на 3 секунды',
     ],
-    sup: '👻 СУПЕР — Несутка на C: 3с враги тебя не видят и не преследуют, бить не могут. Кд 12с, качается до 8с.',
+    sup: '👻 СУПЕР — Несутка на C: 3с враги тебя не видят и не преследуют, бить не могут. Кд 30с, качается до 20с.',
+  },
+  chuma: {
+    lines: [
+      '❤️ Здоровье 100 — держит удар',
+      '💨 Скорость ×1.05 — чуть бодрее МТТ',
+      '🦠 Травит врагов — супер накрывает облаком на 5 секунд',
+    ],
+    sup: '🦠 СУПЕР — Чумное облако на C: 5с враги в радиусе 9м травятся и ползут вдвое медленнее. Кд 30с, качается до 20с.',
+  },
+  gidroxis: {
+    lines: [
+      '❤️ Здоровье 95 — держит удар',
+      '💨 Скорость ×1.1 — быстрый сканер',
+      '🔍 Видит сквозь стены — супер подсвечивает всех существ',
+    ],
+    sup: '🔍 СУПЕР — Рентген на C: 5с всех существ видно сквозь стены (мобы и бойцы). Кд 20с, качается до 15с.',
   },
 };
 
@@ -388,7 +407,7 @@ export default function App() {
   const gameRef = useRef<Game | null>(null);
   const [menu, setMenu] = useState(true);
   const [loading, setLoading] = useState<{ show: boolean; pct: number }>({ show: false, pct: 0 });
-  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, invis: 0, invisCd: 0, med: 0, lvl: 1, boss: 0, fps: 60, quality: 'fast' });
+  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, invis: 0, invisCd: 0, chuma: 0, chumaCd: 0, xray: 0, xrayCd: 0, med: 0, lvl: 1, boss: 0, fps: 60, quality: 'medium', doorPulse: false });
   const [scores, setScores] = useState<ScoreRow[]>([]);
   const [duelTop, setDuelTop] = useState<Array<{ login: string; wins: number }>>([]);
   const [gstats, setGstats] = useState<{ games: number; best: number; online: number } | null>(null);
@@ -403,7 +422,10 @@ async function loadStats(): Promise<void> {
   const [setOpen, setSetOpen] = useState(false);
   const [sound, setSound] = useState(true);
   const [sens, setSens] = useState(1);
-  const [quality, setQuality] = useState<Quality>('fast');
+  const [quality, setQuality] = useState<Quality>('medium');
+  /** Громкость 0..1 (слайдер в настройках, дублируется в бою и в меню). */
+  const [volume, setVolume] = useState(1);
+  const [drawDist, setDrawDist] = useState(500);
   const [char, setChar] = useState('mtt');
   // прокачка бойцов: какой боец раскрыт, тик для перерисовки после покупки
   const [upgOpen, setUpgOpen] = useState<string | null>(null);
@@ -414,9 +436,10 @@ async function loadStats(): Promise<void> {
   }, []);
   // кейсы: результат последнего открытия, тик для перерисовки баланса
   // РУЛЕТКА: барабан лотов летит справа налево, дроп подсвечивается по центру
-  interface ReelItem { kind: CaseDrop['kind']; label: string; sub: string; }
+  interface ReelItem { kind: CaseDrop['kind']; label: string; sub: string; char?: string; }
   const REEL_N = 42;
   const REEL_WIN = 34;
+  /** Запасной шаг барабана, если DOM ещё не встал — реальный меряем по карточке в рантайме. */
   const CARD_W = 128; // карточка 120 + gap 8 — синхронно с CSS #caseFull .rcard
   const reelLabel = (kind: CaseDrop['kind']): { label: string; sub: string } => {
     if (kind === 'char') return { label: '🐀 СТЕЙСИ', sub: 'Легендарный' };
@@ -432,23 +455,57 @@ async function loadStats(): Promise<void> {
     if (r < 0.7) return 'xp';
     return 'med';
   };
+  /** Карта-пустышка для барабана: боец — по шансам кейса (редкие 30/30, легенды 20/20) */
+  const fillerReel = (k: CaseDrop['kind']): ReelItem => {
+    if (k === 'char') {
+      const r = Math.random();
+      const c = r < 0.3 ? 'shuba' : r < 0.6 ? 'chuma' : r < 0.8 ? 'krysa' : 'gidroxis';
+      return c === 'shuba'
+        ? { kind: 'char', char: 'shuba', label: '🥷 ИВАНГОЙ', sub: 'Редкий' }
+        : c === 'chuma'
+          ? { kind: 'char', char: 'chuma', label: '🐦‍⬛ ЧУМА', sub: 'Редкий' }
+          : c === 'krysa'
+            ? { kind: 'char', char: 'krysa', label: '🐀 СТЕЙСИ', sub: 'Легендарный' }
+            : { kind: 'char', char: 'gidroxis', label: '🧪 ГИДРОКСИС', sub: 'Легендарный' };
+    }
+    const v = reelLabel(k);
+    return { kind: k, label: v.label, sub: v.sub };
+  };
   const dropToReel = (d: CaseDrop): ReelItem => {
+    if (d.kind === 'char') {
+      const c = d.char === 'shuba' ? 'shuba' : d.char === 'chuma' ? 'chuma' : d.char === 'gidroxis' ? 'gidroxis' : 'krysa';
+      return c === 'shuba'
+        ? { kind: 'char', char: 'shuba', label: '🥷 ИВАНГОЙ', sub: 'ТВОЯ!' }
+        : c === 'chuma'
+          ? { kind: 'char', char: 'chuma', label: '🐦‍⬛ ЧУМА', sub: 'ТВОЯ!' }
+          : c === 'gidroxis'
+            ? { kind: 'char', char: 'gidroxis', label: '🧪 ГИДРОКСИС', sub: 'ТВОЯ!' }
+            : { kind: 'char', char: 'krysa', label: '🐀 СТЕЙСИ', sub: 'ТВОЯ!' };
+    }
     const v = reelLabel(d.kind);
-    if (d.kind === 'char') return { kind: 'char', label: '🐀 СТЕЙСИ', sub: 'ТВОЯ!' };
     return { kind: d.kind, label: v.label, sub: v.sub };
   };
   const [caseDrop, setCaseDrop] = useState<CaseDrop | null>(null);
   const [caseTick, setCaseTick] = useState(0);
   const [reel, setReel] = useState<ReelItem[]>([]);
   const [spin, setSpin] = useState(false);
-  const [spinX, setSpinX] = useState(0);
   const [winOn, setWinOn] = useState(false);
   const [overlayOpen, setOverlayOpen] = useState(false);
-  const spinTimer = useRef(0);
   const overTimer = useRef(0);
+  /** Прямой доступ к ленте: крутим через style, без ре-рендеров на каждом кадре. */
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  /** Кадр анимации (отмена при новом открытии/закрытии/размонтировании). */
+  const spinAnim = useRef(0);
+  /** Ревизия открытия: старый полёт чужого открытия не трогает. */
+  const spinRev = useRef(0);
+  /** Дроп текущего открытия: финиш анимации забирает его, а не замыкание. */
+  const caseDropRef = useRef<CaseDrop | null>(null);
   const closeOverlay = useCallback(() => {
+    spinRev.current++;
+    if (spinAnim.current) cancelAnimationFrame(spinAnim.current);
     window.clearTimeout(overTimer.current);
     setOverlayOpen(false);
+    setSpin(false);
   }, []);
   const openCase = useCallback(() => {
     const g = gameRef.current;
@@ -456,35 +513,81 @@ async function loadStats(): Promise<void> {
     const d = g.openCase();
     if (!d.ok && d.kind === 'empty') { setCaseDrop(d); return; }
     // барабан: филлер + реальный дроп строго под прицелом — на весь экран
-    const items: ReelItem[] = Array.from({ length: REEL_N }, () => {
-      const k = fillerKind();
-      const v = reelLabel(k);
-      return { kind: k, label: v.label, sub: v.sub };
-    });
+    const items: ReelItem[] = Array.from({ length: REEL_N }, () => fillerReel(fillerKind()));
     items[REEL_WIN] = dropToReel(d);
+    const rev = spinRev.current + 1;
+    spinRev.current = rev;
+    if (spinAnim.current) cancelAnimationFrame(spinAnim.current);
+    window.clearTimeout(overTimer.current);
+    caseDropRef.current = d;
     setReel(items);
     setCaseDrop(null);
     setWinOn(false);
     setSpin(true);
     setOverlayOpen(true);
-    setSpinX(0);
-    // два кадра — дать DOM встать, потом едем справа налево
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      setSpinX(REEL_WIN * CARD_W - 140 + CARD_W / 2);
-    }));
-    window.clearTimeout(spinTimer.current);
-    window.clearTimeout(overTimer.current);
-    spinTimer.current = window.setTimeout(() => {
+  }, [spin]);
+  // Полёт барабана: ведём по кадрам (rAF), а не по таймеру.
+  // Цель меряем по живому DOM после вставки, едем easeOutQuart 4.8с справа налево,
+  // финиш — ровно под прицелом. Пишем transform напрямую в DOM (без 300 ре-рендеров).
+  useEffect(() => {
+    if (!overlayOpen || reel.length === 0) return;
+    const rev = spinRev.current;
+    const DUR = 4800;
+    const easeOutQuart = (t: number) => 1 - Math.pow(1 - t, 4);
+    const measure = (): number => {
+      try {
+        const track = trackRef.current;
+        const win = document.querySelector('#caseWin') as HTMLElement | null;
+        if (track && win && track.children.length > REEL_WIN) {
+          const wc = track.children[REEL_WIN] as HTMLElement;
+          const wr = win.getBoundingClientRect();
+          const cr = wc.getBoundingClientRect();
+          const t = (cr.left + cr.width / 2) - (wr.left + wr.width / 2);
+          if (Number.isFinite(t) && t > 0) return t;
+        }
+      } catch { /* noop */ }
+      return REEL_WIN * CARD_W - 140 + CARD_W / 2;
+    };
+    const finish = () => {
+      if (rev !== spinRev.current) return;
+      const d = caseDropRef.current;
       setWinOn(true);
       setSpin(false);
-      setCaseDrop(d);
-      setCaseTick((t) => t + 1);
-      if (d.kind === 'char') setUpgTick((t) => t + 1);
+      if (d && d.ok) {
+        setCaseDrop(d);
+        setCaseTick((t) => t + 1);
+        if (d.kind === 'char') setUpgTick((t) => t + 1);
+      }
       // выиграл — полюбовался — оверлей сам уходит, результат остаётся во вкладке
-      overTimer.current = window.setTimeout(() => setOverlayOpen(false), 8000);
-    }, 4500);
-  }, [spin]);
-  useEffect(() => () => { window.clearTimeout(spinTimer.current); window.clearTimeout(overTimer.current); }, []);
+      overTimer.current = window.setTimeout(() => {
+        if (rev === spinRev.current) setOverlayOpen(false);
+      }, 8000);
+    };
+    // два кадра — дать ленте встать в DOM, потом меряем и едем
+    spinAnim.current = requestAnimationFrame(() => {
+      spinAnim.current = requestAnimationFrame(() => {
+        if (rev !== spinRev.current) return;
+        const target = measure();
+        if (trackRef.current) trackRef.current.style.transform = 'translateX(0px)';
+        const t0 = performance.now();
+        const step = (now: number) => {
+          if (rev !== spinRev.current) return;
+          const t = Math.min(1, (now - t0) / DUR);
+          const x = target * easeOutQuart(t);
+          if (trackRef.current) trackRef.current.style.transform = `translateX(${-x}px)`;
+          if (t < 1) { spinAnim.current = requestAnimationFrame(step); return; }
+          finish();
+        };
+        spinAnim.current = requestAnimationFrame(step);
+      });
+    });
+    return () => { if (spinAnim.current) cancelAnimationFrame(spinAnim.current); };
+  }, [overlayOpen, reel]);
+  useEffect(() => () => {
+    spinRev.current++;
+    window.clearTimeout(overTimer.current);
+    if (spinAnim.current) cancelAnimationFrame(spinAnim.current);
+  }, []);
   const [keys, setKeys] = useState<KeyMap>({ ...DEFAULT_KEYS });
   const [capturing, setCapturing] = useState<keyof KeyMap | null>(null);
   const [waveBanner, setWaveBanner] = useState(0);
@@ -530,21 +633,31 @@ async function loadStats(): Promise<void> {
   const [jumpscare, setJumpscare] = useState(false);
   const jumpscareTimer = useRef(0);
   const [specTargets, setSpecTargets] = useState<Array<{ sid: string; nick: string; hp: number; dead: boolean }>>([]);
+  /** Побег через дверь: баннер «ты выбрался» (приз + баланс после зачисления). */
+  const [escaped, setEscaped] = useState<{ gain: number; bal: number } | null>(null);
+  /** Выбравшийся зашёл обратно: после старта — сразу в наблюдатели. */
+  const escapedJoinRef = useRef(false);
+  /** specWatch для вызова из go (объявлен ниже — напрямую была бы TDZ-ловушка). */
+  const specWatchRef = useRef<(sid: string, nick: string) => Promise<void>>(() => Promise.resolve());
   const specSelNick = useRef('');
   // лобби: владелец/заявки/старт. isOwner — я создал; waiting — моя заявка висит; lobby — свежий состав
   const [isOwner, setIsOwner] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const [lobby, setLobby] = useState<LobbyInfo | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  /** Смена пароля/логина в профиле + глазок (показать точки). */
   const [passOld, setPassOld] = useState('');
   const [passNew, setPassNew] = useState('');
   const [passMsg, setPassMsg] = useState('');
+  const [newLogin, setNewLogin] = useState('');
+  const [newLoginPass, setNewLoginPass] = useState('');
+  const [loginMsg, setLoginMsg] = useState('');
   const [adminOpen, setAdminOpen] = useState(false);
   const [admin, setAdmin] = useState<null | { rooms: Array<{ id: string; name: string; mode: string; started: boolean; round: number; players: Array<{ nick: string; login: string; char: string; score: number; kills: number; wave: number; hp: number; x: number; z: number }> ; pending: Array<{ nick: string; login: string }> }>; totalPlayers: number }>(null);
   const [profile, setProfile] = useState<{ login: string; games: number; best: number; coins: number } | null>(null);
   const [mapChoice, setMapChoice] = useState<MapId>('arena');
   // вкладки меню в стиле TWD: каждая кнопка слева — своя вкладка справа
-  type TabId = 'play' | 'fighter' | 'cases' | 'maps' | 'editor' | 'rooms' | 'servers' | 'settings' | 'tops';
+  type TabId = 'play' | 'fighter' | 'cases' | 'promo' | 'maps' | 'editor' | 'rooms' | 'servers' | 'settings' | 'tops';
   const [menuTab, setMenuTab] = useState<TabId>('play');
   // мирный режим: врагов нет, можно гулять по карте
   const [noEnemies, setNoEnemies] = useState(false);
@@ -604,7 +717,18 @@ async function loadStats(): Promise<void> {
   const [authed, setAuthed] = useState('');
   const [authLogin, setAuthLogin] = useState('');
   const [authPass, setAuthPass] = useState('');
+  /** Глазок пароля: показать/скрыть точки (вход и смена пароля). */
+  const [showPass, setShowPass] = useState(false);
   const [authMsg, setAuthMsg] = useState('');
+  /** промокоды: ввод, занятость, результат */
+  const [promoCode, setPromoCode] = useState('');
+  const [promoBusy, setPromoBusy] = useState(false);
+  const [promoMsg, setPromoMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  /** DEV-панель: разблокируется промокодом LXX42P2ILX (один на весь сервер). */
+  const [devUnlocked, setDevUnlocked] = useState(() => {
+    try { return localStorage.getItem('mtt_dev') === '1'; } catch { return false; }
+  });
+  const [devOpen, setDevOpen] = useState(false);
   const hudRef = useRef(hud);
   hudRef.current = hud;
   // ник в рефах: пульс и переподключение живут в []-эффекте и видят только протухшее замыкание
@@ -612,9 +736,29 @@ async function loadStats(): Promise<void> {
   nickRef.current = nick;
 
   // замах: дёргаем ствол (вызывает движок через onSwing при каждом реальном ударе).
-  // Важно через React-state: прямые classList движок React сносит при каждом апдейте HUD.
-  const [swingTick, setSwingTick] = useState(0);
-  const swing = useCallback(() => { setSwingTick((t) => t + 1); }, []);
+  // Без key-remount: узел стабилен (картинка не мигает), анимацию перезапускаем классом.
+  // Конец замаха — по ТАЙМЕРУ (320мс), а не animationend: в фоне вкладки CSS-часы стоят,
+  // и ствол иначе залипал бы в замахе навсегда.
+  const [swinging, setSwinging] = useState(false);
+  const swingingRef = useRef(false);
+  const swingRev = useRef(0);
+  const swing = useCallback(() => {
+    // Синхронно: класс встаёт в ближайшем коммите (без rAF — кадр может опоздать).
+    // Все кд стволов дольше 340мс, так что класс всегда успевает уйти до следующего замаха.
+    const rev = swingRev.current + 1;
+    swingRev.current = rev;
+    swingingRef.current = true;
+    setSwinging(true);
+    window.setTimeout(() => {
+      if (rev !== swingRev.current) return;
+      swingingRef.current = false;
+      setSwinging(false);
+    }, 340);
+  }, []);
+  const endSwing = useCallback((e: React.AnimationEvent) => {
+    const n = (e.nativeEvent as AnimationEvent).animationName;
+    if (n === 'wswing' || n === 'wrecoil') { swingingRef.current = false; setSwinging(false); }
+  }, []);
 
   // удар по дуэлянту: бьём только если противник в радиусе ствола и по курсу; урон ставит сервер
   const tryDuelHit = useCallback(() => {
@@ -670,6 +814,61 @@ async function loadStats(): Promise<void> {
     setAuthed('');
   }, []);
 
+  /** Промокод: сервер проверяет аккаунт и одноразовость, фантики падают в игру. */
+  const redeemPromo = useCallback(async () => {
+    const code = promoCode.trim().toUpperCase();
+    if (!code) { setPromoMsg({ ok: false, text: 'Впиши код' }); return; }
+    setPromoBusy(true);
+    try {
+      const r = await fetch('/api/promo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: token(), code }),
+      });
+      const d = (await r.json()) as { ok?: boolean; fantiki?: number; unlockAll?: boolean; dev?: boolean; error?: string };
+      if (!r.ok || !d.ok) {
+        setPromoMsg({
+          ok: false,
+          text: d.error === 'nologin'
+            ? 'Войди в аккаунт (вкладка ИГРАТЬ), без него промокод не засчитать'
+            : d.error === 'used' ? 'Этот код ты уже забирал'
+            : d.error === 'taken' ? 'Этот код уже забрали до тебя — он был один на всех' : 'Такого кода нет, проверь буквы',
+        });
+        return;
+      }
+      const g = gameRef.current;
+      if (d.dev) {
+        // LXX42P2ILX: панель разработчика (один на весь сервер, сервер уже проверил)
+        try { localStorage.setItem('mtt_dev', '1'); } catch { /* приватный режим */ }
+        setDevUnlocked(true);
+        setDevOpen(true);
+        setPromoCode('');
+        setPromoMsg({ ok: true, text: '🛠️ Панель разработчика твоя! Жми на баннер сбоку.' });
+        return;
+      }
+      if (d.unlockAll) {
+        // ALLTT: открываем всех бойцов на аккаунте (сейв — в localStorage, общий для комнат)
+        const fresh = g ? g.unlockAllChars() : [];
+        setPromoCode('');
+        setUpgTick((t) => t + 1);
+        setPromoMsg({
+          ok: true,
+          text: fresh.length > 0
+            ? `🥷 Все бойцы твои! Открыто: ${fresh.length} (Стейси, Ивангой, Чума, Гидроксис). Выбирай во вкладке БОЕЦ`
+            : '🥷 Все бойцы уже твои! Загляни во вкладку БОЕЦ',
+        });
+        return;
+      }
+      const bal = g ? g.addFantiki(d.fantiki ?? 0) : (d.fantiki ?? 0);
+      setPromoCode('');
+      setPromoMsg({ ok: true, text: `+${d.fantiki} 🎟️ фантиков! Баланс: ${bal}` });
+    } catch {
+      setPromoMsg({ ok: false, text: 'Нет связи, попробуй позже' });
+    } finally {
+      setPromoBusy(false);
+    }
+  }, [promoCode]);
+
   useEffect(() => {
     const t = token();
     if (!t) return;
@@ -696,6 +895,28 @@ async function loadStats(): Promise<void> {
         setJumpscare(true);
         window.clearTimeout(jumpscareTimer.current);
         jumpscareTimer.current = window.setTimeout(() => setJumpscare(false), 5000);
+      },
+      // дверь выхода из Бэкрумса: сервер засчитывает побег (раз за рестарт),
+      // фантики на аккаунт, баннер «ты выбрался» с выбором
+      onEscape: () => {
+        const { id, sid } = roomRef.current;
+        void (async () => {
+          let gain = 2500;
+          try {
+            if (id && sid) {
+              const r = await fetch(`/api/rooms/${id}/escape`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sid }),
+              });
+              const d = (await r.json()) as { ok?: boolean; fantiki?: number };
+              if (r.ok && d.ok) gain = d.fantiki ?? 2500;
+            }
+          } catch { /* noop */ }
+          const g = gameRef.current;
+          const bal = g ? g.addFantiki(gain) : gain;
+          setEscaped({ gain, bal });
+        })();
       },
       onSwing: () => { swing(); tryDuelHit(); },
       onNetHit: (nid, dmg) => {
@@ -730,6 +951,8 @@ async function loadStats(): Promise<void> {
       seed: (mapChoice === 'backrooms' || mapChoice === 'endless') ? (mapSeed ?? (roomRef.current.id ? hashSeed(roomRef.current.id) : undefined)) : undefined });
     gameRef.current = game;
     setSound(game.getSound());
+    setVolume(game.getVolume());
+    setDrawDist(game.getDrawDist());
     setSens(game.getSens());
     setQuality(game.getQuality());
     setChar(game.getChar());
@@ -743,7 +966,7 @@ async function loadStats(): Promise<void> {
       keys: () => game.getKeys(),
       spots: () => game.debugSpots(),
       solids: () => game.debugSolids(),
-      solidAt: (x: number, z: number, y: number) => game.debugSolidAt(x, z, y),
+      solidAt: (x: number, z: number, y: number, r?: number) => game.debugSolidAt(x, z, y, r ?? 0.9),
       path: (fx: number, fz: number, tx: number, tz: number) => game.debugPath(fx, fz, tx, tz),
       ground: (x: number, z: number) => game.debugGround(x, z),
       tracers: () => game.debugTracers(),
@@ -757,11 +980,21 @@ async function loadStats(): Promise<void> {
       setRemotes: (list: RoomMate[]) => game.setRemotes(list),
       chara: () => game.getChar(),
       quality: () => game.getQuality(),
+      drawd: () => game.getDrawDist(),
+      setdraw: (n: number) => game.setDrawDist(n),
       dash: () => game.debugDash(),
       invis: () => game.debugInvis(),
+      chuma: () => game.debugChuma(),
+      doChuma: () => game.chuma(),
+      dome: () => game.debugDome(),
+      xray: () => game.debugXray(),
+      doXray: () => game.xray(),
+      xrayFlags: () => game.debugXrayFlags(),
       playing: () => game.debugPlaying(),
       atkcd: () => game.debugAtkCd(),
       netsync: () => game.debugNetSync(),
+      netsyncSet: (on: boolean) => game.debugNetSyncSet(on),
+      mobsSet: (list: RemoteMob[]) => game.debugMobsSet(list),
       netmobs: () => game.debugNetMobs(),
       resetcd: () => game.debugResetCd(),
       doDash: () => game.dash(),
@@ -782,6 +1015,8 @@ async function loadStats(): Promise<void> {
       flush: () => game.flushProgress(),
       spec: (on: boolean, x: number, z: number, nick?: string) => game.setSpec(on, x, z, nick ?? ''),
       specOn: () => game.debugSpec(),
+      specpos: () => game.debugSpecPos(),
+      unlockall: () => game.unlockAllChars(),
       mkroom: (name: string, mode: MapId) => createRoom(name, mode),
       charaSet: (id: string) => { game.unlockChar(id); return game.setChar(id); },
       switchW: () => game.switchWeapon(),
@@ -803,6 +1038,13 @@ async function loadStats(): Promise<void> {
       remoteList: () => game.debugRemoteList(),
       roomSid: () => roomRef.current.sid,
       maze: () => game.debugMaze(),
+      fog: () => game.debugFog(),
+      door: () => game.debugDoor(),
+      perf: () => game.debugPerf(),
+      doorPulse: () => game.debugDoorPulse(),
+      doorPulseForce: (v: boolean | null) => game.debugDoorPulseForce(v),
+      doorFace: () => game.debugDoorFace(),
+      doorMat: () => game.debugDoorMat(),
       custom: () => game.debugCustom(),
       peaceful: () => !game.enemiesOn,
     };
@@ -813,6 +1055,13 @@ async function loadStats(): Promise<void> {
       game.input[e.code] = true;
       const hk = game.getKeys().hit;
       if (e.code === hk || e.code === 'KeyJ') e.preventDefault();
+      // пробел и стрелки — игровые: не даём странице скроллиться и сфокусированной
+      // кнопке срабатывать (иначе Space вместо взлёта жмёт «реснуть/выйти» и кажется,
+      // что наблюдатель завис). Чат и поля ввода выше уже отсечены.
+      if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'ArrowDown' || e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+        e.preventDefault();
+        (document.activeElement as HTMLElement | null)?.blur?.();
+      }
     };
     const ku = (e: KeyboardEvent) => { game.input[e.code] = false; };
     window.addEventListener('keydown', kd);
@@ -856,9 +1105,36 @@ async function loadStats(): Promise<void> {
       pvpDeadRef.current = false;
       setPvpDead(false);
       g.start();
+      // выбравшийся вернулся: до рестарта только наблюдатель — сразу в призраки
+      if (escapedJoinRef.current) {
+        escapedJoinRef.current = false;
+        window.setTimeout(() => { void specWatchRef.current?.('', ''); }, 1000);
+      }
     }, 50);
     loadScores().then(setScores);
+    setEscaped(null);
   }, [nick, roomMode, isOwner]);
+
+  // админ-панель МТТ: онлайн и действия каждого (сервер пускает только владельца)
+  const loadAdmin = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/admin/stats?token=${encodeURIComponent(token())}`);
+      if (!r.ok) { setAdmin(null); return false; }
+      setAdmin((await r.json()) as { rooms: []; totalPlayers: number });
+      return true;
+    } catch { setAdmin(null); return false; }
+  }, []);
+
+  // профиль: сведения об аккаунте, скрыты пока не откроешь
+  const openProfile = useCallback(async () => {
+    setProfileOpen(true);
+    if (authed === 'guest' || !authed) { setProfile(null); return; }
+    try {
+      const r = await fetch(`/api/profile?login=${encodeURIComponent(authed)}`);
+      if (!r.ok) { setProfile(null); return; }
+      setProfile((await r.json()) as { login: string; games: number; best: number; coins: number });
+    } catch { setProfile(null); }
+  }, [authed]);
 
   // смена пароля: старый + новый, хранится только хеш на сервере
   const changePass = useCallback(async () => {
@@ -882,26 +1158,36 @@ async function loadStats(): Promise<void> {
     }
   }, [passOld, passNew]);
 
-  // админ-панель МТТ: онлайн и действия каждого (сервер пускает только владельца)
-  const loadAdmin = useCallback(async () => {
+  // смена логина: пароль для подтверждения, статистика и промокоды едут следом
+  const changeLogin = useCallback(async () => {
+    setLoginMsg('');
     try {
-      const r = await fetch(`/api/admin/stats?token=${encodeURIComponent(token())}`);
-      if (!r.ok) { setAdmin(null); return false; }
-      setAdmin((await r.json()) as { rooms: []; totalPlayers: number });
-      return true;
-    } catch { setAdmin(null); return false; }
-  }, []);
-
-  // профиль: сведения об аккаунте, скрыты пока не откроешь
-  const openProfile = useCallback(async () => {
-    setProfileOpen(true);
-    if (authed === 'guest' || !authed) { setProfile(null); return; }
-    try {
-      const r = await fetch(`/api/profile?login=${encodeURIComponent(authed)}`);
-      if (!r.ok) { setProfile(null); return; }
-      setProfile((await r.json()) as { login: string; games: number; best: number; coins: number });
-    } catch { setProfile(null); }
-  }, [authed]);
+      const r = await fetch('/api/login-change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: token(), pass: newLoginPass, login: newLogin }),
+      });
+      const d = (await r.json()) as { ok?: boolean; login?: string; error?: string };
+      if (!r.ok || !d.ok || !d.login) {
+        setLoginMsg(d.error === 'badpass' ? 'Пароль неверный' : d.error === 'taken' ? 'Такой логин уже занят' : d.error === 'badlogin' ? 'Логин: 3–16, буквы/цифры/_' : 'Не вышло, попробуй позже');
+        return;
+      }
+      const next = d.login;
+      setAuthed(next);
+      // ник совпадал со старым логином — едем следом, чужой ник не трогаем
+      setNick((prev) => {
+        const v = prev === authed ? next : prev;
+        try { localStorage.setItem(NICK_KEY, v); } catch { /* noop */ }
+        return v;
+      });
+      setProfile((prev) => (prev ? { ...prev, login: next } : prev));
+      setNewLogin('');
+      setNewLoginPass('');
+      setLoginMsg(`Теперь ты @${next} ✅`);
+    } catch {
+      setLoginMsg('Нет связи');
+    }
+  }, [newLogin, newLoginPass, authed]);
 
   // ---- комнаты ----
   const refreshRooms = useCallback(() => { loadRooms().then(setRoomsList); void loadStats(); loadDuelTop().then(setDuelTop); pingApi(); }, []);
@@ -928,6 +1214,8 @@ async function loadStats(): Promise<void> {
       roomRef.current = { id: d.id, sid: d.sid, mode: d.mode };
       setRoomId(d.id);
       setMapSeed(typeof d.seed === 'number' ? d.seed >>> 0 : undefined);
+      // новая комната — новый чат: чужую переписку не тащим
+      chatRoom.current = d.id; chatLast.current = 0; setChatLog([]);
       setRoomName(nameOverride || roomDraft || `Комната ${nickRef.current}`);
       setRoomMode(d.mode);
       setMapChoice(d.mode);
@@ -939,6 +1227,7 @@ async function loadStats(): Promise<void> {
       matesRef.current = [];
       setIsOwner(true);
       setWaiting(false);
+      escapedJoinRef.current = false;
       setLobby(null);
       refreshRooms();
     } catch { /* noop */ }
@@ -954,8 +1243,11 @@ async function loadStats(): Promise<void> {
       if (!r.ok) return;
       const d = (await r.json()) as { sid: string; name: string; mode: MapId; seed?: number; pending?: boolean };
       roomRef.current = { id, sid: d.sid, mode: d.mode };
+      if ((d as { escaped?: boolean }).escaped === true) escapedJoinRef.current = true;
       setRoomId(id);
       setMapSeed(typeof d.seed === 'number' ? d.seed >>> 0 : undefined);
+      // чужая комната — чужой чат не смотрим: лог чистим, дальше только своё
+      chatRoom.current = id; chatLast.current = 0; setChatLog([]);
       setRoomName(d.name);
       setRoomMode(d.mode);
       setMapChoice(d.mode);
@@ -978,6 +1270,8 @@ async function loadStats(): Promise<void> {
     roomRef.current = { id: '', sid: '', mode: '' };
     setRoomId('');
     setMapSeed(undefined);
+    // вышел — чат комнаты больше не твой: чистим
+    chatRoom.current = ''; chatLast.current = 0; setChatLog([]);
     setRoomName('');
     setRoomMode('arena');
     setMapChoice('arena');
@@ -1000,6 +1294,8 @@ async function loadStats(): Promise<void> {
     setSpecActive(false);
     setSpecTargets([]);
     specSelNick.current = '';
+    setEscaped(null);
+    escapedJoinRef.current = false;
     setShowMates(false);
     gameRef.current?.setSpec(false);
     if (id && sid) {
@@ -1033,11 +1329,23 @@ async function loadStats(): Promise<void> {
     void leaveRoom();
   }, [toMenu, leaveRoom]);
 
-  /** Наблюдатель: выбрать цель (или список целей), камера виснет на ней */
+  /** Наблюдатель живёт в лабиринте (бекрумс + бесконечный — одна карта) */
   const specWatch = useCallback(async (targetSid: string, targetNick: string) => {
     const { id, sid } = roomRef.current;
     const g = gameRef.current;
-    if (!id || !sid || !g) return;
+    if (!g) return;
+    // наблюдатель живёт в лабиринте (бекрумс + бесконечный — одна карта);
+    // в остальных режимах входа нет
+    if (g.debugMap() !== 'backrooms' && g.debugMap() !== 'endless') return;
+    if (!id || !sid) {
+      // соло без комнаты (пустой сервер): наблюдатель локально, целей нет — сразу свободный полёт
+      specSelNick.current = targetNick;
+      setSpecTargets([]);
+      setSpecActive(true);
+      const p = g.debugPos();
+      g.setSpec(true, p.x, p.z, targetNick);
+      return;
+    }
     try {
       const r = await fetch(`/api/rooms/${id}/watch`, {
         method: 'POST',
@@ -1054,6 +1362,7 @@ async function loadStats(): Promise<void> {
       g.setSpec(true, p.x, p.z, specSelNick.current);
     } catch { /* noop */ }
   }, []);
+  specWatchRef.current = specWatch;
 
   // действия создателя в лобби
   const lobbyAct = useCallback(async (action: 'approve' | 'deny' | 'kick' | 'start', target?: string) => {
@@ -1070,7 +1379,7 @@ async function loadStats(): Promise<void> {
     } catch { /* noop */ }
   }, [go]);
 
-  // пульс комнаты 2 раза в секунду: шлём себя, забираем сокомнатников (без задержек) + дуэль
+  // пульс комнаты 5 раз в секунду (раз в 0.2с): шлём себя, забираем сокомнатников (без задержек) + дуэль
   useEffect(() => {
     const t = window.setInterval(async () => {
       const g = gameRef.current;
@@ -1082,9 +1391,9 @@ async function loadStats(): Promise<void> {
         const p = g.debugPos();
         const h = hudRef.current;
         const pr = g.presence();
-        // зависший запрос не должен клинить пульс навсегда: рвём через 8с
+        // зависший запрос не должен клинить пульс навсегда: рвём через 3с (пульс быстрый, 0.2с)
         const ctl = new AbortController();
-        const to = window.setTimeout(() => ctl.abort(), 8000);
+        const to = window.setTimeout(() => ctl.abort(), 3000);
         let r: Response;
         try {
           r = await fetch(`/api/rooms/${id}/beat`, {
@@ -1130,6 +1439,8 @@ async function loadStats(): Promise<void> {
           return;
         }
         const d = (await r.json()) as BeatInfo;
+        // запоздалый ответ уже чужой комнаты — игнорим целиком (чат, строй, мобы)
+        if (id !== chatRoom.current) return;
         if (typeof d.seed === 'number') setMapSeed((prev) => (prev === (d.seed! >>> 0) ? prev : (d.seed! >>> 0)));
         const plist = d.players ?? [];
         setMates(plist);
@@ -1150,10 +1461,10 @@ async function loadStats(): Promise<void> {
           // сначала серверный hp (в ноль — экран смерти), потом точка ресауна (мимо экрана)
           if (typeof d.myHp === 'number' && !pvpDeadRef.current) g.setPvpHp(d.myHp);
           if (d.respawn && !pvpDeadRef.current) g.pvpRespawn(d.respawn.x, d.respawn.z);
-        } else if (roomRef.current.mode === 'endless' || roomRef.current.mode === 'invasion') {
+        } else if (roomRef.current.mode === 'endless' || roomRef.current.mode === 'invasion' || roomRef.current.mode === 'backrooms') {
           setRestartIn(typeof d.restartIn === 'number' ? d.restartIn : 0);
-          // наблюдатель висит на цели: свежие координаты из строя сокомнатников
-          if (d.specView && d.specView.spec) {
+          // наблюдатель живёт в лабиринте (бекрумс + бесконечный): в других режимах цели не подхватываем
+          if ((roomRef.current.mode === 'backrooms' || roomRef.current.mode === 'endless') && d.specView && d.specView.spec) {
             const tgts = d.specView.targets ?? [];
             setSpecTargets(tgts);
             setSpecActive(true);
@@ -1190,7 +1501,7 @@ async function loadStats(): Promise<void> {
         } else if (inGame && mobMap && !amOwner && Array.isArray(d.mobs)) {
           g.setRemoteMobs(d.mobs);
         }
-        // чат: добираем только новое по метке времени
+        // чат своей комнаты: добираем только новое по метке времени
         if (d.chat && d.chat.length > 0) {
           setChatLog((prev) => {
             const known = prev.length > 0 ? prev[prev.length - 1].t : chatLast.current;
@@ -1215,7 +1526,7 @@ async function loadStats(): Promise<void> {
           prevRound.current = 0;
         }
       } catch { /* noop */ } finally { beatBusy.current = false; }
-    }, 500);
+    }, 200);
     return () => window.clearInterval(t);
   }, []);
 
@@ -1542,7 +1853,25 @@ async function loadStats(): Promise<void> {
 
   const toggleQuality = useCallback(() => {
     const g = gameRef.current;
-    if (g) setQuality(g.setQuality(g.getQuality() === 'nice' ? 'fast' : 'nice'));
+    if (g) setQuality(g.cycleQuality());
+  }, []);
+
+  /** Название уровня графики для кнопок. */
+  const qualityName = (q: Quality): string =>
+    q === 'low' ? '🥔 КАРТОШКА' : q === 'high' ? '💎 КРАСИВО' : '⚖️ СРЕДНЕ';
+
+  const changeVolume = useCallback((v: number) => {
+    const g = gameRef.current;
+    setVolume(g ? g.setVolume(v) : Math.max(0, Math.min(1, v)));
+  }, []);
+
+  /** Дальность прорисовки: меньше — выше FPS (край камеры + туман + небо). */
+  const changeDrawDist = useCallback((v: number) => {
+    const vv = Math.max(80, Math.min(500, Math.round(v)));
+    // в меню игры может не быть — тогда просто запоминаем (подхватит следующий бой)
+    try { localStorage.setItem('mtt_drawdist_v1', String(vv)); } catch { /* noop */ }
+    const g = gameRef.current;
+    setDrawDist(g ? g.setDrawDist(vv) : vv);
   }, []);
 
   const hpFrac = Math.max(0, hud.hp / hud.maxhp);
@@ -1555,6 +1884,43 @@ async function loadStats(): Promise<void> {
           <img src={jumpscareUrl} alt="" style={{ width: '100vw', height: '100vh', objectFit: 'cover', display: 'block' }} />
         </div>
       )}
+      {/* рулетка кейса — на корне, поверх всего: внутри меню её резал блюр вкладки */}
+      {overlayOpen && reel.length > 0 && (
+        <div id="caseOverlay" onClick={() => { if (winOn) closeOverlay(); }}>
+          <div id="caseFull" onClick={(e) => e.stopPropagation()}>
+            <h3>🎰 КЕЙС БОЙЦА</h3>
+            <div id="caseRoulette">
+              <div id="casePointer">▼</div>
+              <div id="caseWin">
+                <div
+                  id="caseTrack"
+                  ref={trackRef}
+                  style={{ transform: 'translateX(0px)' }}
+                >
+                  {reel.map((it, i) => (
+                    <div
+                      key={i}
+                      className={'rcard ' + it.kind + (winOn && i === REEL_WIN ? ' win' : '')}
+                      id={winOn && i === REEL_WIN ? 'caseWinCard' : undefined}
+                    >
+                      {it.kind === 'char'
+                        ? <img src={CHARIMG[it.char ?? 'krysa'] ?? CHARIMG.krysa} alt={it.label} />
+                        : <div className="remo">{it.label.split(' ')[0]}</div>}
+                      <div className="rlabel">{it.label}</div>
+                      <div className="rsub">{it.sub}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            {spin && <div id="caseResult" className="drop spin">🎰 Барабан крутится… лоты летят справа налево!</div>}
+            {!spin && caseDrop && <div id="caseResult" className={'drop ' + caseDrop.kind}>{caseDrop.ok ? `🎉 ${caseDrop.text}` : `⛔ ${caseDrop.text}`}</div>}
+            {winOn
+              ? <button id="caseClose" onClick={closeOverlay}>ЗАБРАТЬ ✔</button>
+              : <div className="cfullHint">Смотри, куда едет… 👁️</div>}
+          </div>
+        </div>
+      )}
       <canvas id="c" ref={canvasRef} />
       {!menu && <div id="vig" />}
       {!menu && (
@@ -1564,7 +1930,7 @@ async function loadStats(): Promise<void> {
             <div id="hpBar"><div id="hpFill" style={{ width: `${hpFrac * 100}%` }} /></div>
           </div>
           <div id="hudRow">{noEnemies ? '🕊️ МИРНЫЙ РЕЖИМ · ' : `🌊 Волна ${hud.wave} · 👹 ${hud.enemies} · `}💀 {hud.kills} · 🏆 {hud.score}</div>
-          <div id="hudRow2">🎟️ {hud.fantiki} · 💊 {hud.med}/3 · ⭐ {hud.lvl} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}{char === 'krysa' && (hud.kick > 0 ? ` · 🌀 ${hud.kick.toFixed(1)}с` : ' · 🌀 вол-кик готов')}{char === 'shuba' && (hud.invis > 0 ? ` · 👻 ещё ${hud.invis.toFixed(1)}с` : hud.invisCd > 0 ? ` · 👻 ${hud.invisCd.toFixed(1)}с` : ' · 👻 несутка готова')}</div>
+          <div id="hudRow2">🎟️ {hud.fantiki} · 💊 {hud.med}/3 · ⭐ {hud.lvl} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}{char === 'krysa' && (hud.kick > 0 ? ` · 🌀 ${hud.kick.toFixed(1)}с` : ' · 🌀 вол-кик готов')}{char === 'shuba' && (hud.invis > 0 ? ` · 👻 ещё ${hud.invis.toFixed(1)}с` : hud.invisCd > 0 ? ` · 👻 ${hud.invisCd.toFixed(1)}с` : ' · 👻 несутка готова')}{char === 'chuma' && (hud.chuma > 0 ? ` · 🦠 ещё ${hud.chuma.toFixed(1)}с` : hud.chumaCd > 0 ? ` · 🦠 ${hud.chumaCd.toFixed(1)}с` : ' · 🦠 облако готово')}{char === 'gidroxis' && (hud.xray > 0 ? ` · 🔍 ещё ${hud.xray.toFixed(1)}с` : hud.xrayCd > 0 ? ` · 🔍 ${hud.xrayCd.toFixed(1)}с` : ' · 🔍 рентген готов')}</div>
         </div>
       )}
       {!menu && (
@@ -1623,9 +1989,16 @@ async function loadStats(): Promise<void> {
           >
             👊<span>УДАР</span>
           </button>
-          <div id="weapon" key={`weapon-${swingTick}`} ref={weaponRef} className={(hud.moving ? 'walk' : '') + (swingTick > 0 ? ' swing' : '') + (hud.weapon === 'pistol' || hud.weapon === 'shotgun' ? ' ' + hud.weapon : '')}>
+          {!hud.dead && (
+          <div
+            id="weapon"
+            ref={weaponRef}
+            onAnimationEnd={endSwing}
+            className={(hud.moving ? 'walk' : '') + (swinging ? ' play' : '') + ((hud.weapon === 'pistol' || hud.weapon === 'shotgun') ? ' ranged' : '') + (hud.weapon === 'pistol' || hud.weapon === 'shotgun' ? ' ' + hud.weapon : '') + ((hud.weapon === 'fists' || hud.weapon === 'bat' || hud.weapon === 'shotgun') ? ' screen' : '')}
+          >
             <img src={WIMG[hud.weapon] ?? oruzh1Url} alt="оружие" />
           </div>
+          )}
           {roomId && (
             <div id="roomBadge">
               🌐 {roomId} · {mates.length + 1}
@@ -1645,9 +2018,10 @@ async function loadStats(): Promise<void> {
               ))}
             </div>
           )}
-          {specActive && (roomMode === 'endless' || roomMode === 'pvp' || roomMode === 'invasion') && (
+          {(mapChoice === 'backrooms' || mapChoice === 'endless') && specActive && (
             <div id="specBar">
               <div id="specTitle">👁 НАБЛЮДАТЕЛЬ — тебя не видят{restartIn > 0 ? ` · ♻️ ${fmtRestart(restartIn)}` : ''}</div>
+              <div id="specHint">WASD — летать сквозь стены · Space — вверх · C — вниз · Shift — быстрее · выше потолка — весь лабиринт · ткни бойца — вернуться к нему</div>
               <div id="specTargets">
                 {specTargets.length > 0 ? specTargets.map((t) => (
                   <button key={t.sid} id={`spec-${t.sid}`} className={'wbtn' + (specSelNick.current === t.nick ? ' cur' : '')} onClick={() => void specWatch(t.sid, t.nick)}>👁 {t.nick} {t.dead ? '💀' : `${t.hp}❤️`}</button>
@@ -1682,6 +2056,9 @@ async function loadStats(): Promise<void> {
           {bossBanner && (
             <div id="bossBanner" key="boss">👑 БОСС-ГОПНИК 🍺</div>
           )}
+          {hud.doorPulse && (
+            <div id="doorPulse" key="door">🚪 ДВЕРЬ МИГАЕТ ЗЕЛЁНЫМ — беги на свет!</div>
+          )}
         </>
       )}
       {hud.dead && !menu && roomMode !== 'pvp' && !specActive && (
@@ -1700,10 +2077,23 @@ async function loadStats(): Promise<void> {
             <div>ЗАВАЛЕН! 👊</div>
             <div id="deadScore">{hud.score} 🏆 · {hud.kills} 💀</div>
             <button id="reviveBtn" onClick={() => gameRef.current?.revive()}>💚 ВОЗРОДИТЬСЯ (−100 🏆)</button>
+            {(mapChoice === 'backrooms' || mapChoice === 'endless') && (
+              <button id="specWatchBtn" onClick={() => void specWatch('', '')}>👁 СТАТЬ НАБЛЮДАТЕЛЕМ</button>
+            )}
             <button id="retryBtn" onClick={() => window.location.reload()}>🔄 ЗАНОВО</button>
           </div>
         </div>
         )
+      )}
+      {escaped && !menu && !specActive && (
+        <div id="escaped" style={{ display: 'flex' }}>
+          <div id="escapePanel">
+            <div>🚪 ТЫ ВЫБРАЛСЯ!</div>
+            <div id="escapeScore">+{escaped.gain} 🎟️ фантиков! Баланс: {escaped.bal}</div>
+            <button id="escapeSpecBtn" onClick={() => { setEscaped(null); void specWatch('', ''); }}>👁 СТАТЬ НАБЛЮДАТЕЛЕМ</button>
+            <button id="escapeMenuBtn" onClick={() => { setEscaped(null); toMenu(); void leaveRoom(); }}>🚪 ВЫЙТИ В МЕНЮ</button>
+          </div>
+        </div>
       )}
       {pvpDead && !menu && roomMode === 'pvp' && (
         <div id="busted" style={{ display: 'flex' }}>
@@ -1757,6 +2147,14 @@ async function loadStats(): Promise<void> {
               <button id="soundBtn" className="wbtn" onClick={toggleSound}>{sound ? 'ВЫКЛ' : 'ВКЛ'}</button>
             </div>
             <div className="srow">
+              <span>🎚️ Громкость: {Math.round(volume * 100)}%</span>
+            </div>
+            <input
+              id="volRange"
+              type="range" min={0} max={1} step={0.05} value={volume}
+              onChange={(e) => changeVolume(Number(e.target.value))}
+            />
+            <div className="srow">
               <span>👀 Чувствительность: {sens.toFixed(1)}</span>
             </div>
             <input
@@ -1767,10 +2165,19 @@ async function loadStats(): Promise<void> {
             <div className="srow">
               <span>🎨 Графика</span>
               <button id="qualityBtn" className="wbtn" onClick={toggleQuality}>
-                {quality === 'nice' ? '✨ КРАСИВО' : '⚡ БЫСТРО'}
+                {qualityName(quality)}
               </button>
             </div>
-            <div className="wdesc">Быстро — без теней, чёткий fps. Красиво — тени и сглаживание.</div>
+            <div className="srow">
+              <span>🔭 Дальность: {drawDist}м</span>
+            </div>
+            <input
+              id="drawRange"
+              type="range" min={80} max={500} step={20} value={drawDist}
+              onChange={(e) => changeDrawDist(Number(e.target.value))}
+            />
+            <div className="wdesc">Меньше — выше FPS (даль не рисуется). Если лагает — крути влево.</div>
+            <div className="wdesc">Картошка — максимум fps (пиксели крупнее, без теней). Средне — баланс. Красиво — тени и чёткость, слабым телефонам тяжело.</div>
             <div className="srow"><span>🎮 Управление (ткни и жми клавишу)</span></div>
             <div id="keysSec">
               {KEY_ACTIONS.map((a) => (
@@ -1807,11 +2214,19 @@ async function loadStats(): Promise<void> {
         </div>
       )}
       {menu && (
-        <div id="menu" className="twd">
+        <div
+          id="menu"
+          className="twd"
+          style={{
+            backgroundImage: `linear-gradient(rgba(4,6,15,.62), rgba(4,6,15,.62)), url(${menuBgUrl})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        >
           <div id="menuBalance" title="Твои фантики">🎟️ {hud.fantiki}</div>
           <div id="menuNav">
             <h1>👊 42 LIVE 💥</h1>
-            {([['play', '▶ ИГРАТЬ'], ['fighter', '🎭 БОЕЦ'], ['cases', '🎰 КЕЙСЫ'], ['maps', '🗺️ КАРТЫ'], ['editor', '🧩 РЕДАКТОР'], ['rooms', '🌐 КОМНАТЫ'], ['servers', '🖥️ СЕРВЕРА'], ['settings', '⚙️ НАСТРОЙКИ'], ['tops', '🏆 ТОПЫ']] as Array<[TabId, string]>).map(([id, label]) => (
+            {([['play', '▶ ИГРАТЬ'], ['fighter', '🎭 БОЕЦ'], ['cases', '🎰 КЕЙСЫ'], ['promo', '🎟️ ПРОМОКОДЫ'], ['maps', '🗺️ КАРТЫ'], ['editor', '🧩 РЕДАКТОР'], ['rooms', '🌐 КОМНАТЫ'], ['servers', '🖥️ СЕРВЕРА'], ['settings', '⚙️ НАСТРОЙКИ'], ['tops', '🏆 ТОПЫ']] as Array<[TabId, string]>).map(([id, label]) => (
               <button key={id} id={`nav-${id}`} className={'tnav' + (menuTab === id ? ' active' : '')} onClick={() => setMenuTab(id)}>{label}</button>
             ))}
             <a id="hubLink" href="https://hub.bratuxa.zomb.top">← Хаб 1Б42П</a>
@@ -1859,7 +2274,7 @@ async function loadStats(): Promise<void> {
                         {ab?.lines.map((l) => <li key={l}>{l}</li>)}
                         <li className="csup">{ab?.sup}</li>
                       </ul>
-                      <div className="cupgLine"><small>🔧 Прокачка: ❤️×{u.hp} 💪×{u.dmg} 💨×{u.spd} {c.id === 'mtt' ? '⚡' : c.id === 'shuba' ? '👻' : '🌀'}×{u.sup} · кд супера {g?.superCdOf(c.id) ?? (c.id === 'krysa' ? 5 : c.id === 'shuba' ? 12 : 3)}с</small></div>
+                      <div className="cupgLine"><small>🔧 Прокачка: ❤️×{u.hp} 💪×{u.dmg} 💨×{u.spd} {c.id === 'mtt' ? '⚡' : c.id === 'shuba' ? '👻' : c.id === 'chuma' ? '🦠' : c.id === 'gidroxis' ? '🔍' : '🌀'}×{u.sup} · кд супера {g?.superCdOf(c.id) ?? (c.id === 'krysa' ? 5 : c.id === 'shuba' || c.id === 'chuma' ? 30 : c.id === 'gidroxis' ? 20 : 3)}с</small></div>
                       <button
                         className="wbtn"
                         id={`upg-${c.id}`}
@@ -1873,7 +2288,7 @@ async function loadStats(): Promise<void> {
                             ['hp', '❤️ Здоровье', `+15 maxHP за уровень (макс +${UPG_MAX.hp * 15})`],
                             ['dmg', '💪 Сила', '+8% к урону за уровень'],
                             ['spd', '💨 Скорость', '+6% к скорости за уровень'],
-                            ['sup', c.id === 'mtt' ? '⚡ Супер: рывок' : c.id === 'shuba' ? '👻 Супер: несутка' : '🌀 Супер: вол-кик', `кд → мин ${c.id === 'shuba' ? '8' : '1.7'}с (сейчас ${g?.superCdOf(c.id)}с)${c.id === 'shuba' ? '' : ` · дальность ×${superRange(u.sup)} (+15%/ур)`}`],
+                            ['sup', c.id === 'mtt' ? '⚡ Супер: рывок' : c.id === 'shuba' ? '👻 Супер: несутка' : c.id === 'chuma' ? '🦠 Супер: облако' : c.id === 'gidroxis' ? '🔍 Супер: рентген' : '🌀 Супер: вол-кик', `кд → мин ${c.id === 'shuba' || c.id === 'chuma' ? '20' : c.id === 'gidroxis' ? '15' : '1.7'}с (сейчас ${g?.superCdOf(c.id)}с)${c.id === 'shuba' || c.id === 'chuma' || c.id === 'gidroxis' ? '' : ` · дальность ×${superRange(u.sup)} (+15%/ур)`}`],
                           ] as Array<[keyof UpgState, string, string]>).map(([key, label, hint]) => {
                             const lvlU = u[key];
                             const max = UPG_MAX[key];
@@ -1915,10 +2330,13 @@ async function loadStats(): Promise<void> {
             <h3>🎰 Кейсы</h3>
             <div className="caseCard" id="case-fighter">
               <div className="mname">📦 КЕЙС БОЙЦА</div>
-              <div className="mdesc">Внутри — боец! Шанс выбить 🌟 Стейси Крысу (Легендарный) — 20%. Не повезло — утешительный приз: фантики, опыт или аптечка.</div>
+              <div className="mdesc">Внутри — боец! Редкие по 30%: 🥷 Ивангой и 🐦‍⬛ Чума. Легендарные по 20%: 🌟 Стейси Крыса и 🧪 Гидроксис. Не повезло — утешительный приз: фантики, опыт или аптечка.</div>
               <ul className="cabilityList">
                 <li>⚪ МТТ — у тебя уже есть (Базовый)</li>
+                <li>💎 Ивангой — только из кейса (Редкий)</li>
+                <li>💎 Чума — только из кейса (Редкий)</li>
                 <li>🌟 Стейси Крыса — только из кейса (Легендарный)</li>
+                <li>🌟 Гидроксис — только из кейса (Легендарный)</li>
               </ul>
               <div className="srow">
                 <button
@@ -1932,42 +2350,28 @@ async function loadStats(): Promise<void> {
               </div>
               {(() => { void caseTick; return null; })()}
               {!overlayOpen && caseDrop && <div id="caseResult" className={'drop ' + caseDrop.kind}>{caseDrop.ok ? `🎉 ${caseDrop.text}` : `⛔ ${caseDrop.text}`}</div>}
-              {overlayOpen && reel.length > 0 && (
-                <div id="caseOverlay" onClick={() => { if (winOn) closeOverlay(); }}>
-                  <div id="caseFull" onClick={(e) => e.stopPropagation()}>
-                    <h3>🎰 КЕЙС БОЙЦА</h3>
-                    <div id="caseRoulette">
-                      <div id="casePointer">▼</div>
-                      <div id="caseWin">
-                        <div
-                          id="caseTrack"
-                          style={{ transform: `translateX(${-spinX}px)`, transitionDuration: spin || !winOn ? '4.2s' : '0.3s' }}
-                        >
-                          {reel.map((it, i) => (
-                            <div
-                              key={i}
-                              className={'rcard ' + it.kind + (winOn && i === REEL_WIN ? ' win' : '')}
-                              id={winOn && i === REEL_WIN ? 'caseWinCard' : undefined}
-                            >
-                              {it.kind === 'char'
-                                ? <img src={CHARIMG.krysa} alt="Стейси" />
-                                : <div className="remo">{it.label.split(' ')[0]}</div>}
-                              <div className="rlabel">{it.label}</div>
-                              <div className="rsub">{it.sub}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                    {spin && <div id="caseResult" className="drop spin">🎰 Барабан крутится… лоты летят справа налево!</div>}
-                    {!spin && caseDrop && <div id="caseResult" className={'drop ' + caseDrop.kind}>{caseDrop.ok ? `🎉 ${caseDrop.text}` : `⛔ ${caseDrop.text}`}</div>}
-                    {winOn
-                      ? <button id="caseClose" onClick={closeOverlay}>ЗАБРАТЬ ✔</button>
-                      : <div className="cfullHint">Смотри, куда едет… 👁️</div>}
-                  </div>
-                </div>
-              )}
             </div>
+          </div>
+          </div>
+          <div className={'mtab' + (menuTab === 'promo' ? ' show' : '')}>
+          <div className="board" id="promoSec">
+            <h3>🎟️ Промокоды</h3>
+            <div className="mdesc">Впиши код — фантики упадут прямо в игру. Нужен аккаунт (войди во вкладке ИГРАТЬ), каждый код — один раз.</div>
+            <div className="srow">
+              <input
+                id="promoIn"
+                value={promoCode}
+                maxLength={24}
+                onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                onKeyDown={(e) => { if (e.key === 'Enter') void redeemPromo(); }}
+                placeholder="Впиши код…"
+                autoComplete="off"
+              />
+              <button className="wbtn buy" id="promoGo" disabled={promoBusy} onClick={redeemPromo}>
+                {promoBusy ? '⏳…' : 'ЗАБРАТЬ ✔'}
+              </button>
+            </div>
+            {promoMsg && <div id="promoResult" className={'drop ' + (promoMsg.ok ? 'fantiki' : 'empty')}>{promoMsg.ok ? `🎉 ${promoMsg.text}` : `⛔ ${promoMsg.text}`}</div>}
           </div>
           </div>
           <div className={'mtab' + (menuTab === 'play' ? ' show' : '')}>
@@ -1987,13 +2391,16 @@ async function loadStats(): Promise<void> {
               />
               <input
                 id="authPass"
-                type="password"
+                type={showPass ? 'text' : 'password'}
                 value={authPass}
                 maxLength={64}
                 onChange={(e) => setAuthPass(e.target.value)}
                 placeholder="Пароль"
                 autoComplete="current-password"
               />
+              <button className="wbtn" id="showPassBtn" onClick={() => setShowPass((v) => !v)} title="Показать/скрыть пароль">
+                {showPass ? '🙈 СКРЫТЬ' : '👁️ ПОКАЗАТЬ'}
+              </button>
               {authMsg && <div id="authMsg">{authMsg}</div>}
               <div className="srow">
                 <button className="wbtn" id="loginBtn" onClick={() => doAuth('login')}>ВОЙТИ</button>
@@ -2124,14 +2531,14 @@ async function loadStats(): Promise<void> {
             placeholder="Твой ник"
           />
           <button id="charBtn" className="wbtn" onClick={() => setMenuTab('fighter')}>
-            🎭 БОЕЦ: {char === 'krysa' ? '🐀 Стейси' : '🕶️ МТТ'} — ВЫБРАТЬ
+            🎭 БОЕЦ: {char === 'krysa' ? '🐀 Стейси' : char === 'shuba' ? '🥷 Ивангой' : char === 'chuma' ? '🐦‍⬛ Чума' : char === 'gidroxis' ? '🧪 Гидроксис' : '🕶️ МТТ'} — ВЫБРАТЬ
           </button>
           {(roomId && !isOwner) || waiting ? (
             <button id="goBtn" disabled title="Ждём старта от создателя">⏳ ЖДУ СТАРТА…</button>
           ) : !authed ? (
             <button id="goBtn" disabled title="Сначала войди или жми «ИГРАТЬ ГОСТЕМ»">🔐 СНАЧАЛА ВОЙДИ</button>
           ) : (
-            <button id="goBtn" onClick={go}>{(() => { const gm = roomId ? roomMode : mapChoice; return gm === 'duel' ? '⚔️ В ДУЭЛЬ' : gm === 'backrooms' ? '🟨 В БЭКРУМС' : gm === 'pvp' ? '⚔️ В PvP-БОЙ' : gm === 'endless' ? '🟨 В БЭКРУМС' : gm === 'invasion' ? '🌊 В НАШЕСТВИЕ' : gm === 'custom' ? '🧩 НА СВОЮ' : gm === 'random' ? '🎲 НА СЛУЧАЙНУЮ' : '▶️ ПОГНАЛИ'; })()}</button>
+            <button id="goBtn" onClick={go}>{(() => { const gm = roomId ? roomMode : mapChoice; return gm === 'duel' ? '⚔️ В ДУЭЛЬ' : gm === 'backrooms' ? '🟨 В БЭКРУМС' : gm === 'pvp' ? '⚔️ В PvP-БОЙ' : gm === 'endless' ? '♾️ В БЕСКОНЕЧНЫЙ' : gm === 'invasion' ? '🌊 В НАШЕСТВИЕ' : gm === 'custom' ? '🧩 НА СВОЮ' : gm === 'random' ? '🎲 НА СЛУЧАЙНУЮ' : '▶️ ПОГНАЛИ'; })()}</button>
           )}
           </div>
           </div>
@@ -2147,11 +2554,11 @@ async function loadStats(): Promise<void> {
                     <div>🎮 Игр сыграно: <b>{profile.games}</b></div>
                     <div>🏆 Лучший счёт: <b>{profile.best}</b></div>
                     <div>🎟️ Фантиков всего: <b>{profile.coins}</b></div>
-                    <div>🎭 Боец: {char === 'krysa' ? '🐀 Стейси' : '🕶️ МТТ'} · ⭐ Ур. {hud.lvl} · Ник: {nick}</div>
+                    <div>🎭 Боец: {char === 'krysa' ? '🐀 Стейси' : char === 'shuba' ? '🥷 Ивангой' : char === 'chuma' ? '🐦‍⬛ Чума' : char === 'gidroxis' ? '🧪 Гидроксис' : '🕶️ МТТ'} · ⭐ Ур. {hud.lvl} · Ник: {nick}</div>
                     <h3>🔑 Сменить пароль</h3>
                     <input
                       id="passOld"
-                      type="password"
+                      type={showPass ? 'text' : 'password'}
                       value={passOld}
                       maxLength={64}
                       onChange={(e) => setPassOld(e.target.value)}
@@ -2160,15 +2567,41 @@ async function loadStats(): Promise<void> {
                     />
                     <input
                       id="passNew"
-                      type="password"
+                      type={showPass ? 'text' : 'password'}
                       value={passNew}
                       maxLength={64}
                       onChange={(e) => setPassNew(e.target.value)}
                       placeholder="Новый пароль (от 4 символов)"
                       autoComplete="new-password"
                     />
+                    <button className="wbtn" id="showPassBtn2" onClick={() => setShowPass((v) => !v)} title="Показать/скрыть пароль">
+                      {showPass ? '🙈 СКРЫТЬ' : '👁️ ПОКАЗАТЬ'}
+                    </button>
                     {passMsg && <div id="passMsg">{passMsg}</div>}
                     <button className="wbtn" id="passBtn" onClick={changePass}>СМЕНИТЬ ПАРОЛЬ</button>
+                    <h3>📝 Сменить логин</h3>
+                    <input
+                      id="newLogin"
+                      value={newLogin}
+                      maxLength={16}
+                      onChange={(e) => setNewLogin(e.target.value)}
+                      placeholder="Новый логин (латиница, 3–16)"
+                      autoComplete="username"
+                    />
+                    <input
+                      id="newLoginPass"
+                      type={showPass ? 'text' : 'password'}
+                      value={newLoginPass}
+                      maxLength={64}
+                      onChange={(e) => setNewLoginPass(e.target.value)}
+                      placeholder="Пароль для подтверждения"
+                      autoComplete="current-password"
+                    />
+                    <button className="wbtn" id="showPassBtn3" onClick={() => setShowPass((v) => !v)} title="Показать/скрыть пароль">
+                      {showPass ? '🙈 СКРЫТЬ' : '👁️ ПОКАЗАТЬ'}
+                    </button>
+                    {loginMsg && <div id="loginMsg">{loginMsg}</div>}
+                    <button className="wbtn" id="loginBtn2" onClick={changeLogin}>СМЕНИТЬ ЛОГИН</button>
                   </>
                 ) : (
                   <div>Загрузка…</div>
@@ -2312,6 +2745,14 @@ async function loadStats(): Promise<void> {
               <button id="m-soundBtn" className="wbtn" onClick={toggleSound}>{sound ? 'ВЫКЛ' : 'ВКЛ'}</button>
             </div>
             <div className="srow">
+              <span>🎚️ Громкость: {Math.round(volume * 100)}%</span>
+            </div>
+            <input
+              id="m-volRange"
+              type="range" min={0} max={1} step={0.05} value={volume}
+              onChange={(e) => changeVolume(Number(e.target.value))}
+            />
+            <div className="srow">
               <span>👀 Чувствительность: {sens.toFixed(1)}</span>
             </div>
             <input
@@ -2322,9 +2763,18 @@ async function loadStats(): Promise<void> {
             <div className="srow">
               <span>🎨 Графика</span>
               <button id="m-qualityBtn" className="wbtn" onClick={toggleQuality}>
-                {quality === 'nice' ? '✨ КРАСИВО' : '⚡ БЫСТРО'}
+                {qualityName(quality)}
               </button>
             </div>
+            <div className="srow">
+              <span>🔭 Дальность: {drawDist}м</span>
+            </div>
+            <input
+              id="m-drawRange"
+              type="range" min={80} max={500} step={20} value={drawDist}
+              onChange={(e) => changeDrawDist(Number(e.target.value))}
+            />
+            <div><small>Меньше — выше FPS (даль не рисуется).</small></div>
             <div><small>Клавиши — в бою кнопкой ⚙️ (там же сброс).</small></div>
           </div>
           </div>
@@ -2352,6 +2802,21 @@ async function loadStats(): Promise<void> {
           )}
           {adminOpen && admin === null && <div className="board">Загрузка онлайна…</div>}
           </div>
+        </div>
+      )}
+      {/* DEV-панель: баннер сбоку + сама панель (пока пустая, наполним по команде) */}
+      {devUnlocked && !devOpen && (
+        <button id="devBanner" onClick={() => setDevOpen(true)} title="Панель разработчика">
+          🛠️
+        </button>
+      )}
+      {devUnlocked && devOpen && (
+        <div id="devPanel">
+          <div id="devPanelHead">
+            <span>🛠️ Панель разработчика</span>
+            <button id="devClose" onClick={() => setDevOpen(false)}>✕</button>
+          </div>
+          <div id="devPanelBody">Пока пусто.</div>
         </div>
       )}
     </>
