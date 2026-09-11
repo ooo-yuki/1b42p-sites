@@ -32,6 +32,7 @@ import wallkickUrl from '../assets/wallkick.mp3';
 import deathUrl from '../assets/death.mp3';
 import szegedMesh from '../assets/szeged.mesh.json';
 import szegedSolids from '../assets/szeged.solids.json';
+import szegedSpawn from '../../tools/szeged-spawn.json';
 
 export interface UpgState { hp: number; dmg: number; spd: number; sup: number }
 export const UPG_MAX: UpgState = { hp: 5, dmg: 5, spd: 5, sup: 5 };
@@ -1334,8 +1335,21 @@ export class Game {
     for (const s of szegedSolids) {
       this.solids.push({ x: s.x, z: s.z, hx: s.hx, hz: s.hz, h: s.h });
     }
-    // спавн: 4 угла ядра, если занято — ищем свободное
+    // спавн: первичный — baked RECOMMENDED_SPAWN (tools/szeged-spawn.json,
+    // ближайшая к (0,0) свободная кругом r=2м точка); фолбэк — спираль от
+    // центра (r=2..half шаг 2, 8 направлений), затем старые углы ядра
     const S = this.half - 10;
+    if (!this.hitSolid(szegedSpawn.x, szegedSpawn.z, 1.5)) {
+      this.px = szegedSpawn.x; this.pz = szegedSpawn.z; this.yaw = 0; return;
+    }
+    for (let r = 2; r <= this.half; r += 2) {
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2;
+        const qx = clampArena(Math.cos(a) * r, this.half);
+        const qz = clampArena(Math.sin(a) * r, this.half);
+        if (!this.hitSolid(qx, qz, 1.5)) { this.px = qx; this.pz = qz; this.yaw = 0; return; }
+      }
+    }
     const cand: Array<[number, number]> = [[-S, -S], [S, -S], [-S, S], [S, S]];
     for (const [qx, qz] of cand) {
       if (!this.hitSolid(qx, qz, 1.5)) { this.px = qx; this.pz = qz; this.yaw = 0; return; }

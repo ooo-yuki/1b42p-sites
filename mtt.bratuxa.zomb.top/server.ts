@@ -237,6 +237,10 @@ function randSpawnXZ(): { x: number; z: number } {
   return { x: Math.round((Math.random() * 100 - 50) * 10) / 10, z: Math.round((Math.random() * 100 - 50) * 10) / 10 };
 }
 
+/** Szeged-спавн игрока: свободная точка у центра из tools/szeged-spawn.json
+ * (bake RECOMMENDED_SPAWN). Захардкожено — обновлять при перепеке карты. */
+const SZEGED_SPAWN = { x: -6, z: 0 };
+
 /** Три официальных сервера батальона: живут всегда, prune их пересоздаёт. */
 const OFFICIAL_DEFS = [
   { id: 'PVP42X', name: '⚔️ PvP-арена', mode: 'pvp' },
@@ -477,7 +481,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const id = newCode();
     const sid = newSid();
     const sp = duelSpawn(0);
-    const pvpSp = mode === 'pvp' || mode === 'endless' || mode === 'invasion' ? randSpawnXZ() : { x: 0, z: 22 };
+    const pvpSp = mode === 'pvp' || mode === 'endless' || mode === 'invasion' ? randSpawnXZ() : mode === 'szeged' ? { ...SZEGED_SPAWN } : { x: 0, z: 22 };
     const room: Room = { id, name, mode, created: Date.now(), seed: newSeed(), ttlSec: ttlFor(mode), official: false, round: 1, lastWinner: '', owner: sid, started: false, players: new Map(), pending: new Map(), chat: [], mobs: new Map(), mobHost: '', gone: new Map(), banned: new Map(), escaped: new Map() };
     room.players.set(sid, { sid, nick, login, char: cleanChar(body.char), x: mode === 'duel' ? sp.x : pvpSp.x, z: mode === 'duel' ? sp.z : pvpSp.z, yaw: mode === 'duel' ? sp.yaw : 0, hp: 100, score: 0, kills: 0, wave: 1, weapon: 'fists', py: 0, atk: 0, dead: false, duelHp: 100, wins: 0, spawnIdx: 0, frags: 0, spec: false, specTarget: '', respawn: null, ts: Date.now() });
     rooms.set(id, room);
@@ -507,7 +511,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const joinKey = login || ('nick:' + nick);
     const joinEscaped = room.mode === 'endless' && room.escaped.has(joinKey);
     const wantSpec = (body.spec === true && (room.mode === 'endless' || room.mode === 'pvp' || room.mode === 'invasion')) || joinEscaped;
-    const sp = room.mode === 'pvp' || room.mode === 'endless' || room.mode === 'invasion' ? randSpawnXZ() : { x: 0, z: 22 };
+    const sp = room.mode === 'pvp' || room.mode === 'endless' || room.mode === 'invasion' ? randSpawnXZ() : room.mode === 'szeged' ? { ...SZEGED_SPAWN } : { x: 0, z: 22 };
     const member = { sid, nick, login, char: cleanChar(body.char), x: sp.x, z: sp.z, yaw: 0, hp: 100, score: 0, kills: 0, wave: 1, weapon: 'fists', py: 0, atk: 0, dead: false, duelHp: 100, wins: 0, spawnIdx: room.players.size, frags: 0, spec: wantSpec, specTarget: '', respawn: null, ts: Date.now() };
     // грейс-возврат: свой тихо вылетел <2мин назад, место свободно — сразу в игру без заявки
     const leftAt = room.gone.get(key) ?? 0;

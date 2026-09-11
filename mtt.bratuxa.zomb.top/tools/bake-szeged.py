@@ -13,6 +13,11 @@ Reads tools/szeged-src/model.dae, writes:
       P=positions[3*pos_index[c]], N=normals[3*nor_index[c]],
       C=colors[3*col_index[t]].
   src/assets/szeged.solids.json [{x,z,hx,hz,h}] (meters)
+  tools/szeged-spawn.json {x,z} — RECOMMENDED_SPAWN: ближайшая к центру
+  модели (0,0) точка, свободная кругом r=2м от солидов (дистанция круг-AABB
+  как engine solidHit, все солиды без скидок по h). Формат solids зафиксирован
+  массивом (тесты/движок), поэтому спавн живёт отдельным файлом.
+  Перепёк карту — обнови и захардкоженную копию в server.ts (SZEGED_SPAWN).
 
 Pipeline: parse only <triangles> (per-<input> offsets honored, UV ignored) ->
 material diffuse color per tri -> inches->meters (*0.0254),
@@ -76,6 +81,40 @@ def effect_diffuse(root, effect_id):
 def clean(v):
     """round() may yield -0.0; normalize it to 0.0 for compact output."""
     return 0.0 if v == 0 else v
+
+
+def recommended_spawn(solids, rad=2.0, bound=183.0, step=1.0):
+    """Ближайшая к (0,0) точка, свободная кругом rad от солидов.
+
+    Дистанция — круг против AABB как engine solidHit (все солиды без скидок
+    по h: baked solids все h>=0.3 и движок колизит их на y=0). Кандидаты —
+    сетка step внутри ±bound, сортировка по (dist², x, z) детерминирована;
+    первый свободный и есть ближайший. None — свободного места нет вообще.
+    """
+    r2 = rad * rad
+    boxes = [(s["x"] - s["hx"], s["x"] + s["hx"],
+              s["z"] - s["hz"], s["z"] + s["hz"]) for s in solids]
+
+    def free(x, z):
+        for (x0, x1, z0, z1) in boxes:
+            cx = x0 if x < x0 else (x1 if x > x1 else x)
+            cz = z0 if z < z0 else (z1 if z > z1 else z)
+            dx, dz = x - cx, z - cz
+            if dx * dx + dz * dz < r2:
+                return False
+        return True
+
+    n = int(bound / step)
+    cand = []
+    for ix in range(-n, n + 1):
+        for iz in range(-n, n + 1):
+            x, z = ix * step, iz * step
+            cand.append((x * x + z * z, x, z))
+    cand.sort()
+    for _, x, z in cand:
+        if free(x, z):
+            return (clean(round(x, 3)), clean(round(z, 3)))
+    return None
 
 
 def main():
@@ -427,6 +466,17 @@ def main():
         f.write("\n")
 
     import os
+    # RECOMMENDED_SPAWN: ближайшая к (0,0) свободная кругом r=2м точка.
+    # bound = half арены - 2м от края (half как в engine buildSzeged).
+    spawn = recommended_spawn(solids, bound=max(W, D) / 2 + 10 - 2)
+    if spawn is None:
+        print("SPAWN-CHECK: FAIL свободного места нет", flush=True)
+    else:
+        with open(here / "szeged-spawn.json", "w") as f:
+            json.dump({"x": spawn[0], "z": spawn[1]},
+                      f, separators=(",", ":"))
+            f.write("\n")
+        print(f"SPAWN-CHECK: OK [{spawn[0]},{spawn[1]}]", flush=True)
     mbytes = os.path.getsize(a.mesh_out)
     sbytes = os.path.getsize(a.solids_out)
     print(f"meshes={len(meshes)}(+{n_dropped} outliers of {n_raw_meshes}) "
