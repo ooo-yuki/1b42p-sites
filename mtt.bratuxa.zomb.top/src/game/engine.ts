@@ -5230,7 +5230,9 @@ export class Game {
           const moved = Math.hypot(e.g.position.x - e.lx, e.g.position.z - e.lz);
           if (moved < 0.5) {
             e.stuckT += dt;
-            if (e.stuckT > 0.25 && e.slideT <= 0) {
+            // висящий на стене не слайдит: его держит лазанье, боковой дёрг
+            // сбросит щуп с стены — будет ёрзать и топтаться вместо подъёма
+            if (e.stuckT > 0.25 && e.slideT <= 0 && !e.climbHold) {
               e.stuckT = 0;
               e.slideT = 0.6;
               // с какой стороны от курса цель: туда и ползём вдоль стены
@@ -5301,14 +5303,25 @@ export class Game {
           if (canClimb && (blockedX || blockedZ)) {
             // высоту меряем ЩУПОМ ВПЕРЁД (до 2м по курсу): точка рядом со стеной
             // ещё не внутри неё, а тонкий забор в замер без щупа не попадает
-            let top = 0;
+            let top = 0; let qx = 0, qz = 0, qFound = false;
             for (let k = 1; k <= 4; k++) {
-              const qx = e.g.position.x + mdx * 0.5 * k, qz = e.g.position.z + mdz * 0.5 * k;
-              if (this.hitSolid(qx, qz, 0.5, e.ey)) { top = this.groundAt(qx, qz, 0.5); break; }
+              const qx2 = e.g.position.x + mdx * 0.5 * k, qz2 = e.g.position.z + mdz * 0.5 * k;
+              if (this.hitSolid(qx2, qz2, 0.5, e.ey)) { top = this.groundAt(qx2, qz2, 0.5); qx = qx2; qz = qz2; qFound = true; break; }
             }
+            const ownG = this.groundAt(e.g.position.x, e.g.position.z);
             const dh = top - e.ey;
-            if (dh > 0 && dh <= 1.9 && e.ey - this.groundAt(e.g.position.x, e.g.position.z) <= 0.05 && e.evy <= 0) { e.evy = 6; e.climbHold = false; this.jumpDBG++; }
+            if (dh > 0 && dh <= 1.9 && e.ey - ownG <= 0.05 && e.evy <= 0) { e.evy = 6; e.climbHold = false; this.jumpDBG++; }
             else if (dh > 1.9 && dh <= 12) { e.ey = Math.min(top, e.ey + 2.5 * dt); e.climbHold = true; this.climbDBG++; }
+            else if (qFound && dh <= 0 && dh > -1.2 && top - ownG <= 12 && e.evy <= 0) {
+              // дополз до верха, а нос ещё в стене — перевал через край на крышу.
+              // Наверху тесно (голова упрётся) — отпускаем: сползёт вниз, а не зависнет
+              if (!this.hitSolid(qx, qz, 0.5, top)) {
+                e.g.position.x = qx; e.g.position.z = qz; e.ey = top; e.evy = 0; e.climbHold = false; this.dropDBG++;
+              } else e.climbHold = false;
+            }
+            // не за что держаться (угол, край стены, выше 12м) — флаг вниз,
+            // иначе гравитация его вечно не берёт и он висит в воздухе
+            else e.climbHold = false;
           }
           if (canClimb) {
             const gt = this.groundAt(e.g.position.x, e.g.position.z);
