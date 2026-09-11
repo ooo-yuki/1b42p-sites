@@ -20,7 +20,8 @@ Z_UP->Y_UP (x,y,z)->(x,z,-y) [--flip-z gives (x,z,y)] ->
 drop meshes whose center is further than 3 sigma from median of centers ->
 downscale so bbox <=120m on bigger XZ side, bbox center XZ at (0,0) ->
 vertex dedup (positions round(3), normals round(2), colors round(3)) ->
-per-mesh AABBs -> voxel merge on 2m grid -> drop boxes h<0.3, area<0.09.
+per-mesh AABBs -> drop near-flat large slabs (h<1м, area>25м²: земля) ->
+voxel merge on 2m grid -> drop boxes h<0.3, area<0.09 -> split hx,hz<=12м.
 
 --true-scale: вместо 3-сигма фильтра — кроп по плотному ядру
 (CORE_X0..X1, CORE_Y0..Y1 в метрах SketchUp-плоскости) и ЧЕСТНЫЙ масштаб:
@@ -310,10 +311,42 @@ def main():
     W, D = fx1 - fx0, fz1 - fz0
 
     # solids: per-mesh AABB -> 2m voxel grid (cell: bottom=min, top=max),
-    # greedy rect merge of equal (bottom, top) cells, drop h<0.3 / area<0.09
+    # greedy rect merge of equal (bottom, top) cells, drop h<0.3 / area<0.09.
+    # Плоская земля в солиды не идёт: почти-плоский (h<1м) меш большой
+    # площади (>25м²) — это плита/земля, ходить можно и так (groundAt=0).
+    # Без этого воксели плит с одинаковым (bottom,top) сливаются в боксы
+    # 56x64м и замуровывают улицы. Плюс кап бокса: hx,hz<=12м с нарезкой.
+    FLAT_H = 1.0
+    FLAT_AREA = 25.0
+    BOX_CAP = 12.0
+    n_flat_skipped = 0
+
+    def split_box(b):
+        x0, x1 = b["x"] - b["hx"], b["x"] + b["hx"]
+        z0, z1 = b["z"] - b["hz"], b["z"] + b["hz"]
+        nx = max(1, math.ceil((x1 - x0) / (2 * BOX_CAP)))
+        nz = max(1, math.ceil((z1 - z0) / (2 * BOX_CAP)))
+        if nx == 1 and nz == 1:
+            return [b]
+        out = []
+        for ix in range(nx):
+            for iz in range(nz):
+                sx0 = x0 + (x1 - x0) * ix / nx
+                sx1 = x0 + (x1 - x0) * (ix + 1) / nx
+                sz0 = z0 + (z1 - z0) * iz / nz
+                sz1 = z0 + (z1 - z0) * (iz + 1) / nz
+                out.append({"x": (sx0 + sx1) / 2, "z": (sz0 + sz1) / 2,
+                            "hx": (sx1 - sx0) / 2, "hz": (sz1 - sz0) / 2,
+                            "h": b["h"]})
+        return out
+
     def voxel_merge(aabbs, quant):
+        nonlocal n_flat_skipped
         cells = {}
         for (x0, x1, y0, y1, z0, z1) in aabbs:
+            if (y1 - y0) < FLAT_H and (x1 - x0) * (z1 - z0) > FLAT_AREA:
+                n_flat_skipped += 1
+                continue
             if x1 <= x0 or z1 <= z0 or y1 <= y0:
                 continue
             b = math.floor(y0 / quant) * quant
@@ -360,7 +393,17 @@ def main():
     budget = 2000 if a.true_scale else 1500
     for quant in (0.0, 0.5, 1.0, 2.0):
         q = quant if quant > 0 else 1e-9
-        solids = voxel_merge(aabbs, q)
+        n_flat_skipped = 0
+        raw = voxel_merge(aabbs, q)
+        # кап бокса: нарезка гигантов на плитки hx,hz<=12м (до проверки бюджета)
+        capped = []
+        n_split = 0
+        for b in raw:
+            parts = split_box(b)
+            if len(parts) > 1:
+                n_split += 1
+            capped.extend(parts)
+        solids = capped
         if len(solids) <= budget:
             break
 
@@ -390,9 +433,80 @@ def main():
           f"raw_tris={n_raw_tris} uverts={len(positions) // 3} "
           f"unormals={len(normals) // 3} ucolors={len(colors) // 3} "
           f"tris={len(col_index)} solids={len(solids)} "
+          f"flat_skipped={n_flat_skipped} split={n_split} quant={q} "
           f"size={W:.1f}x{D:.1f} scale={scale:.4f} "
           f"mesh={mbytes / 1048576:.2f}MB solids={sbytes // 1024}KB",
           flush=True)
+    # коридор-чек: BFS по сетке 2м от спавна к спавну (углы ядра, как в
+    # engine buildSzeged). Путь обязан существовать, иначе улицы замурованы.
+    xs = positions[0::3]
+    zs = positions[2::3]
+    ex0, ex1, ez0, ez1 = min(xs), max(xs), min(zs), max(zs)
+    half = max(ex1 - ex0, ez1 - ez0) / 2 + 10
+    S = half - 10
+    spawns = [(-S, -S), (S, -S), (-S, S), (S, S)]
+    maxb = max(max(s["hx"], s["hz"]) for s in solids) if solids else 0.0
+    print(f"half={half:.1f} S={S:.1f} maxbox={maxb:.1f}", flush=True)
+
+    def blocked(px, pz, rad=1.0):
+        for s in solids:
+            if s["h"] < 0.5:
+                continue
+            if abs(px - s["x"]) <= s["hx"] + rad and \
+               abs(pz - s["z"]) <= s["hz"] + rad:
+                return True
+        return False
+
+    def nearest_free(qx, qz):
+        if not blocked(qx, qz):
+            return (qx, qz)
+        for r in range(2, 40, 2):
+            for dx in range(-r, r + 1, 2):
+                for dz in (-r, r):
+                    if not blocked(qx + dx, qz + dz):
+                        return (qx + dx, qz + dz)
+            for dz in range(-r + 2, r, 2):
+                for dx in (-r, r):
+                    if not blocked(qx + dx, qz + dz):
+                        return (qx + dx, qz + dz)
+        return None
+
+    def bfs(a, b):
+        # сетка 2м, 4-связность; координаты клеток -> мировые
+        from collections import deque
+        cell = 2.0
+        gx = lambda v: round(v / cell)
+        start, goal = (gx(a[0]), gx(a[1])), (gx(b[0]), gx(b[1]))
+        seen = {start}
+        q = deque([start])
+        dist = {start: 0}
+        while q:
+            cx, cz = q.popleft()
+            if (cx, cz) == goal:
+                return dist[(cx, cz)]
+            for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, nz = cx + dx, cz + dz
+                if (nx, nz) in seen:
+                    continue
+                if blocked(nx * cell, nz * cell):
+                    continue
+                seen.add((nx, nz))
+                dist[(nx, nz)] = dist[(cx, cz)] + 1
+                q.append((nx, nz))
+        return None
+
+    free = [nearest_free(qx, qz) for qx, qz in spawns]
+    if any(p is None for p in free):
+        print("CORRIDOR-CHECK: FAIL spawn inside solid", flush=True)
+    else:
+        legs = []
+        ok = True
+        for i in range(len(free) - 1):
+            d = bfs(free[i], free[i + 1])  # type: ignore[arg-type]
+            legs.append(-1 if d is None else d)
+            if d is None:
+                ok = False
+        print(f"CORRIDOR-CHECK: {'OK' if ok else 'FAIL'} legs={legs}", flush=True)
 
 
 if __name__ == "__main__":
