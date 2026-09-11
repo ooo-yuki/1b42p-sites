@@ -28,10 +28,11 @@ Reads tools/szeged-src/model.dae + tools/szeged-src/textures/model/*, writes:
 РЕШЕНИЕ ПО ПАЛИТРЕ (зафиксировано): col_index/palette ОСТАВЛЕНЫ как tint —
 mesh-3 = mesh-2 + uv + atlas. Diffuse-цвет материала всегда пишется в colors
 и умножается поверх атласа (движок: vertexColors=true, material.color=white).
-Белый severe-fallback убран: нетекстурированные треугольники смотрят в белую
-8x8-плашку атласа (uv в её центр), а tint несёт их diffuse-цвет; текстуры,
-чьи файлы не нашлись на диске, тоже идут в белую плашку и попадают в список
-unresolved (их diffuse-tint при этом сохраняется).
+Белой плашки почти нет: нетекстурированные треугольники получают planar
+box-mapping (проекция по доминантной оси нормали, 1 тайл/4м) в процедурные
+плитки (roof/plaster_warm/plaster_cool/asphalt, seed 42) по нормали/высоте/
+тинту; отсутствующие файлы material_1..4 (кровля) — в процедурный roof.
+Белая 8x8-плашка — только аварии загрузки.
 
 Pipeline: parse <triangles> (per-<input> offsets honored, TEXCOORD first set
 used, UV fract()'d for tiling) -> material: diffuse tint + texture file via
@@ -59,6 +60,7 @@ import argparse
 import json
 import math
 import os
+import random
 import statistics
 import sys
 import xml.etree.ElementTree as ET
@@ -551,6 +553,73 @@ def main():
                      clean(round((wz1b - cz) * scale, 3))]
     else:
         core_rect = None
+    # ---- procedural tiles (seeded, tileable): закрываем дыры исходника ----
+    # Генерация картинок недоступна, рисуем кодом: попиксельный шум тайлится
+    # идеально, пятна — синусами с целыми периодами, швы мембраны — по сетке,
+    # делящей размер. Детерминировано (seed 42), в git не коммитится ничего —
+    # плитки живут только в памяти и запекаются в атлас.
+    PROC_SIZE = 256
+    PROC_ROOF = 'zz_roof.png'
+    PROC_WARM = 'zz_plaster_warm.png'
+    PROC_COOL = 'zz_plaster_cool.png'
+    PROC_ASPH = 'zz_asphalt.png'
+    PROC_TILES = {PROC_ROOF: 'roof', PROC_WARM: 'plaster_warm',
+                  PROC_COOL: 'plaster_cool', PROC_ASPH: 'asphalt'}
+    _prng = random.Random(42)
+
+    def _proc_tile(kind):
+        if kind == 'roof':
+            base, amp = (148, 146, 142), 8
+        elif kind == 'plaster_warm':
+            base, amp = (232, 222, 202), 6
+        elif kind == 'plaster_cool':
+            base, amp = (212, 218, 226), 6
+        else:  # asphalt
+            base, amp = (88, 88, 90), 12
+        S = PROC_SIZE
+        im = Image.new('RGB', (S, S))
+        px = im.load()
+        assert px is not None
+        TAU = 2 * math.pi
+        for yy in range(S):
+            wy = math.sin(TAU * 2 * yy / S) * math.sin(TAU * 3 * yy / S)
+            for xx in range(S):
+                wx = math.sin(TAU * 3 * xx / S) * math.sin(TAU * 2 * xx / S)
+                n = _prng.randint(-amp, amp) + int(6 * wx * wy)
+                r = min(255, max(0, base[0] + n))
+                g = min(255, max(0, base[1] + n))
+                b = min(255, max(0, base[2] + n))
+                px[xx, yy] = (r, g, b)
+        if kind == 'roof':
+            for k in range(0, S, 64):
+                for d in range(2):
+                    for yy in range(S):
+                        px[(k + d) % S, yy] = (110, 108, 104)
+                    for xx in range(S):
+                        px[xx, (k + d) % S] = (110, 108, 104)
+        return im
+
+    proc_images = {pname: _proc_tile(kind)
+                   for pname, kind in PROC_TILES.items()}
+
+    def _box_uv(nx, ny, nz, X, Y, Z, s=4.0):
+        # planar box-mapping: проекция по доминантной оси нормали,
+        # 1 тайл на s метров; fract — tiling.
+        ax, ay, az = abs(nx), abs(ny), abs(nz)
+        if ax >= ay and ax >= az:
+            return (fract(Z / s), fract(Y / s))
+        if az >= ax and az >= ay:
+            return (fract(X / s), fract(Y / s))
+        return (fract(X / s), fract(Z / s))
+
+    def _proc_pick(ny, Y, cr, cb):
+        # какой процедурный тайл на плоский угол: вверх — крыша (низко —
+        # асфальт), вниз — холодная штукатурка, бока — по теплоте тинта.
+        if ny > 0.5:
+            return PROC_ROOF if Y >= 0.5 else PROC_ASPH
+        if ny < -0.5:
+            return PROC_COOL
+        return PROC_WARM if cr > cb else PROC_COOL
     # Fallback-текстуры: отсутствующие на диске файлы (крыши сидят на
     # material_1..4.jpg — их нет) мапим на ближайшую resolved по
     # diffuse-цвету (ничья — чаще используемая, затем имя), а не на белую
@@ -561,6 +630,12 @@ def main():
     fallback = {}
     for fn in set(fn_tris):
         if fn in tex_avail:
+            continue
+        if fn in ('material_1.jpg', 'material_2.jpg', 'material_3.jpg',
+                  'material_4.jpg'):
+            # исходников нет на диске (учёт: missing) — кладём процедурную
+            # крышу вместо чужого фото по цвету: все четыре — кровля.
+            fallback[fn] = PROC_ROOF
             continue
         rgb = fn_rgb.get(fn, WHITE)
 
@@ -586,6 +661,7 @@ def main():
     n_tex_corners = 0
     n_flat_corners = 0
     n_missing_corners = 0
+    n_box_corners = 0
     aabbs = []
     for tris, aabb, _ in meshes:
         npx = []
@@ -639,11 +715,30 @@ def main():
                         n_missing_corners += 1
                 else:
                     if fn is not None:
+                        # материал с текстурой, но у блока нет TEXCOORD:
+                        # box-mapping в его же тайл (или его fallback) —
+                        # угол НЕ белый, идёт в box-учёт.
                         no_uv_tris += 1
-                        n_missing_corners += 1
+                        tgt = fn if fn in tex_avail else fallback.get(fn)
+                        if tgt is None:
+                            missing_files.add(fn)
+                            corner_tex.append((None, 0.0, 0.0))
+                            n_missing_corners += 1
+                        else:
+                            bu, bv = _box_uv(NX, NY, NZ, X, Y, Z)
+                            used_files.add(tgt)
+                            corner_tex.append((tgt, bu, bv))
+                            n_box_corners += 1
                     else:
+                        # плоский исходник без текстуры: box-mapping в
+                        # процедурный тайл по нормали/высоте/тинту; tint
+                        # diffuse поверх сохраняется (col_index как был).
+                        pname = _proc_pick(NY, Y, cr, cb)
+                        bu, bv = _box_uv(NX, NY, NZ, X, Y, Z)
+                        used_files.add(pname)
+                        corner_tex.append((pname, bu, bv))
                         n_flat_corners += 1
-                    corner_tex.append((None, 0.0, 0.0))
+                        n_box_corners += 1
         xs = [p[0] for p in npx]; ys = [p[1] for p in npx]
         zs = [p[2] for p in npx]
         aabbs.append((min(xs), max(xs), min(ys), max(ys),
@@ -652,6 +747,8 @@ def main():
     # ---- atlas: tiles <=256px, shelf pack into ATLAS_W-wide strip ----
     tiles = {}  # fn -> PIL image (RGB, thumbnailed)
     for fn in sorted(used_files):
+        if fn in proc_images:
+            continue  # процедурные — из памяти, на диске их нет и не надо
         try:
             im = Image.open(Path(a.tex_dir) / fn).convert("RGB")
             im.load()
@@ -661,6 +758,9 @@ def main():
             continue
         im.thumbnail((TILE_MAX, TILE_MAX), Image.Resampling.LANCZOS)
         tiles[fn] = im
+    # процедурные плитки — из памяти (на диске исходников нет, это нормально)
+    for pname, pim in proc_images.items():
+        tiles[pname] = pim
     # drop corners whose tile failed to load -> white
     n_load_fail_corners = 0
     if missing_files:
@@ -857,6 +957,8 @@ def main():
                 "col_index": col_index,
                 "atlas": Path(a.atlas_out).name,
                 "unresolved": sorted(missing_files),
+                "proc": sorted(PROC_TILES),
+                "atlas_h": H,
                 "core_rect": core_rect,
                 "atlas_tiles": {fn: list(rects[fn]) for fn in sorted(rects)}}
     solids_out = [{k: r3(s[k]) for k in ("x", "z", "hx", "hz", "h")}
@@ -908,11 +1010,14 @@ def main():
         pm = 100.0 * n_missing_corners / n_all_corners
     else:
         pt = pf = pm = 0.0
-    # углы с fn, но без UV (no_uv_tris, счёт покорнерный) идут в missing:
-    # текстура есть, но угол всё равно лёг в белую плашку.
+    # углы с fn, но без UV (no_uv_tris, счёт покорнерный) идут в box, не в
+    # missing: текстура есть (или её fallback), угол семплит свой тайл.
+    # flat-углы тоже в box (процедурный тайл), белая плашка — только аварии
+    # загрузки (load_fail) и tgt None.
     print(f"corners={n_all_corners} textured={n_tex_corners} ({pt:.1f}%) "
           f"flat={n_flat_corners} ({pf:.1f}%) "
           f"missing={n_missing_corners} ({pm:.1f}%) "
+          f"box={n_box_corners} "
           f"load_fail_corners={n_load_fail_corners}",
           flush=True)
     # коридор-чек: BFS по сетке 2м от спавна к спавну (углы ядра, как в

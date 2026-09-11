@@ -41,25 +41,59 @@ test('szeged v-flip: v_raw=0 семплит НИЗ тайла (GL-инверт �
   expect(vv(ry, h, H, 0.5)).toBeCloseTo(1 - (ry + h / 2) / H, 12);
 });
 
-test('szeged white fallback: земля без текстуры — одна uv-точка (инверт не трогает)', () => {
-  const m = mesh as unknown as { colors: number[]; col_index: number[]; uv: number[] };
-  // GROUND_TINT из bake (0.42, 0.4, 0.37), round(3) — только страховочная земля
+test('szeged safety ground: страховочная земля — box-mapping в асфальт (не белая точка)', () => {
+  const m = mesh as unknown as {
+    colors: number[]; col_index: number[]; uv: number[];
+    atlas_tiles: Record<string, number[]>; atlas_h: number;
+  };
+  // GROUND_TINT из bake (0.42, 0.4, 0.37) — страховочная плоскость y≈-0.2:
+  // была одна белая uv-точка, теперь развёртка по асфальтовому тайлу.
   let gci = -1;
   for (let i = 0; i < m.colors.length; i += 3) {
     if (m.colors[i] === 0.42 && m.colors[i + 1] === 0.4 && m.colors[i + 2] === 0.37) { gci = i / 3; break; }
   }
   expect(gci).toBeGreaterThanOrEqual(0);
+  const [rx, ry, w, h] = m.atlas_tiles['zz_asphalt.png']!;
+  const W = 2048, H = m.atlas_h;
   const seen = new Set<string>();
+  let n = 0;
   for (let t = 0; t < m.col_index.length; t++) {
     if (m.col_index[t] === gci) {
       for (let c = 0; c < 3; c++) {
         const k = t * 3 + c;
-        seen.add(`${m.uv[2 * k]},${m.uv[2 * k + 1]}`);
+        const uu = m.uv[2 * k]!, vv = m.uv[2 * k + 1]!;
+        seen.add(`${uu},${vv}`);
+        expect(uu).toBeGreaterThanOrEqual(rx / W - 1e-9);
+        expect(uu).toBeLessThanOrEqual((rx + w) / W + 1e-9);
+        expect(vv).toBeGreaterThanOrEqual(1 - (ry + h) / H - 1e-9);
+        expect(vv).toBeLessThanOrEqual(1 - ry / H + 1e-9);
+        n++;
       }
     }
   }
-  expect(seen.size).toBeGreaterThan(0);
-  expect(seen.size).toBe(1);
+  expect(n).toBeGreaterThan(0);
+  // развёртка, а не одна точка: box-mapping работает
+  expect(seen.size).toBeGreaterThan(1);
+});
+
+test('szeged proc tiles: 4 процедурные плитки в меше и в атласе', () => {
+  const m = mesh as unknown as { proc: string[]; atlas_tiles: Record<string, number[]> };
+  for (const p of ['zz_roof.png', 'zz_plaster_warm.png', 'zz_plaster_cool.png', 'zz_asphalt.png']) {
+    expect(m.proc).toContain(p);
+    expect(m.atlas_tiles[p], `нет тайла ${p} в атласе`).toBeDefined();
+  }
+});
+
+test('szeged white fallback: белой плашки почти нет (<2% углов)', () => {
+  const m = mesh as unknown as { uv: number[]; atlas_tiles: Record<string, number[]> };
+  // белая плашка 8x8 в (2,2): uu≈0.0029; легитимные углы туда не попадают
+  // (ближайший тайл начинается дальше), vv белого верха >0.99.
+  const corners = m.uv.length / 2;
+  let white = 0;
+  for (let i = 0; i < m.uv.length; i += 2) {
+    if (m.uv[i]! < 0.004 && m.uv[i + 1]! > 0.99) white++;
+  }
+  expect(white / corners, `белых углов ${white}/${corners}`).toBeLessThan(0.02);
 });
 
 test('szeged atlas: тайлы ≤512px, зазоры ≥16px (anti-mip-bleed)', () => {
