@@ -1,5 +1,6 @@
 // Чаев 42: 5 разделов — хайп, дино, запой, треки, любовники.
 import Hype from './components/Hype';
+import PraiseBattle from './components/PraiseBattle';
 import DinoGame from './components/DinoGame';
 import ZapoiGame from './components/ZapoiGame';
 import Tracks from './components/Tracks';
@@ -9,6 +10,7 @@ export default function App() {
   return (
     <>
       <Hype />
+      <PraiseBattle />
       <DinoGame />
       <ZapoiGame />
       <Tracks />
