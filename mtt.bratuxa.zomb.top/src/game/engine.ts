@@ -3929,6 +3929,12 @@ export class Game {
     this.pz = this.clamp(Number(z) || 0);
     if (typeof yaw === 'number' && Number.isFinite(yaw)) this.yaw = yaw;
   }
+  /** Тестовый крюк: поставить ноги игрока на высоту (крыша для проб плоскостей). */
+  debugSetPy(v: number): void {
+    if (!Number.isFinite(v)) return;
+    this.py = Math.max(0, Math.min(30, v));
+    this.pvy = 0;
+  }
   debugRemoteList(): RemotePlayer[] {
     return this.remotes.map((m) => ({ nick: m.nick, char: m.char, x: m.x, z: m.z, yaw: m.yaw, hp: m.hp, weapon: m.weapon, py: m.py, atk: m.atk, dead: m.dead, fid: m.fid }));
   }
@@ -5133,7 +5139,8 @@ export class Game {
           // гостя вообще не трогали: второй игрок был бессмертным статистом).
           if (!e.god && !this.dead && !this.specOn && this.invisT <= 0) {
             const pd = Math.hypot(this.px - e.g.position.x, this.pz - e.g.position.z);
-            if (pd <= 2.3 && e.hitCd <= 0 && this.shieldT <= 0) {
+            // бьём только свою плоскость: гость на крыше, кукла на земле — мимо
+            if (pd <= 2.3 && Math.abs(e.ey - this.py) <= (e.kind === 'boss' ? 2.8 : 2.2) && e.hitCd <= 0 && this.shieldT <= 0) {
               e.hitCd = e.kind === 'boss' ? 1.2 : 0.95;
               this.hp -= e.kind === 'boss' ? 18 + Math.random() * 10 : 6 + Math.random() * 5;
               this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
@@ -5148,8 +5155,9 @@ export class Game {
               this.pushHud();
             }
           }
-        } else if (e.god && !huntingRemote && !this.dead && d <= 2.3 && e.hitCd <= 0 && this.shieldT <= 0) {
+        } else if (e.god && !huntingRemote && !this.dead && d <= 2.3 && Math.abs(e.ey - this.py) <= 2.2 && e.hitCd <= 0 && this.shieldT <= 0) {
           // БЭКРУМС: 1 удар = смерть + скример. Остальные карты — старый урон.
+          // Сталкер под крышей игрока не достаёт — только своя плоскость.
           e.hitCd = 1.0;
           if (this.map === 'backrooms' || this.map === 'endless') { this.killByStalker(); }
           else {
@@ -5181,10 +5189,7 @@ export class Game {
             if (Math.hypot(txp - e.ptx, tzp - e.ptz) > 4) e.repathT = Math.min(e.repathT, 0.08);
             if (e.repathT <= 0 || e.path.length === 0) {
               // прямая видимость: шаг 2м, не дальше 48м (дальше — сразу BFS-бюджет).
-              // Заодно меряем высоту преграды: всё низкое (до 1.9м) — напролом
-              // с прыжком, объезд не строим (заборы и ящики не повод для крюка).
               let blocked = false;
-              let lowOnly = e.kind === 'walk';
               const far = Math.min(d, 48);
               const checks = Math.min(24, Math.max(1, Math.ceil(far / 2)));
               for (let s = 1; s <= checks; s++) {
@@ -5192,17 +5197,14 @@ export class Game {
                 const qx = e.g.position.x + (dx / d) * t, qz = e.g.position.z + (dz / d) * t;
                 if (this.hitSolid(qx, qz, CLR, eyH)) {
                   blocked = true;
-                  // всю линию меряем: за низким забором может стоять дом.
-                  // rad=CLR: тонкая стена в замер попадает, а не только толстый дом
-                  if (this.groundAt(qx, qz, CLR) - eyH > 1.9) lowOnly = false;
+                  break;
                 }
               }
               if (!blocked && d <= 48) {
                 e.path = [];
-              } else if (blocked && lowOnly && d <= 48) {
-                // низкое — в лоб: рядом подпрыгнет (см. триггер прыжка ниже)
-                e.path = [];
               } else if (this.bfsBudget > 0) {
+                // любое препятствие (и низкое тоже) — сначала в обход по BFS.
+                // Прыжок остаётся запасным: сработает, если упёрся носом (тупик, щель)
                 this.bfsBudget--;
                 e.path = this.findPath(e.g.position.x, e.g.position.z, txp, tzp, CLR, e.kind === 'fly' ? eyH : 0);
               } else {
@@ -5310,9 +5312,12 @@ export class Game {
             }
             const ownG = this.groundAt(e.g.position.x, e.g.position.z);
             const dh = top - e.ey;
+            // на дома — только если игрок наверху (py>2.5): иначе в обход по BFS,
+            // а не на стену. Низкое (до 1.9м) прыгаем всегда — это запасной путь.
+            const wantUp = this.py > 2.5;
             if (dh > 0 && dh <= 1.9 && e.ey - ownG <= 0.05 && e.evy <= 0) { e.evy = 6; e.climbHold = false; this.jumpDBG++; }
-            else if (dh > 1.9 && dh <= 12) { e.ey = Math.min(top, e.ey + 2.5 * dt); e.climbHold = true; this.climbDBG++; }
-            else if (qFound && dh <= 0 && dh > -1.2 && top - ownG <= 12 && e.evy <= 0) {
+            else if (wantUp && dh > 1.9 && dh <= 12) { e.ey = Math.min(top, e.ey + 2.5 * dt); e.climbHold = true; this.climbDBG++; }
+            else if (wantUp && qFound && dh <= 0 && dh > -1.2 && top - ownG <= 12 && e.evy <= 0) {
               // дополз до верха, а нос ещё в стене — перевал через край на крышу.
               // Наверху тесно (голова упрётся) — отпускаем: сползёт вниз, а не зависнет
               if (!this.hitSolid(qx, qz, 0.5, top)) {
@@ -5335,8 +5340,8 @@ export class Game {
               else e.ey += (gt - e.ey) * Math.min(1, dt * 4);
             }
           }
-          if (e.climb && (blockedX || blockedZ)) {
-            // скалолаз: стена до 12м — лезем вверх (2.5 м/с), дальше идём по крыше
+          if (e.climb && (blockedX || blockedZ) && this.py > 2.5) {
+            // скалолаз: стена до 12м — только за игроком наверху, иначе в обход
             const top = this.groundAt(blockedX ? cx : e.g.position.x, blockedZ ? cz : e.g.position.z);
             if (top > e.ey && top - e.ey <= 12) e.ey = Math.min(top, e.ey + 2.5 * dt);
           }
@@ -5346,7 +5351,8 @@ export class Game {
             if (e.ey > gt) e.ey += (gt - e.ey) * Math.min(1, dt * 4);
           }
           } // LOD: дальние двигаются через кадр
-        } else if (!huntingRemote && !this.dead && e.hitCd <= 0 && this.shieldT <= 0 && !this.specOn && this.invisT <= 0) {
+        // d<=2.1 (рядом) + своя плоскость: игрок на крыше, враг на земле — урона нет
+        } else if (!huntingRemote && !this.dead && Math.abs(e.ey - this.py) <= (e.kind === 'boss' ? 2.8 : 2.2) && e.hitCd <= 0 && this.shieldT <= 0 && !this.specOn && this.invisT <= 0) {
           // бьём ТОЛЬКО себя: враг добежал до сокомнатника (huntingRemote) — урон считает его клиент, нам чужого не надо.
           // Труп тоже не бьём: умер — тишина, без добивания и звуков после смерти.
           // Облако Чумы достаёт и в упор (враг бьёт — сам травится).
@@ -5397,6 +5403,8 @@ export class Game {
           }
           e.body.position.y = (e.god ? 1.45 : 1.0) + Math.abs(Math.sin(e.phase)) * 0.12 + e.ey;
         }
+        // плашка ХП едет вместе с тушей: на стене — над головой верхолаза, а не у земли
+        e.hpSpr.position.y = (e.kind === 'fly' ? 4.6 : e.kind === 'boss' ? 4.1 : 2.35) + e.ey;
         e.body.material.rotation = Math.sin(e.phase) * 0.07;
         if (e.hurtT > 0) {
           e.hurtT -= dt;

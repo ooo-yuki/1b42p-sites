@@ -1003,6 +1003,7 @@ async function loadStats(): Promise<void> {
       map: () => game.debugMap(),
       duelHp: (hp: number) => game.setDuelHp(hp),
       teleport: (x: number, z: number, yaw?: number) => game.debugTeleport(x, z, yaw),
+      setpy: (n: number) => game.debugSetPy(n),
       pvpHp: (n: number) => game.setPvpHp(n),
       pvpSpawn: () => game.randomSpawn(),
       pvpRespawn: (x: number, z: number) => game.pvpRespawn(x, z),
