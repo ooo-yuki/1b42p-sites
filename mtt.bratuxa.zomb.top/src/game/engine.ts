@@ -30,6 +30,8 @@ import shotUrl from '../assets/shot.mp3';
 import hitUrl from '../assets/hit.mp3';
 import wallkickUrl from '../assets/wallkick.mp3';
 import deathUrl from '../assets/death.mp3';
+import szegedMesh from '../assets/szeged.mesh.json';
+import szegedSolids from '../assets/szeged.solids.json';
 
 export interface UpgState { hp: number; dmg: number; spd: number; sup: number }
 export const UPG_MAX: UpgState = { hp: 5, dmg: 5, spd: 5, sup: 5 };
@@ -84,12 +86,13 @@ export function charSpec(id: string): CharDef {
 }
 
 export type Quality = 'low' | 'medium' | 'high';
-export type MapId = 'arena' | 'duel' | 'backrooms' | 'custom' | 'random' | 'pvp' | 'endless' | 'invasion';
+export type MapId = 'arena' | 'duel' | 'backrooms' | 'custom' | 'random' | 'pvp' | 'endless' | 'invasion' | 'szeged';
 
 /** Карты для выбора в меню: id, название, описание. */
 export const MAPS: Array<{ id: MapId; name: string; desc: string }> = [
   { id: 'arena', name: '🌍 Арена', desc: 'Новый город: витрины, переулки, Г/П-дома, площадь с фонтаном' },
   { id: 'duel', name: '⚔️ Дуэль', desc: 'Ночной двор 1×1 для разборок' },
+  { id: 'szeged', name: '🗺️ Szeged', desc: 'Приватная карта МТТ' },
   { id: 'backrooms', name: '🟨 Бэкрумс', desc: 'Случайный лабиринт — новый каждый раз' },
   { id: 'random', name: '🎲 Случайная', desc: 'Дикий ландшафт: холмы, скалы, озеро — новый каждый раз' },
 ];
@@ -1155,6 +1158,7 @@ export class Game {
       endless: [brFloorUrl, brWallUrl, brCeilUrl],
       random: [travaUrl, brickUrl, edgeUrl, house2Url],
       custom: [travaUrl, brickUrl],
+      szeged: [],
       pvp: [travaUrl, brickUrl, edgeUrl, house2Url],
       invasion: [dom1Url, travaUrl, facadeUrl, brickUrl, edgeUrl],
     };
@@ -1266,6 +1270,70 @@ export class Game {
       scene.add(tl);
       this.solids.push({ x: fx, z: fz, r: 0.2, h: 4.5 });
     }
+  }
+
+  // Сегед: приватная карта МТТ — запечённый индексный меш (формат szeged-mesh-2).
+  // Экспанд угла c треугольника t: P=positions[3*pos_index[c]], N=normals[3*nor_index[c]], C=colors[3*col_index[t]].
+  private buildSzeged(): void {
+    const scene = this.scene;
+    scene.add(new THREE.AmbientLight(0xffffff, 0.95));
+    const sun = new THREE.DirectionalLight(0xfff2dd, 1.1);
+    sun.position.set(40, 70, 20);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 1024;
+    sun.shadow.mapSize.height = 1024;
+    sun.shadow.camera.left = -70;
+    sun.shadow.camera.right = 70;
+    sun.shadow.camera.top = 70;
+    sun.shadow.camera.bottom = -70;
+    sun.shadow.camera.near = 10;
+    sun.shadow.camera.far = 220;
+    sun.shadow.bias = -0.0004;
+    scene.add(sun);
+    // индексный меш -> плоские атрибуты (цвет постоянен на треугольник)
+    const n = szegedMesh.pos_index.length;
+    const pos = new Float32Array(n * 3);
+    const nor = new Float32Array(n * 3);
+    const col = new Float32Array(n * 3);
+    for (let c = 0; c < n; c++) {
+      const t = (c / 3) | 0;
+      const p = szegedMesh.pos_index[c] * 3;
+      const v = szegedMesh.nor_index[c] * 3;
+      const k = szegedMesh.col_index[t] * 3;
+      pos[c * 3] = szegedMesh.positions[p];
+      pos[c * 3 + 1] = szegedMesh.positions[p + 1];
+      pos[c * 3 + 2] = szegedMesh.positions[p + 2];
+      nor[c * 3] = szegedMesh.normals[v];
+      nor[c * 3 + 1] = szegedMesh.normals[v + 1];
+      nor[c * 3 + 2] = szegedMesh.normals[v + 2];
+      col[c * 3] = szegedMesh.colors[k];
+      col[c * 3 + 1] = szegedMesh.colors[k + 1];
+      col[c * 3 + 2] = szegedMesh.colors[k + 2];
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const mesh = new THREE.Mesh(
+      geo,
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }),
+    );
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+    for (const s of szegedSolids) {
+      this.solids.push({ x: s.x, z: s.z, hx: s.hx, hz: s.hz, h: s.h });
+    }
+    // спавн: 4 угла, если занято — ищем свободное
+    const cand: Array<[number, number]> = [[-40, -40], [40, -40], [-40, 40], [40, 40]];
+    for (const [qx, qz] of cand) {
+      if (!this.hitSolid(qx, qz, 1.5)) { this.px = qx; this.pz = qz; this.yaw = 0; return; }
+    }
+    for (let t = 0; t < 30; t++) {
+      const qx = Math.random() * 80 - 40, qz = Math.random() * 80 - 40;
+      if (!this.hitSolid(qx, qz, 1.5)) { this.px = qx; this.pz = qz; this.yaw = 0; return; }
+    }
+    this.px = -40; this.pz = -40; this.yaw = 0;
   }
 
   /**
@@ -2465,6 +2533,7 @@ export class Game {
     if (this.map === 'backrooms' || this.map === 'endless') { this.buildBackrooms(); return; }
     if (this.map === 'custom') { this.buildCustom(); return; }
     if (this.map === 'random') { this.buildRandom(); return; }
+    if (this.map === 'szeged') { this.buildSzeged(); return; }
     // arena, pvp, invasion — город
     this.buildCity(); return;
     const scene = this.scene;
@@ -4776,10 +4845,6 @@ export class Game {
 
   debugGround(x: number, z: number): number {
     return this.groundAt(Number(x) || 0, Number(z) || 0);
-  }
-
-  debugTracers(): number {
-    return this.tracers.length;
   }
 
   private loop = (): void => {
