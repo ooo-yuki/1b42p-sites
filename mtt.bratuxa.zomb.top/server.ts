@@ -59,6 +59,7 @@ async function registerUser(login: string, pass: string): Promise<{ ok: boolean;
 async function loginUser(login: string, pass: string): Promise<{ ok: boolean; error?: string; token?: string }> {
   const row = db.query('SELECT phash FROM users WHERE login = ?').get(login) as { phash: string } | null;
   if (!row) return { ok: false, error: 'nouser' };
+  if (isBlocked(login)) return { ok: false, error: 'blocked' };
   const good = await Bun.password.verify(pass, row.phash);
   if (!good) return { ok: false, error: 'badpass' };
   const token = newSid();
@@ -85,10 +86,29 @@ function loginByToken(token: unknown): string {
   if (typeof token !== 'string' || !token) return '';
   try {
     const row = db.query('SELECT login FROM sessions WHERE token = ?').get(token) as { login: string } | null;
-    return row?.login ?? '';
+    if (!row) return '';
+    // заблокированный аккаунт: токен мёртв везде и сразу (выкинут из всех комнат)
+    if (isBlocked(row.login)) return '';
+    return row.login;
   } catch {
     return '';
   }
+}
+/** Панель разработчика: чёрный список логинов (вечный бан) + владелец панели. */
+function isBlocked(login: string): boolean {
+  if (!login) return false;
+  try {
+    db.run('CREATE TABLE IF NOT EXISTS dev_blocked (login TEXT PRIMARY KEY, ts INTEGER NOT NULL)');
+    const row = db.query('SELECT login FROM dev_blocked WHERE login = ?').get(login) as { login: string } | null;
+    return !!row;
+  } catch { return false; }
+}
+/** Кто забрал LXX42P2ILX — тот и владелец панели (один на весь сервер). */
+function devOwner(): string {
+  try {
+    const row = db.query("SELECT login FROM promo_redeems WHERE code = 'LXX42P2ILX' LIMIT 1").get() as { login: string } | null;
+    return row?.login ?? '';
+  } catch { return ''; }
 }
 
 function num(v: unknown, lo: number, hi: number, fb = 0): number {
@@ -255,7 +275,7 @@ function duelSpawn(i: number): { x: number; z: number; yaw: number } {
 async function roomsApi(req: Request): Promise<Response | null> {
   const u = new URL(req.url);
   const p = u.pathname;
-  if (!p.startsWith('/api/rooms') && !p.startsWith('/api/register') && !p.startsWith('/api/login') && !p.startsWith('/api/me') && !p.startsWith('/api/profile') && !p.startsWith('/api/password') && !p.startsWith('/api/promo') && !p.startsWith('/api/admin') && !p.startsWith('/api/stats')) return null;
+  if (!p.startsWith('/api/rooms') && !p.startsWith('/api/register') && !p.startsWith('/api/login') && !p.startsWith('/api/me') && !p.startsWith('/api/profile') && !p.startsWith('/api/password') && !p.startsWith('/api/promo') && !p.startsWith('/api/admin') && !p.startsWith('/api/stats') && !p.startsWith('/api/dev')) return null;
   const parts = p.split('/').filter(Boolean); // ['api','rooms', id?, action?]
 
   // ---- аккаунты ----
@@ -358,6 +378,31 @@ async function roomsApi(req: Request): Promise<Response | null> {
     if (used) return Response.json({ error: 'used' }, { status: 409 });
     db.run('INSERT INTO promo_redeems (login, code, ts) VALUES (?, ?, ?)', [login, code, Date.now()]);
     return Response.json({ ok: true, code, fantiki: reward });
+  }
+  // панель разработчика: список аккаунтов + вечный бан (только владелец LXX42P2ILX)
+  if (p === '/api/dev/users' && req.method === 'GET') {
+    const login = loginByToken(u.searchParams.get('token'));
+    if (!login || login !== devOwner()) return Response.json({ error: 'forbidden' }, { status: 403 });
+    const users = db.query('SELECT login, created FROM users ORDER BY created DESC LIMIT 200').all() as Array<{ login: string; created: number }>;
+    return Response.json({ ok: true, users: users.map((x) => ({ login: x.login, created: x.created, blocked: isBlocked(x.login) })) });
+  }
+  if (p === '/api/dev/block' && req.method === 'POST') {
+    let body: Record<string, unknown> = {};
+    try { body = await req.json() as Record<string, unknown>; } catch { return Response.json({ error: 'bad' }, { status: 400 }); }
+    const login = loginByToken(body.token);
+    if (!login || login !== devOwner()) return Response.json({ error: 'forbidden' }, { status: 403 });
+    const target = String(body.login ?? '').trim().slice(0, 16);
+    if (!target) return Response.json({ error: 'bad' }, { status: 400 });
+    if (target === login) return Response.json({ error: 'self' }, { status: 400 });
+    db.run('CREATE TABLE IF NOT EXISTS dev_blocked (login TEXT PRIMARY KEY, ts INTEGER NOT NULL)');
+    db.run('INSERT OR IGNORE INTO dev_blocked (login, ts) VALUES (?, ?)', [target, Date.now()]);
+    db.run('DELETE FROM sessions WHERE login = ?', [target]);
+    // выкинуть из всех комнат сразу (пульс с мёртвым токеном его уже не вернёт)
+    for (const r of rooms.values()) {
+      for (const [k, m] of r.players) if (m.login === target) { r.players.delete(k); r.gone.delete(k); }
+      for (const [k, m] of r.pending) if (m.login === target) r.pending.delete(k);
+    }
+    return Response.json({ ok: true, login: target });
   }
   // админ-статистика МТТ: онлайн по комнатам — кто где и что делает
   if (p === '/api/admin/stats' && req.method === 'GET') {

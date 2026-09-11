@@ -729,6 +729,13 @@ async function loadStats(): Promise<void> {
     try { return localStorage.getItem('mtt_dev') === '1'; } catch { return false; }
   });
   const [devOpen, setDevOpen] = useState(false);
+  /** Кнопки панели: бессмертие, призрак, хитбоксы, рентген, список аккаунтов. */
+  const [devGod, setDevGodSt] = useState(false);
+  const [devSpec, setDevSpecSt] = useState(false);
+  const [devHit, setDevHitSt] = useState(false);
+  const [devXray, setDevXraySt] = useState(false);
+  const [devUsers, setDevUsers] = useState<Array<{ login: string; created: number; blocked: boolean }> | null>(null);
+  const [devUsersBusy, setDevUsersBusy] = useState(false);
   const hudRef = useRef(hud);
   hudRef.current = hud;
   // ник в рефах: пульс и переподключение живут в []-эффекте и видят только протухшее замыкание
@@ -794,7 +801,7 @@ async function loadStats(): Promise<void> {
       });
       const d = (await r.json()) as { token?: string; login?: string; error?: string };
       if (!r.ok || !d.token || !d.login) {
-        setAuthMsg(d.error === 'taken' ? 'Логин занят' : d.error === 'badpass' || d.error === 'nouser' ? 'Неверный логин/пароль' : d.error === 'badlogin' ? 'Логин: 3–16, буквы/цифры/_' : 'Пароль: от 4 символов');
+        setAuthMsg(d.error === 'taken' ? 'Логин занят' : d.error === 'blocked' ? 'Аккаунт заблокирован' : d.error === 'badpass' || d.error === 'nouser' ? 'Неверный логин/пароль' : d.error === 'badlogin' ? 'Логин: 3–16, буквы/цифры/_' : 'Пароль: от 4 символов');
         return;
       }
       try {
@@ -1004,6 +1011,10 @@ async function loadStats(): Promise<void> {
       duelHp: (hp: number) => game.setDuelHp(hp),
       teleport: (x: number, z: number, yaw?: number) => game.debugTeleport(x, z, yaw),
       setpy: (n: number) => game.debugSetPy(n),
+      devstate: () => ({ god: game.isDevGod(), xray: game.isDevXray(), hit: game.isDevHit(), spec: game.debugSpec() }),
+      devgod: (on: boolean) => game.setDevGod(on),
+      devxray: (on: boolean) => game.setDevXray(on),
+      devhit: (on: boolean) => game.setDevHit(on),
       pvpHp: (n: number) => game.setPvpHp(n),
       pvpSpawn: () => game.randomSpawn(),
       pvpRespawn: (x: number, z: number) => game.pvpRespawn(x, z),
@@ -2817,7 +2828,49 @@ async function loadStats(): Promise<void> {
             <span>🛠️ Панель разработчика</span>
             <button id="devClose" onClick={() => setDevOpen(false)}>✕</button>
           </div>
-          <div id="devPanelBody">Пока пусто.</div>
+          <div id="devPanelBody">
+            <button id="devGodBtn" className="wbtn" onClick={() => { const g = gameRef.current; if (!g) return; const v = !g.isDevGod(); g.setDevGod(v); setDevGodSt(v); }}>
+              {devGod ? '💚 БЕССМЕРТИЕ: ВКЛ' : '🤍 БЕССМЕРТИЕ: ВЫКЛ'}
+            </button>
+            <button id="devSpecBtn" className="wbtn" onClick={() => { const g = gameRef.current; if (!g) return; if (g.debugSpec()) { g.setSpec(false); setDevSpecSt(false); } else { const p = g.debugPos(); g.setSpec(true, p.x, p.z); setDevSpecSt(true); } }}>
+              {devSpec ? '👤 ВЕРНУТЬСЯ В ТЕЛО' : '👻 СТАТЬ ПРИЗРАКОМ'}
+            </button>
+            <button id="devHitBtn" className="wbtn" onClick={() => { const g = gameRef.current; if (!g) return; const v = !g.isDevHit(); g.setDevHit(v); setDevHitSt(v); }}>
+              {devHit ? '📦 ХИТБОКСЫ: ВКЛ' : '📦 ХИТБОКСЫ: ВЫКЛ'}
+            </button>
+            <button id="devXrayBtn" className="wbtn" onClick={() => { const g = gameRef.current; if (!g) return; const v = !g.isDevXray(); g.setDevXray(v); setDevXraySt(v); }}>
+              {devXray ? '👁 РЕНТГЕН: ВКЛ' : '👁 РЕНТГЕН: ВЫКЛ'}
+            </button>
+            <button id="devUsersBtn" className="wbtn" disabled={devUsersBusy} onClick={async () => {
+              setDevUsersBusy(true);
+              try {
+                const r = await fetch(`/api/dev/users?token=${encodeURIComponent(token())}`);
+                const d = await r.json() as { ok?: boolean; users?: Array<{ login: string; created: number; blocked: boolean }> };
+                if (d.ok && d.users) setDevUsers(d.users);
+              } catch { /* нет связи */ }
+              setDevUsersBusy(false);
+            }}>
+              {devUsersBusy ? '⏳…' : '🧾 АККАУНТЫ'}
+            </button>
+            {devUsers && (
+              <div id="devUsers">
+                {devUsers.length === 0 && <div>Аккаунтов нет.</div>}
+                {devUsers.map((x) => (
+                  <div key={x.login} className="srow">
+                    <span>{x.login}{x.blocked ? ' ⛔' : ''}</span>
+                    {!x.blocked && <button className="wbtn" onClick={async () => {
+                      if (!window.confirm(`Заблокировать ${x.login}? Выкинет из аккаунта навсегда.`)) return;
+                      try {
+                        const r = await fetch('/api/dev/block', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), login: x.login }) });
+                        const d = await r.json() as { ok?: boolean };
+                        if (d.ok) setDevUsers((u) => (u ?? []).map((y) => y.login === x.login ? { ...y, blocked: true } : y));
+                      } catch { /* нет связи */ }
+                    }}>ЗАБЛОКИРОВАТЬ</button>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </>

@@ -621,6 +621,18 @@ export class Game {
   /** Рентген Гидроксиса: xrayT — подсветка висит секунд, xrayCd — перезарядка. */
   private xrayT = 0;
   private xrayCd = 0;
+  /** Панель разработчика: бессмертие, сквозной рентген, хитбоксы (только у владельца). */
+  private devGod = false;
+  private devXray = false;
+  private devHit = false;
+  private hitGroup: THREE.Group | null = null;
+  private hitBoxes: THREE.LineSegments[] = [];
+  setDevGod(on: boolean): void { this.devGod = !!on; }
+  isDevGod(): boolean { return this.devGod; }
+  setDevXray(on: boolean): void { this.devXray = !!on; this.syncXray(); }
+  isDevXray(): boolean { return this.devXray; }
+  setDevHit(on: boolean): void { this.devHit = !!on; if (!on && this.hitGroup) this.hitGroup.visible = false; }
+  isDevHit(): boolean { return this.devHit; }
   /** Купол чумного облака: полупрозрачная фиолетовая полусфера 9м. Один на игру. */
   private chumaDome: THREE.Mesh | null = null;
   /** Купол за игроком: стоит на ногах, виден пока облако висит, дышит прозрачностью. */
@@ -3271,7 +3283,7 @@ export class Game {
 
   /** Сталкер бэкрумса убивает с 1 удара: смерть + скример на весь экран + звук смерти (1 раз). */
   private killByStalker(): void {
-    if (this.dead || this.specOn || this.invisT > 0 || this.shieldT > 0) return;
+    if (this.dead || this.specOn || this.invisT > 0 || this.shieldT > 0 || this.devGod) return;
     this.hp = 0;
     this.dead = true;
     this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
@@ -3895,7 +3907,7 @@ export class Game {
   /** Рентген: пока висит — у мобов красный контур, у бойцов белый (видны сквозь стены).
       Сами текстуры не трогаем: тело рисуется как обычно, сквозь стену видна только кайма. */
   private syncXray(): void {
-    const on = this.xrayT > 0;
+    const on = this.xrayT > 0 || this.devXray;
     const fit = (host: { body: THREE.Sprite; ol: THREE.Sprite }, dead: boolean): void => {
       const ol = host.ol;
       const show = on && !dead;
@@ -3910,6 +3922,48 @@ export class Game {
     };
     for (const e of this.enemies) fit(e, e.dead);
     for (const r of this.remotes) fit(r, r.dead);
+  }
+  /** Хитбоксы разработчика: проволочные коробки на живых врагах (красные)
+      и сокомнатниках (зелёные). Сквозь стены (depthTest нет) — видно всех. */
+  private syncHit(): void {
+    if (!this.devHit) return;
+    if (!this.hitGroup) {
+      this.hitGroup = new THREE.Group();
+      this.scene.add(this.hitGroup);
+    }
+    this.hitGroup.visible = true;
+    let i = 0;
+    const need = (color: number): THREE.LineSegments => {
+      let b = this.hitBoxes[i];
+      if (!b) {
+        const geo = new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1));
+        b = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true }));
+        b.renderOrder = 999;
+        this.hitBoxes[i] = b;
+        this.hitGroup!.add(b);
+      }
+      (b.material as THREE.LineBasicMaterial).color.set(color);
+      i++;
+      return b;
+    };
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      const b = need(0xff3b3b);
+      const w = e.kind === 'boss' ? 2.6 : 1.8;
+      const h = e.kind === 'boss' ? 2.9 : e.kind === 'fly' ? 1.5 : 2.2;
+      const cy = (e.kind === 'fly' ? 3.2 : e.ey) + h / 2;
+      b.visible = true;
+      b.position.set(e.g.position.x, cy, e.g.position.z);
+      b.scale.set(w, h, w);
+    }
+    for (const r of this.remotes) {
+      if (r.dead) continue;
+      const b = need(0x39d353);
+      b.visible = true;
+      b.position.set(r.x, r.py + 1.0, r.z);
+      b.scale.set(1.5, 2.0, 1.5);
+    }
+    for (let k = i; k < this.hitBoxes.length; k++) this.hitBoxes[k].visible = false;
   }
   /** В бою (для общей комнаты): идёт игра и боец жив. */
   debugPlaying(): boolean { return this.started && !this.dead; }
@@ -4652,7 +4706,7 @@ export class Game {
   debugGive(n: number): number { this.fantiki += n; this.saveShop(); this.pushHud(); return this.fantiki; }
   debugHurt(n: number): number {
     if (!this.started || this.dead) return Math.round(this.hp);
-    if (this.shieldT > 0) return Math.round(this.hp);
+    if (this.shieldT > 0 || this.devGod) return Math.round(this.hp);
     this.hp -= n;
     if (this.hp <= 0) {
       this.hp = 0;
@@ -4753,6 +4807,7 @@ export class Game {
       else if (Math.floor(this.xrayCd * 5) !== Math.floor((this.xrayCd + dt) * 5)) this.pushHud();
     }
     this.syncXray();
+    this.syncHit();
     // авто-качество: 4с просадки ниже 28 FPS — тихо спускаемся на ступень (high → medium → low)
     if (this.started) {
       if (this.fpsE < 28 && this.quality !== 'low') this.lowT += dt;
@@ -5117,7 +5172,7 @@ export class Game {
           // БЭКРУМС: 1 удар = смерть + скример. Остальные карты — старый урон.
           if (e.god && !this.dead && !this.specOn && this.invisT <= 0) {
             const pd = Math.hypot(this.px - e.g.position.x, this.pz - e.g.position.z);
-            if (pd <= 2.3 && e.hitCd <= 0 && this.shieldT <= 0) {
+            if (pd <= 2.3 && e.hitCd <= 0 && this.shieldT <= 0 && !this.devGod) {
               e.hitCd = 1.0;
               if (this.map === 'backrooms' || this.map === 'endless') { this.killByStalker(); }
               else {
@@ -5140,7 +5195,7 @@ export class Game {
           if (!e.god && !this.dead && !this.specOn && this.invisT <= 0) {
             const pd = Math.hypot(this.px - e.g.position.x, this.pz - e.g.position.z);
             // бьём только свою плоскость: гость на крыше, кукла на земле — мимо
-            if (pd <= 2.3 && Math.abs(e.ey - this.py) <= (e.kind === 'boss' ? 2.8 : 2.2) && e.hitCd <= 0 && this.shieldT <= 0) {
+            if (pd <= 2.3 && Math.abs(e.ey - this.py) <= (e.kind === 'boss' ? 2.8 : 2.2) && e.hitCd <= 0 && this.shieldT <= 0 && !this.devGod) {
               e.hitCd = e.kind === 'boss' ? 1.2 : 0.95;
               this.hp -= e.kind === 'boss' ? 18 + Math.random() * 10 : 6 + Math.random() * 5;
               this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
@@ -5155,7 +5210,7 @@ export class Game {
               this.pushHud();
             }
           }
-        } else if (e.god && !huntingRemote && !this.dead && d <= 2.3 && Math.abs(e.ey - this.py) <= 2.2 && e.hitCd <= 0 && this.shieldT <= 0) {
+        } else if (e.god && !huntingRemote && !this.dead && d <= 2.3 && Math.abs(e.ey - this.py) <= 2.2 && e.hitCd <= 0 && this.shieldT <= 0 && !this.devGod) {
           // БЭКРУМС: 1 удар = смерть + скример. Остальные карты — старый урон.
           // Сталкер под крышей игрока не достаёт — только своя плоскость.
           e.hitCd = 1.0;
@@ -5355,7 +5410,7 @@ export class Game {
           }
           } // LOD: дальние двигаются через кадр
         // d<=2.1 (рядом) + своя плоскость: игрок на крыше, враг на земле — урона нет
-        } else if (!huntingRemote && !this.dead && Math.abs(e.ey - this.py) <= (e.kind === 'boss' ? 2.8 : 2.2) && e.hitCd <= 0 && this.shieldT <= 0 && !this.specOn && this.invisT <= 0) {
+        } else if (!huntingRemote && !this.dead && Math.abs(e.ey - this.py) <= (e.kind === 'boss' ? 2.8 : 2.2) && e.hitCd <= 0 && this.shieldT <= 0 && !this.specOn && this.invisT <= 0 && !this.devGod) {
           // бьём ТОЛЬКО себя: враг добежал до сокомнатника (huntingRemote) — урон считает его клиент, нам чужого не надо.
           // Труп тоже не бьём: умер — тишина, без добивания и звуков после смерти.
           // Облако Чумы достаёт и в упор (враг бьёт — сам травится).
