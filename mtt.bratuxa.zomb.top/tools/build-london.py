@@ -47,11 +47,19 @@ PROC_ROOF = "zz_roof.png"
 PROC_WARM = "zz_plaster_warm.png"
 PROC_COOL = "zz_plaster_cool.png"
 PROC_ASPH = "zz_asphalt.png"
+PROC_PAVE = "zz_pavement.png"  # task4: брусчатка улиц/площади
+PROC_SLATE = "zz_slate.png"    # task4: сланец скатных крыш
+PROC_LEAF = "zz_leaf.png"      # task4: листва крон
+PROC_BARK = "zz_bark.png"      # task4: кора стволов
+PROC_WOOD = "zz_wood.png"      # task4: дерево лавок
 PROC_TILES = {PROC_ROOF: "roof", PROC_WARM: "plaster_warm",
               PROC_COOL: "plaster_cool", PROC_ASPH: "asphalt",
+              PROC_PAVE: "pavement", PROC_SLATE: "slate",
+              PROC_LEAF: "leaf", PROC_BARK: "bark",
+              PROC_WOOD: "wood",
               "zz_clock.png": "clockface"}
-# Брусчатка улиц: пока процедурный асфальт; задача 4 меняет одну строку.
-STREET_TILE = PROC_ASPH  # task4: pavement
+# Брусчатка улиц (задача 4).
+STREET_TILE = PROC_PAVE
 
 GROUND_TINT = (0.42, 0.4, 0.37)  # страховочная земля -> асфальт
 WATER_TINT = (0.25, 0.45, 0.75)  # вода канала
@@ -177,6 +185,19 @@ class Baker:
             s["tag"] = tag
         self.solids.append(s)
 
+    def add_octa(self, cx, cy, cz, r, tile, tint, uvscale, sv=None):
+        """Октаэдр-блоб (крона дерева, шар фонаря): 8 tris, нормали наружу."""
+        top = (cx, cy + r, cz)
+        bot = (cx, cy - r, cz)
+        v = [(cx + r, cy, cz), (cx, cy, cz + r),
+             (cx - r, cy, cz), (cx, cy, cz - r)]
+        c = (cx, cy, cz)
+        for i in range(4):
+            self.add_tri(top, v[i], v[(i + 1) % 4],
+                         tile, tint, uvscale, sv, c)
+            self.add_tri(bot, v[(i + 1) % 4], v[i],
+                         tile, tint, uvscale, sv, c)
+
 
 def proc_tile(kind, prng):
     S = 256
@@ -225,6 +246,113 @@ def proc_tile(kind, prng):
         hand(-2.35, 52, 3)  # часовая ~10:09
         hand(1.05, 78, 2)   # минутная
         px[cx, cy] = (15, 15, 17)
+        return im
+    TAU0 = 2 * math.pi
+    if kind == "pavement":
+        # Брусчатка: ряды 64x32 со сдвигом полблока (running bond),
+        # периоды делят 256 — стык бесшовный. Тёмные швы, светлый камень.
+        base = (172, 168, 160)
+        im = Image.new("RGB", (S, S))
+        px = im.load()
+        assert px is not None
+        for yy in range(S):
+            row = yy // 32
+            off = 32 if row % 2 else 0
+            for xx in range(S):
+                bx = (xx + off) % S
+                joint = (bx % 64) < 3 or (yy % 32) < 3
+                wx = math.sin(TAU0 * 3 * xx / S) * math.sin(TAU0 * 2 * xx / S)
+                wy = math.sin(TAU0 * 2 * yy / S) * math.sin(TAU0 * 3 * yy / S)
+                n = prng.randint(-7, 7) + int(5 * wx * wy)
+                if joint:
+                    n -= 58
+                r = min(255, max(0, base[0] + n))
+                g = min(255, max(0, base[1] + n))
+                bb = min(255, max(0, base[2] + n))
+                px[xx, yy] = (r, g, bb)
+        return im
+    if kind == "slate":
+        # Сланец: ряды 64x32 со сдвигом, тёмно-сизые пластины,
+        # детерминированный тон пластины ((ix*7+iy*13)%5), тёмные швы.
+        im = Image.new("RGB", (S, S))
+        px = im.load()
+        assert px is not None
+        for yy in range(S):
+            row = yy // 32
+            off = 32 if row % 2 else 0
+            for xx in range(S):
+                bx = (xx + off) % S
+                ix, iy = (bx // 64) % 4, row % 8
+                joint = (bx % 64) < 2 or (yy % 32) < 2
+                tone = ((ix * 7 + iy * 13) % 5 - 2) * 6
+                wx = math.sin(TAU0 * 5 * xx / S) * math.sin(TAU0 * 7 * yy / S)
+                n = prng.randint(-6, 6) + int(5 * wx) + tone
+                if joint:
+                    n -= 34
+                r = min(255, max(0, 74 + n))
+                g = min(255, max(0, 82 + n))
+                bb = min(255, max(0, 96 + n))
+                px[xx, yy] = (r, g, bb)
+        return im
+    if kind == "leaf":
+        # Листва: периодические пятна (синусы) + крап, глубина без белого.
+        base = (56, 108, 50)
+        im = Image.new("RGB", (S, S))
+        px = im.load()
+        assert px is not None
+        for yy in range(S):
+            wy = math.sin(TAU0 * 4 * yy / S + 0.5) * math.sin(TAU0 * 6 * yy / S)
+            for xx in range(S):
+                wx = math.sin(TAU0 * 5 * xx / S) * math.sin(TAU0 * 3 * xx / S + 1.1)
+                n = prng.randint(-13, 13) + int(16 * wx * wy)
+                r0 = prng.random()
+                if r0 < 0.06:
+                    n -= 30
+                elif r0 > 0.95:
+                    n += 24
+                r = min(255, max(0, base[0] + n))
+                g = min(255, max(0, base[1] + n))
+                bb = min(255, max(0, base[2] + n // 2))
+                px[xx, yy] = (r, g, bb)
+        return im
+    if kind == "bark":
+        # Кора: вертикальные периодические борозды + крап, трещины тёмные.
+        base = (94, 70, 48)
+        im = Image.new("RGB", (S, S))
+        px = im.load()
+        assert px is not None
+        for yy in range(S):
+            for xx in range(S):
+                groove = math.sin(TAU0 * 8 * xx / S +
+                                  2.2 * math.sin(TAU0 * 3 * xx / S))
+                streak = math.sin(TAU0 * 2 * xx / S + TAU0 * 5 * yy / S)
+                n = prng.randint(-9, 9) + int(14 * groove) + int(6 * streak)
+                if fract(xx * 0.37 + yy * 0.11) < 0.05:
+                    n -= 34
+                r = min(255, max(0, base[0] + n))
+                g = min(255, max(0, base[1] + n))
+                bb = min(255, max(0, base[2] + n))
+                px[xx, yy] = (r, g, bb)
+        return im
+    if kind == "wood":
+        # Дерево лавок: горизонтальные доски 64px + волокно вдоль X.
+        base = (152, 114, 72)
+        im = Image.new("RGB", (S, S))
+        px = im.load()
+        assert px is not None
+        for yy in range(S):
+            plank = (yy // 64) % 4
+            tone = ((plank * 11) % 3 - 1) * 6
+            for xx in range(S):
+                grain = math.sin(TAU0 * 2 * xx / S + plank +
+                                 1.8 * math.sin(TAU0 * 6 * xx / S))
+                n = prng.randint(-7, 7) + int(9 * grain) + tone
+                if (yy % 64) < 2:
+                    n -= 58
+                r = min(255, max(0, base[0] + n))
+                g = min(255, max(0, base[1] + n))
+                bb = min(255, max(0, base[2] + n))
+                px[xx, yy] = (r, g, bb)
         return im
     if kind == "roof":
         base, amp = (148, 146, 142), 8
@@ -702,7 +830,7 @@ def main():
         rh = 2.5 + rng.random() * 0.7
         ov = 0.4
         rsv = 3.0 * cur_aspect.get(CUR_ROOF, 1.0)
-        roof_tile = CUR_ROOF if CUR_ROOF not in missing_cur else PROC_ROOF
+        roof_tile = PROC_SLATE  # task4: скатные крыши — сланец
         yb = H - 0.05
         if w >= d:
             x0, x1 = hx - w / 2 - ov, hx + w / 2 + ov
@@ -779,8 +907,7 @@ def main():
                      ((bx1, 30.0, bz0), (bx1, 30.0, bz1)),
                      ((bx1, 30.0, bz1), (bx0, 30.0, bz1)),
                      ((bx0, 30.0, bz1), (bx0, 30.0, bz0))):
-        b.add_tri(p1, p2, apex, CUR_ROOF if CUR_ROOF not in missing_cur
-                  else PROC_ROOF, WHITE, 3.0, None, bb_out)
+        b.add_tri(p1, p2, apex, PROC_SLATE, WHITE, 3.0, None, bb_out)
     # 2 башенки 5x5x18 по краям площади + пирамидки.
     for (tx, tz) in ((-15.0, -32.0), (15.0, -32.0)):
         b.add_box(tx, 9.0 - 0.05, tz, 5.0, 18.0 + 0.05, 5.0,
@@ -792,8 +919,7 @@ def main():
                          ((tx + 2.5, 18.0, tz - 2.5), (tx + 2.5, 18.0, tz + 2.5)),
                          ((tx + 2.5, 18.0, tz + 2.5), (tx - 2.5, 18.0, tz + 2.5)),
                          ((tx - 2.5, 18.0, tz + 2.5), (tx - 2.5, 18.0, tz - 2.5))):
-            b.add_tri(p1, p2, cap, CUR_ROOF if CUR_ROOF not in missing_cur
-                      else PROC_ROOF, WHITE, 3.0, None, t_out)
+            b.add_tri(p1, p2, cap, PROC_SLATE, WHITE, 3.0, None, t_out)
     # Арки в переулках: 2 столба h=4.5 + перекладина deck h=5 (низ 4.0).
     ARCHES = [(-38.0, 20.0, 40.0, 55.0), (38.0, -25.0, -55.0)]
     for (acx, *azs) in ARCHES:
@@ -806,6 +932,116 @@ def main():
             b.add_box(acx, 4.5, az, 5.6, 1.0, 0.8,
                       PROC_WARM, WHITE, 4.0)
             b.add_solid(acx, az, 2.8, 0.4, 5.0, deck=True, tag="archtop")
+
+    # ---- Task 4: зелень — деревья, лавки, фонари ----
+    # Только PIL-процедурки (pavement/slate/leaf/bark/wood), детерминировано.
+    # Солиды компактные (ствол/лавка/столб ≤1м), шаг ≥2.5м — коридор-BFS цел.
+    LEAF_TINT = WHITE
+    LAMP_GLOBE_TINT = (1.0, 0.93, 0.75)  # светлый тинт, emissive нет
+    LAMP_POLE_TINT = (0.3, 0.3, 0.33)
+    placed_green = []  # (x, z, rad)
+
+    def green_free(x, z, rad):
+        if not (-HALF + 2 < x < HALF - 2 and -HALF + 2 < z < HALF - 2):
+            return False
+        if abs(z) < CANAL_HALF + 1.2:  # не в канале
+            return False
+        for s in b.solids:
+            if s["h"] < 0.5:
+                continue
+            if abs(x - s["x"]) <= s["hx"] + rad and \
+               abs(z - s["z"]) <= s["hz"] + rad:
+                return False
+        for (gx, gz, gr) in placed_green:
+            if abs(x - gx) < rad + gr + 1.6 and \
+               abs(z - gz) < rad + gr + 1.6:
+                return False
+        return True
+
+    def build_tree(cx, cz):
+        b.add_box(cx, 1.5, cz, 0.5, 3.0, 0.5, PROC_BARK, WHITE, 2.0)
+        b.add_solid(cx, cz, 0.25, 0.25, 3.0, tag="trunk")
+        b.add_octa(cx, 3.9, cz, 1.6, PROC_LEAF, LEAF_TINT, 2.0)
+        b.add_octa(cx + 0.9, 3.2, cz + 0.3, 1.1, PROC_LEAF, LEAF_TINT, 2.0)
+        b.add_octa(cx - 0.8, 3.3, cz - 0.4, 1.0, PROC_LEAF, LEAF_TINT, 2.0)
+        placed_green.append((cx, cz, 1.6))
+
+    def build_bench(cx, cz, along_x):
+        if along_x:
+            b.add_box(cx, 0.55, cz, 1.8, 0.12, 0.5, PROC_WOOD, WHITE, 2.0)
+            b.add_box(cx, 0.95, cz - 0.28, 1.8, 0.7, 0.1,
+                      PROC_WOOD, WHITE, 2.0)
+            for sgn in (1, -1):
+                b.add_box(cx + sgn * 0.75, 0.25, cz, 0.12, 0.5, 0.4,
+                          PROC_WOOD, WHITE, 2.0)
+            b.add_solid(cx, cz, 0.9, 0.3, 1.0, tag="bench")
+        else:
+            b.add_box(cx, 0.55, cz, 0.5, 0.12, 1.8, PROC_WOOD, WHITE, 2.0)
+            b.add_box(cx + 0.28, 0.95, cz, 0.1, 0.7, 1.8,
+                      PROC_WOOD, WHITE, 2.0)
+            for sgn in (1, -1):
+                b.add_box(cx, 0.25, cz + sgn * 0.75, 0.4, 0.5, 0.12,
+                          PROC_WOOD, WHITE, 2.0)
+            b.add_solid(cx, cz, 0.3, 0.9, 1.0, tag="bench")
+        placed_green.append((cx, cz, 0.9))
+
+    def build_lamp(cx, cz):
+        b.add_box(cx, 1.8, cz, 0.25, 3.6, 0.25,
+                  PROC_ASPH, LAMP_POLE_TINT, 2.0)
+        b.add_solid(cx, cz, 0.15, 0.15, 3.6, tag="lamp")
+        b.add_octa(cx, 3.85, cz, 0.35, PROC_WARM, LAMP_GLOBE_TINT, 2.0)
+        placed_green.append((cx, cz, 0.4))
+
+    # Кандидаты: деревья — кольцо площади + берега канала;
+    # лавки — сетка площади; фонари — кромки авеню (сдвиг 4.2м от оси).
+    tree_cands = []
+    for x in (-18.0, -12.0, -6.0, 0.0, 6.0, 12.0, 18.0):
+        tree_cands += [(x, -27.0), (x, -63.0)]
+    for z in (-57.0, -51.0, -45.0, -39.0, -33.0):
+        tree_cands += [(-18.0, z), (18.0, z)]
+    for x in (-70.0, -55.0, -30.0, -10.0, 10.0, 30.0, 55.0, 70.0):
+        tree_cands += [(x, 7.0), (x, -7.0)]
+    bench_cands = []
+    for x in (-15.0, -7.5, 0.0, 7.5, 15.0):
+        for z in (-60.0, -52.5, -45.0, -37.5, -30.0):
+            bench_cands.append((x, z))
+    lamp_cands = []
+    for xv in AV:
+        for zh in (-75.0, -60.0, -45.0, -30.0, -15.0, 15.0,
+                   30.0, 45.0, 60.0, 75.0):
+            lamp_cands.append((xv + 4.2, zh))
+    for zh in AH:
+        for xv in (-60.0, -30.0, 30.0, 60.0):
+            lamp_cands.append((xv, zh + 4.2))
+    rng.shuffle(tree_cands)
+    rng.shuffle(bench_cands)
+    rng.shuffle(lamp_cands)
+    tree_cands.sort(key=lambda p: (p[0], p[1]))
+    bench_cands.sort(key=lambda p: (p[0], p[1]))
+    lamp_cands.sort(key=lambda p: (p[0], p[1]))
+
+    n_tree = n_bench = n_lamp = 0
+    for (cx, cz) in tree_cands:
+        if n_tree >= 14:
+            break
+        if green_free(cx, cz, 1.6):
+            build_tree(round(cx, 3), round(cz, 3))
+            n_tree += 1
+    for i, (cx, cz) in enumerate(bench_cands):
+        if n_bench >= 9:
+            break
+        if green_free(cx, cz, 0.9):
+            build_bench(round(cx, 3), round(cz, 3), along_x=(i % 2 == 0))
+            n_bench += 1
+    for (cx, cz) in lamp_cands:
+        if n_lamp >= 12:
+            break
+        if green_free(cx, cz, 0.6):
+            build_lamp(round(cx, 3), round(cz, 3))
+            n_lamp += 1
+    assert n_tree >= 12, f"деревьев {n_tree} < 12"
+    assert n_bench >= 8, f"лавок {n_bench} < 8"
+    assert n_lamp >= 10, f"фонарей {n_lamp} < 10"
 
     # ---- атлас: процедурки + curated, shelf-pack как в bake ----
     proc_images = {pname: proc_tile(kind, prng)
@@ -928,6 +1164,10 @@ def main():
     print(f"t3 bridges=3 arches=5 tower=1 turrets=2 "
           f"bridge_solids={sum(1 for s in b.solids if s.get('tag') == 'bridge')} "
           f"arch_solids={sum(1 for s in b.solids if s.get('tag') in ('arch', 'archtop'))}",
+          flush=True)
+    print(f"t4 trees={n_tree} benches={n_bench} lamps={n_lamp} "
+          f"trunks={sum(1 for s in b.solids if s.get('tag') == 'trunk')} "
+          f"street={STREET_TILE} roofs=slate",
           flush=True)
     print(f"atlas={ATLAS_W}x{H} tiles={len(tiles)} "
           f"atlas_bytes={atlas_bytes} jpeg_q={aq}", flush=True)
