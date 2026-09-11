@@ -446,7 +446,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
       prune(r);
       if (checkExpiry(r) === 'gone') continue;
       if (r.players.size === 0 && r.pending.size === 0 && !r.official) { rooms.delete(r.id); continue; }
-      if (r.mode === 'szeged' && !visibleInList(loginByToken(u.searchParams.get('token')))) continue;
+      if (r.mode === 'szeged') { const ll = loginByToken(u.searchParams.get('token')); if (!visibleInList(ll, ll === devOwner())) continue; }
       out.push({ id: r.id, name: r.name, mode: r.mode, count: r.players.size, started: r.started, official: r.official, restartIn: restartIn(r) });
     }
     // протухшие официальные снесли проверкой выше — сразу пересоздаём, тройка всегда в списке
@@ -472,7 +472,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const name = String(body.name ?? '').slice(0, 24).trim() || `Комната ${nick}`;
     const rawMode = String(body.mode ?? 'arena');
     const mode: Room['mode'] = rawMode === 'duel' ? 'duel' : rawMode === 'backrooms' ? 'backrooms' : rawMode === 'pvp' ? 'pvp' : rawMode === 'endless' ? 'endless' : rawMode === 'invasion' ? 'invasion' : rawMode === 'szeged' ? 'szeged' : 'arena';
-    if (mode === 'szeged' && !canCreate(login)) return Response.json({ error: 'forbidden' }, { status: 403 });
+    if (mode === 'szeged' && !canCreate(login, login === devOwner())) return Response.json({ error: 'forbidden' }, { status: 403 });
     const id = newCode();
     const sid = newSid();
     const sp = duelSpawn(0);
@@ -494,7 +494,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     prune(room);
     if (checkExpiry(room) === 'gone') return Response.json({ error: 'noroom' }, { status: 404 });
     const joinLogin = loginByToken(body.token);
-    if (room.mode === 'szeged' && !canJoin(joinLogin)) return Response.json({ error: 'forbidden' }, { status: 403 });
+    if (room.mode === 'szeged' && !canJoin(joinLogin, joinLogin === devOwner())) return Response.json({ error: 'forbidden' }, { status: 403 });
     const cap = roomCap(room);
     if (room.players.size + room.pending.size >= cap) return Response.json({ error: 'full' }, { status: 403 });
     const nick = cleanNick(body.nick);
@@ -541,7 +541,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     // szeged-комнаты чужим не существуют: тот же гейт, что в списке (token, иначе sid-участник)
     if (room.mode === 'szeged') {
       const who = loginByToken(u.searchParams.get('token')) ?? selfP?.login ?? selfW?.login ?? null;
-      if (!visibleInList(who)) return Response.json({ error: 'noroom' }, { status: 404 });
+      if (!visibleInList(who, who === devOwner())) return Response.json({ error: 'noroom' }, { status: 404 });
     }
     const isOwner = sid !== '' && sid === room.owner;
     const mine = sid !== '' && (room.players.has(sid) || room.pending.has(sid));
