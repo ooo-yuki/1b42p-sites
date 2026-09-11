@@ -1331,7 +1331,7 @@ export class Game {
     geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(szegedMesh.uv), 2));
     const atlasTex = new THREE.TextureLoader().load(szegedAtlasUrl);
     atlasTex.colorSpace = THREE.SRGBColorSpace;
-    atlasTex.anisotropy = 4;
+    atlasTex.anisotropy = 8;
     const mesh = new THREE.Mesh(
       geo,
       new THREE.MeshStandardMaterial({ map: atlasTex, color: 0xffffff, vertexColors: true, roughness: 0.9 }),
@@ -2566,7 +2566,7 @@ export class Game {
     this.renderer.toneMapping = this.map === 'szeged'
       ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
     // ACES затемняет середину — компенсируем экспозицией (только Szeged)
-    this.renderer.toneMappingExposure = this.map === 'szeged' ? 1.35 : 1.0;
+    this.renderer.toneMappingExposure = this.map === 'szeged' ? 1.45 : 1.0;
     if (this.map === 'duel') { this.buildDuel(); return; }
     if (this.map === 'backrooms' || this.map === 'endless') { this.buildBackrooms(); return; }
     if (this.map === 'custom') { this.buildCustom(); return; }

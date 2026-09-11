@@ -615,15 +615,17 @@ def main():
     proc_images = {pname: _proc_tile(kind)
                    for pname, kind in PROC_TILES.items()}
 
-    def _box_uv(nx, ny, nz, X, Y, Z, s=4.0):
+    def _box_uv(nx, ny, nz, X, Y, Z, s=4.0, sv=None):
         # planar box-mapping: проекция по доминантной оси нормали,
-        # 1 тайл на s метров; fract — tiling.
+        # 1 тайл на s метров по u и sv метров по v (sv — пропорция фото,
+        # чтобы не сплющивать; по умолчанию квадрат).
+        sv = s if sv is None else sv
         ax, ay, az = abs(nx), abs(ny), abs(nz)
         if ax >= ay and ax >= az:
-            return (fract(Z / s), fract(Y / s))
+            return (fract(Z / s), fract(Y / sv))
         if az >= ax and az >= ay:
-            return (fract(X / s), fract(Y / s))
-        return (fract(X / s), fract(Z / s))
+            return (fract(X / s), fract(Y / sv))
+        return (fract(X / s), fract(Z / sv))
 
     def _proc_pick(ny, Y, cr, cb):
         # какой процедурный тайл на плоский угол: вверх — крыша (низко —
@@ -639,6 +641,17 @@ def main():
     # плашку. unresolved при этом честно хранит исходные имена.
     tex_avail = {p.name for p in Path(a.tex_dir).iterdir()} \
         if Path(a.tex_dir).is_dir() else set()
+    # пропорции исходников (h/w) — для честного box-ретайлинга: тайл ложится
+    # без сплющивания (только заголовки, быстро).
+    fn_aspect = {}
+    for _fn in set(fn_tris):
+        _p = Path(a.tex_dir) / _fn
+        if _p.is_file():
+            try:
+                with Image.open(_p) as _im:
+                    fn_aspect[_fn] = _im.size[1] / max(1, _im.size[0])
+            except Exception:
+                pass
     resolved = sorted(fn for fn in set(fn_tris) if fn in tex_avail)
     fallback = {}
     for fn in set(fn_tris):
@@ -679,6 +692,33 @@ def main():
     for tris, aabb, _ in meshes:
         npx = []
         for corners, color, fn, uvraws in tris:
+            # stretch-fix: фото, растянутое больше чем на 6x6м/тайл цельным
+            # куском (span>0.5), — переложить box-тайлингом того же тайла
+            # (4м, пропорция фото): резко вместо мыла. Мелкий настоящий
+            # тайлинг (span мелкий) и кропы не трогаем.
+            retile = False
+            rsv = 4.0
+            if fn is not None and fn in tex_avail and \
+                    all(u is not None for u in uvraws):
+                _bp = [((c[0] - cx) * scale, c[1] * scale, (c[2] - cz) * scale)
+                       for c in corners]
+                _ax, _ay, _az = _bp[0]
+                _bx, _by, _bz = _bp[1]
+                _dx, _dy, _dz = _bp[2]
+                _ux, _uy, _uz = _bx - _ax, _by - _ay, _bz - _az
+                _vx, _vy, _vz = _dx - _ax, _dy - _ay, _dz - _az
+                _cxp = _uy * _vz - _uz * _vy
+                _cyp = _uz * _vx - _ux * _vz
+                _czp = _ux * _vy - _uy * _vx
+                _A = 0.5 * math.sqrt(_cxp * _cxp + _cyp * _cyp + _czp * _czp)
+                (_u0, _v0), (_u1, _v1), (_u2, _v2) = uvraws  # type: ignore[misc]
+                _a = abs((_u1 - _u0) * (_v2 - _v0) -
+                         (_u2 - _u0) * (_v1 - _v0)) / 2
+                _sp = max(abs(_u1 - _u0), abs(_u2 - _u0), abs(_u2 - _u1),
+                          abs(_v1 - _v0), abs(_v2 - _v0), abs(_v2 - _v1))
+                if _a > 1e-9 and _sp > 0.5 and (_A / _a) > 36.0:
+                    retile = True
+                    rsv = 4.0 * fn_aspect.get(fn, 1.0)
             cr, cg, cb = (clean(round(v, 3)) for v in color)
             ckey = (cr, cg, cb)
             ci = col_map.get(ckey)
@@ -711,9 +751,16 @@ def main():
                 npx.append((X, Y, Z))
                 if fn is not None and uvraw is not None:
                     if fn in tex_avail:
-                        used_files.add(fn)
-                        corner_tex.append((fn, uvraw[0], uvraw[1]))
-                        n_tex_corners += 1
+                        if retile:
+                            # растянутое фото: тот же тайл, box-тайлинг 4м
+                            bu, bv = _box_uv(NX, NY, NZ, X, Y, Z, 4.0, rsv)
+                            used_files.add(fn)
+                            corner_tex.append((fn, bu, bv))
+                            n_box_corners += 1
+                        else:
+                            used_files.add(fn)
+                            corner_tex.append((fn, uvraw[0], uvraw[1]))
+                            n_tex_corners += 1
                     elif fn in fallback:
                         used_files.add(fallback[fn])
                         corner_tex.append((fallback[fn], uvraw[0], uvraw[1]))
@@ -738,7 +785,8 @@ def main():
                             corner_tex.append((None, 0.0, 0.0))
                             n_missing_corners += 1
                         else:
-                            bu, bv = _box_uv(NX, NY, NZ, X, Y, Z)
+                            bu, bv = _box_uv(NX, NY, NZ, X, Y, Z, 4.0,
+                                             4.0 * fn_aspect.get(tgt, 1.0))
                             used_files.add(tgt)
                             corner_tex.append((tgt, bu, bv))
                             n_box_corners += 1
