@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Game, WEAPONS, CHARS, MAPS, hashSeed, KEY_ACTIONS, DEFAULT_KEYS, UPG_MAX, upgCost, superCd, superRange, CASE_PRICE, type HudState, type KeyMap, type Quality, type MapId, type CustomMap, type UpgState, type CaseDrop, type RemoteMob } from './game/engine';
+import { canSee } from '../shared/szeged-gate';
 import oruzh1Url from './assets/oruzh1.png';
 import oruzh2Url from './assets/oruzh2.png';
 import pistolUrl from './assets/pistol.png';
@@ -1215,6 +1216,7 @@ async function loadStats(): Promise<void> {
   useEffect(() => { refreshRooms(); }, [refreshRooms]);
 
   const createRoom = useCallback(async (nameOverride?: string, modeOverride?: MapId) => {
+    if ((modeOverride ?? draftMode) === 'szeged' && !canSee(authed)) return;
     try {
       const r = await fetch('/api/rooms', {
         method: 'POST',
@@ -1243,9 +1245,10 @@ async function loadStats(): Promise<void> {
       setLobby(null);
       refreshRooms();
     } catch { /* noop */ }
-  }, [nick, roomDraft, draftMode, refreshRooms]);
+  }, [nick, roomDraft, draftMode, authed, refreshRooms]);
 
   const joinRoom = useCallback(async (id: string) => {
+    if (roomsList.find((r) => r.id === id)?.mode === 'szeged' && !canSee(authed)) return;
     try {
       const r = await fetch(`/api/rooms/${id}/join`, {
         method: 'POST',
@@ -1254,6 +1257,7 @@ async function loadStats(): Promise<void> {
       });
       if (!r.ok) return;
       const d = (await r.json()) as { sid: string; name: string; mode: MapId; seed?: number; pending?: boolean };
+      if (d.mode === 'szeged' && !canSee(authed)) return;
       roomRef.current = { id, sid: d.sid, mode: d.mode };
       if ((d as { escaped?: boolean }).escaped === true) escapedJoinRef.current = true;
       setRoomId(id);
@@ -1275,7 +1279,7 @@ async function loadStats(): Promise<void> {
       setRestartKick(false);
       refreshRooms();
     } catch { /* noop */ }
-  }, [nick, refreshRooms]);
+  }, [nick, authed, roomsList, refreshRooms]);
 
   const leaveRoom = useCallback(async () => {
     const { id, sid } = roomRef.current;
@@ -2441,7 +2445,7 @@ async function loadStats(): Promise<void> {
           <div className="board" id="mapSec">
             <h3>🗺️ Карта</h3>
             <div className="mapRow">
-              {MAPS.map((m) => (
+              {MAPS.filter((m) => m.id !== 'szeged' || canSee(authed)).map((m) => (
                 <button
                   key={m.id}
                   id={`map-${m.id}`}
@@ -2684,7 +2688,7 @@ async function loadStats(): Promise<void> {
                 </div>
                 <div className="srow">
                   <span>Режим</span>
-                  {MAPS.map((m) => (
+                  {MAPS.filter((m) => m.id !== 'szeged' || canSee(authed)).map((m) => (
                     <button key={m.id} className={'wbtn' + (draftMode === m.id ? ' cur' : '')} id={`mode-${m.id}`} onClick={() => setDraftMode(m.id)}>{m.name}</button>
                   ))}
                 </div>
