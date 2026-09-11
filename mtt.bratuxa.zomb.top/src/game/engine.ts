@@ -18,14 +18,18 @@ import brickUrl from '../assets/brick.jpg';
 import brFloorUrl from '../assets/br-floor.jpg';
 import brWallUrl from '../assets/br-wall.jpg';
 import brCeilUrl from '../assets/br-ceil.jpg';
+import doorExitUrl from '../assets/door-exit.jpg';
 import bossUrl from '../assets/boss.png';
 import charMttUrl from '../assets/char-mtt.png';
 import charKrysaUrl from '../assets/char-krysa.png';
 import charShubaUrl from '../assets/char-shuba.png';
+import charChumaUrl from '../assets/char-chuma.png';
+import charGidroxisUrl from '../assets/char-gidroxis.png';
 import stalkerUrl from '../assets/stalker.png';
 import shotUrl from '../assets/shot.mp3';
 import hitUrl from '../assets/hit.mp3';
 import wallkickUrl from '../assets/wallkick.mp3';
+import deathUrl from '../assets/death.mp3';
 
 export interface UpgState { hp: number; dmg: number; spd: number; sup: number }
 export const UPG_MAX: UpgState = { hp: 5, dmg: 5, spd: 5, sup: 5 };
@@ -34,9 +38,10 @@ export function upgCost(key: keyof UpgState, lvl: number): number {
   const base = key === 'sup' ? 150 : 100;
   return Math.round(base * Math.pow(3.5, lvl));
 }
-/** Кд суперспособности с учётом прокачки: МТТ/рывок мин 1.7с, Крыса мин 1.7с, Ивангой-невидимость мин 8с. */
+/** Кд суперспособности с учётом прокачки: МТТ/рывок мин 1.7с, Крыса мин 1.7с, Ивангой-несутка и Чума-облако 30с мин 20с, Гидроксис-рентген 20с мин 15с. */
 export function superCd(id: string, sup: number): number {
-  if (id === 'shuba') return Math.max(8, Math.round((12 - sup * 0.8) * 10) / 10);
+  if (id === 'shuba' || id === 'chuma') return Math.max(20, Math.round((30 - sup * 2) * 10) / 10);
+  if (id === 'gidroxis') return Math.max(15, Math.round((20 - sup) * 10) / 10);
   const base = id === 'krysa' ? 5 : 3;
   const step = id === 'krysa' ? 0.7 : 0.3;
   return Math.max(1.7, Math.round((base - sup * step) * 10) / 10);
@@ -60,6 +65,8 @@ export const CHARS: CharDef[] = [
   { id: 'mtt', name: '🕶️ МТТ', desc: 'Шуба, очки, золотые перчатки · +HP', hp: 120, spd: 1, rarity: 'Базовый' },
   { id: 'krysa', name: '🐀 Стейси Крыса', desc: 'Королева крыс · скорость, прыжки ×3, вол-кик', hp: 90, spd: 1.15, rarity: 'Легендарный' },
   { id: 'shuba', name: '🥷 Ивангой', desc: 'Невидимка в белой шубе · супер — несутка на 3с', hp: 105, spd: 1.05, rarity: 'Редкий' },
+  { id: 'chuma', name: '🐦‍⬛ Чума', desc: 'Чумной доктор в чёрном · супер — чумное облако 5с', hp: 100, spd: 1.05, rarity: 'Редкий' },
+  { id: 'gidroxis', name: '🧪 Гидроксис', desc: 'Сканер в жёлтом · супер — рентген существ 5с', hp: 95, spd: 1.1, rarity: 'Легендарный' },
 ];
 
 /** Кейс бойца: цена открытия в фантиках. */
@@ -67,6 +74,8 @@ export const CASE_PRICE = 500;
 export interface CaseDrop {
   ok: boolean;
   kind: 'char' | 'fantiki' | 'xp' | 'med' | 'empty';
+  /** id выпавшего бойца (kind 'char'): чтобы рулетка показала правильную карту */
+  char?: string;
   text: string;
 }
 
@@ -74,7 +83,7 @@ export function charSpec(id: string): CharDef {
   return CHARS.find((c) => c.id === id) ?? CHARS[0];
 }
 
-export type Quality = 'fast' | 'nice';
+export type Quality = 'low' | 'medium' | 'high';
 export type MapId = 'arena' | 'duel' | 'backrooms' | 'custom' | 'random' | 'pvp' | 'endless' | 'invasion';
 
 /** Карты для выбора в меню: id, название, описание. */
@@ -135,6 +144,14 @@ export interface HudState {
   invis: number;
   /** Перезарядка несутки Ивангоя: осталось секунд (0 — готова). */
   invisCd: number;
+  /** Чумное облако Чумы: висит секунд (0 — нет). Кд смотри в superCdOf. */
+  chuma: number;
+  /** Перезарядка облака Чумы: осталось секунд (0 — готово). */
+  chumaCd: number;
+  /** Рентген Гидроксиса: висит секунд (0 — нет). Кд смотри в superCdOf. */
+  xray: number;
+  /** Перезарядка рентгена Гидроксиса: осталось секунд (0 — готов). */
+  xrayCd: number;
   med: number;
   lvl: number;
   /** Живых боссов на карте — для баннера 👑. */
@@ -143,6 +160,8 @@ export interface HudState {
   fps: number;
   /** Текущее качество картинки (авто-сброс при просадке). */
   quality: Quality;
+  /** Маяк двери: светится прямо сейчас (раз в минуту 5 секунд). */
+  doorPulse: boolean;
 }
 
 export interface WeaponDef {
@@ -205,6 +224,8 @@ export interface GameEvents {
   onBusted: (s: { score: number; coins: number }) => void;
   /** скример бэкрумса: сталкер убил с 1 удара — показать жуть на весь экран */
   onJumpscare?: () => void;
+  /** дверь выхода в Бэкрумсе: живой боец коснулся — баннер «ты выбрался» + награда (App) */
+  onEscape?: () => void;
   onSwing: () => void;
   /** удар по сетевому мобу: App шлёт mobhit на сервер, ответ применяет через netSyncHp/netKill */
   onNetHit?: (id: number, dmg: number) => void;
@@ -218,6 +239,7 @@ export interface RemotePlayer {
   nick: string;
   x: number;
   z: number;
+  yaw?: number;
   hp: number;
   char: string;
   /** fid бойца (индекс в строю сервера) — цель для pvphit */
@@ -236,12 +258,16 @@ interface Remote {
   g: THREE.Group;
   /** тело (children[0]) — кэш, чтобы не дёргать children каждый кадр */
   body: THREE.Sprite;
+  /** рентген-контур (белый): чуть больше тела, виден сквозь стены, пока висит рентген */
+  ol: THREE.Sprite;
   cv: HTMLCanvasElement;
   tex: THREE.CanvasTexture;
   gunCv: HTMLCanvasElement;
   gunTex: THREE.CanvasTexture;
   x: number;
   z: number;
+  /** куда смотрит кукла (с сервера): нужно для линии пули */
+  yaw: number;
   tx: number;
   tz: number;
   /** буфер слепков {t,x,z} по времени получения: рендерим прошлое (now-550мс) —
@@ -262,6 +288,8 @@ const GUNEMOJI: Record<string, string> = { fists: '👊', bat: '🏏', axe: '�
 interface Enemy {
   g: THREE.Group;
   body: THREE.Sprite;
+  /** рентген-контур (красный): чуть больше тела, виден сквозь стены, пока висит рентген */
+  ol: THREE.Sprite;
   hpCv: HTMLCanvasElement;
   hpTex: THREE.CanvasTexture;
   hpSpr: THREE.Sprite;
@@ -301,6 +329,10 @@ interface Enemy {
   slideT: number;
   slideX: number;
   slideZ: number;
+  /** слайд В СТОРОНУ цели: помним прошлый бок, чтобы не качаться туда-сюда у длинной стены */
+  slideDir: number;
+  /** висит на стене (лезет вверх): гравитацию прыжков не применять, высоту ведёт лазанье */
+  climbHold?: boolean;
   /** шаги: таймер топота (звук — по дистанции до игрока) */
   stepT: number;
 }
@@ -375,35 +407,62 @@ export class Game {
     this.pushHud();
     return true;
   }
-  /** Открыть кейс бойца за фантики. Шуба 12% (Редкий), Стейси 20% (Легендарный), иначе утешительный приз. */
+  /** Промокод на всех: открывает каждого бойца. Возвращает вновь открытых. */
+  unlockAllChars(): string[] {
+    const fresh: string[] = [];
+    for (const c of CHARS) {
+      if (!this.ownedChars.includes(c.id)) { this.ownedChars.push(c.id); fresh.push(c.id); }
+    }
+    if (fresh.length) { this.saveChars(); this.pushHud(); }
+    return fresh;
+  }
+  /** Открыть кейс бойца за фантики. Редкие по 30%: Шуба (0–0.3) и Чума (0.3–0.6),
+      легендарные по 20%: Стейси (0.6–0.8) и Гидроксис (0.8–1.0).
+      40+40+20+20 в сотню не лезет — редким ужались до 30, чтобы легендам хватило.
+      Занятый диапазон — утешительный приз. */
   openCase(): CaseDrop {
     if (this.fantiki < CASE_PRICE) return { ok: false, kind: 'empty', text: 'Не хватает фантиков' };
     this.fantiki -= CASE_PRICE;
     const roll = Math.random();
-    // Шуба ещё закрыта — 12% на неё (редкий)
-    if (!this.ownedChars.includes('shuba') && roll < 0.12) {
+    // Шуба ещё закрыта — 30% на неё (редкий)
+    if (!this.ownedChars.includes('shuba') && roll < 0.3) {
       this.unlockChar('shuba');
       this.addXp(100);
       this.saveShop();
       this.pushHud();
-      return { ok: true, kind: 'char', text: '🥷 ИВАНГОЙ · Редкий — твоя!' };
+      return { ok: true, kind: 'char', char: 'shuba', text: '🥷 ИВАНГОЙ · Редкий — твоя!' };
     }
-    // Стейси ещё закрыта — 20% на неё (сдвиг после шанса Шубы)
-    const krysaChance = !this.ownedChars.includes('shuba') ? 0.32 : 0.2;
-    if (!this.ownedChars.includes('krysa') && roll < krysaChance) {
+    // Чума ещё закрыта — те же 30% (редкий)
+    if (!this.ownedChars.includes('chuma') && roll >= 0.3 && roll < 0.6) {
+      this.unlockChar('chuma');
+      this.addXp(100);
+      this.saveShop();
+      this.pushHud();
+      return { ok: true, kind: 'char', char: 'chuma', text: '🐦‍⬛ ЧУМА · Редкий — твоя!' };
+    }
+    // Стейси ещё закрыта — 20% на неё (легендарный)
+    if (!this.ownedChars.includes('krysa') && roll >= 0.6 && roll < 0.8) {
       this.unlockChar('krysa');
       this.addXp(100);
       this.saveShop();
       this.pushHud();
-      return { ok: true, kind: 'char', text: '🐀 СТЕЙСИ КРЫСА · Легендарный — твоя!' };
+      return { ok: true, kind: 'char', char: 'krysa', text: '🐀 СТЕЙСИ КРЫСА · Легендарный — твоя!' };
     }
-    if (roll < 0.45) {
+    // Гидроксис ещё закрыт — те же 20% (легендарный)
+    if (!this.ownedChars.includes('gidroxis') && roll >= 0.8) {
+      this.unlockChar('gidroxis');
+      this.addXp(100);
+      this.saveShop();
+      this.pushHud();
+      return { ok: true, kind: 'char', char: 'gidroxis', text: '🧪 ГИДРОКСИС · Легендарный — твоя!' };
+    }
+    if (roll < 0.68) {
       this.fantiki += 300;
       this.saveShop();
       this.pushHud();
       return { ok: true, kind: 'fantiki', text: '+300 🎟️ фантиков' };
     }
-    if (roll < 0.7) {
+    if (roll < 0.85) {
       this.addXp(150);
       this.saveShop();
       this.pushHud();
@@ -441,8 +500,8 @@ export class Game {
         spd: Math.max(0, Math.min(UPG_MAX.spd, Math.floor(p?.spd ?? 0))),
         sup: Math.max(0, Math.min(UPG_MAX.sup, Math.floor(p?.sup ?? 0))),
       });
-      return { mtt: clean(d.mtt), krysa: clean(d.krysa), shuba: clean(d.shuba) };
-    } catch { return { mtt: blank(), krysa: blank(), shuba: blank() }; }
+      return { mtt: clean(d.mtt), krysa: clean(d.krysa), shuba: clean(d.shuba), chuma: clean(d.chuma), gidroxis: clean(d.gidroxis) };
+    } catch { return { mtt: blank(), krysa: blank(), shuba: blank(), chuma: blank(), gidroxis: blank() }; }
   })();
   private saveUpg(): void {
     try { localStorage.setItem('mtt_upg_v1', JSON.stringify(this.upg)); } catch { /* noop */ }
@@ -450,10 +509,12 @@ export class Game {
   private xp: Record<string, number> = (() => {
     try {
       const d = JSON.parse(localStorage.getItem('mtt_xp_v1') ?? '{}') as Record<string, number>;
-      return { mtt: Math.max(0, Math.floor(d.mtt ?? 0)), krysa: Math.max(0, Math.floor(d.krysa ?? 0)), shuba: Math.max(0, Math.floor(d.shuba ?? 0)) };
-    } catch { return { mtt: 0, krysa: 0, shuba: 0 }; }
+      return { mtt: Math.max(0, Math.floor(d.mtt ?? 0)), krysa: Math.max(0, Math.floor(d.krysa ?? 0)), shuba: Math.max(0, Math.floor(d.shuba ?? 0)), chuma: Math.max(0, Math.floor(d.chuma ?? 0)), gidroxis: Math.max(0, Math.floor(d.gidroxis ?? 0)) };
+    } catch { return { mtt: 0, krysa: 0, shuba: 0, chuma: 0, gidroxis: 0 }; }
   })();
   private soundOn = true;
+  /** Общая громкость 0..1 (слайдер в настройках). Множит все звуки. */
+  private volume = 1;
   private sens = 1;
   private moving = false;
   private bobPhase = 0;
@@ -471,12 +532,25 @@ export class Game {
   /** Счётчик ударов для совместных комнат: каждый attack() +1, все видят замах. */
   private atk = 0;
   private half: number = HALF;
+  /** Прибор лагов: накопленные мс логики/рендера + число кадров. */
+  private perfJs = 0;
+  private perfR = 0;
+  private perfN = 0;
+  /** Счётчики триггеров: прыжки/лазанье/спрыгивания ходоков (для отладки поведения). */
+  private jumpDBG = 0;
+  private climbDBG = 0;
+  private dropDBG = 0;
   /** Мирный режим из меню: врагов нет, волны не идут. */
   readonly enemiesOn: boolean = true;
   /** Своя карта из редактора (map 'custom'). */
   private custom: CustomMap | null = null;
   /** Сид лабиринта бэкрумса — один на всех в комнате. */
   readonly mapSeed: number;
+  /** Топология лабиринта для поиска пути: стены между клетками (0 = нет карты). */
+  private mazeN = 0;
+  private mazeS = 0;
+  private mazeV: boolean[][] = [];
+  private mazeH: boolean[][] = [];
   private wallKickCd = 0;
   /** Таймер топота игрока (шаги — по земле, в полёте тишина). */
   private stepT = 0;
@@ -539,18 +613,48 @@ export class Game {
   /** Невидимость Ивангоя: invisT — осталось секунд жути, invisCd — перезарядка. */
   private invisT = 0;
   private invisCd = 0;
+  /** Чумное облако Чумы: chumaT — облако висит секунд, chumaCd — перезарядка. */
+  private chumaT = 0;
+  private chumaCd = 0;
+  /** Таймер дымка облака (частицы каждые 0.4с, пока висит). */
+  private chumaFxT = 0;
+  /** Рентген Гидроксиса: xrayT — подсветка висит секунд, xrayCd — перезарядка. */
+  private xrayT = 0;
+  private xrayCd = 0;
+  /** Купол чумного облака: полупрозрачная фиолетовая полусфера 9м. Один на игру. */
+  private chumaDome: THREE.Mesh | null = null;
+  /** Купол за игроком: стоит на ногах, виден пока облако висит, дышит прозрачностью. */
+  private syncChumaDome(): void {
+    if (!this.chumaDome) {
+      const geo = new THREE.SphereGeometry(9, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2);
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0x8b3fd9, transparent: true, opacity: 0.22,
+        side: THREE.DoubleSide, depthWrite: false,
+      });
+      this.chumaDome = new THREE.Mesh(geo, mat);
+      this.chumaDome.renderOrder = 5;
+    }
+    const dome = this.chumaDome;
+    if (!dome.parent) this.scene.add(dome);
+    dome.visible = this.chumaT > 0 && this.started && !this.dead;
+    if (dome.visible) {
+      dome.position.set(this.px, Math.max(0, this.py), this.pz);
+      const mat = dome.material as THREE.MeshBasicMaterial;
+      mat.opacity = 0.18 + 0.07 * Math.sin(performance.now() / 350);
+    }
+  }
   private dashDx = 0;
   private dashDy = 0;
   private dashDz = 0;
-  private quality: Quality = 'fast';
+  private quality: Quality = 'medium';
   private foeTexCache: THREE.Texture[] = [];
   private enemies: Enemy[] = [];
   // хитбокс окружения строго внутри текстуры и только до своей высоты h:
   // коробки — точный AABB, круглые — точный радиус. Пролететь/перепрыгнуть можно.
   // deck: настил (мост) — снизу проход свободный, сверху можно стоять.
   private solids: Array<{ x: number; z: number; hx: number; hz: number; h: number; deck?: boolean } | { x: number; z: number; r: number; h: number }> = [];
-  /** Бюджет BFS-путей на кадр (орда Нашествия не вешает кадр разом). */
-  private bfsBudget = 3;
+  /** Бюджет BFS на кадр: орда делит, хватило — маршрут, нет — в лоб до следующего кадра. */
+  private bfsBudget = 5;
   /** Сглаженный FPS для счётчика. */
   private fpsE = 60;
   /** Кадров подряд с просадкой (авто-сброс качества). */
@@ -582,9 +686,10 @@ export class Game {
   private lookLY = 0;
   private parts: Array<{ s: THREE.Sprite; vx: number; vy: number; vz: number; life: number }> = [];
 
-  /** Красные частицы удара: брызги в точке попадания. */
+  /** Красные частицы удара: брызги в точке попадания. На low — втрое меньше (FPS). */
   burst(x: number, y: number, z: number, n = 10): void {
-    for (let i = 0; i < n; i++) {
+    const scaled = this.quality === 'low' ? Math.ceil(n / 3) : this.quality === 'medium' ? Math.ceil(n / 1.5) : n;
+    for (let i = 0; i < scaled; i++) {
       let p = this.parts.find((q) => q.life <= 0);
       if (!p) {
         if (this.parts.length >= 90) return;
@@ -632,6 +737,14 @@ export class Game {
     // Бэкрумс большой: лабиринт ~120м. Размер задаёт сам строитель через halfOverride.
     this.half = map === 'duel' ? 32 : HALF;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+    // свет наблюдателя: день вместо жути — висят выключенными, зажигаются в specOn
+    this.specLight = new THREE.AmbientLight(0xfff6e6, 1.15);
+    this.specLight.visible = false;
+    this.scene.add(this.specLight);
+    this.specSun = new THREE.DirectionalLight(0xfff2dd, 1.0);
+    this.specSun.position.set(40, 120, 20);
+    this.specSun.visible = false;
+    this.scene.add(this.specSun);
     this.loadQuality();
     this.loadChar();
     // старый сейв мог держать закрытого бойца — откатываем на МТТ
@@ -641,9 +754,9 @@ export class Game {
     this.hp = this.maxhp;
     this.charSpd = spec0.spd * (1 + (this.upg[this.charId]?.spd ?? 0) * 0.06);
     this.jumpVel = this.charId === 'krysa' ? 4.8 * Math.sqrt(3) : 4.8;
-    this.renderer.setPixelRatio(this.quality === 'nice' ? Math.min(window.devicePixelRatio, 1.5) : 1);
+    this.renderer.setPixelRatio(this.quality === 'high' ? Math.min(window.devicePixelRatio, 2) : this.quality === 'low' ? 0.75 : 1);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.shadowMap.enabled = this.quality === 'nice';
+    this.renderer.shadowMap.enabled = this.quality === 'high';
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
@@ -667,11 +780,17 @@ export class Game {
         new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false }),
       );
       this.scene.add(sky);
+      this.skyMesh = sky;
     }
+    // запоминаем родной туман карты — ползунок дальности будет резать от него
+    const fg0 = this.scene.fog as THREE.Fog | null;
+    if (fg0) this.fogOrig = { near: fg0.near, far: fg0.far };
     this.loadShop();
     this.loadKeys();
     this.buildWorld();
     this.rebuildSolidGrid();
+    this.loadDrawDist();
+    this.applyDrawDist();
     // endless: только сталкеры (волн нет); duel/pvp: без врагов вообще
     if (map !== 'duel' && map !== 'endless' && map !== 'pvp' && this.enemiesOn) this.spawnWave();
     window.addEventListener('resize', this.onResize);
@@ -731,12 +850,13 @@ export class Game {
     try {
       const raw = localStorage.getItem('mtt_shop_v1');
       if (!raw) return;
-      const d = JSON.parse(raw) as { fantiki?: number; owned?: string[]; weapon?: string; sound?: boolean; sens?: number; med?: number };
+      const d = JSON.parse(raw) as { fantiki?: number; owned?: string[]; weapon?: string; sound?: boolean; sens?: number; med?: number; volume?: number };
       if (typeof d.fantiki === 'number') this.fantiki = Math.max(0, Math.floor(d.fantiki));
       if (Array.isArray(d.owned) && d.owned.length) this.owned = d.owned.filter((x) => WEAPONS.some((w) => w.id === x));
       if (!this.owned.includes('fists')) this.owned.unshift('fists');
       if (d.weapon && this.owned.includes(d.weapon)) this.weaponId = d.weapon;
       if (typeof d.sound === 'boolean') this.soundOn = d.sound;
+      if (typeof d.volume === 'number') this.volume = Math.max(0, Math.min(1, d.volume));
       if (typeof d.sens === 'number') this.sens = Math.max(0.3, Math.min(2.5, d.sens));
       if (typeof d.med === 'number') this.medkits = Math.max(0, Math.min(3, Math.floor(d.med)));
     } catch { /* noop */ }
@@ -745,7 +865,7 @@ export class Game {
   private saveShop(): void {
     try {
       localStorage.setItem('mtt_shop_v1', JSON.stringify({
-        fantiki: this.fantiki, owned: this.owned, weapon: this.weaponId, sound: this.soundOn, sens: this.sens, med: this.medkits,
+        fantiki: this.fantiki, owned: this.owned, weapon: this.weaponId, sound: this.soundOn, sens: this.sens, med: this.medkits, volume: this.volume,
       }));
     } catch { /* noop */ }
   }
@@ -887,8 +1007,12 @@ export class Game {
     } catch { /* noop */ }
   }
   getQuality(): Quality { return this.quality; }
+  /** Переключить на следующее: low → medium → high → low. Возвращает новое. */
+  cycleQuality(): Quality {
+    return this.setQuality(this.quality === 'low' ? 'medium' : this.quality === 'medium' ? 'high' : 'low');
+  }
   setQuality(q: Quality): Quality {
-    this.quality = q === 'nice' ? 'nice' : 'fast';
+    this.quality = q === 'high' ? 'high' : q === 'low' ? 'low' : 'medium';
     try { localStorage.setItem('mtt_quality_v1', this.quality); } catch { /* noop */ }
     this.applyQuality();
     return this.quality;
@@ -896,13 +1020,15 @@ export class Game {
   private loadQuality(): void {
     try {
       const v = localStorage.getItem('mtt_quality_v1');
-      this.quality = v === 'nice' ? 'nice' : 'fast';
+      // старые сейвы: fast → medium, nice → high
+      this.quality = v === 'high' || v === 'nice' ? 'high' : v === 'low' ? 'low' : 'medium';
     } catch { /* noop */ }
   }
   private applyQuality(): void {
-    const fast = this.quality !== 'nice';
-    this.renderer.setPixelRatio(fast ? 1 : Math.min(window.devicePixelRatio, 1.5));
-    this.renderer.shadowMap.enabled = !fast;
+    if (this.quality === 'high') this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    else if (this.quality === 'low') this.renderer.setPixelRatio(0.75);
+    else this.renderer.setPixelRatio(1);
+    this.renderer.shadowMap.enabled = this.quality === 'high';
     this.scene.traverse((o) => {
       const m = o as { material?: { needsUpdate?: boolean } | Array<{ needsUpdate?: boolean }> };
       if (Array.isArray(m.material)) m.material.forEach((x) => { x.needsUpdate = true; });
@@ -910,6 +1036,49 @@ export class Game {
     });
   }
   getSound(): boolean { return this.soundOn; }
+  getVolume(): number { return this.volume; }
+  /** Дальность прорисовки 80–500м: сохраняется, применяется сразу. */
+  getDrawDist(): number { return this.drawDist; }
+  setDrawDist(v: number): number {
+    this.drawDist = Math.max(80, Math.min(500, Math.round(Number(v) || 500)));
+    try { localStorage.setItem('mtt_drawdist_v1', String(this.drawDist)); } catch { /* noop */ }
+    this.applyDrawDist();
+    return this.drawDist;
+  }
+  private loadDrawDist(): void {
+    try {
+      const raw = localStorage.getItem('mtt_drawdist_v1');
+      if (raw === null || raw === '') return;
+      const v = Number(raw);
+      if (Number.isFinite(v)) this.drawDist = Math.max(80, Math.min(500, Math.round(v)));
+    } catch { /* noop */ }
+  }
+  /** Применяем дальность во ВСЕХ режимах: край камеры + туман жмётся
+      пропорционально (в лабиринте родной туман 50м — иначе ползунок там не
+      чувствовался) + небо под край. Туманом владеет спек — пока он летит, не трогаем. */
+  private applyDrawDist(): void {
+    const d = this.drawDist;
+    this.camera.far = d;
+    this.camera.updateProjectionMatrix();
+    if (this.skyMesh) {
+      const s = (d * 0.95) / 420;
+      this.skyMesh.scale.set(s, s, s);
+    }
+    if (!this.fogSave && this.fogOrig) {
+      const fog = this.scene.fog as THREE.Fog | null;
+      if (fog) {
+        const k = d / 500;
+        fog.far = Math.max(12, this.fogOrig.far * k);
+        fog.near = Math.min(this.fogOrig.near, fog.far * 0.8);
+      }
+    }
+  }
+  /** Громкость 0..1: сохраняется, применяется ко всем звукам сразу. */
+  setVolume(v: number): number {
+    this.volume = Math.max(0, Math.min(1, Number(v) || 0));
+    this.saveShop();
+    return this.volume;
+  }
   getSens(): number { return this.sens; }
   getKeys(): KeyMap { return { ...this.keyMap }; }
   setKeys(p: Partial<KeyMap>): KeyMap {
@@ -937,7 +1106,10 @@ export class Game {
 
   revive(): boolean {
     if (!this.dead) return false;
+    // из призраков — сначала выйти (тело вернуть, потолок вернуть), потом оживать
+    if (this.specOn) this.setSpec(false);
     this.dead = false;
+    this.deathPlayed = false;
     this.hp = this.maxhp;
     this.score = Math.max(0, this.score - 100);
     for (const e of this.enemies) {
@@ -960,19 +1132,33 @@ export class Game {
   setShield(on: boolean): void { this.shieldT = on ? 1e9 : 0; }
   shield(): boolean { return this.shieldT > 0; }
 
-  /** Предзагрузка текстур перед боем: греет кэш, отдаёт прогресс 0–100. */
+  /** Предзагрузка текстур перед боем: только нужное под карту + общие (бойцы, враги).
+      Шуба ужата до 512px, грузим пачками параллельно — экран загрузки пролетает. */
   async preload(onPct: (p: number) => void): Promise<void> {
-    const urls = [vrag1Url, vrag2Url, bossUrl, charMttUrl, charKrysaUrl, charShubaUrl, dom1Url, travaUrl, facadeUrl, panelUrl, shopUrl, roofUrl, roadUrl, walkUrl, plazaUrl, fenceUrl, skyUrl, edgeUrl, house2Url, brickUrl, brFloorUrl, brWallUrl, brCeilUrl];
+    const core = [vrag1Url, vrag2Url, bossUrl, stalkerUrl, charMttUrl, charKrysaUrl, charShubaUrl, charChumaUrl, charGidroxisUrl, skyUrl];
+    const byMap: Record<string, string[]> = {
+      arena: [dom1Url, travaUrl, facadeUrl, panelUrl, shopUrl, roofUrl, roadUrl, walkUrl, plazaUrl, fenceUrl, edgeUrl, house2Url, brickUrl],
+      duel: [travaUrl, brickUrl, edgeUrl],
+      backrooms: [brFloorUrl, brWallUrl, brCeilUrl, doorExitUrl],
+      endless: [brFloorUrl, brWallUrl, brCeilUrl],
+      random: [travaUrl, brickUrl, edgeUrl, house2Url],
+      custom: [travaUrl, brickUrl],
+      pvp: [travaUrl, brickUrl, edgeUrl, house2Url],
+      invasion: [dom1Url, travaUrl, facadeUrl, brickUrl, edgeUrl],
+    };
+    const urls = [...core, ...(byMap[this.map] ?? Object.values(byMap).flat())];
     if (urls.length === 0) { onPct(100); return; }
-    await new Promise<void>((resolve) => {
-      let done = 0;
-      const total = urls.length;
-      const man = new THREE.LoadingManager();
-      const step = () => { done++; onPct(Math.min(100, Math.round((done / total) * 100))); if (done >= total) resolve(); };
-      man.onLoad = () => { onPct(100); resolve(); };
-      const loader = new THREE.TextureLoader(man);
-      for (const u of urls) loader.load(u, step, undefined, step);
-    });
+    const total = urls.length;
+    let done = 0;
+    const man = new THREE.LoadingManager();
+    const loader = new THREE.TextureLoader(man);
+    const step = () => { done++; onPct(Math.min(100, Math.round((done / total) * 100))); };
+    // пачки по 6: браузер всё равно держит ~6 коннектов на хост, зато прогресс ровный
+    for (let i = 0; i < urls.length; i += 6) {
+      await Promise.all(urls.slice(i, i + 6).map((u) => new Promise<void>((res) => {
+        loader.load(u, () => { step(); res(); }, undefined, () => { step(); res(); });
+      })));
+    }
     onPct(100);
   }
 
@@ -1077,7 +1263,7 @@ export class Game {
    */
   private buildBackrooms(): void {
     const scene = this.scene;
-    const N = 21, CELL = 6, WH = 3, TH = 0.7;
+    const N = 50, CELL = 6, WH = 3, TH = 0.7;
     const S = N * CELL;
     this.half = S / 2;
     // свет жути: тусклый тёплый фон + живые лампы островками, остальное — тьма.
@@ -1089,7 +1275,7 @@ export class Game {
     const floorTex = new THREE.TextureLoader().load(brFloorUrl);
     floorTex.colorSpace = THREE.SRGBColorSpace;
     floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
-    floorTex.repeat.set(32, 32);
+    floorTex.repeat.set(S / 4, S / 4);
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(S + 10, S + 10),
       new THREE.MeshStandardMaterial({ map: floorTex, roughness: 1 }),
@@ -1100,7 +1286,7 @@ export class Game {
     const ceilTex = new THREE.TextureLoader().load(brCeilUrl);
     ceilTex.colorSpace = THREE.SRGBColorSpace;
     ceilTex.wrapS = ceilTex.wrapT = THREE.RepeatWrapping;
-    ceilTex.repeat.set(42, 42);
+    ceilTex.repeat.set(S / 3, S / 3);
     const ceil = new THREE.Mesh(
       new THREE.PlaneGeometry(S + 10, S + 10),
       new THREE.MeshStandardMaterial({ map: ceilTex, roughness: 1 }),
@@ -1108,40 +1294,91 @@ export class Game {
     ceil.rotation.x = Math.PI / 2;
     ceil.position.y = WH;
     scene.add(ceil);
-    // лабиринт по сиду комнаты: recursive backtracker на seeded RNG.
+    // наблюдатель сверху прячет потолок — видно весь лабиринт
+    this.ceilMesh = ceil;
+    // лабиринт по сиду комнаты: рандомизированный алгоритм Прима на seeded RNG
+    // + braid (пробивка тупиков до ~20). Открытый лабиринт с петлями вместо ловушек.
     // Один сид = одна карта у всех игроков. Было Math.random — у каждого своя.
     const rng = mulberry32(this.mapSeed);
+    this.mazeDeads = 0;
     const vWall: boolean[][] = Array.from({ length: N + 1 }, () => new Array(N).fill(true));
     const hWall: boolean[][] = Array.from({ length: N }, () => new Array(N + 1).fill(true));
-    const seen: boolean[][] = Array.from({ length: N }, () => new Array(N).fill(false));
-    const stack: Array<[number, number]> = [[0, 0]];
-    seen[0][0] = true;
-    while (stack.length > 0) {
-      const [cx, cy] = stack[stack.length - 1];
-      const nb: Array<[number, number, number]> = [];
-      if (cx > 0 && !seen[cx - 1][cy]) nb.push([cx - 1, cy, 0]);
-      if (cx < N - 1 && !seen[cx + 1][cy]) nb.push([cx + 1, cy, 1]);
-      if (cy > 0 && !seen[cx][cy - 1]) nb.push([cx, cy - 1, 2]);
-      if (cy < N - 1 && !seen[cx][cy + 1]) nb.push([cx, cy + 1, 3]);
-      if (nb.length === 0) { stack.pop(); continue; }
-      const [nx, ny, dir] = nb[Math.floor(rng() * nb.length)];
-      if (dir === 0) vWall[cx][cy] = false;
-      else if (dir === 1) vWall[cx + 1][cy] = false;
-      else if (dir === 2) hWall[cx][cy] = false;
-      else hWall[cx][cy + 1] = false;
-      seen[nx][ny] = true;
-      stack.push([nx, ny]);
+    const inMz: boolean[][] = Array.from({ length: N }, () => new Array(N).fill(false));
+    inMz[0][0] = true;
+    // граница: стены между «своими» и «чужими» клетками [x, y, dir]
+    const front: Array<[number, number, number]> = [];
+    const pushFront = (x: number, y: number): void => {
+      if (x > 0 && !inMz[x - 1][y]) front.push([x, y, 0]);
+      if (x < N - 1 && !inMz[x + 1][y]) front.push([x, y, 1]);
+      if (y > 0 && !inMz[x][y - 1]) front.push([x, y, 2]);
+      if (y < N - 1 && !inMz[x][y + 1]) front.push([x, y, 3]);
+    };
+    pushFront(0, 0);
+    while (front.length > 0) {
+      const k = Math.floor(rng() * front.length);
+      const [fx, fy, dir] = front.splice(k, 1)[0]!;
+      let nx = fx, ny = fy;
+      if (dir === 0) { nx = fx - 1; if (inMz[nx][ny]) continue; vWall[fx][fy] = false; }
+      else if (dir === 1) { nx = fx + 1; if (inMz[nx][ny]) continue; vWall[fx + 1][fy] = false; }
+      else if (dir === 2) { ny = fy - 1; if (inMz[nx][ny]) continue; hWall[fx][fy] = false; }
+      else { ny = fy + 1; if (inMz[nx][ny]) continue; hWall[fx][fy + 1] = false; }
+      inMz[nx][ny] = true;
+      pushFront(nx, ny);
     }
-    // сегменты стен: вертикальные vWall[i][j], горизонтальные hWall[i][j]
+    // МЕНЬШЕ ТУПИКОВ: пробиваем стены у тупиковых клеток, пока их не останется ~20.
+    // Лабиринт становится открытым (петли вместо ловушек), связность не рвётся —
+    // мы только СНОСИМ стены. ГСЧ тот же seeded — карта одна на всех в комнате.
+    for (let t = 0; t < 3000; t++) {
+      // список тупиков: клетка с ≤1 выходом + её закрытые внутренние стены
+      const deadWalls: Array<Array<[number, number, number]>> = [];
+      for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+        let open = 0;
+        const w: Array<[number, number, number]> = [];
+        if (i > 0) { if (!vWall[i][j]) open++; else w.push([0, i, j]); }
+        if (i < N - 1) { if (!vWall[i + 1][j]) open++; else w.push([0, i + 1, j]); }
+        if (j > 0) { if (!hWall[i][j]) open++; else w.push([1, i, j]); }
+        if (j < N - 1) { if (!hWall[i][j + 1]) open++; else w.push([1, i, j + 1]); }
+        if (open <= 1 && w.length > 0) deadWalls.push(w);
+      }
+      if (deadWalls.length <= 20) break;
+      const w = deadWalls[Math.floor(rng() * deadWalls.length)]!;
+      const s = w[Math.floor(rng() * w.length)]!;
+      if (s[0] === 0) vWall[s[1]][s[2]] = false;
+      else hWall[s[1]][s[2]] = false;
+    }
+    const passOpen = (x1: number, y1: number, x2: number, y2: number): boolean => {
+      if (x2 === x1 + 1) return !vWall[x2][y1];
+      if (x2 === x1 - 1) return !vWall[x1][y1];
+      if (y2 === y1 + 1) return !hWall[x1][y2];
+      if (y2 === y1 - 1) return !hWall[x1][y1];
+      return false;
+    };
+    let deads = 0;
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+      let open = 0;
+      if (i > 0 && passOpen(i, j, i - 1, j)) open++;
+      if (i < N - 1 && passOpen(i, j, i + 1, j)) open++;
+      if (j > 0 && passOpen(i, j, i, j - 1)) open++;
+      if (j < N - 1 && passOpen(i, j, i, j + 1)) open++;
+      if (open <= 1) deads++;
+    }
+    this.mazeDeads = deads;
+    // топология для поиска пути: мобы ходят по клеткам, а не по геометрии
+    this.mazeN = N; this.mazeS = S; this.mazeV = vWall; this.mazeH = hWall;
+    // сегменты стен: вертикальные vWall[i][j], горизонтальные hWall[i][j].
+    // Длина ровно CELL (стык в стык, без нахлёста): нахлёст +0.35 с каждого конца
+    // торчал кончиком в проход, и соседние клетки BFS (центры свободны) соединялись
+    // линией через этот кончик — моб шёл в стену и клинил. Стык без нахлёста углы
+    // не дырявит: крест 0.7×0.7 закрыт обеими стенами, конец стены — ровный торец.
     const segs: Array<{ x: number; z: number; sx: number; sz: number }> = [];
     for (let i = 0; i <= N; i++) {
       for (let j = 0; j < N; j++) {
-        if (vWall[i][j]) segs.push({ x: -S / 2 + i * CELL, z: -S / 2 + (j + 0.5) * CELL, sx: TH, sz: CELL + TH });
+        if (vWall[i][j]) segs.push({ x: -S / 2 + i * CELL, z: -S / 2 + (j + 0.5) * CELL, sx: TH, sz: CELL });
       }
     }
     for (let i = 0; i < N; i++) {
       for (let j = 0; j <= N; j++) {
-        if (hWall[i][j]) segs.push({ x: -S / 2 + (i + 0.5) * CELL, z: -S / 2 + j * CELL, sx: CELL + TH, sz: TH });
+        if (hWall[i][j]) segs.push({ x: -S / 2 + (i + 0.5) * CELL, z: -S / 2 + j * CELL, sx: CELL, sz: TH });
       }
     }
     const wallTex = new THREE.TextureLoader().load(brWallUrl);
@@ -1157,6 +1394,53 @@ export class Game {
     });
     inst.instanceMatrix.needsUpdate = true;
     scene.add(inst);
+    // ДВЕРЬ ВЫХОДА (только бэкрумс, не endless): одна на карту, место — на сиде
+    // комнаты (у всех одна). Стоит ВПРИТЫК К СТЕНЕ: берём случайную внутреннюю
+    // стену подальше от старта и лепим дверь лицом в коридор. Текстура unlit —
+    // дверь светится в темноте, видно издалека.
+    // ТОЛЬКО Бесконечный: на остальных серверах (обычный бэкрумс, арена...) двери нет вообще.
+    if (this.doorMode) {
+      const cand: Array<{ v: boolean; i: number; j: number }> = [];
+      for (let i = 1; i < N; i++) for (let j = 0; j < N; j++) if (vWall[i][j]) cand.push({ v: true, i, j });
+      for (let i = 0; i < N; i++) for (let j = 1; j < N; j++) if (hWall[i][j]) cand.push({ v: false, i, j });
+      // подальше от старта (старт — угол клеток (0,0))
+      const far = cand.filter((c) => Math.hypot(c.i, c.j) > N * 0.55);
+      const pool = far.length > 0 ? far : cand;
+      const pick = pool[Math.floor(rng() * pool.length)]!;
+      const side = rng() < 0.5 ? 1 : -1;
+      let dx: number, dz: number, sx: number, sz: number, hx: number, hz: number;
+      let fnx = 1, fnz = 0;
+      if (pick.v) {
+        // вертикальная стена: дверь тонким боком к ней (грань к грани, без щели)
+        dx = -S / 2 + pick.i * CELL + side * (TH / 2 + 0.2);
+        dz = -S / 2 + (pick.j + 0.5) * CELL;
+        sx = 0.4; sz = 2.2; hx = 0.2; hz = 1.1;
+        fnx = side; fnz = 0;
+      } else {
+        // горизонтальная стена: то же, лицом вдоль коридора
+        dx = -S / 2 + (pick.i + 0.5) * CELL;
+        dz = -S / 2 + pick.j * CELL + side * (TH / 2 + 0.2);
+        sx = 2.2; sz = 0.4; hx = 1.1; hz = 0.2;
+        fnx = 0; fnz = side;
+      }
+      this.door = { x: dx, z: dz };
+      this.doorFace = { x: fnx, z: fnz };
+      const doorTex = new THREE.TextureLoader().load(doorExitUrl);
+      doorTex.colorSpace = THREE.SRGBColorSpace;
+      const door = new THREE.Mesh(
+        new THREE.BoxGeometry(sx, 3, sz),
+        new THREE.MeshBasicMaterial({ map: doorTex }),
+      );
+      door.position.set(dx, 1.5, dz);
+      scene.add(door);
+      this.solids.push({ x: dx, z: dz, hx, hz, h: 3 });
+      // маяк двери: раз в минуту 5 секунд — светится САМА ДВЕРЬ, видно всем
+      this.doorMesh = door;
+      const glow = new THREE.PointLight(0xffc861, 0, 20, 1.6);
+      glow.position.set(dx, 2.4, dz);
+      scene.add(glow);
+      this.doorGlow = glow;
+    }
     // лампы: живые островки света (~1/3 панелей), дохлые (тьма) и пара мигающих.
     // Стартовая клетка всегда светлая — игрок рождается в свете, а не в соплях.
     const liveMat = new THREE.MeshBasicMaterial({ color: 0xffe2a8 });
@@ -1268,9 +1552,29 @@ export class Game {
     this.yaw = !vWall[1][0] ? -Math.PI / 2 : Math.PI;
   }
 
-  /** Для тестов: параметры сгенерированного лабиринта. */
-  debugMaze(): { n: number; cell: number; segs: number; half: number; seed: number } {
-    return { n: 21, cell: 6, segs: this.solids.length, half: this.half, seed: this.mapSeed };
+  /** Для тестов: текущий туман камеры. */
+  debugFog(): { near: number; far: number } | null {
+    const fog = this.scene.fog as THREE.Fog | null;
+    return fog ? { near: Math.round(fog.near * 10) / 10, far: Math.round(fog.far * 10) / 10 } : null;
+  }
+  /** Для тестов: дверь выхода (бэкрумс) — где стоит. */
+  debugDoor(): { x: number; z: number } | null {
+    return this.door ? { x: Math.round(this.door.x * 10) / 10, z: Math.round(this.door.z * 10) / 10 } : null;
+  }
+  /** Для тестов: маяк двери горит прямо сейчас? */
+  debugDoorPulse(): boolean { return this.doorPulse; }
+  /** Для тестов: принудительный маяк (null — как обычно по времени). */
+  debugDoorPulseForce(v: boolean | null): void { this.doorPulseForce = v === null ? null : !!v; }
+  /** Для тестов: куда дверь смотрит лицом (сторона коридора). */
+  debugDoorFace(): { x: number; z: number } { return { ...this.doorFace }; }
+  /** Для тестов: состояние материала двери (маяк = зелёная поверх стен). */
+  debugDoorMat(): { color: number; opacity: number; depthTest: boolean; order: number } {
+    const m = this.doorMesh?.material as THREE.MeshBasicMaterial | undefined;
+    if (!m || !this.doorMesh) return { color: 0, opacity: 0, depthTest: true, order: 0 };
+    return { color: (m.color.getHex() as number) >>> 0, opacity: Math.round(m.opacity * 100) / 100, depthTest: m.depthTest, order: this.doorMesh.renderOrder };
+  }
+  debugMaze(): { n: number; cell: number; segs: number; half: number; seed: number; deads: number } {
+    return { n: 50, cell: 6, segs: this.solids.length, half: this.half, seed: this.mapSeed, deads: this.mazeDeads };
   }
 
   /**
@@ -2719,34 +3023,64 @@ export class Game {
     }
     return bd >= 25 ? best : null;
   }
-  /** Пак Бэкрумса: только бессмертные сталкеры (5 + волна, макс 10).
+  /** Точка в заданном направлении от игрока (кольцо minD–minD+20м).
+      Крутим угол, пока точка не ляжет ВНУТРИ карты (точку за краем не прибиваем
+      клампом в кучу — иначе весь пак сплющивается у одного борта).
+      avoid — уже занятые точки пака: ближе 25м не встаём. Не влезла — общий farSpot. */
+  private farSpotAt(minD: number, ang: number, avoid: Array<[number, number]> = []): [number, number] | null {
+    const a0 = ang + Math.random() * 0.5;
+    for (let t = 0; t < 24; t++) {
+      const a = a0 + (t / 24) * Math.PI * 2;
+      const r = minD + Math.random() * 20;
+      const rx = this.px + Math.cos(a) * r, rz = this.pz + Math.sin(a) * r;
+      if (rx < -this.half + 3 || rx > this.half - 3 || rz < -this.half + 3 || rz > this.half - 3) continue;
+      if (this.hitSolid(rx, rz, 2)) continue;
+      if (Math.hypot(rx - this.px, rz - this.pz) < minD) continue;
+      let clash = false;
+      for (const q of avoid) {
+        if (Math.hypot(rx - q[0], rz - q[1]) < 25) { clash = true; break; }
+      }
+      if (clash) continue;
+      return [rx, rz];
+    }
+    return this.farSpot(minD);
+  }
+  /** Пак Бэкрумса: ровно 4 бессмертных сталкера (больше не надо — они не умирают).
       Обычных мобов на этой карте нет — жуть должна давить, а не фармиться.
-      Спавн в 100м от игрока, чтобы не падали на голову. */
+      Спавн в 100м от игрока по 4 сторонам света, чтобы не падали на голову и не в одну точку. */
   private spawnBackroomsPack(): number {
     if (this.netSync) return 0;
-    const want = Math.min(5 + Math.floor(this.wave / 2), 10);
+    const want = 4;
     let have = this.enemies.filter((e) => !e.dead && e.god).length;
     // добиваем пак до нормы (волна зачистки не будет — сталкеры не умирают)
+    let k = 0;
+    const taken: Array<[number, number]> = [];
     while (have < want) {
       const before = this.enemies.length;
-      this.spawnEnemy('walk', 100, this.farSpot(100));
+      const spot = this.farSpotAt(100, (k / want) * Math.PI * 2, taken);
+      this.spawnEnemy('walk', 100, spot);
+      k++;
       if (this.enemies.length <= before) break;
       const e = this.enemies[this.enemies.length - 1]!;
+      if (spot) taken.push(spot);
       this.toStalker(e);
       have++;
     }
     return have;
   }
 
-  /** 5 неубиваемых быстрых сталкеров Бэкрумса (хост endless, один раз за бой). */
+  /** 4 неубиваемых быстрых сталкера Бэкрумса (хост endless, один раз за бой) — по 4 сторонам. */
   spawnStalkers(): number {
     if (this.netSync) return 0;
     if (this.stalkersOn) return this.enemies.filter((e) => !e.dead && e.god).length;
     this.stalkersOn = true;
-    for (let i = 0; i < 5; i++) {
+    const taken: Array<[number, number]> = [];
+    for (let i = 0; i < 4; i++) {
       const before = this.enemies.length;
-      this.spawnEnemy('walk', 100, this.farSpot(100));
+      const spot = this.farSpotAt(100, (i / 4) * Math.PI * 2, taken);
+      this.spawnEnemy('walk', 100, spot);
       if (this.enemies.length > before) {
+        if (spot) taken.push(spot);
         const e = this.enemies[this.enemies.length - 1]!;
         this.toStalker(e);
       }
@@ -2769,32 +3103,173 @@ export class Game {
     return this.enemies.filter((e) => !e.dead && e.god && e.body.material.map === this.stalkerTexCache).length;
   }
 
-  /** Режим наблюдателя: движение выкл, камера на цели, удары выкл. */
+  // ============================================================
+  // НАБЛЮДАТЕЛЬ: призрак, которого нет ни для кого.
+  // - МОНСТРЫ не видят: при specOn цель во всех ветках наведения — только живые
+  //   сокомнатники, урон и ваншот по наблюдателю запрещены, топота нет.
+  // - ИГРОКИ не видят: тела нет вообще — туша лежит под картой (py=-60 летит
+  //   в пульс, чужая кукла под землёй), в списках комнаты сервер спеков прячет,
+  //   на миникарте чужих нет.
+  // - ПОЛЁТ: WASD/стрелки + джойстик — по взгляду, Shift — быстрее (14 м/с),
+  //   Space — вверх, C — вниз (0.5–30м). Коллизий у камеры НЕТ ВООБЩЕ:
+  //   сквозь стены, сквозь потолок. Выше потолка потолок прячем — сверху
+  //   видно весь лабиринт.
+  // - РЕЖИМЫ: follow — висим на живом (цель бежит — летим за ней, умерла —
+  //   пересаживаемся на следующего живого); free — летим сами (любой ход
+  //   отрывает от цели, смена цели возвращает follow). Вышел — тело и
+  //   потолок вернулись на место.
+  // ============================================================
   private specOn = false;
   private specX = 0;
+  /** Высота камеры (Space — вверх, C — вниз, 0.5–30м). */
+  private specY = 2.6;
   private specZ = 0;
+  /** true — свободный полёт; false — висим на цели. */
+  private specFree = false;
+  /** Куда вернуть тело при выходе из наблюдения. */
+  private specStash: { x: number; z: number; py: number } | null = null;
   /** Ник живого игрока, за которым летит камера. Пусто — стоим на точке. */
   private specFollow = '';
+  /** Потолок Бэкрумса: сверху прячем, чтобы было видно лабиринт. */
+  private ceilMesh: THREE.Object3D | null = null;
+  /** Свет наблюдателя: дневной свет + солнце сверху, горят только в specOn. */
+  private specLight: THREE.AmbientLight | null = null;
+  private specSun: THREE.DirectionalLight | null = null;
+  /** Родной туман карты: отодвигаем на время полёта, при выходе возвращаем. */
+  private fogSave: { near: number; far: number } | null = null;
+  /** Дальность прорисовки 80–500м (ползунок в настройках): меньше — выше FPS. */
+  private drawDist = 500;
+  /** Родной туман карты (для пересчёта под дальность). */
+  private fogOrig: { near: number; far: number } | null = null;
+  /** Небо-сфера: масштабируем под дальность, иначе на минимуме пустота вместо неба. */
+  private skyMesh: THREE.Mesh | null = null;
+  /** Дверь выхода из Бэкрумса (для тестов/миникарты). */
+  private door: { x: number; z: number } | null = null;
+  /** Дверь выхода живёт ТОЛЬКО в Бесконечном Бэкрумсе (не обычный, не арена). */
+  private get doorMode(): boolean { return this.map === 'endless'; }
+  /** Куда дверь смотрит лицом (в коридор): с чужой стороны стены касания нет. */
+  private doorFace: { x: number; z: number } = { x: 1, z: 0 };
+  /** Подсветка двери: раз в минуту 5 секунд светится всем (и наблюдателям). */
+  private doorMesh: THREE.Mesh | null = null;
+  private doorGlow: THREE.PointLight | null = null;
+  /** Принудительный маяк для тестов (null — по времени). */
+  private doorPulseForce: boolean | null = null;
+  private doorPulse = false;
+  /** Побег уже засчитан в этом забеге (дверь — один раз). */
+  private escapedFired = false;
+  /** Тупиков в лабиринте Бэкрумса (для тестов/баланса). */
+  private mazeDeads = 0;
   setSpec(on: boolean, x = 0, z = 0, followNick = ''): void {
+    if (on && !this.specOn) this.specEnter();
+    if (!on && this.specOn) this.specExit();
+    if (on) {
+      // тот же таргет с пульса комнаты — камеру НЕ трогаем: иначе каждый бит
+      // сервера (1–2с) сбрасывал бы свободный полёт к цели (высота 2.6, follow).
+      // Именно так наблюдатель «застревал»: взлетел — дёрнули назад.
+      if (this.specOn && followNick !== '' && followNick === this.specFollow) {
+        this.syncSpecCeil();
+        return;
+      }
+      this.specX = x; this.specZ = z; this.specY = 2.6;
+      // цель дали — висим на ней; цели нет (пустой сервер, соло) — сразу свободный полёт
+      if (followNick !== '') { this.specFollow = followNick; this.specFree = false; }
+      else this.specFree = true;
+    }
     this.specOn = on;
-    this.specX = x; this.specZ = z;
-    if (followNick !== '') this.specFollow = followNick;
-    if (!on) this.specFollow = '';
+    this.syncSpecCeil();
+  }
+  /** Вход в призраки: тело под карту, камера на точку, висим на цели. */
+  private specEnter(): void {
+    this.specStash = { x: this.px, z: this.pz, py: this.py };
+    this.py = -60; this.pvy = 0;
+    this.moving = false;
+  }
+  /** Выход из призраков: тело назад, цель сброшена, потолок назад. */
+  private specExit(): void {
+    if (this.specStash) {
+      this.px = this.specStash.x; this.pz = this.specStash.z; this.py = this.specStash.py;
+      this.specStash = null;
+    }
+    this.specFollow = '';
+    this.specFree = false;
+    if (this.ceilMesh) this.ceilMesh.visible = true;
   }
   debugSpec(): boolean { return this.specOn; }
+  /** Координаты свободной камеры (для тестов/отладки). */
+  debugSpecPos(): { x: number; z: number; y: number; free: boolean } {
+    return { x: this.specX, z: this.specZ, y: this.specY, free: this.specFree };
+  }
 
-  /** Каждый кадр подтягиваем камеру к живому: цель убежала — летим за ней,
-      цель умерла — пересаживаемся на первого живого. Наблюдателя враги игнорят. */
+  /** Потолок Бэкрумса: камера выше него — прячем (видно весь лабиринт сверху).
+      Вернулся вниз или вышел — возвращаем. Заодно дёргаем свет наблюдателя. */
+  private syncSpecCeil(): void {
+    this.syncSpecLight();
+    if (!this.ceilMesh) return;
+    const hide = this.specOn
+      && (this.map === 'backrooms' || this.map === 'endless')
+      && this.specY > 3.4;
+    if (this.ceilMesh.visible === hide) this.ceilMesh.visible = !hide;
+  }
+
+  /** Свет наблюдателя: светло как днём, темноты нет. Туман карты отодвигаем —
+      иначе сверху видно только тьму (родной туман 6–50м). Выход — всё назад. */
+  private syncSpecLight(): void {
+    const on = this.specOn;
+    if (this.specLight) this.specLight.visible = on;
+    if (this.specSun) this.specSun.visible = on;
+    const fog = this.scene.fog as THREE.Fog | null;
+    if (!fog) return;
+    if (on) {
+      if (!this.fogSave) {
+        this.fogSave = { near: fog.near, far: fog.far };
+        fog.near = 80; fog.far = 600;
+      }
+      // сверху видно весь лабиринт (300м) — край камеры отодвигаем тоже
+      this.camera.far = 600;
+      this.camera.updateProjectionMatrix();
+    } else if (this.fogSave) {
+      this.fogSave = null;
+      this.applyDrawDist();
+    }
+  }
+
+  /** Каждый кадр: follow — висеть на живом (убежал — летим за ним, умер —
+      пересели на следующего живого); free — летим сами, не трогаем. */
   private updateSpecFollow(): void {
-    if (!this.specOn) return;
+    if (!this.specOn || this.specFree) return;
     const alive = this.remotes.filter((r) => !r.dead);
     if (alive.length === 0) return;
     let t = alive.find((r) => r.nick === this.specFollow);
     if (!t) { t = alive[0]!; this.specFollow = t.nick; }
     this.specX = t.x; this.specZ = t.z;
+    this.syncSpecCeil();
   }
 
-  /** Сталкер бэкрумса убивает с 1 удара: смерть + скример на весь экран. */
+  /** Свободный полёт: WASD — по взгляду сквозь всё (стен не спрашиваем),
+      Shift — быстрее, Space — вверх, C — вниз. Любой ход отрывает от цели. */
+  private flySpec(f: number, r: number, dt: number): void {
+    const km = this.keyMap;
+    const len = Math.hypot(f, r);
+    const fly = (this.input[km.run] || this.input.ShiftLeft || this.input.ShiftRight) ? 14 : 8;
+    if (len > 0.01) {
+      const nf = f / Math.max(1, len), nr = r / Math.max(1, len);
+      const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
+      const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
+      // сквозь стены: только края арены держат, остальное — воздух
+      this.specX = this.clamp(this.specX + (fx * nf + rx * nr) * fly * dt);
+      this.specZ = this.clamp(this.specZ + (fz * nf + rz * nr) * fly * dt);
+      this.specFree = true;
+    }
+    // сквозь потолок: высота без collisions, потолок сверху прячем (см. syncSpecCeil).
+    // Вертикаль — тоже полёт: отрываемся от цели, иначе follow каждый кадр
+    // прибивает камеру обратно к цели и Space/C будто не работают.
+    if (this.input[km.jump] || this.input.Space) { this.specY = Math.min(30, this.specY + 8 * dt); this.specFree = true; }
+    if (this.input[km.ability] || this.input.KeyC) { this.specY = Math.max(0.5, this.specY - 8 * dt); this.specFree = true; }
+    this.moving = false;
+    this.syncSpecCeil();
+  }
+
+  /** Сталкер бэкрумса убивает с 1 удара: смерть + скример на весь экран + звук смерти (1 раз). */
   private killByStalker(): void {
     if (this.dead || this.specOn || this.invisT > 0 || this.shieldT > 0) return;
     this.hp = 0;
@@ -2802,17 +3277,27 @@ export class Game {
     this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
     this.shakeT = 0.35;
     try { this.sfx(hitUrl, 0.8); } catch { /* noop */ }
+    this.playDeathOnce();
     this.pushHud();
     this.ev.onBusted({ score: this.score, coins: 0 });
     try { this.ev.onJumpscare?.(); } catch { /* noop */ }
+  }
+
+  /** Звук смерти в Бэкрумсе: играет 1 раз за жизнь (флаг сбрасывает revive/start). */
+  private deathPlayed = false;
+  private playDeathOnce(): void {
+    if (this.deathPlayed) return;
+    if (this.map !== 'backrooms' && this.map !== 'endless') return;
+    this.deathPlayed = true;
+    try { this.sfx(deathUrl, 1); } catch { /* noop */ }
   }
 
   debugFlyers(): number {
     return this.enemies.filter((e) => !e.dead && e.kind === 'fly').length;
   }
 
-  /** Туша моба: спрайт тела + полоска HP (общее для локальных и сетевых кукол). */
-  private makeEnemyVisuals(kind: 'walk' | 'fly' | 'boss'): { g: THREE.Group; body: THREE.Sprite; hpCv: HTMLCanvasElement; hpTex: THREE.CanvasTexture; hpSpr: THREE.Sprite } {
+  /** Туша моба: спрайт тела + красный рентген-контур + полоска HP (общее для локальных и сетевых кукол). */
+  private makeEnemyVisuals(kind: 'walk' | 'fly' | 'boss'): { g: THREE.Group; body: THREE.Sprite; ol: THREE.Sprite; hpCv: HTMLCanvasElement; hpTex: THREE.CanvasTexture; hpSpr: THREE.Sprite } {
     // в Бэкрумс потолок 3м — летуны бы скребли макушкой, только пешие (босс проходит: он земной)
     const fly = kind === 'fly' && this.map !== 'backrooms';
     const boss = kind === 'boss';
@@ -2822,6 +3307,15 @@ export class Game {
     body.scale.set(boss ? 2.8 : fly ? 1.2 : 1.4, boss ? 3.6 : fly ? 1.6 : 2.0, 1);
     body.position.set(0, boss ? 1.8 : fly ? 3.2 : 1.0, 0);
     g.add(body);
+    // контур рентгена: та же текстура в красном, чуть больше тела, рисуется РАНЬШЕ
+    // тела (renderOrder -1) и сквозь стены (depthTest false). Тело накрывает середину,
+    // по краям выглядывает красная кайма; за стеной видно только её, а не всю текстуру.
+    const ol = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, color: 0xff2222, opacity: 0.9, depthTest: false, depthWrite: false }));
+    ol.visible = false;
+    ol.renderOrder = -1;
+    ol.position.copy(body.position);
+    ol.scale.set(body.scale.x * 1.18, body.scale.y * 1.18, 1);
+    g.add(ol);
     // полоска HP с цифрами: рисуем на канвасе (пиксель-стиль)
     const hpCv = document.createElement('canvas');
     hpCv.width = 128; hpCv.height = 32;
@@ -2830,14 +3324,14 @@ export class Game {
     hpSpr.scale.set(boss ? 3.4 : 1.7, boss ? 0.84 : 0.42, 1);
     hpSpr.position.set(0, boss ? 4.1 : fly ? 4.6 : 2.35, 0);
     g.add(hpSpr);
-    return { g, body, hpCv, hpTex, hpSpr };
+    return { g, body, ol, hpCv, hpTex, hpSpr };
   }
 
   private spawnEnemy(kind: 'walk' | 'fly' | 'boss', minDist = 0, at: [number, number] | null = null): void {
     if (this.netSync) return;
     const boss = kind === 'boss';
     const fly = kind === 'fly' && this.map !== 'backrooms';
-    const { g, body, hpCv, hpTex, hpSpr } = this.makeEnemyVisuals(kind);
+    const { g, body, ol, hpCv, hpTex, hpSpr } = this.makeEnemyVisuals(kind);
     // точка спавна: только свободная (не внутри укрытий) и не впритык к игроку (босс — подальше)
     let sx = 0, sz = 40;
     let ok = false;
@@ -2898,14 +3392,14 @@ export class Game {
     g.position.set(sx, 0, sz);
     this.scene.add(g);
     const foe: Enemy = {
-      g, body, hpCv, hpTex, hpSpr, kind,
+      g, body, ol, hpCv, hpTex, hpSpr, kind,
       hp: boss ? 500 + this.wave * 50 : fly ? 70 : 100,
       maxhp: boss ? 500 + this.wave * 50 : fly ? 70 : 100,
       speed: boss ? 1.5 : 1.7 + Math.random() * 1.1 + this.wave * 0.12 + (fly ? 0.6 : 0),
       hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, ey: 0, evy: 0, hopCd: 1 + Math.random() * 2, dead: false,
       mobId: this.mobIdSeq++, net: false, tx: sx, tz: sz, snaps: [], ewave: this.wave,
       path: [], repathT: 0.1 + Math.random() * 0.2, god: false, climb: false,
-      ptx: sx, ptz: sz, lx: sx, lz: sz, stuckT: 0, slideT: 0, slideX: 0, slideZ: 0,
+      ptx: sx, ptz: sz, lx: sx, lz: sz, stuckT: 0, slideT: 0, slideX: 0, slideZ: 0, slideDir: 0,
       stepT: Math.random() * 0.4,
     };
     this.updateHpBar(foe);
@@ -2940,6 +3434,7 @@ export class Game {
 
   start(): void {
     this.started = true;
+    this.deathPlayed = false;
   }
 
   stop(): void {
@@ -3340,7 +3835,7 @@ export class Game {
 
   debugDash(): number { return Math.round(this.dashCd * 10) / 10; }
 
-  // несутка Ивангоя: 3с враги не видят и не преследуют, перезарядка 12с (качается до 8с).
+  // несутка Ивангоя: 3с враги не видят и не преследуют, перезарядка 30с (качается до 20с).
   invis(): boolean {
     if (!this.started || this.dead || this.invisCd > 0 || this.invisT > 0 || this.charId !== 'shuba') return false;
     this.invisT = 3;
@@ -3353,11 +3848,77 @@ export class Game {
   debugInvis(): { t: number; cd: number } {
     return { t: Math.round(this.invisT * 10) / 10, cd: Math.round(this.invisCd * 10) / 10 };
   }
+
+  // чумное облако Чумы: 5с враги в радиусе 9м травятся (9/с) и тормозятся на 45%,
+  // перезарядка 30с (качается до 20с). Бессмертных сталкеров не убивает — только тормозит.
+  chuma(): boolean {
+    if (!this.started || this.dead || this.chumaCd > 0 || this.chumaT > 0 || this.charId !== 'chuma') return false;
+    this.chumaT = 5;
+    this.chumaCd = superCd('chuma', this.upg['chuma']?.sup ?? 0);
+    this.burst(this.px, 0.8, this.pz, 16);
+    this.pushHud();
+    return true;
+  }
+
+  debugChuma(): { t: number; cd: number } {
+    return { t: Math.round(this.chumaT * 10) / 10, cd: Math.round(this.chumaCd * 10) / 10 };
+  }
+
+  /** Купол виден прямо сейчас (для тестов). */
+  debugDome(): boolean {
+    return !!this.chumaDome && this.chumaDome.visible;
+  }
+
+  // рентген Гидроксиса: 5с всех существ видно сквозь стены, перезарядка 20с
+  // (качается до 15с). Работает и на мобов, и на сокомнатников.
+  xray(): boolean {
+    if (!this.started || this.dead || this.xrayCd > 0 || this.xrayT > 0 || this.charId !== 'gidroxis') return false;
+    this.xrayT = 5;
+    this.xrayCd = superCd('gidroxis', this.upg['gidroxis']?.sup ?? 0);
+    this.burst(this.px, 1.2, this.pz, 12);
+    this.pushHud();
+    return true;
+  }
+
+  debugXray(): { t: number; cd: number } {
+    return { t: Math.round(this.xrayT * 10) / 10, cd: Math.round(this.xrayCd * 10) / 10 };
+  }
+
+  /** Контуры рентгена: враги (красные) и бойцы (белые) — видны ли прямо сейчас. */
+  debugXrayFlags(): { foe: boolean[]; mate: boolean[] } {
+    return {
+      foe: this.enemies.filter((e) => !e.dead).map((e) => e.ol.visible),
+      mate: this.remotes.filter((r) => !r.dead).map((r) => r.ol.visible),
+    };
+  }
+
+  /** Рентген: пока висит — у мобов красный контур, у бойцов белый (видны сквозь стены).
+      Сами текстуры не трогаем: тело рисуется как обычно, сквозь стену видна только кайма. */
+  private syncXray(): void {
+    const on = this.xrayT > 0;
+    const fit = (host: { body: THREE.Sprite; ol: THREE.Sprite }, dead: boolean): void => {
+      const ol = host.ol;
+      const show = on && !dead;
+      if (ol.visible !== show) ol.visible = show;
+      if (show) {
+        ol.position.copy(host.body.position);
+        ol.scale.set(host.body.scale.x * 1.18, host.body.scale.y * 1.18, 1);
+        const om = ol.material as THREE.SpriteMaterial;
+        const cur = host.body.material.map;
+        if (om.map !== cur) { om.map = cur; om.needsUpdate = true; }
+      }
+    };
+    for (const e of this.enemies) fit(e, e.dead);
+    for (const r of this.remotes) fit(r, r.dead);
+  }
   /** В бою (для общей комнаты): идёт игра и боец жив. */
   debugPlaying(): boolean { return this.started && !this.dead; }
   debugAtkCd(): number { return Math.round(this.atkCd * 10) / 10; }
   /** Гость ли я общей комнаты + сколько сетевых кукол держу. */
   debugNetSync(): boolean { return this.netSync; }
+  /** Тест-контракт кукол: включить/выключить гостя и влить слепок хоста. */
+  debugNetSyncSet(on: boolean): void { this.setNetSync(!!on); }
+  debugMobsSet(list: RemoteMob[]): void { this.setRemoteMobs(list); }
   debugNetMobs(): number { return this.enemies.filter((e) => e.net && !e.dead).length; }
   /** Отладка для тестов: сбросить кд атаки (детерминированный выстрел). */
   debugResetCd(): void { this.atkCd = 0; }
@@ -3369,7 +3930,7 @@ export class Game {
     if (typeof yaw === 'number' && Number.isFinite(yaw)) this.yaw = yaw;
   }
   debugRemoteList(): RemotePlayer[] {
-    return this.remotes.map((m) => ({ nick: m.nick, char: m.char, x: m.x, z: m.z, hp: m.hp, weapon: m.weapon, py: m.py, atk: m.atk, dead: m.dead, fid: m.fid }));
+    return this.remotes.map((m) => ({ nick: m.nick, char: m.char, x: m.x, z: m.z, yaw: m.yaw, hp: m.hp, weapon: m.weapon, py: m.py, atk: m.atk, dead: m.dead, fid: m.fid }));
   }
   /** Отладка для тестов: живые враги с координатами (навести прицел точно). */
   debugFoes(): Array<{ id: number; x: number; z: number; hp: number; dead: boolean; ey: number; climb: boolean; god: boolean }> {
@@ -3441,7 +4002,7 @@ export class Game {
           mobId: id, net: true, tx: v.g.position.x, tz: v.g.position.z, snaps: [{ t: performance.now(), x: v.g.position.x, z: v.g.position.z }], ewave: Math.round(Number(m.wave) || 1),
           path: [], repathT: 0, god: m.god === true, climb: false,
           ptx: v.g.position.x, ptz: v.g.position.z, lx: v.g.position.x, lz: v.g.position.z,
-          stuckT: 0, slideT: 0, slideX: 0, slideZ: 0, stepT: Math.random() * 0.4,
+          stuckT: 0, slideT: 0, slideX: 0, slideZ: 0, slideDir: 0, stepT: Math.random() * 0.4,
         };
         if (e.god) this.toStalkerLook(e);
         this.updateHpBar(e);
@@ -3523,9 +4084,76 @@ export class Game {
     this.drawMM();
   }
 
-  /** Обход стен: BFS по сетке 2м через hitSolid-оракул. Возвращает вейпоинты
-      от врага к цели (без стартовой клетки). Нет пути — пусто (идём в лоб). */
-  private findPath(fx: number, fz: number, tx: number, tz: number): Array<{ x: number; z: number }> {
+  /** Обход стен: в лабиринте — BFS по клеткам топологии (знаем стены точно),
+      на остальных картах — BFS по сетке 2м через hitSolid-оракул. Возвращает
+      вейпоинты от врага к цели (без стартовой клетки). Нет пути — пусто (идём
+      в лоб). Раньше лабиринт щупали геометрией 2м: 23 тысячи клеток, один поиск
+      висел ~2 секунды — отсюда фризы каждые несколько секунд. Теперь тысячные
+      доли секунды. Спрямление ниже гарантирует: каждый отрезок проходим телом. */
+  private findPath(fx: number, fz: number, tx: number, tz: number, clr = 0.9, y = 0): Array<{ x: number; z: number }> {
+    // ЛАБИРИНТ: идём по клеткам топологии (50×50 = 2500), а не щупаем геометрию.
+    // Стены между клетками знаем точно — поиск занимает тысячные доли секунды,
+    // а не 2 секунды как раньше. Спрямление ниже режет углы по прямой видимости.
+    if (this.mazeN > 0 && (this.map === 'backrooms' || this.map === 'endless')) {
+      const N = this.mazeN, S = this.mazeS, CM = S / N;
+      const w2c = (v: number) => Math.max(0, Math.min(N - 1, Math.floor((v + S / 2) / CM)));
+      const si = w2c(fx), sj = w2c(fz), ti = w2c(tx), tj = w2c(tz);
+      if (si !== ti || sj !== tj) {
+        const V = this.mazeV, H = this.mazeH;
+        const key = (ix: number, iz: number) => ix * N + iz;
+        const sk = key(si, sj), tk = key(ti, tj);
+        const prev = new Map<number, number>();
+        const seen = new Set<number>([sk]);
+        const q: Array<[number, number]> = [[si, sj]];
+        let qh = 0, found = false;
+        while (qh < q.length) {
+          const cur = q[qh++]!;
+          if (key(cur[0], cur[1]) === tk) { found = true; break; }
+          const cx = cur[0], cz = cur[1], ck = key(cx, cz);
+          if (cx > 0 && !V[cx][cz]) { const k = key(cx - 1, cz); if (!seen.has(k)) { seen.add(k); prev.set(k, ck); q.push([cx - 1, cz]); } }
+          if (cx < N - 1 && !V[cx + 1][cz]) { const k = key(cx + 1, cz); if (!seen.has(k)) { seen.add(k); prev.set(k, ck); q.push([cx + 1, cz]); } }
+          if (cz > 0 && !H[cx][cz]) { const k = key(cx, cz - 1); if (!seen.has(k)) { seen.add(k); prev.set(k, ck); q.push([cx, cz - 1]); } }
+          if (cz < N - 1 && !H[cx][cz + 1]) { const k = key(cx, cz + 1); if (!seen.has(k)) { seen.add(k); prev.set(k, ck); q.push([cx, cz + 1]); } }
+        }
+        if (found) {
+          const cells: Array<[number, number]> = [];
+          let c = tk, guard = 10000;
+          while (c !== sk && guard-- > 0) {
+            cells.push([Math.floor(c / N), c % N]);
+            const p = prev.get(c);
+            if (p === undefined) break;
+            c = p;
+          }
+          cells.reverse();
+          const ctr = (ix: number, iz: number) => ({ x: -S / 2 + (ix + 0.5) * CM, z: -S / 2 + (iz + 0.5) * CM });
+          const pts: Array<{ x: number; z: number }> = [{ x: fx, z: fz }];
+          for (const cl of cells) pts.push(ctr(cl[0], cl[1]));
+          pts.push({ x: tx, z: tz });
+          const losClear = (ax: number, az: number, bx: number, bz: number): boolean => {
+            const d = Math.hypot(bx - ax, bz - az);
+            const n = Math.max(1, Math.ceil(d / 0.5));
+            for (let i = 1; i <= n; i++) {
+              if (this.hitSolid(ax + ((bx - ax) * i) / n, az + ((bz - az) * i) / n, clr, y)) return false;
+            }
+            return true;
+          };
+          const out: Array<{ x: number; z: number }> = [];
+          let anchor = 0;
+          while (anchor < pts.length - 1) {
+            let jump = anchor + 1;
+            for (let k = anchor + 2; k < pts.length; k++) {
+              if (losClear(pts[anchor].x, pts[anchor].z, pts[k].x, pts[k].z)) jump = k;
+              else break;
+            }
+            out.push(pts[jump]);
+            anchor = jump;
+          }
+          return out;
+        }
+        return [];
+      }
+      return [];
+    }
     const CELL = 2, R = Math.ceil(this.half / CELL), OFF = 64;
     const gx = (v: number) => Math.max(-R, Math.min(R, Math.round(v / CELL)));
     const key = (ix: number, iz: number) => (ix + OFF) * 4096 + (iz + OFF);
@@ -3534,7 +4162,7 @@ export class Game {
     // цель внутри стены (игрок вжался в дом): дёргаем цель на ближайшую
     // свободную клетку спиралью, иначе BFS заливает всю карту и возвращает [].
     // Именно это и душило кадры, когда ты упирался в стену, а орда шла к тебе.
-    if (this.hitSolid(t.ix * CELL, t.iz * CELL, 0.9, 0)) {
+    if (this.hitSolid(t.ix * CELL, t.iz * CELL, clr, y)) {
       let fixed = false;
       for (let ring = 1; ring <= 6 && !fixed; ring++) {
         for (let ax = -ring; ax <= ring && !fixed; ax++) {
@@ -3542,7 +4170,7 @@ export class Game {
             if (Math.max(Math.abs(ax), Math.abs(az)) !== ring) continue;
             const cix = t.ix + ax, ciz = t.iz + az;
             if (Math.abs(cix) > R || Math.abs(ciz) > R) continue;
-            if (!this.hitSolid(cix * CELL, ciz * CELL, 0.9, 0)) { t.ix = cix; t.iz = ciz; fixed = true; }
+            if (!this.hitSolid(cix * CELL, ciz * CELL, clr, y)) { t.ix = cix; t.iz = ciz; fixed = true; }
           }
         }
       }
@@ -3557,8 +4185,11 @@ export class Game {
     // очередь указателем (без shift — иначе O(n²) на тысячах клеток)
     let qh = 0;
     let foundTk = false;
-    // потолок заливки: карманы без прохода честно дают [], а не жуют весь кадр
-    while (qh < q.length && q.length < 4000) {
+    // потолок заливки — вся сетка карты целиком: сталкер видит всю карту и строит
+    // маршрут через неё полностью (тупики обходит, а не тыкается). Карманов без
+    // прохода честно дают [], а не жуют кадр — BFS конечен размером сетки.
+    const cap = (2 * R + 1) * (2 * R + 1);
+    while (qh < q.length && q.length < cap) {
       const cur = q[qh++]!;
       if (key(cur[0], cur[1]) === tk) { foundTk = true; break; }
       for (const o of nb) {
@@ -3566,13 +4197,15 @@ export class Game {
         if (Math.abs(nx) > R || Math.abs(nz) > R) continue;
         const k = key(nx, nz);
         if (seen.has(k)) continue;
-        if (this.hitSolid(nx * CELL, nz * CELL, 0.9, 0)) continue;
-        // без среза углов: диагональ — только если обе ортогональные соседки свободны.
-        // Иначе маршрут ведёт в угловую щель, куда тело 0.8 не лезет, и моб клинит,
-        // хотя рядом есть честный проход. Именно это и видели: «проход есть, не идёт».
+        if (this.hitSolid(nx * CELL, nz * CELL, clr, y)) continue;
+        // без среза углов: диагональ — только если обе ортогональные соседки свободны
+        // ПЛЮС середина диагонали свободна: кончик стены (Т-стык лабиринта) может
+        // стоять ровно на середине диагонали — центры соседок его не видят (дальше
+        // метра), а тело 0.9 в него втыкается. Проверяем середину тем же радиусом.
         if (o[0] !== 0 && o[1] !== 0) {
-          if (this.hitSolid((cur[0] + o[0]) * CELL, cur[1] * CELL, 0.9, 0)) continue;
-          if (this.hitSolid(cur[0] * CELL, (cur[1] + o[1]) * CELL, 0.9, 0)) continue;
+          if (this.hitSolid((cur[0] + o[0]) * CELL, cur[1] * CELL, clr, y)) continue;
+          if (this.hitSolid(cur[0] * CELL, (cur[1] + o[1]) * CELL, clr, y)) continue;
+          if (this.hitSolid((cur[0] + o[0] / 2) * CELL, (cur[1] + o[1] / 2) * CELL, clr, y)) continue;
         }
         seen.add(k);
         prev.set(k, key(cur[0], cur[1]));
@@ -3597,7 +4230,7 @@ export class Game {
       const d = Math.hypot(bx - ax, bz - az);
       const n = Math.max(1, Math.ceil(d / 0.5));
       for (let i = 1; i <= n; i++) {
-        if (this.hitSolid(ax + ((bx - ax) * i) / n, az + ((bz - az) * i) / n, 0.9, 0)) return false;
+        if (this.hitSolid(ax + ((bx - ax) * i) / n, az + ((bz - az) * i) / n, clr, y)) return false;
       }
       return true;
     };
@@ -3669,10 +4302,10 @@ export class Game {
     return false;
   }
 
-  /** Звуки МТТ (его файлы): выстрел, удар, отскок Крысы. Молчит при выключенном звуке. */
+  /** Звуки МТТ (его файлы): выстрел, удар, отскок Крысы. Молчит при выключенном звуке. Громкость — vol × общий слайдер. */
   private sfxCache: Record<string, HTMLAudioElement> = {};
   private sfx(url: string, vol = 0.7): void {
-    if (!this.soundOn) return;
+    if (!this.soundOn || this.volume <= 0.01) return;
     try {
       let a = this.sfxCache[url];
       if (!a) {
@@ -3680,7 +4313,7 @@ export class Game {
         a.preload = 'auto';
         this.sfxCache[url] = a;
       }
-      a.volume = vol;
+      a.volume = Math.max(0, Math.min(1, vol * this.volume));
       a.currentTime = 0;
       void a.play().catch(() => undefined);
     } catch { /* noop */ }
@@ -3693,7 +4326,7 @@ export class Game {
   private stepN = 0;
   private eStepN = 0;
   private stepSound(vol: number, pitch: number): void {
-    if (!this.soundOn || vol <= 0.01) return;
+    if (!this.soundOn || this.volume <= 0.01 || vol <= 0.01) return;
     try {
       if (!this.stepCtx) this.stepCtx = new AudioContext();
       const ctx = this.stepCtx;
@@ -3710,7 +4343,7 @@ export class Game {
       f.type = 'lowpass';
       f.frequency.value = pitch;
       const g = ctx.createGain();
-      g.gain.value = Math.min(0.4, vol);
+      g.gain.value = Math.min(0.4, vol * this.volume);
       src.connect(f); f.connect(g); g.connect(ctx.destination);
       src.start();
     } catch { /* noop */ }
@@ -3750,8 +4383,13 @@ export class Game {
       kick: Math.round(this.wallKickCd * 10) / 10,
       invis: Math.round(this.invisT * 10) / 10,
       invisCd: Math.round(this.invisCd * 10) / 10,
+      chuma: Math.round(this.chumaT * 10) / 10,
+      chumaCd: Math.round(this.chumaCd * 10) / 10,
+      xray: Math.round(this.xrayT * 10) / 10,
+      xrayCd: Math.round(this.xrayCd * 10) / 10,
       fps: Math.round(this.fpsE),
       quality: this.quality,
+      doorPulse: this.doorPulse,
     });
   }
 
@@ -3766,12 +4404,20 @@ export class Game {
     g.fillStyle = 'rgba(4,8,16,.9)';
     g.fillRect(0, 0, W, H);
     const toMap = (x: number, z: number): [number, number] => [
-      W / 2 + (x / (HALF + 4)) * (W / 2 - 4),
-      H / 2 + (z / (HALF + 4)) * (H / 2 - 4),
+      W / 2 + (x / (this.half + 4)) * (W / 2 - 4),
+      H / 2 + (z / (this.half + 4)) * (H / 2 - 4),
     ];
     g.fillStyle = '#ff9f1c';
     const [mx, mz] = toMap(this.px, this.pz);
     g.beginPath(); g.arc(mx, mz, 4, 0, Math.PI * 2); g.fill();
+    // дверь выхода — зелёный квадрат (бэкрумс): видно, куда бежать.
+    // Маяк: раз в минуту 5 секунд — квадрат вдвое больше и золотой.
+    if (this.door) {
+      const [dx, dz] = toMap(this.door.x, this.door.z);
+      g.fillStyle = this.doorPulse ? '#ffd166' : '#39d353';
+      const s = this.doorPulse ? 6 : 3;
+      g.fillRect(dx - s, dz - s, s * 2, s * 2);
+    }
     g.fillStyle = '#ff3b3b';
     for (const e of this.enemies) {
       if (e.dead) continue;
@@ -3783,10 +4429,10 @@ export class Game {
   private charTexCache: Record<string, THREE.Texture> = {};
 
   private charTexture(id: string): THREE.Texture {
-    const key = id === 'krysa' ? 'krysa' : id === 'shuba' ? 'shuba' : 'mtt';
+    const key = id === 'krysa' ? 'krysa' : id === 'shuba' ? 'shuba' : id === 'chuma' ? 'chuma' : id === 'gidroxis' ? 'gidroxis' : 'mtt';
     let t = this.charTexCache[key];
     if (!t) {
-      t = new THREE.TextureLoader().load(key === 'krysa' ? charKrysaUrl : key === 'shuba' ? charShubaUrl : charMttUrl);
+      t = new THREE.TextureLoader().load(key === 'krysa' ? charKrysaUrl : key === 'shuba' ? charShubaUrl : key === 'chuma' ? charChumaUrl : key === 'gidroxis' ? charGidroxisUrl : charMttUrl);
       t.colorSpace = THREE.SRGBColorSpace;
       this.charTexCache[key] = t;
     }
@@ -3838,7 +4484,7 @@ export class Game {
       const pfid0 = Math.floor(Number(p.fid));
       const key = Number.isFinite(pfid0) && pfid0 >= 0 ? 'fid:' + pfid0 : 'nick:' + nick;
       seen.add(key);
-      const char = p.char === 'krysa' ? 'krysa' : p.char === 'shuba' ? 'shuba' : 'mtt';
+      const char = p.char === 'krysa' ? 'krysa' : p.char === 'shuba' ? 'shuba' : p.char === 'chuma' ? 'chuma' : p.char === 'gidroxis' ? 'gidroxis' : 'mtt';
       const weapon = p.weapon === 'bat' || p.weapon === 'axe' || p.weapon === 'pistol' || p.weapon === 'shotgun' ? p.weapon : 'fists';
       let r: Remote | undefined = undefined;
       for (const q of this.remotes) {
@@ -3851,6 +4497,13 @@ export class Game {
         body.scale.set(1.4, 2.0, 1);
         body.position.set(0, 1.0, 0);
         g.add(body);
+        // белый контур рентгена: как у мобов, только белый — своих видно сквозь стены
+        const ol = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.charTexture(char), transparent: true, color: 0xffffff, opacity: 0.9, depthTest: false, depthWrite: false }));
+        ol.visible = false;
+        ol.renderOrder = -1;
+        ol.position.copy(body.position);
+        ol.scale.set(body.scale.x * 1.18, body.scale.y * 1.18, 1);
+        g.add(ol);
         const gunCv = document.createElement('canvas');
         gunCv.width = 64; gunCv.height = 64;
         const gunTex = new THREE.CanvasTexture(gunCv);
@@ -3867,7 +4520,7 @@ export class Game {
         lab.position.set(0, 2.5, 0);
         g.add(lab);
         this.scene.add(g);
-        r = { nick, g, body, cv, tex: ltex, gunCv, gunTex, x: 0, z: 0, tx: 0, tz: 0, snaps: [], hp: 100, char, weapon: '', py: 0, atk: 0, flash: 0, dead: false, fid: -1 };
+        r = { nick, g, body, ol, cv, tex: ltex, gunCv, gunTex, x: 0, z: 0, yaw: 0, tx: 0, tz: 0, snaps: [], hp: 100, char, weapon: '', py: 0, atk: 0, flash: 0, dead: false, fid: -1 };
         this.gunIcon(weapon, gunCv, gunTex);
         r.weapon = weapon;
         this.remotes.push(r);
@@ -3875,9 +4528,10 @@ export class Game {
         if (r.nick !== nick) r.nick = nick;
         if (r.char !== char) {
           r.char = char;
-          const body = r.g.children[0] as THREE.Sprite;
-          body.material.map = this.charTexture(char);
-          body.material.needsUpdate = true;
+          r.body.material.map = this.charTexture(char);
+          r.body.material.needsUpdate = true;
+          r.ol.material.map = this.charTexture(char);
+          r.ol.material.needsUpdate = true;
         }
         if (r.weapon !== weapon) {
           r.weapon = weapon;
@@ -3893,8 +4547,30 @@ export class Game {
       if (rr.x === 0 && rr.z === 0 && (rr.tx !== 0 || rr.tz !== 0)) { rr.x = rr.tx; rr.z = rr.tz; }
       rr.hp = Math.max(0, Math.min(100, Number(p.hp) || 0));
       rr.py = Math.max(0, Math.min(30, Number(p.py) || 0));
+      const yawV = Number(p.yaw);
+      if (Number.isFinite(yawV)) rr.yaw = Math.max(-10, Math.min(10, yawV));
       const atk = Math.max(0, Math.floor(Number(p.atk) || 0));
-      if (atk !== rr.atk) { rr.atk = atk; rr.flash = 0.3; }
+      if (atk !== rr.atk) {
+        rr.atk = atk;
+        rr.flash = 0.3;
+        // чужая пуля: светящаяся линия от куклы по её взгляду — видно, кто куда стреляет.
+        // Ближний бой (кулаки/бита/секира) — только дёрганье телом, линию не рисуем.
+        if (!rr.dead && (rr.weapon === 'pistol' || rr.weapon === 'shotgun')) {
+          const len = rr.weapon === 'shotgun' ? 20 : 30;
+          const dx = -Math.sin(rr.yaw), dz = -Math.cos(rr.yaw);
+          const sx = rr.tx, sy = 1.4 + rr.py, sz = rr.tz;
+          this.burst(sx + dx, sy, sz + dz, 3);
+          if (rr.weapon === 'shotgun') {
+            // веер дроби: центр + два боковых луча
+            for (const a of [-0.09, 0, 0.09]) {
+              const c = Math.cos(a), s = Math.sin(a);
+              this.tracer(sx, sy, sz, sx + (dx * c - dz * s) * len, sy, sz + (dx * s + dz * c) * len);
+            }
+          } else {
+            this.tracer(sx, sy, sz, sx + dx * len, sy, sz + dz * len);
+          }
+        }
+      }
       rr.dead = p.dead === true;
       const pfid = Math.floor(Number(p.fid));
       rr.fid = Number.isFinite(pfid) && pfid >= 0 ? pfid : -1;
@@ -3935,6 +4611,8 @@ export class Game {
   }
 
   debugRemotes(): number { return this.remotes.length; }
+  /** Сколько линий пуль сейчас висит в кадре (для тестов). */
+  debugTracers(): number { return this.tracers.length; }
 
   // хуки для тестов
   debugPos(): { x: number; z: number; hp: number; enemies: number; kills: number; wave: number; yaw: number; py: number; pitch: number } {
@@ -3999,8 +4677,8 @@ export class Game {
       return { ...s, r: Math.hypot(s.hx, s.hz) };
     });
   }
-  debugSolidAt(x: number, z: number, y: number): boolean {
-    return this.hitSolid(Number(x) || 0, Number(z) || 0, 0.9, Number(y) || 0);
+  debugSolidAt(x: number, z: number, y: number, r = 0.9): boolean {
+    return this.hitSolid(Number(x) || 0, Number(z) || 0, Number(r) > 0 ? Number(r) : 0.9, Number(y) || 0);
   }
   /** Тест-контракт обхода: вейпоинты BFS от точки к точке (чистая функция, без времени). */
   debugPath(fx: number, fz: number, tx: number, tz: number): Array<{ x: number; z: number }> {
@@ -4047,23 +4725,41 @@ export class Game {
   private loop = (): void => {
     if (this.destroyed) return;
     this.raf = requestAnimationFrame(this.loop);
+    const tLoop = performance.now();
     const dt = Math.min(this.clock.getDelta(), 0.05);
     // FPS-метр (сглаживание) + свежий бюджет BFS на кадр
     if (dt > 0.0005) this.fpsE += (1 / dt - this.fpsE) * 0.05;
-    this.bfsBudget = 3;
+    this.bfsBudget = 5;
     this.frame++;
     // жуть Бэкрумса: мигание ламп + фонарь (только если карта их завела)
     if (this.torch || this.lampFlicker.length > 0) this.updateLamps(dt);
-    // авто-качество: 4с просадки ниже 28 FPS на nice — тихо сбрасываем на fast
+    // купол Чумы — каждый кадр (виден, пока облако висит; смерть и меню гасят)
+    this.syncChumaDome();
+    // рентген Гидроксиса тикает + щёлкает видимость сквозь стены каждый кадр
+    if (this.xrayT > 0) {
+      this.xrayT -= dt;
+      if (this.xrayT <= 0) { this.xrayT = 0; this.pushHud(); }
+      else if (Math.floor(this.xrayT * 2) !== Math.floor((this.xrayT + dt) * 2)) this.pushHud();
+    }
+    if (this.xrayCd > 0) {
+      this.xrayCd -= dt;
+      if (this.xrayCd <= 0) { this.xrayCd = 0; this.pushHud(); }
+      else if (Math.floor(this.xrayCd * 5) !== Math.floor((this.xrayCd + dt) * 5)) this.pushHud();
+    }
+    this.syncXray();
+    // авто-качество: 4с просадки ниже 28 FPS — тихо спускаемся на ступень (high → medium → low)
     if (this.started) {
-      if (this.fpsE < 28 && this.quality === 'nice') this.lowT += dt;
+      if (this.fpsE < 28 && this.quality !== 'low') this.lowT += dt;
       else this.lowT = 0;
       if (this.lowT > 4) {
         this.lowT = 0;
-        this.setQuality('fast');
+        this.setQuality(this.quality === 'high' ? 'medium' : 'low');
       }
     }
-    if (this.started && !this.dead) {
+    // Бой и движение — живым; НАБЛЮДАТЕЛЬ (и мёртвый тоже) идёт здесь же:
+    // в наблюдатели попадают именно мёртвыми, а полёт/камера/следование живут ниже.
+    // Защита от трупных артефактов — внутри: attack/jump/абилки/урон проверяют specOn/dead сами.
+    if (this.started && (!this.dead || this.specOn)) {
       const km = this.keyMap;
       // поворот стрелками
       if (this.input.ArrowLeft) this.yaw += 1.9 * dt;
@@ -4150,10 +4846,9 @@ export class Game {
       // Наблюдатель способностей не жмёт.
       if (this.input[km.ability] && this.charId !== 'krysa' && !this.specOn) {
         this.input[km.ability] = false;
-        if (this.charId === 'shuba') this.invis(); else this.dash();
-      } else if (this.specOn) {
-        this.input[km.ability] = false;
+        if (this.charId === 'shuba') this.invis(); else if (this.charId === 'chuma') this.chuma(); else if (this.charId === 'gidroxis') this.xray(); else this.dash();
       }
+      // NOTE: призраку input.ability НЕ чистим — это его спуск (C) в flySpec ниже.
       if (this.dashCd > 0) this.dashCd -= dt;
       // несутка тикает: кончилась — сбрасываем HUD (враги снова видят)
       if (this.invisT > 0) {
@@ -4166,23 +4861,41 @@ export class Game {
         if (this.invisCd <= 0) { this.invisCd = 0; this.pushHud(); }
         else if (Math.floor(this.invisCd * 5) !== Math.floor((this.invisCd + dt) * 5)) this.pushHud();
       }
-      // смена оружия на назначенной клавише (по умолчанию E) — только купленное
-      if (this.input[km.switch] || this.input.KeyE) {
+      // облако тикает: висит — травим округу в ветке врагов, кончилось — сброс HUD
+      if (this.chumaT > 0) {
+        this.chumaT -= dt;
+        if (this.chumaT <= 0) { this.chumaT = 0; this.pushHud(); }
+        else {
+          this.chumaFxT -= dt;
+          if (this.chumaFxT <= 0) { this.chumaFxT = 0.4; this.burst(this.px, 0.8, this.pz, 6); }
+          if (Math.floor(this.chumaT * 2) !== Math.floor((this.chumaT + dt) * 2)) this.pushHud();
+        }
+      }
+      if (this.chumaCd > 0) {
+        this.chumaCd -= dt;
+        if (this.chumaCd <= 0) { this.chumaCd = 0; this.pushHud(); }
+        else if (Math.floor(this.chumaCd * 5) !== Math.floor((this.chumaCd + dt) * 5)) this.pushHud();
+      }
+      // смена оружия на назначенной клавише (по умолчанию E) — только купленное; призрак не меняет
+      if (!this.specOn && (this.input[km.switch] || this.input.KeyE)) {
         this.input[km.switch] = false;
         this.input.KeyE = false;
         this.switchWeapon();
       }
-      // аптечка на назначенной клавише (по умолчанию X)
-      if (this.input[km.use] || this.input.KeyX) {
+      // аптечка на назначенной клавише (по умолчанию X); призрак не лечится
+      if (!this.specOn && (this.input[km.use] || this.input.KeyX)) {
         this.input[km.use] = false;
         this.input.KeyX = false;
         this.useMedkit();
       }
       // движение: назначенные клавиши + стрелки + джойстик.
-      // Наблюдатель стоит: камера висит на цели, ноги не ходят.
+      // Наблюдатель: ноги стоят, камера летит сама сквозь стены (WASD — полёт, Space/C — вверх/вниз).
       let f = (this.input[km.fwd] || this.input.ArrowUp ? 1 : 0) - (this.input[km.back] || this.input.ArrowDown ? 1 : 0) - this.joy.y;
       let r = (this.input[km.right] ? 1 : 0) - (this.input[km.left] ? 1 : 0) + this.joy.x;
-      if (this.specOn) { f = 0; r = 0; }
+      if (this.specOn) {
+        // ноги стоят; ПОЛЁТ — ниже, вне ворот !dead (мёртвый наблюдатель тоже летит)
+        f = 0; r = 0;
+      }
       f = Math.max(-1, Math.min(1, f));
       r = Math.max(-1, Math.min(1, r));
       // бросок летит сам: кнопки на время полёта глушим
@@ -4273,6 +4986,63 @@ export class Game {
         // приземление на опору под ногами: земля, крыша, мост, ступень (бросок гасим)
         const g = this.groundAt(this.px, this.pz);
         if (this.py <= g) { this.py = g; this.pvy = 0; this.blastT = 0; this.blastDx = 0; this.blastDz = 0; }
+        // наблюдатель: тело держим под картой, чтобы чужие куклы его не видели
+        if (this.specOn) { this.py = -60; this.pvy = 0; }
+      }
+      // НАБЛЮДАТЕЛЬ летит здесь (ворота выше расширены на specOn): WASD — полёт,
+      // стрелки-поворот — выше, Space/C — вверх/вниз внутри flySpec.
+      if (this.specOn && this.started) {
+        const km2 = this.keyMap;
+        const sf = (this.input[km2.fwd] || this.input.ArrowUp ? 1 : 0) - (this.input[km2.back] || this.input.ArrowDown ? 1 : 0) - this.joy.y;
+        const sr = (this.input[km2.right] ? 1 : 0) - (this.input[km2.left] ? 1 : 0) + this.joy.x;
+        this.flySpec(sf, sr, dt);
+      }
+      // МАЯК ДВЕРИ: раз в минуту 5 секунд — ЗЕЛЁНОЕ мигание СКВОЗЬ СТЕНЫ + баннер
+      // всем (бойцам и наблюдателям). Синхрон по сиду комнаты: у всех одна фаза.
+      if (this.doorMode && this.doorMesh) {
+        const natural = this.started && (((Date.now() / 1000) + (this.mapSeed % 60)) % 60) < 5;
+        const on = this.doorPulseForce !== null ? (this.started && this.doorPulseForce) : natural;
+        const dm = this.doorMesh.material as THREE.MeshBasicMaterial;
+        if (on !== this.doorPulse) {
+          this.doorPulse = on;
+          if (on) {
+            // дверь поверх всего: видно сквозь стены; туман дверь не прячет
+            dm.color.set(0x39d353);
+            dm.transparent = true;
+            dm.depthTest = false;
+            dm.fog = false;
+            dm.needsUpdate = true;
+            this.doorMesh.renderOrder = 999;
+          } else {
+            dm.color.set(0xffffff);
+            dm.transparent = false;
+            dm.opacity = 1;
+            dm.depthTest = true;
+            dm.fog = true;
+            dm.needsUpdate = true;
+            this.doorMesh.renderOrder = 0;
+            if (this.doorGlow) this.doorGlow.intensity = 0;
+          }
+          this.pushHud();
+        }
+        if (on) {
+          // мигание ~2 раза в секунду: только сама дверь + лёгкая вспышка рядом
+          const bl = Math.floor(Date.now() / 500) % 2 === 0;
+          dm.opacity = bl ? 1 : 0.25;
+          if (this.doorGlow) { this.doorGlow.color.set(0x39d353); this.doorGlow.intensity = bl ? 18 : 4; }
+        }
+      }
+      // дверь выхода: живой боец КОСНУЛСЯ — один раз за забег (призрак мимо).
+      // Честное касание: вплотную (1.4м) И со стороны коридора, куда дверь смотрит.
+      // Сквозь стену (с чужой стороны) не засчитывает.
+      // Дальше — баннер «ты выбрался» + награда (App через onEscape).
+      if (this.doorMode && this.door && !this.escapedFired && !this.specOn && !this.dead && this.started) {
+        const ddx = this.px - this.door.x, ddz = this.pz - this.door.z;
+        const dd = Math.hypot(ddx, ddz);
+        if (dd < 1.4 && ddx * this.doorFace.x + ddz * this.doorFace.z > -0.3) {
+          this.escapedFired = true;
+          try { this.ev.onEscape?.(); } catch { /* noop */ }
+        }
       }
       // наблюдатель: камеру держим на живом каждый кадр (цель бежит — летим за ней)
       this.updateSpecFollow();
@@ -4280,20 +5050,22 @@ export class Game {
       for (const e of this.enemies) {
         if (e.dead) continue;
         // наблюдателя и несутку-Ивангоя враги не видят: себя из целей убираем, бьём только живых бойцов.
-        // Сталкеры (god): идут к ближайшему живому — сокомнатнику (себя скипаем в specOn/невидимости)
+        // ВСЕ местные (и сталкеры, и обычные) идут к ближайшему живому — себе или
+        // сокомнатнику. Раньше обычные шли только на хоста, а второй игрок для них
+        // был пустым местом. Урон считает клиент жертвы (см. huntingRemote ниже).
         const hidden = this.specOn || this.invisT > 0;
         let txp = hidden ? Infinity : this.px, tzp = hidden ? Infinity : this.pz;
         let huntingRemote = false;
         if (hidden) {
-          // только живые сокомнатники; нет живых — враг стоит (цели нет)
+          // только живые сокомнатники; нет живых — проваливаемся в стойбище ниже
+          // (маршрут чистим, BFS-бюджет не жрём)
           let bd = Infinity;
           for (const r of this.remotes) {
             if (r.dead) continue;
             const rd = Math.hypot(r.x - e.g.position.x, r.z - e.g.position.z);
             if (rd < bd) { bd = rd; txp = r.x; tzp = r.z; huntingRemote = true; }
           }
-          if (!huntingRemote) continue;
-        } else if (e.god && !e.net) {
+        } else if (!e.net) {
           let bd = Math.hypot(txp - e.g.position.x, tzp - e.g.position.z);
           for (const r of this.remotes) {
             if (r.dead) continue;
@@ -4301,14 +5073,39 @@ export class Game {
             if (rd < bd) { bd = rd; txp = r.x; tzp = r.z; huntingRemote = true; }
           }
         }
+        // цели нет вообще (наблюдатель один на карте / все сокомнатники мертвы):
+        // стоим на месте, маршрут чистим, BFS-бюджет НЕ трогаем. Иначе толпа идёт
+        // в угол карты (Infinity режется клампом в R) и съедает все 5 BFS на кадр —
+        // после этого живые мобы маршрут не получают и тыкаются в стены.
+        if (!Number.isFinite(txp) || !Number.isFinite(tzp)) {
+          e.path = [];
+          e.repathT = 0.3;
+          e.stuckT = 0;
+          e.slideT = 0;
+          if (e.hitCd > 0) e.hitCd -= dt;
+          e.phase += dt * (2 + e.speed);
+          continue;
+        }
         const dx = txp - e.g.position.x;
         const dz = tzp - e.g.position.z;
         const d = Math.hypot(dx, dz) || 1;
         if (e.net) {
-          // кукла: прошлое по буферу хоста (без «догнал—стою» при рваных битах)
+          // кукла: прошлое по буферу хоста (без «догнал—стою» при рваных битах).
+          // Слепки хоста стен не знают — ведём куклу со скольжением вдоль стен,
+          // иначе на экране гостя мобы идут СКВОЗЬ стены. Высота летуна своя.
           const mp = this.snapAt(e.snaps, performance.now() - 550, e.tx, e.tz);
-          e.g.position.x = mp.x;
-          e.g.position.z = mp.z;
+          const eyH = e.kind === 'fly' ? 3.2 : e.ey;
+          const dcx = clampArena(mp.x, this.half);
+          const dcz = clampArena(mp.z, this.half);
+          let bx = this.hitSolid(dcx, e.g.position.z, 0.8, eyH);
+          let bz = this.hitSolid(e.g.position.x, dcz, 0.8, eyH);
+          if (!bx && !bz && dcx !== e.g.position.x && dcz !== e.g.position.z
+            && this.hitSolid(dcx, dcz, 0.8, eyH)) {
+            if (Math.abs(dcx - e.g.position.x) >= Math.abs(dcz - e.g.position.z)) bz = true;
+            else bx = true;
+          }
+          if (!bx) e.g.position.x = dcx;
+          if (!bz) e.g.position.z = dcz;
           // кукла сталкера рядом — бьёт гостя локально (серверный урон гаснет только у хоста).
           // наблюдателя не бьём вообще: камера летает, тела в бою нет.
           // БЭКРУМС: 1 удар = смерть + скример. Остальные карты — старый урон.
@@ -4332,7 +5129,26 @@ export class Game {
               this.pushHud();
             }
           }
-        } else if (e.god && !huntingRemote && d <= 2.3 && e.hitCd <= 0 && this.shieldT <= 0) {
+          // кукла ОБЫЧНОГО моба рядом — тоже бьёт гостя локально (раньше обычные
+          // гостя вообще не трогали: второй игрок был бессмертным статистом).
+          if (!e.god && !this.dead && !this.specOn && this.invisT <= 0) {
+            const pd = Math.hypot(this.px - e.g.position.x, this.pz - e.g.position.z);
+            if (pd <= 2.3 && e.hitCd <= 0 && this.shieldT <= 0) {
+              e.hitCd = e.kind === 'boss' ? 1.2 : 0.95;
+              this.hp -= e.kind === 'boss' ? 18 + Math.random() * 10 : 6 + Math.random() * 5;
+              this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
+              this.shakeT = 0.25;
+              this.sfx(hitUrl, 0.8);
+              if (this.hp <= 0) {
+                this.hp = 0;
+                this.dead = true;
+                this.pushHud();
+                this.ev.onBusted({ score: this.score, coins: 0 });
+              }
+              this.pushHud();
+            }
+          }
+        } else if (e.god && !huntingRemote && !this.dead && d <= 2.3 && e.hitCd <= 0 && this.shieldT <= 0) {
           // БЭКРУМС: 1 удар = смерть + скример. Остальные карты — старый урон.
           e.hitCd = 1.0;
           if (this.map === 'backrooms' || this.map === 'endless') { this.killByStalker(); }
@@ -4353,27 +5169,42 @@ export class Game {
           // LOD: дальние (>45м) шевелятся через кадр — глаз не заметит, процессор скажет спасибо
           if (d <= 45 || (this.frame & 1) === 0 || e.god) {
           const eyH = e.kind === 'fly' ? 3.2 : e.ey;
+          // габарит туши для проверок прохода: босс шире дверей, ему запас больше
+          const CLR = e.kind === 'boss' ? 1.3 : 0.9;
           // пеший местный: виден напрямую — в лоб; за стеной — по вейпоинтам BFS.
-          // Летуны и сетевые куклы — старым ходом (небо и слепки не знают стен).
+          // Летуны — тем же маршрутом, но на своей высоте (облетают высокие дома, а не тонут в них).
+          // Сетевые куклы — старым ходом (слепки хоста не знают стен).
           let wx = txp, wz = tzp;
-          if (!e.net && e.kind !== 'fly') {
+          if (!e.net) {
             e.repathT -= dt;
             // цель ушла далеко от спланированной — маршрут протух, пересчёт сразу
             if (Math.hypot(txp - e.ptx, tzp - e.ptz) > 4) e.repathT = Math.min(e.repathT, 0.08);
             if (e.repathT <= 0 || e.path.length === 0) {
-              // прямая видимость: шаг 2м, не дальше 48м (дальше — сразу BFS-бюджет)
+              // прямая видимость: шаг 2м, не дальше 48м (дальше — сразу BFS-бюджет).
+              // Заодно меряем высоту преграды: всё низкое (до 1.9м) — напролом
+              // с прыжком, объезд не строим (заборы и ящики не повод для крюка).
               let blocked = false;
+              let lowOnly = e.kind === 'walk';
               const far = Math.min(d, 48);
               const checks = Math.min(24, Math.max(1, Math.ceil(far / 2)));
               for (let s = 1; s <= checks; s++) {
                 const t = (far * s) / (checks + 1);
-                if (this.hitSolid(e.g.position.x + (dx / d) * t, e.g.position.z + (dz / d) * t, 0.9, eyH)) { blocked = true; break; }
+                const qx = e.g.position.x + (dx / d) * t, qz = e.g.position.z + (dz / d) * t;
+                if (this.hitSolid(qx, qz, CLR, eyH)) {
+                  blocked = true;
+                  // всю линию меряем: за низким забором может стоять дом.
+                  // rad=CLR: тонкая стена в замер попадает, а не только толстый дом
+                  if (this.groundAt(qx, qz, CLR) - eyH > 1.9) lowOnly = false;
+                }
               }
               if (!blocked && d <= 48) {
                 e.path = [];
+              } else if (blocked && lowOnly && d <= 48) {
+                // низкое — в лоб: рядом подпрыгнет (см. триггер прыжка ниже)
+                e.path = [];
               } else if (this.bfsBudget > 0) {
                 this.bfsBudget--;
-                e.path = this.findPath(e.g.position.x, e.g.position.z, txp, tzp);
+                e.path = this.findPath(e.g.position.x, e.g.position.z, txp, tzp, CLR, e.kind === 'fly' ? eyH : 0);
               } else {
                 // бюджет кадра исчерпан (орда Нашествия) — повторим через 0.12с, пока идём в лоб
                 e.path = [];
@@ -4381,7 +5212,10 @@ export class Game {
                 continue;
               }
               e.ptx = txp; e.ptz = tzp;
-              e.repathT = (e.god ? 0.25 : 0.4) + Math.random() * 0.3;
+              // дальний сталкер (>60м) идёт минутами — ему пересчёт раз в ~секунду
+              // хватает, а кадры не жрёт. Ближние — как было, шустрые.
+              const farT = d > 60;
+              e.repathT = (e.god ? (farT ? 0.8 : 0.25) : 0.4) + Math.random() * (farT ? 0.5 : 0.3);
             }
             if (e.path.length > 0) {
               const wp = e.path[0];
@@ -4391,15 +5225,22 @@ export class Game {
           }
           const ddx = wx - e.g.position.x, ddz = wz - e.g.position.z;
           const dd = Math.hypot(ddx, ddz) || 1;
-          // анти-прижим к углу: ползём медленнее 0.5м за 0.35с, хотя идём, —
-          // слайд вбок 0.7с (дальше от угла) + маршрут пересчитать сразу
+          // анти-прижим к углу: стоим дольше 0.25с, хотя идём, —
+          // слайд вбок 0.6с В СТОРОНУ ЦЕЛИ (угол огибаем, а не качаемся) + маршрут пересчитать сразу
           const moved = Math.hypot(e.g.position.x - e.lx, e.g.position.z - e.lz);
           if (moved < 0.5) {
             e.stuckT += dt;
-            if (e.stuckT > 0.35 && e.slideT <= 0) {
+            if (e.stuckT > 0.25 && e.slideT <= 0) {
               e.stuckT = 0;
-              e.slideT = 0.7;
-              const side = Math.random() < 0.5 ? 1 : -1;
+              e.slideT = 0.6;
+              // с какой стороны от курса цель: туда и ползём вдоль стены
+              const toTx = txp - e.g.position.x, toTz = tzp - e.g.position.z;
+              const cross = ddx * toTz - ddz * toTx;
+              let side = cross > 0.5 ? 1 : cross < -0.5 ? -1 : 0;
+              // цель ровно за стеной (непонятно куда) — чередуем бок, а не рандом:
+              // рандом мог дважды дать тот же тупик, чередование выводит всегда
+              if (side === 0) side = e.slideDir !== 0 ? -e.slideDir : (Math.random() < 0.5 ? 1 : -1);
+              e.slideDir = side;
               e.slideX = (-ddz / dd) * side;
               e.slideZ = (ddx / dd) * side;
               e.repathT = Math.min(e.repathT, 0.05);
@@ -4417,8 +5258,17 @@ export class Game {
             const ml = Math.hypot(mdx, mdz) || 1;
             mdx /= ml; mdz /= ml;
           }
-          const nx = e.g.position.x + mdx * e.speed * dt;
-          const nz = e.g.position.z + mdz * e.speed * dt;
+          // чумное облако Чумы: в радиусе 9м враг травится (9/с) и ползёт на 55% скорости.
+          // Бессмертного сталкера не убивает (HP 9999), но тормозит — можно убежать.
+          const inCloud = this.chumaT > 0 && d < 9 && !e.dead;
+          if (inCloud) {
+            e.hp -= 9 * dt;
+            this.updateHpBar(e);
+            if (e.hp <= 0) this.strikeEnemy(e, 1, ddx, ddz, dd || 1, 0);
+          }
+          const foeSpd = e.speed * (inCloud ? 0.55 : 1);
+          const nx = e.g.position.x + mdx * foeSpd * dt;
+          const nz = e.g.position.z + mdz * foeSpd * dt;
           // топот орды: слышно в радиусе 18м, громкость тает с дистанцией
           e.stepT -= dt;
           if (e.stepT <= 0) {
@@ -4443,6 +5293,35 @@ export class Game {
           }
           if (!blockedX) e.g.position.x = cx;
           if (!blockedZ) e.g.position.z = cz;
+          // ЛАЗАНЬЕ + ПРЫЖКИ: все ходоки кроме босса (босс — kind 'boss', летуны — 'fly').
+          // Низкое (до 1.9м: ящик, забор) — перепрыгивают (прыжок 6 м/с, вершина 1.8м —
+          // solidHit считает верх объекта полом, пролетают свободно).
+          // Высокое (до 12м: стена, дом) — лезут вверх 2.5 м/с, дальше идут по крыше.
+          const canClimb = e.kind === 'walk';
+          if (canClimb && (blockedX || blockedZ)) {
+            // высоту меряем ЩУПОМ ВПЕРЁД (до 2м по курсу): точка рядом со стеной
+            // ещё не внутри неё, а тонкий забор в замер без щупа не попадает
+            let top = 0;
+            for (let k = 1; k <= 4; k++) {
+              const qx = e.g.position.x + mdx * 0.5 * k, qz = e.g.position.z + mdz * 0.5 * k;
+              if (this.hitSolid(qx, qz, 0.5, e.ey)) { top = this.groundAt(qx, qz, 0.5); break; }
+            }
+            const dh = top - e.ey;
+            if (dh > 0 && dh <= 1.9 && e.ey - this.groundAt(e.g.position.x, e.g.position.z) <= 0.05 && e.evy <= 0) { e.evy = 6; e.climbHold = false; this.jumpDBG++; }
+            else if (dh > 1.9 && dh <= 12) { e.ey = Math.min(top, e.ey + 2.5 * dt); e.climbHold = true; this.climbDBG++; }
+          }
+          if (canClimb) {
+            const gt = this.groundAt(e.g.position.x, e.g.position.z);
+            // спуск — только на свободном ходу (сошёл с крыши); пока упёрт в стену
+            // (blocked) — лезем вверх, тянуть вниз нельзя (иначе топчемся на 0.6м).
+            // В полёте прыжка (evy!=0) тоже не лезем — там правит баллистика
+            if (!(blockedX || blockedZ) && e.evy === 0 && e.ey > gt + 0.05) {
+              e.climbHold = false;
+              // СПРЫГИВАНИЕ с крыши: высоко — быстро вниз (12 м/с), ступенька — плавно
+              if (e.ey - gt > 1.0) { e.ey = Math.max(gt, e.ey - 12 * dt); this.dropDBG++; }
+              else e.ey += (gt - e.ey) * Math.min(1, dt * 4);
+            }
+          }
           if (e.climb && (blockedX || blockedZ)) {
             // скалолаз: стена до 12м — лезем вверх (2.5 м/с), дальше идём по крыше
             const top = this.groundAt(blockedX ? cx : e.g.position.x, blockedZ ? cz : e.g.position.z);
@@ -4454,7 +5333,18 @@ export class Game {
             if (e.ey > gt) e.ey += (gt - e.ey) * Math.min(1, dt * 4);
           }
           } // LOD: дальние двигаются через кадр
-        } else if (e.hitCd <= 0 && this.shieldT <= 0 && !this.specOn && this.invisT <= 0) {
+        } else if (!huntingRemote && !this.dead && e.hitCd <= 0 && this.shieldT <= 0 && !this.specOn && this.invisT <= 0) {
+          // бьём ТОЛЬКО себя: враг добежал до сокомнатника (huntingRemote) — урон считает его клиент, нам чужого не надо.
+          // Труп тоже не бьём: умер — тишина, без добивания и звуков после смерти.
+          // Облако Чумы достаёт и в упор (враг бьёт — сам травится).
+          if (this.chumaT > 0) {
+            const pdx = this.px - e.g.position.x, pdz = this.pz - e.g.position.z;
+            if (Math.hypot(pdx, pdz) < 9) {
+              e.hp -= 9 * dt;
+              this.updateHpBar(e);
+              if (e.hp <= 0) this.strikeEnemy(e, 1, pdx, pdz, 1, 0);
+            }
+          }
           e.hitCd = e.kind === 'boss' ? 1.2 : 0.95;
           // босс бьёт втрое злее
           this.hp -= e.kind === 'boss' ? 18 + Math.random() * 10 : 6 + Math.random() * 5;
@@ -4464,6 +5354,7 @@ export class Game {
           if (this.hp <= 0) {
             this.hp = 0;
             this.dead = true;
+            this.playDeathOnce();
             this.pushHud();
             this.ev.onBusted({ score: this.score, coins: 0 });
           }
@@ -4478,13 +5369,15 @@ export class Game {
           // скалолаз не прыгает — высота от стены/крыши
           e.body.position.y = 1.0 + e.ey;
         } else {
-          // прыжки орды
+          // прыжки орды; висящего на стене (climbHold) гравитация не трогает —
+          // высоту ведёт лазанье, иначе карабканье вечно топчется у земли
+          if (e.climbHold && e.ey <= this.groundAt(e.g.position.x, e.g.position.z) + 0.05 && e.evy <= 0) e.climbHold = false;
           e.hopCd -= dt;
-          if (e.hopCd <= 0 && e.ey <= 0) {
+          if (!e.climbHold && e.hopCd <= 0 && e.ey <= 0) {
             e.evy = 2.5 + Math.random() * 1.5;
             e.hopCd = 2 + Math.random() * 2;
           }
-          if (e.ey > 0 || e.evy !== 0) {
+          if (!e.climbHold && (e.ey > 0 || e.evy !== 0)) {
             e.evy -= 10 * dt;
             e.ey += e.evy * dt;
             if (e.ey <= 0) { e.ey = 0; e.evy = 0; }
@@ -4524,15 +5417,25 @@ export class Game {
       }
     }
     // камера от первого лица + покачивание ходьбы.
-    // Наблюдатель: глаза на цели с высоты 2.6м, осмотр мышью свободный.
+    // Наблюдатель: свободная камера (высота specY, осмотр мышью), покачивания нет.
     const shake = this.shakeT > 0 ? Math.sin(performance.now() / 20) * 0.03 : 0;
-    const bob = this.moving ? Math.sin(this.bobPhase) * 0.055 : 0;
+    const bob = this.moving && !this.specOn ? Math.sin(this.bobPhase) * 0.055 : 0;
     const kick = this.swingT > 0 ? -this.swingT * 0.35 : 0;
     const camX = this.specOn ? this.specX : this.px;
     const camZ = this.specOn ? this.specZ : this.pz;
-    const camY = this.specOn ? 2.6 : 1.7 + this.py;
+    const camY = this.specOn ? this.specY : 1.7 + this.py;
     this.camera.position.set(camX, camY + shake + bob, camZ);
     this.camera.rotation.set(this.pitch + kick, this.yaw, 0);
+    const tJs = performance.now();
     this.renderer.render(this.scene, this.camera);
+    const tEnd = performance.now();
+    // прибор лагов: сколько кадр жрала логика (JS) и сколько отрисовка (рендер)
+    this.perfJs += tJs - tLoop; this.perfR += tEnd - tJs; this.perfN++;
   };
+  /** Прибор лагов: средние мс логики/рендера за замер + сброс. */
+  debugPerf(): { js: number; r: number; n: number; jump: number; climb: number; drop: number } {
+    const o = { js: this.perfN ? this.perfJs / this.perfN : 0, r: this.perfN ? this.perfR / this.perfN : 0, n: this.perfN };
+    this.perfJs = 0; this.perfR = 0; this.perfN = 0;
+    return { js: Math.round(o.js * 10) / 10, r: Math.round(o.r * 10) / 10, n: o.n, jump: this.jumpDBG, climb: this.climbDBG, drop: this.dropDBG };
+  }
 }
