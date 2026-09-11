@@ -9,7 +9,7 @@ type Solid = {
 const S = solids as Solid[];
 const byTag = (t: string): Solid[] => S.filter((s) => s.tag === t);
 
-const BRIDGE_XS = [-50, 0, 50];
+const BRIDGE_XS = [-48, 0, 48]; // R1: мосты на авеню
 
 // Движок: deck h=1.2 проходим снизу (y < h-0.5), верх — опора;
 // колонны парапетов (h=2.2) — стены. Те же дефы, что в london-interior.

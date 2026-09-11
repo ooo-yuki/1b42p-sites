@@ -14,29 +14,14 @@ const M = mesh as unknown as {
   uv: number[]; positions: number[];
 };
 
-// Зелень: счётчики солидов + геометрия рядом.
-test('london green: 12+ деревьев, 8+ лавок, 10+ фонарей', () => {
+// Зелень R1: деревьев нет (снесены под дома); лавки и фонари на месте.
+test('london green: 0 деревьев, 8+ лавок, 10+ фонарей', () => {
   const trunks = byTag('trunk');
   const benches = byTag('bench');
   const lamps = byTag('lamp');
-  expect(trunks.length).toBeGreaterThanOrEqual(12);
+  expect(trunks.length).toBe(0); // R1: деревья снесены, вместо них дома
   expect(benches.length).toBeGreaterThanOrEqual(8);
   expect(lamps.length).toBeGreaterThanOrEqual(10);
-  for (const t of trunks) {
-    expect(t.h).toBeCloseTo(3.0, 6); // ствол-коробка bark
-    expect(t.hx).toBeCloseTo(0.25, 6);
-    expect(t.hz).toBeCloseTo(0.25, 6);
-    expect(t.deck).toBeUndefined();
-    // крона: вершина октаэдр-блоба выше ствола (≥4м) в радиусе 2м
-    let top = -Infinity;
-    for (let i = 0; i < M.positions.length; i += 3) {
-      const x = M.positions[i]!, z = M.positions[i + 2]!;
-      if (Math.hypot(x - t.x, z - t.z) > 2.2) continue;
-      const y = M.positions[i + 1]!;
-      if (y > top) top = y;
-    }
-    expect(top).toBeGreaterThanOrEqual(4.0);
-  }
   for (const bn of benches) {
     expect(bn.h).toBeGreaterThanOrEqual(0.9); // сиденье+спинка держат
     expect(bn.deck).toBeUndefined();
@@ -56,11 +41,12 @@ test('london green: 12+ деревьев, 8+ лавок, 10+ фонарей', ()
   }
 });
 
-// Процедурки задачи 4 в меше и в атласе; брусчатка/листва/кора/дерево
-// реально используются (углы меша семплят их прямоугольники).
-test('london green: процедурки pavement/slate/leaf/bark/wood', () => {
-  for (const p of ['zz_pavement.png', 'zz_slate.png', 'zz_leaf.png', 'zz_bark.png', 'zz_wood.png']) {
-    expect(M.proc).toContain(p);
+// R1: ambient CC0 реально используются (углы меша семплят их прямоугольники);
+// leaf/bark со сносом деревьев вышли из употребления — их отсутствие ок.
+test('london green: ambient-тайлы стен/крыши/мостовой в атласе и в деле', () => {
+  const amb = ['amb-wall1.jpg', 'amb-wall2.jpg', 'amb-wall3.jpg',
+               'amb-roof.jpg', 'amb-pave.jpg'];
+  for (const p of amb) {
     expect(M.atlas_tiles[p], `нет тайла ${p} в атласе`).toBeDefined();
   }
   const W = 2048, H = (mesh as unknown as { atlas_h: number }).atlas_h;
@@ -72,13 +58,13 @@ test('london green: процедурки pavement/slate/leaf/bark/wood', () => {
   const used = new Set<string>();
   for (let i = 0; i < M.uv.length; i += 2) {
     const uu = M.uv[i]!, vv = M.uv[i + 1]!;
-    for (const p of ['zz_pavement.png', 'zz_slate.png', 'zz_leaf.png', 'zz_bark.png', 'zz_wood.png']) {
+    for (const p of amb) {
       if (inRect(p, uu, vv)) { used.add(p); break; }
     }
-    if (used.size === 5) break;
+    if (used.size === amb.length) break;
   }
-  expect([...used].sort(), `неиспользуемые тайлы`).toEqual(
-    ['zz_bark.png', 'zz_leaf.png', 'zz_pavement.png', 'zz_slate.png', 'zz_wood.png'].sort(),
+  expect([...used].sort(), `неиспользуемые ambient-тайлы`).toEqual(
+    [...amb].sort(),
   );
 });
 

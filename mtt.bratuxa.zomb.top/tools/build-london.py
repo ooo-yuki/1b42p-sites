@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""London Task 1+2: генератор процедурного Лондона 170x170 -> szeged-mesh-3.
+"""London Task 1+2 (+R1): генератор процедурного Лондона 170x170 -> szeged-mesh-3.
 
 Выход (байт-в-байт схема szeged-mesh-3):
   src/assets/szeged.mesh.json, src/assets/szeged.solids.json,
   src/assets/szeged-atlas.jpg, tools/szeged-spawn.json
-Layout: поле 170, канал z+-4 с водой, улицы сетка 6м + 3 переулка 4м,
-площадь (0,-45) 40x40, >=24 домов-коробок (фасад mi%4 curated, скатные
-крыши cur-roof), STREET_TILE-тег для задачи 4, спавн у площади.
+Layout R1: поле 170, канал z+-4 с водой, набережные 2.5м + 4 спуска
+к воде, улицы сетка 3.5м + переулки 2.5м, площадь (0,-45) 40x40,
+плотные дома 8-12м (зазор 0-1м, к воде отступ 1м), чётные mi кирпич,
+нечётные — штукатурка охра/терракота, жирные арки через переулки,
+сквозные дома 6, лавки+кованые фонари (деревьев нет).
 Seed 42, только PIL+stdlib. Исходники фото Szeged НЕ используются.
 
 Run: python3 tools/build-london.py --seed 42
@@ -64,6 +66,29 @@ STREET_TILE = PROC_PAVE
 GROUND_TINT = (0.42, 0.4, 0.37)  # страховочная земля -> асфальт
 WATER_TINT = (0.25, 0.45, 0.75)  # вода канала
 WHITE = (1.0, 1.0, 1.0)
+
+# R1: крохатные улицы — авеню 3.5м шагом 16м, переулки 2.5м.
+AVE_STEP = 16.0
+AVE_W = 3.5
+AVENUES = [-80.0, -64.0, -48.0, -32.0, -16.0, 0.0,
+           16.0, 32.0, 48.0, 64.0, 80.0]
+BRIDGE_XS = (-48.0, 0.0, 48.0)  # мосты на авеню (было -50/0/50 мимо сетки)
+STAIR_XS = (-24.0, 24.0)  # спуски к воде (венецианские лестницы)
+ALLEY_W = 2.5
+# R1: ambient-текстуры (london-tex, CC0 seamless) + curated в ротации стен.
+AMB_WALLS = ["amb-wall1.jpg", "amb-wall2.jpg", "amb-wall3.jpg"]
+AMB_ROOF = "amb-roof.jpg"
+AMB_PAVE = "amb-pave.jpg"
+AMB_SRC = {"amb-wall1.jpg": "ambient-wall1.jpg",
+           "amb-wall2.jpg": "ambient-wall2.jpg",
+           "amb-wall3.jpg": "ambient-wall3.jpg",
+           "amb-roof.jpg": "ambient-roof.jpg",
+           "amb-pave.jpg": "ambient-pave.jpg"}
+WALL_TILES = AMB_WALLS + ["cur-wall1.jpg", "cur-wall2.jpg",
+                          "cur-wall3.jpg", "cur-wall4.jpg"]
+WALL_S = 3.0  # метр/тайл стен (без растяжек: шов каждые 3м)
+ROOF_S = 2.5  # черепица мелкая
+PAVE_S = 4.0  # брусчатка крупная
 
 PLAZA = (-20.0, 20.0, -65.0, -25.0)  # x0,x1,z0,z1, центр (0,-45)
 PLAZA_C = (0.0, -45.0)
@@ -475,6 +500,17 @@ def main():
     rng = random.Random(a.seed)
     prng = random.Random(42)
     b = Baker()
+    # R1: ambient-текстуры раньше улиц (улицы сразу на amb-pave).
+    amb_aspect = {}
+    for amb_name, src_name in AMB_SRC.items():
+        p = here / "london-tex" / src_name
+        try:
+            with Image.open(p) as im:
+                amb_aspect[amb_name] = im.size[1] / max(1, im.size[0])
+        except Exception as e:
+            print(f"ambient: missing {src_name}: {e}", flush=True)
+    missing_amb = [c for c in list(AMB_SRC) if c not in amb_aspect]
+    street_tile = AMB_PAVE if AMB_PAVE not in missing_amb else STREET_TILE
 
     # ---- земля: две плиты три-сеткой по обе стороны канала ----
     grid_plate(b, -HALF, HALF, CANAL_HALF + 0.3, HALF, 0.0, 2.0,
@@ -486,15 +522,20 @@ def main():
     b.add_box(0, -0.6, 0, FIELD, 0.2, CANAL_HALF * 2,
               PROC_ASPH, WATER_TINT, 4.0)
 
-    AV = [-75.0, -45.0, -15.0, 15.0, 45.0, 75.0]  # авеню 6м, шаг ~30м
-    AH = [-75.0, -45.0, -15.0, 15.0, 45.0, 75.0]
+    AV = AVENUES  # авеню 3.5м, шаг 16м (R1: крохатные)
+    AH = AVENUES
+    AW = AVE_W / 2  # полуширина авеню
 
     def bank_runs():
-        """Прогоны берегов с разрывами под мосты (задача 3) на авеню."""
-        gaps = sorted(v for v in AV)
+        """Прогоны берегов с разрывами: авеню (±1.75), мосты (±3.5),
+        спуски к воде (±1.5)."""
+        gaps = [(v - AW, v + AW) for v in AV
+                if v not in BRIDGE_XS and v not in STAIR_XS]
+        gaps += [(bx - 3.5, bx + 3.5) for bx in BRIDGE_XS]
+        gaps += [(sx - 1.5, sx + 1.5) for sx in STAIR_XS]
         cuts = [-HALF]
-        for v in gaps:
-            cuts += [v - 3.0, v + 3.0]
+        for (g0, g1) in sorted(gaps):
+            cuts += [g0, g1]
         cuts += [HALF]
         runs = []
         for i in range(0, len(cuts), 2):
@@ -515,49 +556,85 @@ def main():
                       PROC_COOL, (0.6, 0.62, 0.65), 4.0)
             b.add_solid(cx, zc, sx / 2, 0.3, 1.0)
 
-    # ---- улицы: авеню 6м (верх 0.06), переулки 4м, площадь ----
-    for xv in AV:  # вертикальные, разрыв над каналом (мосты — задача 3)
+    # ---- улицы: авеню 3.5м (верх 0.06), переулки 2.5м, площадь ----
+    for xv in AV:  # вертикальные, разрыв над каналом (мосты deck)
         for z0, z1 in ((CANAL_HALF + 0.3, HALF), (-HALF, -(CANAL_HALF + 0.3))):
-            b.add_box(xv, 0.01, (z0 + z1) / 2, 6.0, 0.1, z1 - z0,
-                      STREET_TILE, (0.9, 0.9, 0.9), 4.0)
+            b.add_box(xv, 0.01, (z0 + z1) / 2, AVE_W, 0.1, z1 - z0,
+                      street_tile, (0.9, 0.9, 0.9), 4.0)
     # горизонтальные — сегментами между вертикальными (без z-fight)
-    bounds = [-HALF] + [v for xv in AV for v in (xv - 3.0, xv + 3.0)] + [HALF]
+    bounds = [-HALF] + [v for xv in AV for v in (xv - AW, xv + AW)] + [HALF]
     for zh in AH:
         for i in range(0, len(bounds), 2):
             x0, x1 = bounds[i], bounds[i + 1]
             if x1 - x0 < 0.5:
                 continue
-            b.add_box((x0 + x1) / 2, 0.01, zh, x1 - x0, 0.1, 6.0,
-                      STREET_TILE, (0.9, 0.9, 0.9), 4.0)
-    # 3 переулка 4м
+            b.add_box((x0 + x1) / 2, 0.01, zh, x1 - x0, 0.1, AVE_W,
+                      street_tile, (0.9, 0.9, 0.9), 4.0)
+    # 2 переулка 2.5м (R1: крохатные) + поперечный
     ALLEYS = [
-        (-40.0, -36.0, 8.0, 64.0),    # A1 N-S, восток куска 18м под дома
-        (36.0, 40.0, -82.0, -8.0),    # A2 N-S, запад куска 18м под дома
+        (-24.0, -21.5, 8.0, 64.0),    # A1 N-S между авеню -32/-16
+        (21.5, 24.0, -82.0, -8.0),    # A2 N-S между авеню 16/32
     ]
     for x0, x1, z0, z1 in ALLEYS:
         b.add_box((x0 + x1) / 2, -0.01, (z0 + z1) / 2, x1 - x0, 0.1, z1 - z0,
-                  STREET_TILE, (0.88, 0.88, 0.88), 4.0)
+                  street_tile, (0.88, 0.88, 0.88), 4.0)
     # A3 E-W: сегментами (мимо авеню и A1 — без копланарных стыков)
-    A3Z = (66.0, 70.0)
-    a3cuts = sorted(set(bounds + [-40.0, -36.0]))
+    A3Z = (56.0, 58.5)
+    a3cuts = sorted(set(bounds + [-24.0, -21.5]))
     for i in range(0, len(a3cuts), 2):
         x0, x1 = a3cuts[i], a3cuts[i + 1]
         if x1 - x0 < 0.5:
             continue
         b.add_box((x0 + x1) / 2, -0.008, (A3Z[0] + A3Z[1]) / 2,
                   x1 - x0, 0.1, A3Z[1] - A3Z[0],
-                  STREET_TILE, (0.88, 0.88, 0.88), 4.0)
+                  street_tile, (0.88, 0.88, 0.88), 4.0)
     # площадь 40x40, центр (0,-45)
     px0, px1, pz0, pz1 = PLAZA
     b.add_box((px0 + px1) / 2, 0.0, (pz0 + pz1) / 2,
               px1 - px0, 0.1, pz1 - pz0,
-              STREET_TILE, (0.85, 0.82, 0.78), 4.0)
+              street_tile, (0.85, 0.82, 0.78), 4.0)
+
+    # ---- R1: набережные 2.5м вдоль канала + венецианские спуски к воде ----
+    # Променад y=0 за береговой стенкой; разрывы там же, где у берегов.
+    prom_gaps = ([(v - AW, v + AW) for v in AV
+                  if v not in BRIDGE_XS and v not in STAIR_XS] +
+                 [(bx - 3.5, bx + 3.5) for bx in BRIDGE_XS] +
+                 [(sx - 1.5, sx + 1.5) for sx in STAIR_XS])
+    pcuts = [-HALF]
+    for (g0, g1) in sorted(prom_gaps):
+        pcuts += [g0, g1]
+    pcuts += [HALF]
+    for i in range(0, len(pcuts), 2):
+        x0, x1 = pcuts[i], pcuts[i + 1]
+        if x1 - x0 < 0.5:
+            continue
+        for zc in (CANAL_HALF + 0.6 + 1.25, -(CANAL_HALF + 0.6 + 1.25)):
+            b.add_box((x0 + x1) / 2, 0.0, zc, x1 - x0, 0.1, 2.5,
+                      street_tile, (0.87, 0.85, 0.82), 4.0)
+    # Спуски: через верх берега (1.0) вниз к урезу; ступени кратные 0.5м
+    # (тест interior), площадка у воды — только меш, парапет h=1.5 в конце.
+    for sx in STAIR_XS:
+        for sgn in (1, -1):
+            for (dz, top) in ((5.3, 0.5), (4.9, 1.0), (4.5, 0.5)):
+                zc = sgn * dz
+                b.add_box(sx, top / 2, zc, 3.0, top, 0.6,
+                          street_tile, WHITE, 4.0)
+                b.add_solid(sx, zc, 1.5, 0.3, top, tag="step")
+            b.add_box(sx, 0.0, sgn * 4.05, 3.0, 0.12, 0.6,
+                      street_tile, WHITE, 4.0)
+            for cx in (sx - 1.7, sx + 1.7):
+                b.add_box(cx, 0.8, sgn * 4.55, 0.4, 1.6, 2.0,
+                          PROC_COOL, WHITE, 4.0)
+                b.add_solid(cx, sgn * 4.55, 0.2, 1.0, 1.6, tag="wall")
+            b.add_box(sx, 0.75, sgn * 3.55, 3.4, 1.5, 0.3,
+                      PROC_COOL, WHITE, 4.0)
+            b.add_solid(sx, sgn * 3.55, 1.7, 0.15, 1.5, tag="wall")
 
     # ---- дома-коробки в кварталах между авеню ----
     xivs = [(bounds[i], bounds[i + 1]) for i in range(0, len(bounds), 2)
             if bounds[i + 1] - bounds[i] >= 9.0]
     zivs = xivs  # та же сетка по z
-    alley_rects = [(-40.0, -36.0, 8.0, 64.0), (36.0, 40.0, -82.0, -8.0),
+    alley_rects = [(-24.0, -21.5, 8.0, 64.0), (21.5, 24.0, -82.0, -8.0),
                    (-HALF, HALF, A3Z[0], A3Z[1])]
     canal_rect = (-HALF, HALF, -(CANAL_HALF + 1.0), CANAL_HALF + 1.0)
     plaza_rect = (px0 - 1.0, px1 + 1.0, pz0 - 1.0, pz1 + 1.0)
@@ -601,7 +678,7 @@ def main():
 
     def place_in(qx0, qx1, qz0, qz1):
         """Один дом в кусок; широкие куски — пополам под два дома."""
-        m = 0.8
+        m = 0.5  # R1: дома впритык (зазор 0-1м)
         qw, qd = (qx1 - qx0), (qz1 - qz0)
         if qw - 2 * m >= 2 * 10.0 + 0.6 and qw >= qd:
             xm = (qx0 + qx1) / 2
@@ -638,6 +715,10 @@ def main():
             print(f"curated: missing {src_name}: {e}", flush=True)
     missing_cur = [c for c in list(CUR_SRC) if c not in cur_aspect]
     unresolved = list(missing_cur)
+    # единый словарь пропорций стен (ambient + curated владельца)
+    wall_aspect = dict(cur_aspect)
+    wall_aspect.update(amb_aspect)
+    unresolved.extend(missing_amb)
 
     # ---- Task 2: интерьеры, балконы, крыши-террасы ----
     # Стены комнаты — тонкие боксы с разрывом 2м (дверь); цельный солид дома
@@ -679,21 +760,37 @@ def main():
                     hz + d / 2 > PLAZA_C[1] - 8.0)
 
     avail = [i for i in order if far_spawn(i)]
-    interior_ids = set(avail[:8])
-    through_ids = set(avail[:2])
+    # R1: дома впритык к воде — дверь у канала упрётся в берег:
+    # интерьеры/террасы только там, где обе двери выходят на улицу.
+    def doors_clear(i):
+        _hx, _hz, _w, _d, _hh = houses[i]
+        return not (abs(_hz - _d / 2) < 7.5 or abs(_hz + _d / 2) < 7.5)
+
+    interior_list = []
+    for i in avail:
+        if len(interior_list) >= 8:
+            break
+        if not doors_clear(i):
+            continue
+        interior_list.append(i)
+    assert len(interior_list) >= 8, f"интерьеров {len(interior_list)} < 8"
+    interior_ids = set(interior_list)
+    through_ids = set(interior_list[:6])  # R1: сквозных минимум 6
     used = set(interior_ids)
     terrace_ids = []
-    for i in avail:  # нужен интерьер w>=12 под прямой марш 18 ступеней
+    for i in avail:  # R1: дома 8-12м — терраса H=6 (12 ступеней по 7.2м марш)
         if i in used:
             continue
-        if houses[i][2] >= 12.0:
+        if not doors_clear(i):
+            continue
+        if houses[i][2] >= 10.0:
             terrace_ids.append(i)
             used.add(i)
         if len(terrace_ids) == 3:
             break
     assert len(terrace_ids) == 3, f"террас {len(terrace_ids)} < 3"
     terrace_set = set(terrace_ids)
-    house_h = {i: 9.0 for i in terrace_ids}  # плоская крыша, короткий марш
+    house_h = {i: 6.0 for i in terrace_ids}  # плоская крыша, короткий марш
 
     def balc_rect(i, side, dirx):
         hx, hz, w, d, _h = houses[i]
@@ -721,13 +818,13 @@ def main():
 
     def wall_seg(cx, cz, sx, sz, H, tile, tsv):
         b.add_box(cx, H / 2 - 0.05, cz, sx, H + 0.05, sz,
-                  tile, WHITE, 8.0, tsv)
+                  tile, WHITE, WALL_S, tsv)
         b.add_solid(cx, cz, sx / 2, sz / 2, H, tag="wall")
 
     def door_face(dx, wz, H, tile, tsv):
         # перемычка над проёмом — только меш; порог — низкий маркер солида
         b.add_box(dx, (DOOR_H + H) / 2, wz, DOOR_W, H - DOOR_H, WT,
-                  tile, WHITE, 8.0, tsv)
+                  tile, WHITE, WALL_S, tsv)
         b.add_solid(dx, wz, DOOR_W / 2, 0.3, 0.12, tag="door")
 
     def build_interior(hx, hz, w, d, H, tile, tsv, through):
@@ -768,11 +865,11 @@ def main():
                     deck=True, tag="balcony")
         zo = zf + side * (STAIR_W - 0.1)
         b.add_box(hx, BALC_H + 0.5, zo, 4.0, 1.0, 0.2,
-                  tile, WHITE, 8.0, tsv)
+                  tile, WHITE, WALL_S, tsv)
         b.add_solid(hx, zo, 2.0, 0.1, BALC_H + 1.0, tag="rail")
         xs = hx - 1.9 if dirx > 0 else hx + 1.9  # дальняя от лестницы
         b.add_box(xs, BALC_H + 0.5, zc, 0.2, 1.0, STAIR_W,
-                  tile, WHITE, 8.0, tsv)
+                  tile, WHITE, WALL_S, tsv)
         b.add_solid(xs, zc, 0.1, STAIR_W / 2, BALC_H + 1.0, tag="rail")
         if dirx > 0:
             build_steps_x(hx + 2.0 + 6 * TREAD, zc, -1, 6, STAIR_W)
@@ -807,21 +904,22 @@ def main():
             parapets.append(((ax + bx_) / 2, zS - pt / 2, bx_ - ax, pt))
         for (cx_, cz_, sx, sz) in parapets:
             b.add_box(cx_, H + 0.5, cz_, sx, 1.0, sz,
-                      tile, WHITE, 8.0, tsv)
+                      tile, WHITE, WALL_S, tsv)
             b.add_solid(cx_, cz_, sx / 2, sz / 2, H + 1.0, tag="parapet")
 
     for mi, (hx, hz, w, d, h) in enumerate(houses):
         H = house_h.get(mi, h)
-        facade = CUR_WALLS[mi % len(CUR_WALLS)]
-        if facade in missing_cur:
+        # R1: ротация всех стен (ambient + curated владельца), масштаб WALL_S.
+        facade = WALL_TILES[mi % len(WALL_TILES)]
+        if facade in missing_cur or facade in missing_amb:
             facade = PROC_WARM
-        fsv = 8.0 * cur_aspect.get(facade, 1.0)
+        fsv = WALL_S * wall_aspect.get(facade, 1.0)
         if mi in interior_ids or mi in terrace_set:
             build_interior(hx, hz, w, d, H, facade, fsv,
                            mi in through_ids)
         else:
             b.add_box(hx, H / 2 - 0.05, hz, w, H + 0.05, d,
-                      facade, WHITE, 8.0, fsv)
+                      facade, WHITE, WALL_S, fsv)
             b.add_solid(hx, hz, w / 2, d / 2, H)
         if mi in terrace_set:
             build_terrace(hx, hz, w, d, H, facade, fsv)
@@ -829,8 +927,9 @@ def main():
         # скатная крыша-призма (декор, не deck): конёк вдоль длинной оси
         rh = 2.5 + rng.random() * 0.7
         ov = 0.4
-        rsv = 3.0 * cur_aspect.get(CUR_ROOF, 1.0)
-        roof_tile = PROC_SLATE  # task4: скатные крыши — сланец
+        # R1: скаты — ambient-сланец мелким тайлингом (было PROC_SLATE).
+        roof_tile = AMB_ROOF if AMB_ROOF not in missing_amb else PROC_SLATE
+        rsv = ROOF_S * amb_aspect.get(roof_tile, 1.0)
         yb = H - 0.05
         if w >= d:
             x0, x1 = hx - w / 2 - ov, hx + w / 2 + ov
@@ -840,14 +939,14 @@ def main():
             # фронтоны (фасад) на торцах x
             for xe, out in ((x0, (hx - 1, yb, hz)), (x1, (hx + 1, yb, hz))):
                 b.add_tri((xe, yb, z0), (xe, yb, z1), (xe, yb + rh, zm),
-                          facade, WHITE, 8.0, fsv, out)
+                          facade, WHITE, WALL_S, fsv, out)
             # скаты (черепица)
             for sgn, out in ((1, (hx, yb, hz + 1)), (-1, (hx, yb, hz - 1))):
                 ze = zm + sgn * (d / 2 + ov)
                 b.add_tri((x0, yb, ze), (x1, yb, ze), (x1, yb + rh, zm),
-                          roof_tile, WHITE, 3.0, rsv, out)
+                          roof_tile, WHITE, ROOF_S, rsv, out)
                 b.add_tri((x0, yb, ze), (x1, yb + rh, zm), (x0, yb + rh, zm),
-                          roof_tile, WHITE, 3.0, rsv, out)
+                          roof_tile, WHITE, ROOF_S, rsv, out)
         else:
             x0, x1 = hx - w / 2 - ov, hx + w / 2 + ov
             z0, z1 = hz - d / 2 - ov, hz + d / 2 + ov
@@ -855,21 +954,21 @@ def main():
             rc = (hx, yb, hz)
             for ze, out in ((z0, (hx, yb, hz - 1)), (z1, (hx, yb, hz + 1))):
                 b.add_tri((x0, yb, ze), (x1, yb, ze), (xm, yb + rh, ze),
-                          facade, WHITE, 8.0, fsv, out)
+                          facade, WHITE, WALL_S, fsv, out)
             for sgn, out in ((1, (hx + 1, yb, hz)), (-1, (hx - 1, yb, hz))):
                 xe = xm + sgn * (w / 2 + ov)
                 b.add_tri((xe, yb, z0), (xe, yb, z1), (xm, yb + rh, z1),
-                          roof_tile, WHITE, 3.0, rsv, out)
+                          roof_tile, WHITE, ROOF_S, rsv, out)
                 b.add_tri((xe, yb, z0), (xm, yb + rh, z1), (xm, yb + rh, z0),
-                          roof_tile, WHITE, 3.0, rsv, out)
+                          roof_tile, WHITE, ROOF_S, rsv, out)
 
     # ---- балконы на цельных домах (интерьеры/террасы выше) ----
     for (bi, side, dirx) in balcony_spots:
         hx, hz, w, d, h = houses[bi]
-        facade = CUR_WALLS[bi % len(CUR_WALLS)]
-        if facade in missing_cur:
+        facade = WALL_TILES[bi % len(WALL_TILES)]
+        if facade in missing_cur or facade in missing_amb:
             facade = PROC_WARM
-        fsv = 8.0 * cur_aspect.get(facade, 1.0)
+        fsv = WALL_S * wall_aspect.get(facade, 1.0)
         build_balcony(hx, hz, w, d, side, dirx, facade, fsv)
 
     # ---- Task 3: мосты + Биг-Бен + башенки + арки ----
@@ -877,7 +976,6 @@ def main():
     # парапеты h=2.2 (=deck+1) сегментами над берегами — пролёт над водой
     # открыт, иначе колонны парапетов затыкают проход под мостом в движке.
     BRIDGE_H = 1.2
-    BRIDGE_XS = (-50.0, 0.0, 50.0)
     for bx in BRIDGE_XS:
         b.add_box(bx, BRIDGE_H - 0.075, 0.0, 6.0, 0.15, 9.2,
                   PROC_COOL, WHITE, 4.0)
@@ -920,18 +1018,36 @@ def main():
                          ((tx + 2.5, 18.0, tz + 2.5), (tx - 2.5, 18.0, tz + 2.5)),
                          ((tx - 2.5, 18.0, tz + 2.5), (tx - 2.5, 18.0, tz - 2.5))):
             b.add_tri(p1, p2, cap, PROC_SLATE, WHITE, 3.0, None, t_out)
-    # Арки в переулках: 2 столба h=4.5 + перекладина deck h=5 (низ 4.0).
-    ARCHES = [(-38.0, 20.0, 40.0, 55.0), (38.0, -25.0, -55.0)]
-    for (acx, *azs) in ARCHES:
-        for az in azs:
-            for sgn in (1, -1):
-                sx = acx + sgn * 2.4
-                b.add_box(sx, 4.5 / 2 - 0.05, az, 0.6, 4.5 + 0.05, 0.8,
+    # R1: ЖИРНЫЕ арки — столбы 1.5x1.5 h=6, перекладина СНИЗУ 4.5 (deck),
+    # пролёт через переулки/авеню, столбы втоплены в стены домов
+    # (перекрытие 0.5м — арка visually соединяет здания).
+    # (ax, az, along_x): перекладина вдоль X (через N-S улицу) или Z.
+    FAT_ARCHES = [
+        (-22.75, 30.0, True),   # через A1 (2.5м)
+        (-22.75, 50.0, True),   # через A1
+        (22.75, -20.0, True),   # через A2
+        (22.75, -60.0, True),   # через A2
+        (16.0, 30.0, True),     # через авеню x=16 (3.5м)
+    ]
+    for (acx, acz, along_x) in FAT_ARCHES:
+        if along_x:
+            px0, px1 = acx - 2.0, acx + 2.0
+            for sx in (px0, px1):
+                b.add_box(sx, 3.0 - 0.05, acz, 1.5, 6.0 + 0.05, 1.5,
                           PROC_WARM, WHITE, 4.0)
-                b.add_solid(sx, az, 0.3, 0.4, 4.5, tag="arch")
-            b.add_box(acx, 4.5, az, 5.6, 1.0, 0.8,
+                b.add_solid(sx, acz, 0.75, 0.75, 6.0, tag="arch")
+            b.add_box(acx, 5.0, acz, 5.5, 1.0, 1.5,
                       PROC_WARM, WHITE, 4.0)
-            b.add_solid(acx, az, 2.8, 0.4, 5.0, deck=True, tag="archtop")
+            b.add_solid(acx, acz, 2.75, 0.75, 5.5, deck=True, tag="archtop")
+        else:
+            pz0, pz1 = acz - 2.5, acz + 2.5
+            for sz in (pz0, pz1):
+                b.add_box(acx, 3.0 - 0.05, sz, 1.5, 6.0 + 0.05, 1.5,
+                          PROC_WARM, WHITE, 4.0)
+                b.add_solid(acx, sz, 0.75, 0.75, 6.0, tag="arch")
+            b.add_box(acx, 5.0, acz, 1.5, 1.0, 6.5,
+                      PROC_WARM, WHITE, 4.0)
+            b.add_solid(acx, acz, 0.75, 3.25, 5.5, deck=True, tag="archtop")
 
     # ---- Task 4: зелень — деревья, лавки, фонари ----
     # Только PIL-процедурки (pavement/slate/leaf/bark/wood), детерминировано.
@@ -958,14 +1074,7 @@ def main():
                 return False
         return True
 
-    def build_tree(cx, cz):
-        b.add_box(cx, 1.5, cz, 0.5, 3.0, 0.5, PROC_BARK, WHITE, 2.0)
-        b.add_solid(cx, cz, 0.25, 0.25, 3.0, tag="trunk")
-        b.add_octa(cx, 3.9, cz, 1.6, PROC_LEAF, LEAF_TINT, 2.0)
-        b.add_octa(cx + 0.9, 3.2, cz + 0.3, 1.1, PROC_LEAF, LEAF_TINT, 2.0)
-        b.add_octa(cx - 0.8, 3.3, cz - 0.4, 1.0, PROC_LEAF, LEAF_TINT, 2.0)
-        placed_green.append((cx, cz, 1.6))
-
+    # R1: деревьев нет (приказ — вместо них дома). build_tree удалён.
     def build_bench(cx, cz, along_x):
         if along_x:
             b.add_box(cx, 0.55, cz, 1.8, 0.12, 0.5, PROC_WOOD, WHITE, 2.0)
@@ -992,15 +1101,8 @@ def main():
         b.add_octa(cx, 3.85, cz, 0.35, PROC_WARM, LAMP_GLOBE_TINT, 2.0)
         placed_green.append((cx, cz, 0.4))
 
-    # Кандидаты: деревья — кольцо площади + берега канала;
-    # лавки — сетка площади; фонари — кромки авеню (сдвиг 4.2м от оси).
-    tree_cands = []
-    for x in (-18.0, -12.0, -6.0, 0.0, 6.0, 12.0, 18.0):
-        tree_cands += [(x, -27.0), (x, -63.0)]
-    for z in (-57.0, -51.0, -45.0, -39.0, -33.0):
-        tree_cands += [(-18.0, z), (18.0, z)]
-    for x in (-70.0, -55.0, -30.0, -10.0, 10.0, 30.0, 55.0, 70.0):
-        tree_cands += [(x, 7.0), (x, -7.0)]
+    # Кандидаты: R1 деревьев нет; лавки — сетка площади;
+    # фонари — кромки авеню (сдвиг 4.2м от оси).
     bench_cands = []
     for x in (-15.0, -7.5, 0.0, 7.5, 15.0):
         for z in (-60.0, -52.5, -45.0, -37.5, -30.0):
@@ -1013,20 +1115,12 @@ def main():
     for zh in AH:
         for xv in (-60.0, -30.0, 30.0, 60.0):
             lamp_cands.append((xv, zh + 4.2))
-    rng.shuffle(tree_cands)
     rng.shuffle(bench_cands)
     rng.shuffle(lamp_cands)
-    tree_cands.sort(key=lambda p: (p[0], p[1]))
     bench_cands.sort(key=lambda p: (p[0], p[1]))
     lamp_cands.sort(key=lambda p: (p[0], p[1]))
 
-    n_tree = n_bench = n_lamp = 0
-    for (cx, cz) in tree_cands:
-        if n_tree >= 14:
-            break
-        if green_free(cx, cz, 1.6):
-            build_tree(round(cx, 3), round(cz, 3))
-            n_tree += 1
+    n_bench = n_lamp = 0
     for i, (cx, cz) in enumerate(bench_cands):
         if n_bench >= 9:
             break
@@ -1039,7 +1133,6 @@ def main():
         if green_free(cx, cz, 0.6):
             build_lamp(round(cx, 3), round(cz, 3))
             n_lamp += 1
-    assert n_tree >= 12, f"деревьев {n_tree} < 12"
     assert n_bench >= 8, f"лавок {n_bench} < 8"
     assert n_lamp >= 10, f"фонарей {n_lamp} < 10"
 
@@ -1059,6 +1152,19 @@ def main():
             continue
         im.thumbnail((TILE_MAX, TILE_MAX), Image.Resampling.LANCZOS)
         tiles[cur_name] = im
+    # R1: ambient CC0 (london-tex) — бесшовные, обрезанные под тайлинг.
+    for amb_name, src_name in AMB_SRC.items():
+        if amb_name in missing_amb:
+            continue
+        try:
+            im = Image.open(here / "london-tex" / src_name).convert("RGB")
+            im.load()
+        except Exception as e:
+            print(f"atlas: skip ambient {amb_name}: {e}", flush=True)
+            unresolved.append(amb_name)
+            continue
+        im.thumbnail((TILE_MAX, TILE_MAX), Image.Resampling.LANCZOS)
+        tiles[amb_name] = im
     for pname, pim in proc_images.items():
         tiles[pname] = pim
 
@@ -1165,9 +1271,9 @@ def main():
           f"bridge_solids={sum(1 for s in b.solids if s.get('tag') == 'bridge')} "
           f"arch_solids={sum(1 for s in b.solids if s.get('tag') in ('arch', 'archtop'))}",
           flush=True)
-    print(f"t4 trees={n_tree} benches={n_bench} lamps={n_lamp} "
+    print(f"t4 trees=0(R1: снесены) benches={n_bench} lamps={n_lamp} "
           f"trunks={sum(1 for s in b.solids if s.get('tag') == 'trunk')} "
-          f"street={STREET_TILE} roofs=slate",
+          f"street={street_tile} roofs=amb",
           flush=True)
     print(f"atlas={ATLAS_W}x{H} tiles={len(tiles)} "
           f"atlas_bytes={atlas_bytes} jpeg_q={aq}", flush=True)
