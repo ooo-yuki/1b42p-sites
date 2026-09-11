@@ -2876,6 +2876,11 @@ async function loadStats(): Promise<void> {
                 ))}
               </div>
             )}
+            {canSee(authed) && (
+              <button id="devSzegedBtn" className="wbtn" onClick={() => createRoom(undefined, 'szeged')}>
+                🗺️ НА SZEGED
+              </button>
+            )}
           </div>
         </div>
       )}
