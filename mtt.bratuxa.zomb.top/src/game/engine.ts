@@ -5316,7 +5316,7 @@ export class Game {
             // а не на стену. Низкое (до 1.9м) прыгаем всегда — это запасной путь.
             const wantUp = this.py > 2.5;
             if (dh > 0 && dh <= 1.9 && e.ey - ownG <= 0.05 && e.evy <= 0) { e.evy = 6; e.climbHold = false; this.jumpDBG++; }
-            else if (wantUp && dh > 1.9 && dh <= 12) { e.ey = Math.min(top, e.ey + 2.5 * dt); e.climbHold = true; this.climbDBG++; }
+            else if (wantUp && dh > 1.9 && dh <= 12) { e.ey = Math.min(top, e.ey + 2.5 * dt); e.evy = 0; e.climbHold = true; this.climbDBG++; }
             else if (wantUp && qFound && dh <= 0 && dh > -1.2 && top - ownG <= 12 && e.evy <= 0) {
               // дополз до верха, а нос ещё в стене — перевал через край на крышу.
               // Наверху тесно (голова упрётся) — отпускаем: сползёт вниз, а не зависнет
@@ -5399,7 +5399,14 @@ export class Game {
           if (!e.climbHold && (e.ey > 0 || e.evy !== 0)) {
             e.evy -= 10 * dt;
             e.ey += e.evy * dt;
-            if (e.ey <= 0) { e.ey = 0; e.evy = 0; }
+            // посадка на опору под ногами (земля, крыша, забор) — раньше было
+            // только на ноль: с крыши проваливались сквозь неё и дёргались в полёте.
+            // Садимся, только если летели СВЕРХУ (prev выше опоры): прыжок под мостом
+            // на мост не телепортирует — падает обратно на землю
+            const landG = this.groundAt(e.g.position.x, e.g.position.z);
+            const prevEy = e.ey - e.evy * dt;
+            if (e.evy <= 0 && e.ey <= landG && prevEy >= landG - 0.05) { e.ey = landG; e.evy = 0; }
+            else if (e.ey <= 0) { e.ey = 0; e.evy = 0; }
           }
           e.body.position.y = (e.god ? 1.45 : 1.0) + Math.abs(Math.sin(e.phase)) * 0.12 + e.ey;
         }
