@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""London Task 1: генератор процедурного Лондона 170x170 -> szeged-mesh-3.
+"""London Task 1+2: генератор процедурного Лондона 170x170 -> szeged-mesh-3.
 
 Выход (байт-в-байт схема szeged-mesh-3):
   src/assets/szeged.mesh.json, src/assets/szeged.solids.json,
@@ -166,12 +166,14 @@ class Baker:
             self.add_tri(q[0], q[1], q[2], tile, tint, uvscale, sv, c)
             self.add_tri(q[0], q[2], q[3], tile, tint, uvscale, sv, c)
 
-    def add_solid(self, x, z, hx, hz, h, deck=False):
+    def add_solid(self, x, z, hx, hz, h, deck=False, tag=None):
         s = {"x": clean(round(x, 3)), "z": clean(round(z, 3)),
              "hx": clean(round(hx, 3)), "hz": clean(round(hz, 3)),
              "h": clean(round(h, 3))}
         if deck:
             s["deck"] = True
+        if tag is not None:
+            s["tag"] = tag
         self.solids.append(s)
 
 
@@ -462,18 +464,199 @@ def main():
     missing_cur = [c for c in list(CUR_SRC) if c not in cur_aspect]
     unresolved = list(missing_cur)
 
+    # ---- Task 2: интерьеры, балконы, крыши-террасы ----
+    # Стены комнаты — тонкие боксы с разрывом 2м (дверь); цельный солид дома
+    # заменяется сегментами стен; ступени 0.5м (степ движка ≤1.1м).
+    WT = 0.4       # толщина стен
+    DOOR_W = 2.0   # ширина дверного проёма
+    DOOR_H = 2.6   # высота проёма (выше — перемычка, только меш)
+    BALC_H = 3.0   # высота балконной плиты
+    RISE = 0.5     # высота ступени
+    TREAD = 0.6    # глубина ступени
+    STAIR_W = 2.0  # ширина лестницы = вылет балкона
+
+    house_rect = [(hx - w / 2, hx + w / 2, hz - d / 2, hz + d / 2)
+                  for (hx, hz, w, d, h) in houses]
+
+    def hits(a, b, pad=0.0):
+        return (a[0] < b[1] + pad and a[1] > b[0] - pad and
+                a[2] < b[3] + pad and a[3] > b[2] - pad)
+
+    canal_r = (-HALF, HALF, -(CANAL_HALF + 1.0), CANAL_HALF + 1.0)
+    plaza_r = (px0 - 1.0, px1 + 1.0, pz0 - 1.0, pz1 + 1.0)
+    placed_feat = []
+
+    def feat_clear(r, self_i):
+        for j, hr in enumerate(house_rect):
+            if j != self_i and hits(r, hr, 0.25):
+                return False
+        if hits(r, canal_r, 0.25) or hits(r, plaza_r, 0.25):
+            return False
+        return not any(hits(r, fr, 0.25) for fr in placed_feat)
+
+    order = sorted(range(len(houses)),
+                   key=lambda i: (houses[i][0], houses[i][1]))
+
+    def far_spawn(i):
+        hx, hz, w, d, _h = houses[i]
+        return not (hx - w / 2 < 8.0 and hx + w / 2 > -8.0 and
+                    hz - d / 2 < PLAZA_C[1] + 8.0 and
+                    hz + d / 2 > PLAZA_C[1] - 8.0)
+
+    avail = [i for i in order if far_spawn(i)]
+    interior_ids = set(avail[:8])
+    through_ids = set(avail[:2])
+    used = set(interior_ids)
+    terrace_ids = []
+    for i in avail:  # нужен интерьер w>=12 под прямой марш 18 ступеней
+        if i in used:
+            continue
+        if houses[i][2] >= 12.0:
+            terrace_ids.append(i)
+            used.add(i)
+        if len(terrace_ids) == 3:
+            break
+    assert len(terrace_ids) == 3, f"террас {len(terrace_ids)} < 3"
+    terrace_set = set(terrace_ids)
+    house_h = {i: 9.0 for i in terrace_ids}  # плоская крыша, короткий марш
+
+    def balc_rect(i, side, dirx):
+        hx, hz, w, d, _h = houses[i]
+        zf = hz + side * d / 2
+        x_lo = hx - 5.6 if dirx < 0 else hx - 2.0
+        x_hi = hx + 2.0 if dirx < 0 else hx + 5.6
+        z_lo, z_hi = ((zf, zf + side * STAIR_W) if side > 0
+                      else (zf + side * STAIR_W, zf))
+        return (x_lo, x_hi, z_lo, z_hi)
+
+    balcony_spots = []  # (i, side, dirx)
+    for i in avail:
+        if i in used:
+            continue
+        for (side, dirx) in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
+            r = balc_rect(i, side, dirx)
+            if feat_clear(r, i):
+                balcony_spots.append((i, side, dirx))
+                used.add(i)
+                placed_feat.append(r)
+                break
+        if len(balcony_spots) == 4:
+            break
+    assert len(balcony_spots) == 4, f"балконов {len(balcony_spots)} < 4"
+
+    def wall_seg(cx, cz, sx, sz, H, tile, tsv):
+        b.add_box(cx, H / 2 - 0.05, cz, sx, H + 0.05, sz,
+                  tile, WHITE, 8.0, tsv)
+        b.add_solid(cx, cz, sx / 2, sz / 2, H, tag="wall")
+
+    def door_face(dx, wz, H, tile, tsv):
+        # перемычка над проёмом — только меш; порог — низкий маркер солида
+        b.add_box(dx, (DOOR_H + H) / 2, wz, DOOR_W, H - DOOR_H, WT,
+                  tile, WHITE, 8.0, tsv)
+        b.add_solid(dx, wz, DOOR_W / 2, 0.3, 0.12, tag="door")
+
+    def build_interior(hx, hz, w, d, H, tile, tsv, through):
+        x0, x1 = hx - w / 2, hx + w / 2
+        zN, zS = hz - d / 2, hz + d / 2
+        for (ax, bx_) in ((x0, hx - DOOR_W / 2), (hx + DOOR_W / 2, x1)):
+            wall_seg((ax + bx_) / 2, zS - WT / 2, bx_ - ax, WT, H,
+                     tile, tsv)
+        door_face(hx, zS - WT / 2, H, tile, tsv)
+        segs = ((x0, hx - DOOR_W / 2), (hx + DOOR_W / 2, x1)) if through \
+            else ((x0, x1),)
+        for (ax, bx_) in segs:
+            wall_seg((ax + bx_) / 2, zN + WT / 2, bx_ - ax, WT, H,
+                     tile, tsv)
+        if through:
+            door_face(hx, zN + WT / 2, H, tile, tsv)
+        for wx_ in (x0 + WT / 2, x1 - WT / 2):
+            wall_seg(wx_, hz, WT, d - 2 * WT, H, tile, tsv)
+        fw, fd = w - 2 * WT, d - 2 * WT
+        b.add_box(hx, 0.06, hz, fw, 0.12, fd, PROC_WARM, WHITE, 4.0)
+        b.add_solid(hx, hz, fw / 2, fd / 2, 0.12)
+
+    def build_steps_x(x_start, zc, dirx, n, wdt):
+        # x_start — внешний край нижней ступени; рост верха к dirx
+        for j in range(1, n + 1):
+            top = clean(round(RISE * j, 3))
+            cx = x_start + dirx * (j - 0.5) * TREAD
+            b.add_box(cx, top / 2, zc, TREAD, top, wdt,
+                      PROC_COOL, WHITE, 4.0)
+            b.add_solid(cx, zc, TREAD / 2, wdt / 2, top, tag="step")
+
+    def build_balcony(hx, hz, w, d, side, dirx, tile, tsv):
+        zf = hz + side * d / 2
+        zc = zf + side * STAIR_W / 2
+        b.add_box(hx, BALC_H - 0.075, zc, 4.0, 0.15, STAIR_W,
+                  PROC_COOL, WHITE, 4.0)
+        b.add_solid(hx, zc, 2.0, STAIR_W / 2, BALC_H,
+                    deck=True, tag="balcony")
+        zo = zf + side * (STAIR_W - 0.1)
+        b.add_box(hx, BALC_H + 0.5, zo, 4.0, 1.0, 0.2,
+                  tile, WHITE, 8.0, tsv)
+        b.add_solid(hx, zo, 2.0, 0.1, BALC_H + 1.0, tag="rail")
+        xs = hx - 1.9 if dirx > 0 else hx + 1.9  # дальняя от лестницы
+        b.add_box(xs, BALC_H + 0.5, zc, 0.2, 1.0, STAIR_W,
+                  tile, WHITE, 8.0, tsv)
+        b.add_solid(xs, zc, 0.1, STAIR_W / 2, BALC_H + 1.0, tag="rail")
+        if dirx > 0:
+            build_steps_x(hx + 2.0 + 6 * TREAD, zc, -1, 6, STAIR_W)
+        else:
+            build_steps_x(hx - 2.0 - 6 * TREAD, zc, 1, 6, STAIR_W)
+
+    def build_terrace(hx, hz, w, d, H, tile, tsv):
+        x0, x1 = hx - w / 2, hx + w / 2
+        zN, zS = hz - d / 2, hz + d / 2
+        n = int(round(H / RISE))  # 18 при H=9
+        xs0 = x0 + WT  # марш внутри, от западной стены
+        zc = zN + WT + STAIR_W / 2
+        build_steps_x(xs0, zc, 1, n, STAIR_W)
+        hx0, hx1 = xs0 + (n - 3) * TREAD - 0.2, xs0 + n * TREAD + 0.2
+        hz0 = max(zN, zc - STAIR_W / 2 - 0.2)
+        hz1 = min(zS, zc + STAIR_W / 2 + 0.2)
+        for (ax, bx_, az, bz) in ((x0, hx0, zN, zS), (hx1, x1, zN, zS),
+                                  (hx0, hx1, hz1, zS), (hx0, hx1, zN, hz0)):
+            if bx_ - ax < 0.1 or bz - az < 0.1:
+                continue
+            cx_, cz_ = (ax + bx_) / 2, (az + bz) / 2
+            b.add_box(cx_, H - 0.075, cz_, bx_ - ax, 0.15, bz - az,
+                      PROC_COOL, WHITE, 4.0)
+            b.add_solid(cx_, cz_, (bx_ - ax) / 2, (bz - az) / 2, H,
+                        deck=True, tag="terrace")
+        pt = 0.25  # парапет h=1 по краю; над дверью — разрыв 2м,
+        # иначе колонна парапета (h=H+1 от земли) затыкает проём
+        parapets = [(hx, zN + pt / 2, w, pt),
+                    (x0 + pt / 2, hz, pt, d - 2 * pt),
+                    (x1 - pt / 2, hz, pt, d - 2 * pt)]
+        for (ax, bx_) in ((x0, hx - DOOR_W / 2), (hx + DOOR_W / 2, x1)):
+            parapets.append(((ax + bx_) / 2, zS - pt / 2, bx_ - ax, pt))
+        for (cx_, cz_, sx, sz) in parapets:
+            b.add_box(cx_, H + 0.5, cz_, sx, 1.0, sz,
+                      tile, WHITE, 8.0, tsv)
+            b.add_solid(cx_, cz_, sx / 2, sz / 2, H + 1.0, tag="parapet")
+
     for mi, (hx, hz, w, d, h) in enumerate(houses):
+        H = house_h.get(mi, h)
         facade = CUR_WALLS[mi % len(CUR_WALLS)]
         if facade in missing_cur:
             facade = PROC_WARM
         fsv = 8.0 * cur_aspect.get(facade, 1.0)
-        b.add_box(hx, h / 2 - 0.05, hz, w, h + 0.05, d, facade, WHITE, 8.0, fsv)
+        if mi in interior_ids or mi in terrace_set:
+            build_interior(hx, hz, w, d, H, facade, fsv,
+                           mi in through_ids)
+        else:
+            b.add_box(hx, H / 2 - 0.05, hz, w, H + 0.05, d,
+                      facade, WHITE, 8.0, fsv)
+            b.add_solid(hx, hz, w / 2, d / 2, H)
+        if mi in terrace_set:
+            build_terrace(hx, hz, w, d, H, facade, fsv)
+            continue
         # скатная крыша-призма (декор, не deck): конёк вдоль длинной оси
         rh = 2.5 + rng.random() * 0.7
         ov = 0.4
         rsv = 3.0 * cur_aspect.get(CUR_ROOF, 1.0)
         roof_tile = CUR_ROOF if CUR_ROOF not in missing_cur else PROC_ROOF
-        yb = h - 0.05
+        yb = H - 0.05
         if w >= d:
             x0, x1 = hx - w / 2 - ov, hx + w / 2 + ov
             z0, z1 = hz - d / 2 - ov, hz + d / 2 + ov
@@ -504,7 +687,15 @@ def main():
                           roof_tile, WHITE, 3.0, rsv, out)
                 b.add_tri((xe, yb, z0), (xm, yb + rh, z1), (xm, yb + rh, z0),
                           roof_tile, WHITE, 3.0, rsv, out)
-        b.add_solid(hx, hz, w / 2, d / 2, h)
+
+    # ---- балконы на цельных домах (интерьеры/террасы выше) ----
+    for (bi, side, dirx) in balcony_spots:
+        hx, hz, w, d, h = houses[bi]
+        facade = CUR_WALLS[bi % len(CUR_WALLS)]
+        if facade in missing_cur:
+            facade = PROC_WARM
+        fsv = 8.0 * cur_aspect.get(facade, 1.0)
+        build_balcony(hx, hz, w, d, side, dirx, facade, fsv)
 
     # ---- атлас: процедурки + curated, shelf-pack как в bake ----
     proc_images = {pname: proc_tile(kind, prng)
@@ -614,6 +805,15 @@ def main():
           f"half={half:.1f} maxbox={maxb:.1f}", flush=True)
     print(f"houses={len(houses)} tris={len(b.col_index)} "
           f"uverts={len(b.positions) // 3} solids={len(b.solids)}",
+          flush=True)
+    t2tags: dict = {}
+    for s in b.solids:
+        t2tags[s.get("tag", "-")] = t2tags.get(s.get("tag", "-"), 0) + 1
+    print(f"t2 interior={len(interior_ids) + len(terrace_ids)} "
+          f"through={len(through_ids)} doors={t2tags.get('door', 0)} "
+          f"balconies={len(balcony_spots)} terraces={len(terrace_ids)} "
+          f"steps={t2tags.get('step', 0)} walls={t2tags.get('wall', 0)} "
+          f"rails={t2tags.get('rail', 0)} parapets={t2tags.get('parapet', 0)}",
           flush=True)
     print(f"atlas={ATLAS_W}x{H} tiles={len(tiles)} "
           f"atlas_bytes={atlas_bytes} jpeg_q={aq}", flush=True)
