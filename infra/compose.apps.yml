@@ -88,3 +88,19 @@ services:
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - /root/sites:/root/sites:ro
     command: ["python", "router.py"]
+
+  opencode-web:
+    build:
+      context: ../oc.bratuxa.zomb.top
+      dockerfile: Dockerfile
+    image: bat42/opencode-web:latest
+    restart: unless-stopped
+    env_file: /etc/opencode-web.env
+    working_dir: /sites
+    volumes:
+      - oc-home:/home/oc
+      - /root/sites:/sites
+    ports: ["127.0.0.1:4096:4096"]
+
+volumes:
+  oc-home:
