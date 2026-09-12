@@ -9,6 +9,9 @@ Layout R1: поле 170, канал z+-4 с водой, набережные 2.5
 плотные дома 8-12м (зазор 0-1м, к воде отступ 1м), чётные mi кирпич,
 нечётные — штукатурка охра/терракота, жирные арки через переулки,
 сквозные дома 6, лавки+кованые фонари (деревьев нет).
+R3: +20 домов в свободных кусках (итого ~92): вытянутые коробки +
+Г-образные (два перекрывающихся бокса одной высоты, солиды оба),
+сквозных 11 (6 старых + 5 новых), циферблат без растяжки (s==sv).
 Seed 42, только PIL+stdlib. Исходники фото Szeged НЕ используются.
 
 Run: python3 tools/build-london.py --seed 42
@@ -704,6 +707,221 @@ def main():
         place_in(qx0, qx1, qz0, qz1)
     assert len(houses) >= 24, f"домов {len(houses)} < 24"
 
+    # ---- R3: +20 домов в свободных кусках (итого ~92) ----
+    # Вытянутые коробки + Г-образные (два перекрывающихся бокса одной
+    # высоты, меш+солид оба). Отдельный r3rng — сид старых домов не едет.
+    # Места: пустые pieces (уже вне улиц/канала/площади/переулков),
+    # плюс явный обход мостов/спусков/арок, зазор до соседей >= 0.
+    n0 = len(houses)
+    r3rng = random.Random(423)
+    r3_rect0 = [(hx - w / 2, hx + w / 2, hz - d / 2, hz + d / 2)
+                for (hx, hz, w, d, _h) in houses]
+    r3_BR = [(bx - 3.2, bx + 3.2, -6.4, 6.4) for bx in BRIDGE_XS]
+    r3_SR = [(sx - 2.0, sx + 2.0, -6.0, 6.0) for sx in STAIR_XS]
+    r3_AR = [(-25.75, -19.75, 28.5, 31.5), (-25.75, -19.75, 48.5, 51.5),
+             (19.75, 25.75, -21.5, -18.5), (19.75, 25.75, -61.5, -58.5),
+             (13.0, 19.0, 28.5, 31.5)]
+    r3_OBST = [canal_rect, plaza_rect] + alley_rects + r3_BR + r3_SR + r3_AR
+    r3_new_rects = []  # боксы новых домов (у Г — два)
+
+    def r3_blocked(r):
+        for o in r3_OBST:
+            if overlap(r, o):
+                return True
+        for hr in r3_rect0:
+            if overlap(r, hr):
+                return True
+        for hr in r3_new_rects:
+            if overlap(r, hr):
+                return True
+        return False
+
+    r3_empty = [p for p in pieces_all
+                if not any(overlap(p, hr) for hr in r3_rect0)]
+    r3_empty.sort(key=lambda p: (-(p[1] - p[0]) * (p[3] - p[2]), p[0], p[2]))
+    extra_L = {}  # mi -> (hx2, hz2, w2, d2) второй бокс Г
+    n_L = n_box = 0
+    r3_through_fixed = []
+
+    def r3_try_box(qx0, qx1, qz0, qz1, small=False):
+        """Вытянутая коробка вдоль длинной стороны куска (до 8 попыток)."""
+        qw, qd = qx1 - qx0, qz1 - qz0
+        # small-проход: компактные дома 6.5x3.5 минимум.
+        lo_big, lo_small = (8.0, 4.5) if not small else (6.5, 3.5)
+        if max(qw - 1.0, qd - 1.0) < lo_big or min(qw - 1.0, qd - 1.0) < lo_small:
+            return False
+        for _ in range(8):
+            if qw >= qd:
+                w = min(qw - 1.0, 9.0 + r3rng.random() * 3.0)
+                d = min(qd - 1.0, 5.0 + r3rng.random() * 1.5)
+            else:
+                w = min(qw - 1.0, 5.0 + r3rng.random() * 1.5)
+                d = min(qd - 1.0, 9.0 + r3rng.random() * 3.0)
+            if small:
+                w = min(w, 6.0 + r3rng.random() * 2.0)
+                d = min(d, 4.0 + r3rng.random() * 1.0)
+            hx = (qx0 + qx1) / 2 + (r3rng.random() - 0.5) * max(0.0, qw - 1.0 - w)
+            hz = (qz0 + qz1) / 2 + (r3rng.random() - 0.5) * max(0.0, qd - 1.0 - d)
+            r = (hx - w / 2, hx + w / 2, hz - d / 2, hz + d / 2)
+            if r3_blocked(r):
+                continue
+            houses.append((hx, hz, w, d, 9.0 + r3rng.random() * 6.0))
+            r3_new_rects.append(r)
+            return True
+        return False
+
+    def r3_try_L(qx0, qx1, qz0, qz1, small=False):
+        """Г: нижняя полоса + вертикальное крыло внахлёст (до 6 попыток)."""
+        qw, qd = qx1 - qx0, qz1 - qz0
+        # small-Г: крылья 4.5м, минимумы 6x7.
+        lo_w, lo_d = (7.0, 8.0) if not small else (6.0, 7.0)
+        if qw - 1.0 < lo_w or qd - 1.0 < lo_d:
+            return False
+        for _ in range(6):
+            wA = min(qw - 1.0, 8.0 + r3rng.random() * 3.0)
+            dA = 5.5 + r3rng.random() * 1.5
+            # R3: крыло уже соседнего края минимум на 3.2м — там встанет
+            # смещённая дверь сквозного Г.
+            wB = min(5.5 + r3rng.random() * 1.5, qw - 1.0 - 3.2)
+            dB = min(qd - 1.0, 9.0 + r3rng.random() * 3.0)
+            if small:
+                wA = min(wA, 7.0 + r3rng.random() * 2.0)
+                dA = 4.5 + r3rng.random() * 1.0
+                wB = min(wB, 4.5 + r3rng.random() * 1.0)
+                dB = min(dB, 7.0 + r3rng.random() * 2.0)
+            if dA > qd - 1.0 or wB > qw - 1.0:
+                continue
+            cx = (qx0 + qx1) / 2 + (r3rng.random() - 0.5) * max(0.0, qw - 1.0 - wA)
+            cz = (qz0 + qz1) / 2
+            hzA = qz0 + 0.5 + dA / 2
+            west = r3rng.random() < 0.5
+            hxB = (qx0 + 0.5 + wB / 2) if west else (qx1 - 0.5 - wB / 2)
+            rA = (cx - wA / 2, cx + wA / 2, hzA - dA / 2, hzA + dA / 2)
+            rB = (hxB - wB / 2, hxB + wB / 2, cz - dB / 2, cz + dB / 2)
+            if r3_blocked(rA) or r3_blocked(rB):
+                continue
+            H = 9.0 + r3rng.random() * 6.0
+            houses.append((cx, hzA, wA, dA, H))
+            extra_L[len(houses) - 1] = (hxB, cz, wB, dB)
+            r3_new_rects.append(rA)
+            r3_new_rects.append(rB)
+            return True
+        return False
+
+    for (qx0, qx1, qz0, qz1) in r3_empty:
+        # Проход 1: только Г — им нужны широкие куски, разбирают первыми.
+        if n_L >= 5:
+            break
+        if r3_try_L(qx0, qx1, qz0, qz1):
+            n_L += 1
+    # R3: 5 сквозных ПОСЛЕ Г (широкие куски уже разобраны): вертикальные
+    # 5.5x9+ в узких кусках, вдали от канала (|z|>9);
+    # дверной коридор 3x2м с севера и юга свободен от домов и препятствий.
+    # Недостающие до 5 добираем из Г (проход через главный бокс).
+    def r3_corr_free(hx, hz, w, d):
+        for c in ((hx - 1.5, hx + 1.5, hz + d / 2, hz + d / 2 + 2.0),
+                  (hx - 1.5, hx + 1.5, hz - d / 2 - 2.0, hz - d / 2)):
+            for o in r3_OBST:
+                if overlap(c, o):
+                    return False
+            for hr in r3_rect0 + r3_new_rects:
+                if overlap(c, hr):
+                    return False
+        return True
+
+    for (qx0, qx1, qz0, qz1) in r3_empty:
+        if len(r3_through_fixed) >= 5:
+            break
+        qw, qd = qx1 - qx0, qz1 - qz0
+        if qw - 1.0 < 5.0 or qw - 1.0 >= 7.0 or qd - 1.0 < 10.0:
+            continue
+        if not (qz0 > 9.0 or qz1 < -9.0):
+            continue
+        w = min(qw - 1.0, 5.5 + r3rng.random() * 1.0)
+        d = min(qd - 1.0, 9.0 + r3rng.random() * 2.0)
+        for (jx, jz) in ((0.0, 0.0), (2.0, 0.0), (-2.0, 0.0),
+                         (0.0, 2.0), (0.0, -2.0)):
+            hx = (qx0 + qx1) / 2 + jx
+            hz = (qz0 + qz1) / 2 + jz
+            if hx - w / 2 < qx0 + 0.5 or hx + w / 2 > qx1 - 0.5:
+                continue
+            if hz - d / 2 < qz0 + 0.5 or hz + d / 2 > qz1 - 0.5:
+                continue
+            # far_spawn как у старых (площадь ±8 вокруг PLAZA_C).
+            if (hx - w / 2 < 8.0 and hx + w / 2 > -8.0 and
+                    hz - d / 2 < PLAZA_C[1] + 8.0 and
+                    hz + d / 2 > PLAZA_C[1] - 8.0):
+                continue
+            r = (hx - w / 2, hx + w / 2, hz - d / 2, hz + d / 2)
+            if r3_blocked(r) or not r3_corr_free(hx, hz, w, d):
+                continue
+            houses.append((hx, hz, w, d, 9.0 + r3rng.random() * 6.0))
+            r3_new_rects.append(r)
+            r3_through_fixed.append(len(houses) - 1)
+            n_box += 1  # сквозные — тоже коробки, в счёт 20
+            break
+    # Добираем сквозные из Г: дверь смещена на свободную от крыла сторону
+    # (коридор 3м целиком в стене и вне крыла); крыло цельное.
+    r3_through_L = []
+    r3_L_door = {}  # mi -> doorx (центр двери)
+    for mi in sorted(extra_L):
+        if len(r3_through_fixed) + len(r3_through_L) >= 5:
+            break
+        hx, hz, w, d, _h = houses[mi]
+        hx2, hz2, w2, d2 = extra_L[mi]
+        if abs(hz - d / 2) < 7.5 or abs(hz + d / 2) < 7.5:
+            continue
+        # far_spawn как у старых (площадь ±8 вокруг PLAZA_C).
+        if (hx - w / 2 < 8.0 and hx + w / 2 > -8.0 and
+                hz - d / 2 < PLAZA_C[1] + 8.0 and
+                hz + d / 2 > PLAZA_C[1] - 8.0):
+            continue
+        if hx2 < hx:  # крыло западное — дверь к востоку
+            doorx = max(hx - w / 2, hx2 + w2 / 2) + 1.5
+            ok_side = doorx + 1.5 <= hx + w / 2
+        else:  # крыло восточное — дверь к западу
+            doorx = min(hx + w / 2, hx2 - w2 / 2) - 1.5
+            ok_side = doorx - 1.5 >= hx - w / 2
+        if not ok_side:
+            continue
+        ok = True
+        for c in ((doorx - 1.5, doorx + 1.5, hz + d / 2, hz + d / 2 + 2.2),
+                  (doorx - 1.5, doorx + 1.5, hz - d / 2 - 2.2, hz - d / 2)):
+            for o in r3_OBST:
+                if overlap(c, o):
+                    ok = False
+            # overlap строгий: свой главный бокс касается коридора гранью,
+            # сам себя не блокирует; крыло — полноправный блокер.
+            for hr in r3_rect0 + r3_new_rects:
+                if overlap(c, hr):
+                    ok = False
+        if ok:
+            r3_through_L.append(mi)
+            r3_L_door[mi] = doorx
+    assert len(r3_through_fixed) + len(r3_through_L) == 5, \
+        ("R3: сквозных "
+         f"{len(r3_through_fixed) + len(r3_through_L)} < 5")
+    for (qx0, qx1, qz0, qz1) in r3_empty:
+        # Проход 2: коробки-добивка до 20 (сквозные уже стоят).
+        if n_L + n_box >= 20:
+            break
+        if n_box < 15 and r3_try_box(qx0, qx1, qz0, qz1):
+            n_box += 1
+    # Второй проход: по ВСЕМ кускам (коллизии ловит r3_blocked) компактными
+    # домами — добираем до 20 (пустых больших кусков не хватило).
+    if n_L + n_box < 20:
+        rest = sorted(pieces_all,
+                      key=lambda p: (-(p[1] - p[0]) * (p[3] - p[2]), p[0], p[2]))
+        for (qx0, qx1, qz0, qz1) in rest:
+            if n_L + n_box >= 20:
+                break
+            if n_L < 5 and r3_try_L(qx0, qx1, qz0, qz1, small=True):
+                n_L += 1
+                continue
+            if n_box < 16 and r3_try_box(qx0, qx1, qz0, qz1, small=True):
+                n_box += 1
+    assert n_L + n_box == 20, f"R3: влезло {n_L + n_box} < 20"
+
     # пропорции curated (h/w) — без искажений фото
     cur_aspect = {}
     for cur_name, src_name in CUR_SRC.items():
@@ -759,7 +977,7 @@ def main():
                     hz - d / 2 < PLAZA_C[1] + 8.0 and
                     hz + d / 2 > PLAZA_C[1] - 8.0)
 
-    avail = [i for i in order if far_spawn(i)]
+    avail = [i for i in order if i < n0 and far_spawn(i)]
     # R1: дома впритык к воде — дверь у канала упрётся в берег:
     # интерьеры/террасы только там, где обе двери выходят на улицу.
     def doors_clear(i):
@@ -776,6 +994,11 @@ def main():
     assert len(interior_list) >= 8, f"интерьеров {len(interior_list)} < 8"
     interior_ids = set(interior_list)
     through_ids = set(interior_list[:6])  # R1: сквозных минимум 6
+    # R3: 5 сквозных с гарантированным коридором: коробки + главные боксы Г.
+    for i in r3_through_fixed + r3_through_L:
+        interior_ids.add(i)
+        through_ids.add(i)
+    assert len(through_ids) == 11, f"R3: сквозных {len(through_ids)} != 11"
     used = set(interior_ids)
     terrace_ids = []
     for i in avail:  # R1: дома 8-12м — терраса H=6 (12 ступеней по 7.2м марш)
@@ -827,20 +1050,21 @@ def main():
                   tile, WHITE, WALL_S, tsv)
         b.add_solid(dx, wz, DOOR_W / 2, 0.3, 0.12, tag="door")
 
-    def build_interior(hx, hz, w, d, H, tile, tsv, through):
+    def build_interior(hx, hz, w, d, H, tile, tsv, through, door_dx=0.0):
         x0, x1 = hx - w / 2, hx + w / 2
         zN, zS = hz - d / 2, hz + d / 2
-        for (ax, bx_) in ((x0, hx - DOOR_W / 2), (hx + DOOR_W / 2, x1)):
+        dx = hx + door_dx  # R3: дверь сквозного Г смещена от крыла
+        for (ax, bx_) in ((x0, dx - DOOR_W / 2), (dx + DOOR_W / 2, x1)):
             wall_seg((ax + bx_) / 2, zS - WT / 2, bx_ - ax, WT, H,
                      tile, tsv)
-        door_face(hx, zS - WT / 2, H, tile, tsv)
-        segs = ((x0, hx - DOOR_W / 2), (hx + DOOR_W / 2, x1)) if through \
+        door_face(dx, zS - WT / 2, H, tile, tsv)
+        segs = ((x0, dx - DOOR_W / 2), (dx + DOOR_W / 2, x1)) if through \
             else ((x0, x1),)
         for (ax, bx_) in segs:
             wall_seg((ax + bx_) / 2, zN + WT / 2, bx_ - ax, WT, H,
                      tile, tsv)
         if through:
-            door_face(hx, zN + WT / 2, H, tile, tsv)
+            door_face(dx, zN + WT / 2, H, tile, tsv)
         for wx_ in (x0 + WT / 2, x1 - WT / 2):
             wall_seg(wx_, hz, WT, d - 2 * WT, H, tile, tsv)
         fw, fd = w - 2 * WT, d - 2 * WT
@@ -907,6 +1131,42 @@ def main():
                       tile, WHITE, WALL_S, tsv)
             b.add_solid(cx_, cz_, sx / 2, sz / 2, H + 1.0, tag="parapet")
 
+    def gable_roof(bx_, bz_, bw, bd, H, facade, fsv, roof_tile, rsv):
+        """Скатная крыша-призма одного бокса (для Г — вызывается дважды)."""
+        rh = 2.5 + r3rng.random() * 0.7
+        ov = 0.4
+        yb = H - 0.05
+        if bw >= bd:
+            x0, x1 = bx_ - bw / 2 - ov, bx_ + bw / 2 + ov
+            z0, z1 = bz_ - bd / 2 - ov, bz_ + bd / 2 + ov
+            zm = bz_
+            for xe, out in ((x0, (bx_ - 1, yb, bz_)),
+                            (x1, (bx_ + 1, yb, bz_))):
+                b.add_tri((xe, yb, z0), (xe, yb, z1), (xe, yb + rh, zm),
+                          facade, WHITE, WALL_S, fsv, out)
+            for sgn, out in ((1, (bx_, yb, bz_ + 1)),
+                             (-1, (bx_, yb, bz_ - 1))):
+                ze = zm + sgn * (bd / 2 + ov)
+                b.add_tri((x0, yb, ze), (x1, yb, ze), (x1, yb + rh, zm),
+                          roof_tile, WHITE, ROOF_S, rsv, out)
+                b.add_tri((x0, yb, ze), (x1, yb + rh, zm), (x0, yb + rh, zm),
+                          roof_tile, WHITE, ROOF_S, rsv, out)
+        else:
+            x0, x1 = bx_ - bw / 2 - ov, bx_ + bw / 2 + ov
+            z0, z1 = bz_ - bd / 2 - ov, bz_ + bd / 2 + ov
+            xm = bx_
+            for ze, out in ((z0, (bx_, yb, bz_ - 1)),
+                            (z1, (bx_, yb, bz_ + 1))):
+                b.add_tri((x0, yb, ze), (x1, yb, ze), (xm, yb + rh, ze),
+                          facade, WHITE, WALL_S, fsv, out)
+            for sgn, out in ((1, (bx_ + 1, yb, bz_)),
+                             (-1, (bx_ - 1, yb, bz_))):
+                xe = xm + sgn * (bw / 2 + ov)
+                b.add_tri((xe, yb, z0), (xe, yb, z1), (xm, yb + rh, z1),
+                          roof_tile, WHITE, ROOF_S, rsv, out)
+                b.add_tri((xe, yb, z0), (xm, yb + rh, z1), (xm, yb + rh, z0),
+                          roof_tile, WHITE, ROOF_S, rsv, out)
+
     for mi, (hx, hz, w, d, h) in enumerate(houses):
         H = house_h.get(mi, h)
         # R1: ротация всех стен (ambient + curated владельца), масштаб WALL_S.
@@ -914,6 +1174,27 @@ def main():
         if facade in missing_cur or facade in missing_amb:
             facade = PROC_WARM
         fsv = WALL_S * wall_aspect.get(facade, 1.0)
+        if mi in extra_L:
+            # R3: Г — два перекрывающихся бокса одной высоты, солиды оба.
+            # Сквозной Г: главный бокс с проходом, крыло цельное.
+            hx2, hz2, w2, d2 = extra_L[mi]
+            if mi in interior_ids:
+                build_interior(hx, hz, w, d, H, facade, fsv,
+                               mi in through_ids,
+                               r3_L_door.get(mi, 0.0) - hx)
+                b.add_box(hx2, H / 2 - 0.05, hz2, w2, H + 0.05, d2,
+                          facade, WHITE, WALL_S, fsv)
+                b.add_solid(hx2, hz2, w2 / 2, d2 / 2, H)
+            else:
+                for (bx_, bz_, bw, bd) in ((hx, hz, w, d), (hx2, hz2, w2, d2)):
+                    b.add_box(bx_, H / 2 - 0.05, bz_, bw, H + 0.05, bd,
+                              facade, WHITE, WALL_S, fsv)
+                    b.add_solid(bx_, bz_, bw / 2, bd / 2, H)
+            roof_tile = AMB_ROOF if AMB_ROOF not in missing_amb else PROC_SLATE
+            rsv = ROOF_S * amb_aspect.get(roof_tile, 1.0)
+            gable_roof(hx, hz, w, d, H, facade, fsv, roof_tile, rsv)
+            gable_roof(hx2, hz2, w2, d2, H, facade, fsv, roof_tile, rsv)
+            continue
         if mi in interior_ids or mi in terrace_set:
             build_interior(hx, hz, w, d, H, facade, fsv,
                            mi in through_ids)
@@ -996,8 +1277,10 @@ def main():
     b.add_box(BB[0], 15.0 - 0.05, BB[1], 8.0, 30.0 + 0.05, 8.0,
               PROC_WARM, WHITE, 8.0)
     b.add_solid(BB[0], BB[1], 4.0, 4.0, 30.0, tag="tower")
+    # R3: пояс циферблатов — равномерный масштаб 3м/тайл по u и v
+    # (было 8.0/3.0 — круглый циферблат растягивало ~2.7x по горизонтали).
     b.add_box(BB[0], 26.5, BB[1], 8.4, 3.0, 8.4,
-              "zz_clock.png", WHITE, 8.0, 3.0)
+              "zz_clock.png", WHITE, 3.0)
     bx0, bx1, bz0, bz1 = BB[0] - 4.0, BB[0] + 4.0, BB[1] - 4.0, BB[1] + 4.0
     apex = (BB[0], 36.0, BB[1])
     bb_out = (BB[0], 29.0, BB[1])

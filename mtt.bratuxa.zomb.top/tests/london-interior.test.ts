@@ -10,6 +10,12 @@ const byTag = (t: string): Solid[] => S.filter((s) => s.tag === t);
 
 // Движок: верх солида — пол, deck — проход снизу (y < h-0.5),
 // степ-автоподъём ≤1.1м, ступени 0.5м.
+// R3: +20 домов (4 Г + 16 коробок), сквозных 11 (было 6):
+// дверей 27 (было 17, +10 от 5 новых сквозных).
+test('london R3: 5 новых сквозных, 27 дверей', () => {
+  const doors = byTag('door');
+  expect(doors.length).toBe(27);
+});
 test('london interior: счётчики дверей/балконов/террас/ступеней', () => {
   const doors = byTag('door');
   const balconies = byTag('balcony');
