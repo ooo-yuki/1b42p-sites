@@ -65,7 +65,7 @@ const CHAR_ABILITIES: Record<string, { lines: string[]; sup: string }> = {
       '💨 Скорость ×1.05 — чуть бодрее МТТ',
       '☀️ Луч с неба — супер бьёт по врагу под прицелом',
     ],
-    sup: '☀️ СУПЕР — Луч Санстрайка на C: метка на точке врага, через 0.5с удар с неба. Заряд 0–10 (+1 за убийство руками, фраги от луча не идут, каст сжигает заряд в 0, урон по тебе — в 0): урон 20→142, радиус 3→8м. Кд 30с.',
+    sup: '☀️ СУПЕР — Луч Санстрайка на C: метка на точке врага, через 0.5с удар с неба. Заряд 0–15 (+1 за убийство руками, фраги от луча не идут, каст сжигает заряд в 0, урон по тебе — в 0): урон 20→142, радиус 3→8м. Кд 30с.',
   },
 };
 
@@ -1975,7 +1975,7 @@ async function loadStats(): Promise<void> {
             <div id="hpBar"><div id="hpFill" style={{ width: `${hpFrac * 100}%` }} /></div>
           </div>
           <div id="hudRow">{noEnemies ? '🕊️ МИРНЫЙ РЕЖИМ · ' : `🌊 Волна ${hud.wave} · 👹 ${hud.enemies} · `}💀 {hud.kills} · 🏆 {hud.score}</div>
-          <div id="hudRow2">🎟️ {hud.fantiki} · 💊 {hud.med}/3 · ⭐ {hud.lvl} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}{char === 'krysa' && (hud.kick > 0 ? ` · 🌀 ${hud.kick.toFixed(1)}с` : ' · 🌀 вол-кик готов')}{char === 'shuba' && (hud.invis > 0 ? ` · 👻 ещё ${hud.invis.toFixed(1)}с` : hud.invisCd > 0 ? ` · 👻 ${hud.invisCd.toFixed(1)}с` : ' · 👻 несутка готова')}{char === 'chuma' && (hud.chuma > 0 ? ` · 🦠 ещё ${hud.chuma.toFixed(1)}с` : hud.chumaCd > 0 ? ` · 🦠 ${hud.chumaCd.toFixed(1)}с` : ' · 🦠 облако готово')}{char === 'gidroxis' && (hud.xray > 0 ? ` · 🔍 ещё ${hud.xray.toFixed(1)}с` : hud.xrayCd > 0 ? ` · 🔍 ${hud.xrayCd.toFixed(1)}с` : ' · 🔍 рентген готов')}{char === 'sunstrike' && (hud.sunCd > 0 ? ` · ☀️ ${hud.sunCd.toFixed(1)}с` : ` · ☀️ заряд ${hud.sun}/10`)}</div>
+          <div id="hudRow2">🎟️ {hud.fantiki} · 💊 {hud.med}/3 · ⭐ {hud.lvl} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}{char === 'krysa' && (hud.kick > 0 ? ` · 🌀 ${hud.kick.toFixed(1)}с` : ' · 🌀 вол-кик готов')}{char === 'shuba' && (hud.invis > 0 ? ` · 👻 ещё ${hud.invis.toFixed(1)}с` : hud.invisCd > 0 ? ` · 👻 ${hud.invisCd.toFixed(1)}с` : ' · 👻 несутка готова')}{char === 'chuma' && (hud.chuma > 0 ? ` · 🦠 ещё ${hud.chuma.toFixed(1)}с` : hud.chumaCd > 0 ? ` · 🦠 ${hud.chumaCd.toFixed(1)}с` : ' · 🦠 облако готово')}{char === 'gidroxis' && (hud.xray > 0 ? ` · 🔍 ещё ${hud.xray.toFixed(1)}с` : hud.xrayCd > 0 ? ` · 🔍 ${hud.xrayCd.toFixed(1)}с` : ' · 🔍 рентген готов')}{char === 'sunstrike' && (hud.sunCd > 0 ? ` · ☀️ ${hud.sunCd.toFixed(1)}с` : ` · ☀️ заряд ${hud.sun}/15`)}</div>
         </div>
       )}
       {!menu && (

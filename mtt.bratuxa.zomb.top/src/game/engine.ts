@@ -160,7 +160,7 @@ export interface HudState {
   xray: number;
   /** Перезарядка рентгена Гидроксиса: осталось секунд (0 — готов). */
   xrayCd: number;
-  /** Заряд луча Санстрайка 0–10 (по убийству +1, урон по себе — в 0). */
+  /** Заряд луча Санстрайка 0–15 (по убийству +1, урон по себе — в 0). */
   sun: number;
   /** Перезарядка луча Санстрайка: осталось секунд (0 — готов). */
   sunCd: number;
@@ -641,8 +641,8 @@ export class Game {
   /** Рентген Гидроксиса: xrayT — подсветка висит секунд, xrayCd — перезарядка. */
   private xrayT = 0;
   private xrayCd = 0;
-  /** Луч Андрея Санстрайка: заряд 0–10 (по убийству +1, урон сбрасывает в 0),
-      sunCd — перезарядка 30с, sunBeams — точки удара с задержкой 2с. */
+  /** Луч Андрея Санстрайка: заряд 0–15 (по убийству +1, урон сбрасывает в 0),
+      sunCd — перезарядка 30с, sunBeams — точки удара с задержкой 0.5с. */
   private sunCharge = 0;
   private sunCd = 0;
   private sunBeams: Array<{ x: number; z: number; t: number; dmg: number; r: number }> = [];
@@ -3744,8 +3744,8 @@ export class Game {
       e.dead = true;
       this.scene.remove(e.g);
       this.kills++;
-      // заряд Санстрайка: +1 за убийство руками (фраги от луча не идут)
-      if (this.charId === 'sunstrike' && !this.sunNoCharge) this.sunCharge = Math.min(10, this.sunCharge + 1);
+      // заряд Санстрайка: +1 за убийство руками (фраги от луча не идут), макс 15
+      if (this.charId === 'sunstrike' && !this.sunNoCharge) this.sunCharge = Math.min(15, this.sunCharge + 1);
       // за босса — куш: +500 очков и +100 фантиков
       this.score += e.kind === 'boss' ? 500 + e.ewave * 10 : 100 + e.ewave * 10;
       this.fantiki += e.kind === 'boss' ? 100 : 10;
@@ -4033,14 +4033,14 @@ export class Game {
   }
 
   // ЛУЧ Андрея Санстрайка: точка — где стоял враг под прицелом (слепок на касте),
-  // удар через 0.5с. Заряд 0–10: урон 20→142, радиус 3→8м, каст сжигает заряд в 0. Кд 30с.
+  // удар через 0.5с. Заряд 0–15: урон 20→142, радиус 3→8м, каст сжигает заряд в 0. Кд 30с.
   sunstrike(): boolean {
     if (!this.started || this.dead || this.sunCd > 0 || this.charId !== 'sunstrike') return false;
     const tgt = this.aimEnemy(45);
     if (!tgt) return false;
-    const q = Math.min(10, Math.max(0, this.sunCharge));
-    const dmg = 20 + (q / 10) * (142 - 20);
-    const r = 3 + (q / 10) * (8 - 3);
+    const q = Math.min(15, Math.max(0, this.sunCharge));
+    const dmg = 20 + (q / 15) * (142 - 20);
+    const r = 3 + (q / 15) * (8 - 3);
     this.sunBeams.push({ x: tgt.x, z: tgt.z, t: 0.5, dmg, r });
     // каст сжигает весь заряд в 0
     this.sunCharge = 0;
