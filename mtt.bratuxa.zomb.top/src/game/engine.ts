@@ -4033,14 +4033,14 @@ export class Game {
   }
 
   // ЛУЧ Андрея Санстрайка: точка — где стоял враг под прицелом (слепок на касте),
-  // удар через 0.5с. Заряд 0–15: урон 20→142, радиус 3→5м, каст сжигает заряд в 0. Кд 30с.
+  // удар через 0.5с. Заряд 0–15: урон 20→142, радиус 3→6.5м, каст сжигает заряд в 0. Кд 30с.
   sunstrike(): boolean {
     if (!this.started || this.dead || this.sunCd > 0 || this.charId !== 'sunstrike') return false;
     const tgt = this.aimEnemy(45);
     if (!tgt) return false;
     const q = Math.min(15, Math.max(0, this.sunCharge));
     const dmg = 20 + (q / 15) * (142 - 20);
-    const r = 3 + (q / 15) * (5 - 3);
+    const r = 3 + (q / 15) * (6.5 - 3);
     this.sunBeams.push({ x: tgt.x, z: tgt.z, t: 0.5, dmg, r });
     // каст сжигает весь заряд в 0
     this.sunCharge = 0;
