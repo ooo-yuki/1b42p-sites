@@ -263,7 +263,7 @@ function ensureOfficial(): void {
 }
 
 function cleanChar(v: unknown): string {
-  return v === 'krysa' ? 'krysa' : v === 'shuba' ? 'shuba' : v === 'chuma' ? 'chuma' : v === 'gidroxis' ? 'gidroxis' : 'mtt';
+  return v === 'krysa' ? 'krysa' : v === 'shuba' ? 'shuba' : v === 'chuma' ? 'chuma' : v === 'gidroxis' ? 'gidroxis' : v === 'sunstrike' ? 'sunstrike' : 'mtt';
 }
 
 function pubList(m: Member): object {

@@ -11,10 +11,11 @@ import charKrysaUrl from './assets/char-krysa.png';
 import charShubaUrl from './assets/char-shuba.png';
 import charChumaUrl from './assets/char-chuma.png';
 import charGidroxisUrl from './assets/char-gidroxis.png';
+import charSunstrikeUrl from './assets/char-sunstrike.png';
 import jumpscareUrl from './assets/jumpscare.jpg';
 import menuBgUrl from './assets/menu-bg.jpg';
 
-const CHARIMG: Record<string, string> = { mtt: charMttUrl, krysa: charKrysaUrl, shuba: charShubaUrl, chuma: charChumaUrl, gidroxis: charGidroxisUrl };
+const CHARIMG: Record<string, string> = { mtt: charMttUrl, krysa: charKrysaUrl, shuba: charShubaUrl, chuma: charChumaUrl, gidroxis: charGidroxisUrl, sunstrike: charSunstrikeUrl };
 
 /** Подробные описания способностей бойцов для меню. */
 const CHAR_ABILITIES: Record<string, { lines: string[]; sup: string }> = {
@@ -57,6 +58,14 @@ const CHAR_ABILITIES: Record<string, { lines: string[]; sup: string }> = {
       '🔍 Видит сквозь стены — супер подсвечивает всех существ',
     ],
     sup: '🔍 СУПЕР — Рентген на C: 5с всех существ видно сквозь стены (мобы и бойцы). Кд 20с, качается до 15с.',
+  },
+  sunstrike: {
+    lines: [
+      '❤️ Здоровье 100 — держит удар',
+      '💨 Скорость ×1.05 — чуть бодрее МТТ',
+      '☀️ Луч с неба — супер бьёт по врагу под прицелом',
+    ],
+    sup: '☀️ СУПЕР — Луч Санстрайка на C: метка на точке врага, через 2с удар с неба. Заряд 0–10 (+1 за убийство, урон по тебе — в 0): урон 20→142, диаметр 1.5→5м. Кд 30с.',
   },
 };
 
@@ -408,7 +417,7 @@ export default function App() {
   const gameRef = useRef<Game | null>(null);
   const [menu, setMenu] = useState(true);
   const [loading, setLoading] = useState<{ show: boolean; pct: number }>({ show: false, pct: 0 });
-  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, invis: 0, invisCd: 0, chuma: 0, chumaCd: 0, xray: 0, xrayCd: 0, med: 0, lvl: 1, boss: 0, fps: 60, quality: 'medium', doorPulse: false });
+  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, invis: 0, invisCd: 0, chuma: 0, chumaCd: 0, xray: 0, xrayCd: 0, sun: 0, sunCd: 0, med: 0, lvl: 1, boss: 0, fps: 60, quality: 'medium', doorPulse: false });
   const [scores, setScores] = useState<ScoreRow[]>([]);
   const [duelTop, setDuelTop] = useState<Array<{ login: string; wins: number }>>([]);
   const [gstats, setGstats] = useState<{ games: number; best: number; online: number } | null>(null);
@@ -456,31 +465,35 @@ async function loadStats(): Promise<void> {
     if (r < 0.7) return 'xp';
     return 'med';
   };
-  /** Карта-пустышка для барабана: боец — по шансам кейса (редкие 30/30, легенды 20/20) */
+  /** Карта-пустышка для барабана: боец — по шансам кейса (редкие 30/30, легенды 5/5, мифик 20) */
   const fillerReel = (k: CaseDrop['kind']): ReelItem => {
     if (k === 'char') {
       const r = Math.random();
-      const c = r < 0.3 ? 'shuba' : r < 0.6 ? 'chuma' : r < 0.8 ? 'krysa' : 'gidroxis';
+      const c = r < 0.3 ? 'shuba' : r < 0.6 ? 'chuma' : r < 0.65 ? 'krysa' : r < 0.7 ? 'gidroxis' : 'sunstrike';
       return c === 'shuba'
         ? { kind: 'char', char: 'shuba', label: '🥷 ИВАНГОЙ', sub: 'Редкий' }
         : c === 'chuma'
           ? { kind: 'char', char: 'chuma', label: '🐦‍⬛ ЧУМА', sub: 'Редкий' }
           : c === 'krysa'
             ? { kind: 'char', char: 'krysa', label: '🐀 СТЕЙСИ', sub: 'Легендарный' }
-            : { kind: 'char', char: 'gidroxis', label: '🧪 ГИДРОКСИС', sub: 'Легендарный' };
+            : c === 'gidroxis'
+              ? { kind: 'char', char: 'gidroxis', label: '🧪 ГИДРОКСИС', sub: 'Легендарный' }
+              : { kind: 'char', char: 'sunstrike', label: '☀️ САНСТРАЙК', sub: 'Мифический' };
     }
     const v = reelLabel(k);
     return { kind: k, label: v.label, sub: v.sub };
   };
   const dropToReel = (d: CaseDrop): ReelItem => {
     if (d.kind === 'char') {
-      const c = d.char === 'shuba' ? 'shuba' : d.char === 'chuma' ? 'chuma' : d.char === 'gidroxis' ? 'gidroxis' : 'krysa';
+      const c = d.char === 'shuba' ? 'shuba' : d.char === 'chuma' ? 'chuma' : d.char === 'gidroxis' ? 'gidroxis' : d.char === 'sunstrike' ? 'sunstrike' : 'krysa';
       return c === 'shuba'
         ? { kind: 'char', char: 'shuba', label: '🥷 ИВАНГОЙ', sub: 'ТВОЯ!' }
         : c === 'chuma'
           ? { kind: 'char', char: 'chuma', label: '🐦‍⬛ ЧУМА', sub: 'ТВОЯ!' }
           : c === 'gidroxis'
             ? { kind: 'char', char: 'gidroxis', label: '🧪 ГИДРОКСИС', sub: 'ТВОЯ!' }
+            : c === 'sunstrike'
+              ? { kind: 'char', char: 'sunstrike', label: '☀️ САНСТРАЙК', sub: 'ТВОЯ!' }
             : { kind: 'char', char: 'krysa', label: '🐀 СТЕЙСИ', sub: 'ТВОЯ!' };
     }
     const v = reelLabel(d.kind);
@@ -1962,7 +1975,7 @@ async function loadStats(): Promise<void> {
             <div id="hpBar"><div id="hpFill" style={{ width: `${hpFrac * 100}%` }} /></div>
           </div>
           <div id="hudRow">{noEnemies ? '🕊️ МИРНЫЙ РЕЖИМ · ' : `🌊 Волна ${hud.wave} · 👹 ${hud.enemies} · `}💀 {hud.kills} · 🏆 {hud.score}</div>
-          <div id="hudRow2">🎟️ {hud.fantiki} · 💊 {hud.med}/3 · ⭐ {hud.lvl} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}{char === 'krysa' && (hud.kick > 0 ? ` · 🌀 ${hud.kick.toFixed(1)}с` : ' · 🌀 вол-кик готов')}{char === 'shuba' && (hud.invis > 0 ? ` · 👻 ещё ${hud.invis.toFixed(1)}с` : hud.invisCd > 0 ? ` · 👻 ${hud.invisCd.toFixed(1)}с` : ' · 👻 несутка готова')}{char === 'chuma' && (hud.chuma > 0 ? ` · 🦠 ещё ${hud.chuma.toFixed(1)}с` : hud.chumaCd > 0 ? ` · 🦠 ${hud.chumaCd.toFixed(1)}с` : ' · 🦠 облако готово')}{char === 'gidroxis' && (hud.xray > 0 ? ` · 🔍 ещё ${hud.xray.toFixed(1)}с` : hud.xrayCd > 0 ? ` · 🔍 ${hud.xrayCd.toFixed(1)}с` : ' · 🔍 рентген готов')}</div>
+          <div id="hudRow2">🎟️ {hud.fantiki} · 💊 {hud.med}/3 · ⭐ {hud.lvl} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}{char === 'krysa' && (hud.kick > 0 ? ` · 🌀 ${hud.kick.toFixed(1)}с` : ' · 🌀 вол-кик готов')}{char === 'shuba' && (hud.invis > 0 ? ` · 👻 ещё ${hud.invis.toFixed(1)}с` : hud.invisCd > 0 ? ` · 👻 ${hud.invisCd.toFixed(1)}с` : ' · 👻 несутка готова')}{char === 'chuma' && (hud.chuma > 0 ? ` · 🦠 ещё ${hud.chuma.toFixed(1)}с` : hud.chumaCd > 0 ? ` · 🦠 ${hud.chumaCd.toFixed(1)}с` : ' · 🦠 облако готово')}{char === 'gidroxis' && (hud.xray > 0 ? ` · 🔍 ещё ${hud.xray.toFixed(1)}с` : hud.xrayCd > 0 ? ` · 🔍 ${hud.xrayCd.toFixed(1)}с` : ' · 🔍 рентген готов')}{char === 'sunstrike' && (hud.sunCd > 0 ? ` · ☀️ ${hud.sunCd.toFixed(1)}с` : ` · ☀️ заряд ${hud.sun}/10`)}</div>
         </div>
       )}
       {!menu && (
@@ -2294,8 +2307,8 @@ async function loadStats(): Promise<void> {
                         <div className="cdesc">{c.desc}</div>
                       </button>
                       <div className="cstats">❤️ {c.hp} · 💨 {c.spd}× · ⭐ Ур. {lvl}</div>
-                      <div className={'rarity ' + (c.rarity === 'Легендарный' ? 'leg' : c.rarity === 'Редкий' ? 'rare' : 'base')} id={`rarity-${c.id}`}>
-                        {c.rarity === 'Легендарный' ? '🌟 Редкость: Легендарный' : c.rarity === 'Редкий' ? '💎 Редкость: Редкий' : '⚪ Редкость: Базовый'}
+                      <div className={'rarity ' + (c.rarity === 'Мифический' ? 'myth' : c.rarity === 'Легендарный' ? 'leg' : c.rarity === 'Редкий' ? 'rare' : 'base')} id={`rarity-${c.id}`}>
+                        {c.rarity === 'Мифический' ? '🔮 Редкость: Мифический' : c.rarity === 'Легендарный' ? '🌟 Редкость: Легендарный' : c.rarity === 'Редкий' ? '💎 Редкость: Редкий' : '⚪ Редкость: Базовый'}
                       </div>
                       {locked && <div className="clocked" id={`locked-${c.id}`}>🔒 ЗАКРЫТ — выбей из 🎰 кейса</div>}
                       <div className="cxp" id={`xp-${c.id}`}>
@@ -2306,7 +2319,7 @@ async function loadStats(): Promise<void> {
                         {ab?.lines.map((l) => <li key={l}>{l}</li>)}
                         <li className="csup">{ab?.sup}</li>
                       </ul>
-                      <div className="cupgLine"><small>🔧 Прокачка: ❤️×{u.hp} 💪×{u.dmg} 💨×{u.spd} {c.id === 'mtt' ? '⚡' : c.id === 'shuba' ? '👻' : c.id === 'chuma' ? '🦠' : c.id === 'gidroxis' ? '🔍' : '🌀'}×{u.sup} · кд супера {g?.superCdOf(c.id) ?? (c.id === 'krysa' ? 5 : c.id === 'shuba' || c.id === 'chuma' ? 30 : c.id === 'gidroxis' ? 20 : 3)}с</small></div>
+                      <div className="cupgLine"><small>🔧 Прокачка: ❤️×{u.hp} 💪×{u.dmg} 💨×{u.spd} {c.id === 'mtt' ? '⚡' : c.id === 'shuba' ? '👻' : c.id === 'chuma' ? '🦠' : c.id === 'gidroxis' ? '🔍' : c.id === 'sunstrike' ? '☀️' : '🌀'}×{u.sup} · кд супера {g?.superCdOf(c.id) ?? (c.id === 'krysa' ? 5 : c.id === 'shuba' || c.id === 'chuma' || c.id === 'sunstrike' ? 30 : c.id === 'gidroxis' ? 20 : 3)}с</small></div>
                       <button
                         className="wbtn"
                         id={`upg-${c.id}`}
@@ -2320,7 +2333,7 @@ async function loadStats(): Promise<void> {
                             ['hp', '❤️ Здоровье', `+15 maxHP за уровень (макс +${UPG_MAX.hp * 15})`],
                             ['dmg', '💪 Сила', '+8% к урону за уровень'],
                             ['spd', '💨 Скорость', '+6% к скорости за уровень'],
-                            ['sup', c.id === 'mtt' ? '⚡ Супер: рывок' : c.id === 'shuba' ? '👻 Супер: несутка' : c.id === 'chuma' ? '🦠 Супер: облако' : c.id === 'gidroxis' ? '🔍 Супер: рентген' : '🌀 Супер: вол-кик', `кд → мин ${c.id === 'shuba' || c.id === 'chuma' ? '20' : c.id === 'gidroxis' ? '15' : '1.7'}с (сейчас ${g?.superCdOf(c.id)}с)${c.id === 'shuba' || c.id === 'chuma' || c.id === 'gidroxis' ? '' : ` · дальность ×${superRange(u.sup)} (+15%/ур)`}`],
+                            ['sup', c.id === 'mtt' ? '⚡ Супер: рывок' : c.id === 'shuba' ? '👻 Супер: несутка' : c.id === 'chuma' ? '🦠 Супер: облако' : c.id === 'gidroxis' ? '🔍 Супер: рентген' : c.id === 'sunstrike' ? '☀️ Супер: луч с неба' : '🌀 Супер: вол-кик', `кд → мин ${c.id === 'shuba' || c.id === 'chuma' || c.id === 'sunstrike' ? '30' : c.id === 'gidroxis' ? '15' : '1.7'}с (сейчас ${g?.superCdOf(c.id)}с)${c.id === 'shuba' || c.id === 'chuma' || c.id === 'gidroxis' || c.id === 'sunstrike' ? '' : ` · дальность ×${superRange(u.sup)} (+15%/ур)`}`],
                           ] as Array<[keyof UpgState, string, string]>).map(([key, label, hint]) => {
                             const lvlU = u[key];
                             const max = UPG_MAX[key];
@@ -2362,13 +2375,14 @@ async function loadStats(): Promise<void> {
             <h3>🎰 Кейсы</h3>
             <div className="caseCard" id="case-fighter">
               <div className="mname">📦 КЕЙС БОЙЦА</div>
-              <div className="mdesc">Внутри — боец! Редкие по 30%: 🥷 Ивангой и 🐦‍⬛ Чума. Легендарные по 20%: 🌟 Стейси Крыса и 🧪 Гидроксис. Не повезло — утешительный приз: фантики, опыт или аптечка.</div>
+              <div className="mdesc">Внутри — боец! Редкие по 30%: 🥷 Ивангой и 🐦‍⬛ Чума. Легендарные по 5% (всего 10%): 🌟 Стейси Крыса и 🧪 Гидроксис. Мифический 20%: ☀️ Андрей Санстрайк. Не повезло — утешительный приз: фантики, опыт или аптечка.</div>
               <ul className="cabilityList">
                 <li>⚪ МТТ — у тебя уже есть (Базовый)</li>
                 <li>💎 Ивангой — только из кейса (Редкий)</li>
                 <li>💎 Чума — только из кейса (Редкий)</li>
                 <li>🌟 Стейси Крыса — только из кейса (Легендарный)</li>
                 <li>🌟 Гидроксис — только из кейса (Легендарный)</li>
+                <li>🔮 Андрей Санстрайк — только из кейса (Мифический)</li>
               </ul>
               <div className="srow">
                 <button
@@ -2563,7 +2577,7 @@ async function loadStats(): Promise<void> {
             placeholder="Твой ник"
           />
           <button id="charBtn" className="wbtn" onClick={() => setMenuTab('fighter')}>
-            🎭 БОЕЦ: {char === 'krysa' ? '🐀 Стейси' : char === 'shuba' ? '🥷 Ивангой' : char === 'chuma' ? '🐦‍⬛ Чума' : char === 'gidroxis' ? '🧪 Гидроксис' : '🕶️ МТТ'} — ВЫБРАТЬ
+            🎭 БОЕЦ: {char === 'krysa' ? '🐀 Стейси' : char === 'shuba' ? '🥷 Ивангой' : char === 'chuma' ? '🐦‍⬛ Чума' : char === 'gidroxis' ? '🧪 Гидроксис' : char === 'sunstrike' ? '☀️ Санстрайк' : '🕶️ МТТ'} — ВЫБРАТЬ
           </button>
           {(roomId && !isOwner) || waiting ? (
             <button id="goBtn" disabled title="Ждём старта от создателя">⏳ ЖДУ СТАРТА…</button>
@@ -2586,7 +2600,7 @@ async function loadStats(): Promise<void> {
                     <div>🎮 Игр сыграно: <b>{profile.games}</b></div>
                     <div>🏆 Лучший счёт: <b>{profile.best}</b></div>
                     <div>🎟️ Фантиков всего: <b>{profile.coins}</b></div>
-                    <div>🎭 Боец: {char === 'krysa' ? '🐀 Стейси' : char === 'shuba' ? '🥷 Ивангой' : char === 'chuma' ? '🐦‍⬛ Чума' : char === 'gidroxis' ? '🧪 Гидроксис' : '🕶️ МТТ'} · ⭐ Ур. {hud.lvl} · Ник: {nick}</div>
+                    <div>🎭 Боец: {char === 'krysa' ? '🐀 Стейси' : char === 'shuba' ? '🥷 Ивангой' : char === 'chuma' ? '🐦‍⬛ Чума' : char === 'gidroxis' ? '🧪 Гидроксис' : char === 'sunstrike' ? '☀️ Санстрайк' : '🕶️ МТТ'} · ⭐ Ур. {hud.lvl} · Ник: {nick}</div>
                     <h3>🔑 Сменить пароль</h3>
                     <input
                       id="passOld"

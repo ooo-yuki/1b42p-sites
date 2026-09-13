@@ -25,6 +25,7 @@ import charKrysaUrl from '../assets/char-krysa.png';
 import charShubaUrl from '../assets/char-shuba.png';
 import charChumaUrl from '../assets/char-chuma.png';
 import charGidroxisUrl from '../assets/char-gidroxis.png';
+import charSunstrikeUrl from '../assets/char-sunstrike.png';
 import stalkerUrl from '../assets/stalker.png';
 import shotUrl from '../assets/shot.mp3';
 import hitUrl from '../assets/hit.mp3';
@@ -44,6 +45,7 @@ export function upgCost(key: keyof UpgState, lvl: number): number {
 }
 /** Кд суперспособности с учётом прокачки: МТТ/рывок мин 1.7с, Крыса мин 1.7с, Ивангой-несутка и Чума-облако 30с мин 20с, Гидроксис-рентген 20с мин 15с. */
 export function superCd(id: string, sup: number): number {
+  if (id === 'sunstrike') return 30;
   if (id === 'shuba' || id === 'chuma') return Math.max(20, Math.round((30 - sup * 2) * 10) / 10);
   if (id === 'gidroxis') return Math.max(15, Math.round((20 - sup) * 10) / 10);
   const base = id === 'krysa' ? 5 : 3;
@@ -71,6 +73,7 @@ export const CHARS: CharDef[] = [
   { id: 'shuba', name: '🥷 Ивангой', desc: 'Невидимка в белой шубе · супер — несутка на 3с', hp: 105, spd: 1.05, rarity: 'Редкий' },
   { id: 'chuma', name: '🐦‍⬛ Чума', desc: 'Чумной доктор в чёрном · супер — чумное облако 5с', hp: 100, spd: 1.05, rarity: 'Редкий' },
   { id: 'gidroxis', name: '🧪 Гидроксис', desc: 'Сканер в жёлтом · супер — рентген существ 5с', hp: 95, spd: 1.1, rarity: 'Легендарный' },
+  { id: 'sunstrike', name: '☀️ Андрей Санстрайк', desc: 'Мифический в фиолете · супер — луч света с неба по прицелу (заряд от убийств)', hp: 100, spd: 1.05, rarity: 'Мифический' },
 ];
 
 /** Кейс бойца: цена открытия в фантиках. */
@@ -157,6 +160,10 @@ export interface HudState {
   xray: number;
   /** Перезарядка рентгена Гидроксиса: осталось секунд (0 — готов). */
   xrayCd: number;
+  /** Заряд луча Санстрайка 0–10 (по убийству +1, урон по себе — в 0). */
+  sun: number;
+  /** Перезарядка луча Санстрайка: осталось секунд (0 — готов). */
+  sunCd: number;
   med: number;
   lvl: number;
   /** Живых боссов на карте — для баннера 👑. */
@@ -445,21 +452,29 @@ export class Game {
       this.pushHud();
       return { ok: true, kind: 'char', char: 'chuma', text: '🐦‍⬛ ЧУМА · Редкий — твоя!' };
     }
-    // Стейси ещё закрыта — 20% на неё (легендарный)
-    if (!this.ownedChars.includes('krysa') && roll >= 0.6 && roll < 0.8) {
+    // Стейси ещё закрыта — 5% на неё (легендарный)
+    if (!this.ownedChars.includes('krysa') && roll >= 0.6 && roll < 0.65) {
       this.unlockChar('krysa');
       this.addXp(100);
       this.saveShop();
       this.pushHud();
       return { ok: true, kind: 'char', char: 'krysa', text: '🐀 СТЕЙСИ КРЫСА · Легендарный — твоя!' };
     }
-    // Гидроксис ещё закрыт — те же 20% (легендарный)
-    if (!this.ownedChars.includes('gidroxis') && roll >= 0.8) {
+    // Гидроксис ещё закрыт — те же 5% (легендарный)
+    if (!this.ownedChars.includes('gidroxis') && roll >= 0.65 && roll < 0.7) {
       this.unlockChar('gidroxis');
       this.addXp(100);
       this.saveShop();
       this.pushHud();
       return { ok: true, kind: 'char', char: 'gidroxis', text: '🧪 ГИДРОКСИС · Легендарный — твоя!' };
+    }
+    // Санстрайк ещё закрыт — 20% на него (мифический)
+    if (!this.ownedChars.includes('sunstrike') && roll >= 0.7 && roll < 0.9) {
+      this.unlockChar('sunstrike');
+      this.addXp(100);
+      this.saveShop();
+      this.pushHud();
+      return { ok: true, kind: 'char', char: 'sunstrike', text: '☀️ АНДРЕЙ САНСТРАЙК · Мифический — твоя!' };
     }
     if (roll < 0.68) {
       this.fantiki += 300;
@@ -626,6 +641,14 @@ export class Game {
   /** Рентген Гидроксиса: xrayT — подсветка висит секунд, xrayCd — перезарядка. */
   private xrayT = 0;
   private xrayCd = 0;
+  /** Луч Андрея Санстрайка: заряд 0–10 (по убийству +1, урон сбрасывает в 0),
+      sunCd — перезарядка 30с, sunBeams — точки удара с задержкой 2с. */
+  private sunCharge = 0;
+  private sunCd = 0;
+  private sunBeams: Array<{ x: number; z: number; t: number; dmg: number; r: number }> = [];
+  private sunRing: THREE.Mesh | null = null;
+  private sunBeam: THREE.Mesh | null = null;
+  private sunFlashT = 0;
   /** Панель разработчика: бессмертие, сквозной рентген, хитбоксы (только у владельца). */
   private devGod = false;
   private devXray = false;
@@ -1152,7 +1175,7 @@ export class Game {
   /** Предзагрузка текстур перед боем: только нужное под карту + общие (бойцы, враги).
       Шуба ужата до 512px, грузим пачками параллельно — экран загрузки пролетает. */
   async preload(onPct: (p: number) => void): Promise<void> {
-    const core = [vrag1Url, vrag2Url, bossUrl, stalkerUrl, charMttUrl, charKrysaUrl, charShubaUrl, charChumaUrl, charGidroxisUrl, skyUrl];
+    const core = [vrag1Url, vrag2Url, bossUrl, stalkerUrl, charMttUrl, charKrysaUrl, charShubaUrl, charChumaUrl, charGidroxisUrl, charSunstrikeUrl, skyUrl];
     const byMap: Record<string, string[]> = {
       arena: [dom1Url, travaUrl, facadeUrl, panelUrl, shopUrl, roofUrl, roadUrl, walkUrl, plazaUrl, fenceUrl, edgeUrl, house2Url, brickUrl],
       duel: [travaUrl, brickUrl, edgeUrl],
@@ -3393,6 +3416,7 @@ export class Game {
   private killByStalker(): void {
     if (this.dead || this.specOn || this.invisT > 0 || this.shieldT > 0 || this.devGod) return;
     this.hp = 0;
+    this.sunCharge = 0;
     this.dead = true;
     this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
     this.shakeT = 0.35;
@@ -3718,6 +3742,8 @@ export class Game {
       e.dead = true;
       this.scene.remove(e.g);
       this.kills++;
+      // заряд Санстрайка: +1 за убийство (максимум 10)
+      if (this.charId === 'sunstrike') this.sunCharge = Math.min(10, this.sunCharge + 1);
       // за босса — куш: +500 очков и +100 фантиков
       this.score += e.kind === 'boss' ? 500 + e.ewave * 10 : 100 + e.ewave * 10;
       this.fantiki += e.kind === 'boss' ? 100 : 10;
@@ -4002,6 +4028,94 @@ export class Game {
 
   debugXray(): { t: number; cd: number } {
     return { t: Math.round(this.xrayT * 10) / 10, cd: Math.round(this.xrayCd * 10) / 10 };
+  }
+
+  // ЛУЧ Андрея Санстрайка: точка — где стоял враг под прицелом (слепок на касте),
+  // удар через 2с. Заряд 0–10: урон 20→142, диаметр 1.5→5м. Кд 30с.
+  sunstrike(): boolean {
+    if (!this.started || this.dead || this.sunCd > 0 || this.charId !== 'sunstrike') return false;
+    const tgt = this.aimEnemy(45);
+    if (!tgt) return false;
+    const q = Math.min(10, Math.max(0, this.sunCharge));
+    const dmg = 20 + (q / 10) * (142 - 20);
+    const r = (1.5 + (q / 10) * (5 - 1.5)) / 2;
+    this.sunBeams.push({ x: tgt.x, z: tgt.z, t: 2, dmg, r });
+    this.sunCd = superCd('sunstrike', this.upg['sunstrike']?.sup ?? 0);
+    this.showSunRing(tgt.x, tgt.z, r);
+    this.burst(this.px, 1.5, this.pz, 8);
+    this.pushHud();
+    return true;
+  }
+
+  /** Враг под прицелом: ближайший к лучу взгляда (допуск 1.2м), не дальше range. */
+  private aimEnemy(range: number): { x: number; z: number } | null {
+    const cp = Math.cos(this.pitch);
+    const dx = -Math.sin(this.yaw) * cp, dy = Math.sin(this.pitch), dz = -Math.cos(this.yaw) * cp;
+    const cx = this.px, cy = 1.7 + this.py, cz = this.pz;
+    let best: Enemy | null = null;
+    let bestD = Infinity;
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      const ey = e.kind === 'fly' ? 3.2 : 1.0 + e.ey;
+      const vx = e.g.position.x - cx, vy = ey - cy, vz = e.g.position.z - cz;
+      const t = vx * dx + vy * dy + vz * dz;
+      if (t > range || t < 0.15) continue;
+      const mx = vx - dx * t, my = vy - dy * t, mz = vz - dz * t;
+      if (Math.sqrt(mx * mx + my * my + mz * mz) > 1.2) continue;
+      if (t < bestD) { bestD = t; best = e; }
+    }
+    if (!best) return null;
+    return { x: best.g.position.x, z: best.g.position.z };
+  }
+
+  /** Кольцо-метка на точке удара (видно 2с задержки, пульсирует). */
+  private showSunRing(x: number, z: number, r: number): void {
+    if (!this.sunRing) {
+      const g = new THREE.RingGeometry(0.7, 1, 40);
+      const m = new THREE.MeshBasicMaterial({ color: 0xffc93c, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false });
+      this.sunRing = new THREE.Mesh(g, m);
+      this.sunRing.rotation.x = -Math.PI / 2;
+      this.sunRing.renderOrder = 998;
+      this.scene.add(this.sunRing);
+    }
+    const gy = this.groundAt(x, z);
+    this.sunRing.visible = true;
+    this.sunRing.position.set(x, gy + 0.1, z);
+    this.sunRing.scale.set(r, r, 1);
+    (this.sunRing.material as THREE.MeshBasicMaterial).opacity = 0.9;
+  }
+
+  /** Удар луча: вспышка-столб + урон всем в радиусе. */
+  private sunStrikeHit(b: { x: number; z: number; dmg: number; r: number }): void {
+    const gy = this.groundAt(b.x, b.z);
+    if (!this.sunBeam) {
+      const g = new THREE.CylinderGeometry(0.75, 1, 60, 16, 1, true);
+      const m = new THREE.MeshBasicMaterial({ color: 0xfff6c0, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+      this.sunBeam = new THREE.Mesh(g, m);
+      this.sunBeam.renderOrder = 999;
+      this.scene.add(this.sunBeam);
+    }
+    this.sunBeam.visible = true;
+    this.sunBeam.position.set(b.x, gy + 30, b.z);
+    this.sunBeam.scale.set(b.r, 1, b.r);
+    (this.sunBeam.material as THREE.MeshBasicMaterial).opacity = 0.85;
+    this.sunFlashT = 0.6;
+    if (this.sunRing) this.sunRing.visible = false;
+    this.burst(b.x, gy + 1, b.z, 24);
+    this.sfx(hitUrl);
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      const dx = e.g.position.x - b.x, dz = e.g.position.z - b.z;
+      const d = Math.hypot(dx, dz);
+      if (d <= b.r + 0.9) this.strikeEnemy(e, b.dmg, dx, dz, d || 1, 2);
+    }
+    this.pushHud();
+    this.waveClearCheck();
+  }
+
+  /** Луч для тестов: заряд, кд, сколько точек летит. */
+  debugSun(): { charge: number; cd: number; pending: number } {
+    return { charge: this.sunCharge, cd: Math.round(this.sunCd * 10) / 10, pending: this.sunBeams.length };
   }
 
   /** Контуры рентгена: враги (красные) и бойцы (белые) — видны ли прямо сейчас. */
@@ -4555,6 +4669,8 @@ export class Game {
       chumaCd: Math.round(this.chumaCd * 10) / 10,
       xray: Math.round(this.xrayT * 10) / 10,
       xrayCd: Math.round(this.xrayCd * 10) / 10,
+      sun: this.sunCharge,
+      sunCd: Math.round(this.sunCd * 10) / 10,
       fps: Math.round(this.fpsE),
       quality: this.quality,
       doorPulse: this.doorPulse,
@@ -4597,10 +4713,10 @@ export class Game {
   private charTexCache: Record<string, THREE.Texture> = {};
 
   private charTexture(id: string): THREE.Texture {
-    const key = id === 'krysa' ? 'krysa' : id === 'shuba' ? 'shuba' : id === 'chuma' ? 'chuma' : id === 'gidroxis' ? 'gidroxis' : 'mtt';
+    const key = id === 'krysa' ? 'krysa' : id === 'shuba' ? 'shuba' : id === 'chuma' ? 'chuma' : id === 'gidroxis' ? 'gidroxis' : id === 'sunstrike' ? 'sunstrike' : 'mtt';
     let t = this.charTexCache[key];
     if (!t) {
-      t = new THREE.TextureLoader().load(key === 'krysa' ? charKrysaUrl : key === 'shuba' ? charShubaUrl : key === 'chuma' ? charChumaUrl : key === 'gidroxis' ? charGidroxisUrl : charMttUrl);
+      t = new THREE.TextureLoader().load(key === 'krysa' ? charKrysaUrl : key === 'shuba' ? charShubaUrl : key === 'chuma' ? charChumaUrl : key === 'gidroxis' ? charGidroxisUrl : key === 'sunstrike' ? charSunstrikeUrl : charMttUrl);
       t.colorSpace = THREE.SRGBColorSpace;
       this.charTexCache[key] = t;
     }
@@ -4816,6 +4932,7 @@ export class Game {
     if (!this.started || this.dead) return Math.round(this.hp);
     if (this.shieldT > 0 || this.devGod) return Math.round(this.hp);
     this.hp -= n;
+    this.sunCharge = 0;
     if (this.hp <= 0) {
       this.hp = 0;
       this.dead = true;
@@ -5011,7 +5128,7 @@ export class Game {
       // Наблюдатель способностей не жмёт.
       if (this.input[km.ability] && this.charId !== 'krysa' && !this.specOn) {
         this.input[km.ability] = false;
-        if (this.charId === 'shuba') this.invis(); else if (this.charId === 'chuma') this.chuma(); else if (this.charId === 'gidroxis') this.xray(); else this.dash();
+        if (this.charId === 'shuba') this.invis(); else if (this.charId === 'chuma') this.chuma(); else if (this.charId === 'gidroxis') this.xray(); else if (this.charId === 'sunstrike') this.sunstrike(); else this.dash();
       }
       // NOTE: призраку input.ability НЕ чистим — это его спуск (C) в flySpec ниже.
       if (this.dashCd > 0) this.dashCd -= dt;
@@ -5040,6 +5157,28 @@ export class Game {
         this.chumaCd -= dt;
         if (this.chumaCd <= 0) { this.chumaCd = 0; this.pushHud(); }
         else if (Math.floor(this.chumaCd * 5) !== Math.floor((this.chumaCd + dt) * 5)) this.pushHud();
+      }
+      if (this.sunCd > 0) {
+        this.sunCd -= dt;
+        if (this.sunCd <= 0) { this.sunCd = 0; this.pushHud(); }
+        else if (Math.floor(this.sunCd * 5) !== Math.floor((this.sunCd + dt) * 5)) this.pushHud();
+      }
+      // луч санстрайка: точки тикают 2с, потом удар; вспышка столба тает 0.6с
+      for (let i = this.sunBeams.length - 1; i >= 0; i--) {
+        const b = this.sunBeams[i];
+        b.t -= dt;
+        if (this.sunRing && this.sunRing.visible) {
+          const pulse = 0.6 + 0.4 * Math.abs(Math.sin(performance.now() / 150));
+          (this.sunRing.material as THREE.MeshBasicMaterial).opacity = 0.9 * pulse;
+        }
+        if (b.t <= 0) { this.sunBeams.splice(i, 1); this.sunStrikeHit(b); }
+      }
+      if (this.sunFlashT > 0) {
+        this.sunFlashT -= dt;
+        if (this.sunBeam) {
+          if (this.sunFlashT <= 0) this.sunBeam.visible = false;
+          else (this.sunBeam.material as THREE.MeshBasicMaterial).opacity = 0.85 * (this.sunFlashT / 0.6);
+        }
       }
       // смена оружия на назначенной клавише (по умолчанию E) — только купленное; призрак не меняет
       if (!this.specOn && (this.input[km.switch] || this.input.KeyE)) {
@@ -5281,6 +5420,7 @@ export class Game {
               if (this.map === 'backrooms' || this.map === 'endless') { this.killByStalker(); }
               else {
               this.hp -= 12 + Math.random() * 6;
+              this.sunCharge = 0;
               this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
               this.shakeT = 0.25;
               this.sfx(hitUrl, 0.8);
@@ -5302,6 +5442,7 @@ export class Game {
             if (pd <= 2.3 && Math.abs(e.ey - this.py) <= (e.kind === 'boss' ? 2.8 : 2.2) && e.hitCd <= 0 && this.shieldT <= 0 && !this.devGod) {
               e.hitCd = e.kind === 'boss' ? 1.2 : 0.95;
               this.hp -= e.kind === 'boss' ? 18 + Math.random() * 10 : 6 + Math.random() * 5;
+              this.sunCharge = 0;
               this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
               this.shakeT = 0.25;
               this.sfx(hitUrl, 0.8);
@@ -5321,6 +5462,7 @@ export class Game {
           if (this.map === 'backrooms' || this.map === 'endless') { this.killByStalker(); }
           else {
           this.hp -= 12 + Math.random() * 6;
+          this.sunCharge = 0;
           this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
           this.shakeT = 0.25;
           this.sfx(hitUrl, 0.8);
@@ -5529,6 +5671,7 @@ export class Game {
           e.hitCd = e.kind === 'boss' ? 1.2 : 0.95;
           // босс бьёт втрое злее
           this.hp -= e.kind === 'boss' ? 18 + Math.random() * 10 : 6 + Math.random() * 5;
+          this.sunCharge = 0;
           this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
           this.shakeT = 0.25;
           this.sfx(hitUrl, 0.8);
