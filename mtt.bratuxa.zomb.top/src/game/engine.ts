@@ -91,11 +91,12 @@ export function charSpec(id: string): CharDef {
 }
 
 export type Quality = 'low' | 'medium' | 'high';
-export type MapId = 'arena' | 'duel' | 'backrooms' | 'custom' | 'random' | 'pvp' | 'endless' | 'invasion' | 'szeged';
+export type MapId = 'arena' | 'duel' | 'backrooms' | 'custom' | 'random' | 'pvp' | 'endless' | 'invasion' | 'szeged' | 'boss';
 
 /** Карты для выбора в меню: id, название, описание. */
 export const MAPS: Array<{ id: MapId; name: string; desc: string }> = [
   { id: 'arena', name: '🌍 Арена', desc: 'Новый город: витрины, переулки, Г/П-дома, площадь с фонтаном' },
+  { id: 'boss', name: '👹 Босс-арена', desc: 'Круглая арена: мировой босс 5000 HP, зоны, прыжки. Респаун 30 мин' },
   { id: 'duel', name: '⚔️ Дуэль', desc: 'Ночной двор 1×1 для разборок' },
   { id: 'szeged', name: '🇬🇧 London', desc: 'Приватная карта МТТ' },
   { id: 'backrooms', name: '🟨 Бэкрумс', desc: 'Случайный лабиринт — новый каждый раз' },
@@ -345,6 +346,16 @@ interface Enemy {
   slideDir: number;
   /** висит на стене (лезет вверх): гравитацию прыжков не применять, высоту ведёт лазанье */
   climbHold?: boolean;
+  /** мировой босс арены: своя логика (зоны, прыжки), общий обход мимо */
+  wb?: boolean;
+  /** кд зональной атаки / прыжковой */
+  watkT?: number;
+  wjumpT?: number;
+  /** фаза прыжка: 0 погоня, 1 взлёт, 2 наведение 1.5с, 3 удар */
+  wmode?: number;
+  wt?: number;
+  wtx?: number;
+  wtz?: number;
   /** шаги: таймер топота (звук — по дистанции до игрока) */
   stepT: number;
 }
@@ -671,6 +682,17 @@ export class Game {
   private devNoCd = false;
   setDevNoCd(on: boolean): void { this.devNoCd = !!on; this.pushHud(); }
   isDevNoCd(): boolean { return this.devNoCd; }
+  /** Мировой босс: хост симулирует и пушит, гость бьёт через сервер. */
+  private bossHost = true;
+  /** Внешний драйвер босса (комната): соло-респаун выключен, спавн/килл ведёт App. */
+  private wbExt = false;
+  /** Соло-респаун босса после убийства, сек. */
+  private wbSoloT = 120;
+  private wbRound = 1;
+  /** Зоны урона босса: мигают 3 раза — потом удар 50. */
+  private wbZones: Array<{ mesh: THREE.Mesh; x: number; z: number; r: number; t: number; hit: boolean }> = [];
+  /** Кольцо-прицел прыжка босса (диаметр 10м, наведение 1.5с). */
+  private wbJumpRing: THREE.Mesh | null = null;
   /** Купол чумного облака: полупрозрачная фиолетовая полусфера 9м. Один на игру. */
   private chumaDome: THREE.Mesh | null = null;
   /** Купол за игроком: стоит на ногах, виден пока облако висит, дышит прозрачностью. */
@@ -785,7 +807,7 @@ export class Game {
     this.custom = opts.custom ?? null;
     this.mapSeed = (opts.seed ?? Math.floor(Math.random() * 2 ** 31)) >>> 0;
     // Бэкрумс большой: лабиринт ~120м. Размер задаёт сам строитель через halfOverride.
-    this.half = map === 'duel' ? 32 : HALF;
+    this.half = map === 'duel' ? 32 : map === 'boss' ? 45 : HALF;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
     // свет наблюдателя: день вместо жути — висят выключенными, зажигаются в specOn
     this.specLight = new THREE.AmbientLight(0xfff6e6, 1.15);
@@ -841,8 +863,8 @@ export class Game {
     this.rebuildSolidGrid();
     this.loadDrawDist();
     this.applyDrawDist();
-    // endless: только сталкеры (волн нет); duel/pvp: без врагов вообще
-    if (map !== 'duel' && map !== 'endless' && map !== 'pvp' && this.enemiesOn) this.spawnWave();
+    // endless: только сталкеры (волн нет); duel/pvp: без врагов вообще; boss: только мировой босс (спавнит App/таймер)
+    if (map !== 'duel' && map !== 'endless' && map !== 'pvp' && map !== 'boss' && this.enemiesOn) this.spawnWave();
     window.addEventListener('resize', this.onResize);
     canvas.addEventListener('pointerdown', this.onPointerDown);
     window.addEventListener('pointermove', this.onPointerMove);
@@ -1196,6 +1218,7 @@ export class Game {
       szeged: [szegedAtlasUrl],
       pvp: [travaUrl, brickUrl, edgeUrl, house2Url],
       invasion: [dom1Url, travaUrl, facadeUrl, brickUrl, edgeUrl],
+      boss: [travaUrl, brickUrl],
     };
     const urls = [...core, ...(byMap[this.map] ?? Object.values(byMap).flat())];
     if (urls.length === 0) { onPct(100); return; }
@@ -1304,6 +1327,86 @@ export class Game {
       tl.position.set(fx, 4.3, fz);
       scene.add(tl);
       this.solids.push({ x: fx, z: fz, r: 0.2, h: 4.5 });
+    }
+  }
+
+  // 👹 Босс-арена: круглый ринг 40м, редкие низкие укрытия ближе к центру.
+  // Край держит радиальный кламп (игрок и босс), стена — только картинка.
+  private buildBossArena(): void {
+    const scene = this.scene;
+    scene.add(new THREE.AmbientLight(0xffe8d0, 0.7));
+    const sun = new THREE.DirectionalLight(0xffd9a0, 1.2);
+    sun.position.set(-30, 70, -20);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 1024;
+    sun.shadow.mapSize.height = 1024;
+    sun.shadow.camera.left = -55;
+    sun.shadow.camera.right = 55;
+    sun.shadow.camera.top = 55;
+    sun.shadow.camera.bottom = -55;
+    sun.shadow.camera.near = 10;
+    sun.shadow.camera.far = 200;
+    sun.shadow.bias = -0.0004;
+    scene.add(sun);
+    // земля — круг травы МТТ
+    const grassTex = new THREE.TextureLoader().load(travaUrl);
+    grassTex.colorSpace = THREE.SRGBColorSpace;
+    grassTex.wrapS = grassTex.wrapT = THREE.MirroredRepeatWrapping;
+    grassTex.repeat.set(10, 10);
+    const ground = new THREE.Mesh(
+      new THREE.CircleGeometry(44, 48),
+      new THREE.MeshStandardMaterial({ map: grassTex, roughness: 0.95, metalness: 0 }),
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+    // кровавое кольцо центра — метка середины ринга
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(9, 10.5, 48),
+      new THREE.MeshBasicMaterial({ color: 0xc81e1e, transparent: true, opacity: 0.75, side: THREE.DoubleSide }),
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(0, 0.03, 0);
+    scene.add(ring);
+    // стена по окружности — картинка (держит кламп, не солиды)
+    const wallTex = new THREE.TextureLoader().load(brickUrl);
+    wallTex.colorSpace = THREE.SRGBColorSpace;
+    wallTex.wrapS = wallTex.wrapT = THREE.MirroredRepeatWrapping;
+    wallTex.repeat.set(24, 1);
+    const wall = new THREE.Mesh(
+      new THREE.CylinderGeometry(40.5, 40.5, 7, 48, 1, true),
+      new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.9, side: THREE.DoubleSide }),
+    );
+    wall.position.set(0, 3.5, 0);
+    scene.add(wall);
+    // редкие низкие укрытия ближе к центру (5 ящиков + 2 столба)
+    const crateMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.9 });
+    const crateSpots: Array<[number, number]> = [[-7, -4], [6, -7], [8, 6], [-6, 8], [0, -12]];
+    for (const [cx, cz] of crateSpots) {
+      const c = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.2, 2.6), crateMat);
+      c.position.set(cx, 1.1, cz);
+      c.castShadow = true;
+      scene.add(c);
+      this.solids.push({ x: cx, z: cz, hx: 1.3, hz: 1.3, h: 2.2 });
+    }
+    const pilMat = new THREE.MeshStandardMaterial({ color: 0x4a4a52, roughness: 0.8 });
+    for (const [px2, pz2] of [[-3, 3], [4, 1]] as Array<[number, number]>) {
+      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.1, 5, 10), pilMat);
+      p.position.set(px2, 2.5, pz2);
+      p.castShadow = true;
+      scene.add(p);
+      this.solids.push({ x: px2, z: pz2, r: 1.1, h: 5 });
+    }
+    // факелы у стены (свет без теней — дёшево)
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const fx = Math.cos(a) * 36, fz = Math.sin(a) * 36;
+      const flame = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 10), new THREE.MeshBasicMaterial({ color: 0xff7b1c }));
+      flame.position.set(fx, 4.3, fz);
+      scene.add(flame);
+      const tl = new THREE.PointLight(0xff8b2a, 0.8, 30);
+      tl.position.set(fx, 4.3, fz);
+      scene.add(tl);
     }
   }
 
@@ -2602,6 +2705,7 @@ export class Game {
     // ACES затемняет середину — компенсируем экспозицией (только Szeged)
     this.renderer.toneMappingExposure = this.map === 'szeged' ? 1.45 : 1.0;
     if (this.map === 'duel') { this.buildDuel(); return; }
+    if (this.map === 'boss') { this.buildBossArena(); return; }
     if (this.map === 'backrooms' || this.map === 'endless') { this.buildBackrooms(); return; }
     if (this.map === 'custom') { this.buildCustom(); return; }
     if (this.map === 'random') { this.buildRandom(); return; }
@@ -3040,6 +3144,8 @@ export class Game {
   }
 
   private spawnWave(): void {
+    // босс-арена: волн нет, только мировой босс (спавн — spawnWorldBoss)
+    if (this.map === 'boss') return;
     // endless: волн нет вообще, только сталкеры через spawnStalkers()
     if (this.map === 'endless') return;
     // Бэкрумс: обычных нет — только бессмертные сталкеры (пак растёт с волной)
@@ -3712,6 +3818,18 @@ export class Game {
     return { x: 0, z: 22 };
   }
 
+  /** Спавн на круглой босс-арене: кольцо 25–35м от центра. */
+  randomBossSpawn(): { x: number; z: number } {
+    for (let t = 0; t < 24; t++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = 25 + Math.random() * 10;
+      const qx = Math.cos(a) * r, qz = Math.sin(a) * r;
+      if (!this.hitSolid(qx, qz, 1.0)) { this.px = qx; this.pz = qz; this.yaw = 0; this.py = 0; this.pvy = 0; return { x: qx, z: qz }; }
+    }
+    this.px = 0; this.pz = 30; this.yaw = 0;
+    return { x: 0, z: 30 };
+  }
+
   /** Пульс присутствия для комнаты: ствол, высота, счётчик ударов, смерть. */
   presence(): { weapon: string; py: number; atk: number; dead: boolean } {
     return { weapon: this.weaponId, py: Math.round(this.py * 10) / 10, atk: this.atk, dead: this.dead };
@@ -3719,6 +3837,12 @@ export class Game {
 
   // удар по врагу: локальному — сразу HP и фраг, сетевому — картинка + заявка на сервер (HP считает сервер)
   private strikeEnemy(e: Enemy, dmg: number, dx: number, dz: number, d: number, push: number): void {
+    // мировой босс у гостя: урон считает сервер (мой слепок только картинка)
+    if (e.wb && !this.bossHost) {
+      this.ev.onNetHit?.(777, Math.round(dmg));
+      this.burst(e.g.position.x, 1.2, e.g.position.z, 4);
+      return;
+    }
     // панель разработчика: бесконечный урон — сносит всё с одного удара
     if (this.devDmg) dmg = 99999;
     if (e.net) {
@@ -3832,7 +3956,7 @@ export class Game {
   // зачистка волны: +волна, +25HP, +25 фантиков, +50 опыта (один хелпер на все стволы)
   private waveClearCheck(): void {
     if (this.netSync) return;
-    if ((this.map === 'arena' || this.map === 'backrooms' || this.map === 'custom' || this.map === 'random' || this.map === 'invasion') && this.enemiesOn && this.enemies.length > 0 && this.enemies.every((e) => e.dead)) {
+    if ((this.map === 'arena' || this.map === 'backrooms' || this.map === 'custom' || this.map === 'random' || this.map === 'invasion') && this.map !== 'boss' && this.enemiesOn && this.enemies.length > 0 && this.enemies.every((e) => e.dead)) {
       this.wave++;
       this.hp = Math.min(this.maxhp, this.hp + 25);
       this.fantiki += 25;
@@ -4133,6 +4257,282 @@ export class Game {
   /** Луч для тестов: заряд, кд, сколько точек летит. */
   debugSun(): { charge: number; cd: number; pending: number } {
     return { charge: this.sunCharge, cd: Math.round(this.sunCd * 10) / 10, pending: this.sunBeams.length };
+  }
+
+  // 👹 МИРОВОЙ БОСС: 5000 HP, медленный (2.0), три атаки —
+  // рука 25 в упор, зоны (3 мигания — 50), прыжок на случайного бойца (метка 10м 1.5с — 60).
+  // Хост симулирует и пушит (mobId 777), гость бьёт через сервер (onNetHit).
+
+  /** Хост ли я для мирового босса (App ставит false гостям в комнате). */
+  setBossHost(on: boolean): void {
+    this.bossHost = !!on;
+    this.wbExt = true;
+  }
+
+  /** Живой мировой босс прямо сейчас (для App и тестов). */
+  worldBossAlive(): boolean {
+    return this.enemies.some((e) => e.wb && !e.dead);
+  }
+
+  /** Заспавнить мирового босса (соло-старт, хост, новый раунд). */
+  spawnWorldBoss(hp = 5000, round = 1): void {
+    if (this.netSync) return;
+    for (const e of this.enemies.filter((q) => q.wb)) this.scene.remove(e.g);
+    this.enemies = this.enemies.filter((q) => !q.wb);
+    this.clearWbFx();
+    let sx = 0, sz = -25;
+    if (this.hitSolid(sx, sz, 2)) {
+      const fs = this.farSpot(20);
+      if (fs) { sx = fs[0]; sz = fs[1]; }
+    }
+    const v = this.makeEnemyVisuals('boss');
+    v.g.position.set(sx, 0, sz);
+    v.g.scale.setScalar(1.35);
+    this.scene.add(v.g);
+    const foe: Enemy = {
+      ...v, kind: 'boss', hp, maxhp: Math.max(hp, 1), speed: 2.0,
+      hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, ey: 0, evy: 0, hopCd: 1e9, dead: false,
+      mobId: 777, net: false, tx: sx, tz: sz, snaps: [], ewave: round,
+      path: [], repathT: 0.3, god: false, climb: false,
+      ptx: sx, ptz: sz, lx: sx, lz: sz, stuckT: 0, slideT: 0, slideX: 0, slideZ: 0, slideDir: 0,
+      stepT: Math.random() * 0.4,
+      wb: true, watkT: 3, wjumpT: 6, wmode: 0, wt: 0, wtx: 0, wtz: 0,
+    };
+    this.updateHpBar(foe);
+    this.enemies.push(foe);
+    this.wbRound = round;
+    this.wbSoloT = 120;
+    this.pushHud();
+  }
+
+  /** Синхронизация с сервером (гость): HP вниз, смерть с наградой, новый раунд — свежий спавн. */
+  syncWorldBoss(hp: number, dead: boolean, round: number): void {
+    this.wbExt = true;
+    let e = this.enemies.find((q) => q.wb);
+    if (!e && !dead) { this.spawnWorldBoss(Math.max(1, hp), round); return; }
+    if (!e) return;
+    if (!e.dead && round !== e.ewave && !dead) {
+      this.spawnWorldBoss(Math.max(1, hp), round);
+      return;
+    }
+    if (e.dead) return;
+    if (dead || hp <= 0) {
+      e.dead = true;
+      this.burst(e.g.position.x, 1.2, e.g.position.z, 16);
+      this.scene.remove(e.g);
+      this.clearWbFx();
+      // награда за босса — каждому добившему (кооп, фраг один на сервере)
+      this.kills++;
+      this.score += 500 + e.ewave * 10;
+      this.fantiki += 100;
+      this.addXp(100);
+      this.saveShop();
+      this.pushHud();
+      return;
+    }
+    const sh = Math.max(0, Math.round(hp));
+    if (sh < e.hp) {
+      e.hp = sh;
+      this.updateHpBar(e);
+    }
+  }
+
+  /** Бойцы для прицела босса: я (если жив и в теле) + живые сокомнатники. */
+  private wbFighters(): Array<{ x: number; z: number }> {
+    const out: Array<{ x: number; z: number }> = [];
+    if (!this.dead && !this.specOn) out.push({ x: this.px, z: this.pz });
+    for (const r of this.remotes) if (!r.dead) out.push({ x: r.x, z: r.z });
+    return out;
+  }
+
+  /** Урон босса по мне: щит/призрак/бессмертие — мимо, верхотура — мимо. */
+  private wbHurt(dmg: number): void {
+    if (this.dead || this.specOn || this.shieldT > 0 || this.devGod) return;
+    if (Math.abs(this.py) > 2.2) return;
+    this.hp -= dmg;
+    this.sunCharge = 0;
+    this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 10);
+    this.shakeT = 0.3;
+    this.sfx(hitUrl, 0.9);
+    if (this.hp <= 0) {
+      this.hp = 0;
+      this.dead = true;
+      this.playDeathOnce();
+      this.pushHud();
+      this.ev.onBusted({ score: this.score, coins: 0 });
+    }
+    this.pushHud();
+  }
+
+  /** Кольцо-метка босса на земле. */
+  private wbRing(color: number, r: number, opacity: number): THREE.Mesh {
+    const m = new THREE.Mesh(
+      new THREE.RingGeometry(Math.max(0.5, r - 0.6), r, 40),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    m.rotation.x = -Math.PI / 2;
+    m.renderOrder = 998;
+    return m;
+  }
+
+  /** Убрать все метки босса (смерть, респаун). */
+  private clearWbFx(): void {
+    for (const z of this.wbZones) this.scene.remove(z.mesh);
+    this.wbZones = [];
+    if (this.wbJumpRing) this.wbJumpRing.visible = false;
+  }
+
+  /** Зональная атака: до 3 зон под случайных бойцов (r=4, 3 быстрых мигания — 50). */
+  private wbZoneAttack(): void {
+    const fs = this.wbFighters();
+    if (fs.length === 0) return;
+    const n = Math.min(3, fs.length);
+    for (let i = 0; i < n; i++) {
+      const f = fs[Math.floor(Math.random() * fs.length)];
+      const mesh = this.wbRing(0xff2a1a, 4, 0.85);
+      mesh.position.set(f.x, 0.12, f.z);
+      this.scene.add(mesh);
+      this.wbZones.push({ mesh, x: f.x, z: f.z, r: 4, t: 0, hit: false });
+    }
+    this.sfx(hitUrl, 0.5);
+  }
+
+  /** Тик зон: мигают 0.9с — удар — тают к 1.3с. */
+  private tickWbZones(dt: number): void {
+    for (let i = this.wbZones.length - 1; i >= 0; i--) {
+      const z = this.wbZones[i];
+      z.t += dt;
+      const mat = z.mesh.material as THREE.MeshBasicMaterial;
+      if (z.t < 0.9) {
+        // 3 быстрых мигания за 0.9с
+        mat.opacity = 0.35 + 0.55 * Math.abs(Math.sin((z.t / 0.9) * Math.PI * 3));
+      } else {
+        if (!z.hit) {
+          z.hit = true;
+          mat.opacity = 1;
+          mat.color.set(0xffffff);
+          this.burst(z.x, 1, z.z, 18);
+          const d = Math.hypot(this.px - z.x, this.pz - z.z);
+          if (d <= z.r) this.wbHurt(50);
+        } else {
+          mat.opacity = Math.max(0, 1 - (z.t - 0.9) * 2.5);
+        }
+        if (z.t >= 1.3) {
+          this.scene.remove(z.mesh);
+          this.wbZones.splice(i, 1);
+        }
+      }
+    }
+  }
+
+  /** Прыжок: слепок точки случайного бойца, взлёт, метка 10м 1.5с, удар 60. */
+  private wbJumpStart(): void {
+    const fs = this.wbFighters();
+    if (fs.length === 0) return;
+    const f = fs[Math.floor(Math.random() * fs.length)];
+    const e = this.enemies.find((q) => q.wb && !q.dead);
+    if (!e) return;
+    e.wtx = f.x; e.wtz = f.z;
+    e.wmode = 1; e.wt = 0.6;
+  }
+
+  /** Показ прыжка для тестов: фаза, кд зоны/прыжка. */
+  debugWb(): { alive: boolean; hp: number; mode: number; zoneCd: number; jumpCd: number; zones: number } {
+    const e = this.enemies.find((q) => q.wb && !q.dead);
+    return {
+      alive: !!e,
+      hp: e ? Math.round(e.hp) : 0,
+      mode: e?.wmode ?? -1,
+      zoneCd: e ? Math.round((e.watkT ?? 0) * 10) / 10 : -1,
+      jumpCd: e ? Math.round((e.wjumpT ?? 0) * 10) / 10 : -1,
+      zones: this.wbZones.length,
+    };
+  }
+
+  /** Кадр мирового босса: погоня, рука 25, зоны, прыжок. Куклы (net) сюда не заходят. */
+  private updateWorldBoss(e: Enemy, dt: number): void {
+    if (e.hitCd > 0) e.hitCd -= dt;
+    e.phase += dt * 2;
+    this.tickWbZones(dt);
+    // цель — ближайший живой боец
+    let txp = Infinity, tzp = Infinity, bd = Infinity;
+    if (!this.dead && !this.specOn) {
+      bd = Math.hypot(this.px - e.g.position.x, this.pz - e.g.position.z);
+      txp = this.px; tzp = this.pz;
+    }
+    for (const r of this.remotes) {
+      if (r.dead) continue;
+      const rd = Math.hypot(r.x - e.g.position.x, r.z - e.g.position.z);
+      if (rd < bd) { bd = rd; txp = r.x; tzp = r.z; }
+    }
+    if (e.wmode === 1) {
+      // взлёт в небо
+      e.wt = (e.wt ?? 0) - dt;
+      e.ey = Math.min(26, e.ey + 60 * dt);
+      e.g.position.y = e.ey;
+      if ((e.wt ?? 0) <= 0) {
+        e.wmode = 2; e.wt = 1.5;
+        if (!this.wbJumpRing) {
+          this.wbJumpRing = this.wbRing(0xff9f1c, 5, 0.85);
+          this.scene.add(this.wbJumpRing);
+        }
+        this.wbJumpRing.visible = true;
+        this.wbJumpRing.position.set(e.wtx ?? 0, 0.12, e.wtz ?? 0);
+      }
+      return;
+    }
+    if (e.wmode === 2) {
+      // наведение 1.5с над слепком точки
+      e.wt = (e.wt ?? 0) - dt;
+      if (this.wbJumpRing) (this.wbJumpRing.material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.4 * Math.abs(Math.sin(performance.now() / 130));
+      if ((e.wt ?? 0) <= 0) {
+        // удар: летим в слепок, приземление — 60 всем в радиусе 5м
+        e.g.position.set(e.wtx ?? 0, 0, e.wtz ?? 0);
+        e.ey = 0;
+        e.g.position.y = 0;
+        e.wmode = 0;
+        e.wjumpT = 13;
+        if (this.wbJumpRing) this.wbJumpRing.visible = false;
+        this.burst(e.g.position.x, 1, e.g.position.z, 30);
+        this.shakeT = 0.5;
+        this.sfx(hitUrl, 1);
+        const d = Math.hypot(this.px - e.g.position.x, this.pz - e.g.position.z);
+        if (d <= 5) this.wbHurt(60);
+      }
+      return;
+    }
+    // погоня: медленно (2.0), в лоб со скольжением, край ринга держит
+    const dx = txp - e.g.position.x, dz = tzp - e.g.position.z;
+    const d = Math.hypot(dx, dz) || 1;
+    if (Number.isFinite(txp) && d > 2.4) {
+      const step = 2.0 * dt;
+      const nx = e.g.position.x + (dx / d) * step;
+      const nz = e.g.position.z + (dz / d) * step;
+      if (!this.hitSolid(nx, e.g.position.z, 1.3, 0)) e.g.position.x = nx;
+      if (!this.hitSolid(e.g.position.x, nz, 1.3, 0)) e.g.position.z = nz;
+      const rr = Math.hypot(e.g.position.x, e.g.position.z);
+      if (rr > 38) { e.g.position.x *= 38 / rr; e.g.position.z *= 38 / rr; }
+    }
+    // рука: 25 в упор, своя плоскость, кд 1.1с
+    if (Number.isFinite(txp) && d <= 2.8 && Math.abs(this.py) <= 2.2 && e.hitCd <= 0 && this.shieldT <= 0 && !this.devGod) {
+      e.hitCd = 1.1;
+      this.wbHurt(25);
+    }
+    // зоны каждые 7с
+    e.watkT = (e.watkT ?? 7) - dt;
+    if ((e.watkT ?? 0) <= 0) {
+      e.watkT = 7;
+      this.wbZoneAttack();
+    }
+    // прыжок каждые 13с
+    e.wjumpT = (e.wjumpT ?? 13) - dt;
+    if ((e.wjumpT ?? 0) <= 0) {
+      e.wjumpT = 13;
+      this.wbJumpStart();
+    }
+    // тело по земле, полоса HP над головой
+    e.g.position.y = 0;
+    this.updateHpBar(e);
   }
 
   /** Контуры рентгена: враги (красные) и бойцы (белые) — видны ли прямо сейчас. */
@@ -5284,6 +5684,11 @@ export class Game {
           this.pz = this.clamp(nz);
         }
       }
+      // босс-арена круглая: край ринга держит радиальный кламп 39м
+      if (this.map === 'boss') {
+        const rr = Math.hypot(this.px, this.pz);
+        if (rr > 39) { this.px *= 39 / rr; this.pz *= 39 / rr; }
+      }
       // рывок: бросок 22 м/с по взгляду (включая вверх), стены уважает, гравитация на паузе
       // дальность качается: +15% за уровень супера
       if (this.dashT > 0) {
@@ -5293,6 +5698,10 @@ export class Game {
         const nz = this.pz + this.dashDz * dspd * dt;
         if (!this.hitSolid(nx, this.pz, 0.9, this.py)) this.px = this.clamp(nx);
         if (!this.hitSolid(this.px, nz, 0.9, this.py)) this.pz = this.clamp(nz);
+        if (this.map === 'boss') {
+          const brr = Math.hypot(this.px, this.pz);
+          if (brr > 39) { this.px *= 39 / brr; this.pz *= 39 / brr; }
+        }
         this.py = Math.max(0, this.py + this.dashDy * dspd * dt);
         this.pvy = 0;
         if (!this.moving) this.bobPhase += dt * 11;
@@ -5376,8 +5785,22 @@ export class Game {
       }
       // наблюдатель: камеру держим на живом каждый кадр (цель бежит — летим за ней)
       this.updateSpecFollow();
+      // боссы соло: без внешнего драйвера — респаун через 120с после убийства
+      if (this.map === 'boss' && !this.wbExt && !this.netSync && this.started && !this.dead) {
+        if (this.enemies.some((e) => e.wb && !e.dead)) this.wbSoloT = 120;
+        else {
+          this.wbSoloT -= dt;
+          if (this.wbSoloT <= 0) { this.wbRound++; this.spawnWorldBoss(5000, this.wbRound); }
+        }
+      }
       // враги идут к игроку и бьют в упор; сетевые куклы — догоняют точку хоста
       for (const e of this.enemies) {
+        // мировой босс — своя логика (зоны, прыжки); дохлый — метки убрать
+        if (e.wb) {
+          if (e.dead) { this.clearWbFx(); continue; }
+          this.updateWorldBoss(e, dt);
+          continue;
+        }
         if (e.dead) continue;
         // наблюдателя и несутку-Ивангоя враги не видят: себя из целей убираем, бьём только живых бойцов.
         // ВСЕ местные (и сталкеры, и обычные) идут к ближайшему живому — себе или
