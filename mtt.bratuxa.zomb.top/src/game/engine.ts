@@ -4031,15 +4031,15 @@ export class Game {
   }
 
   // ЛУЧ Андрея Санстрайка: точка — где стоял враг под прицелом (слепок на касте),
-  // удар через 2с. Заряд 0–10: урон 20→142, диаметр 1.5→5м. Кд 30с.
+  // удар через 0.5с. Заряд 0–10: урон 20→142, радиус 6→15.5м. Кд 30с.
   sunstrike(): boolean {
     if (!this.started || this.dead || this.sunCd > 0 || this.charId !== 'sunstrike') return false;
     const tgt = this.aimEnemy(45);
     if (!tgt) return false;
     const q = Math.min(10, Math.max(0, this.sunCharge));
     const dmg = 20 + (q / 10) * (142 - 20);
-    const r = (1.5 + (q / 10) * (5 - 1.5)) / 2;
-    this.sunBeams.push({ x: tgt.x, z: tgt.z, t: 2, dmg, r });
+    const r = 6 + (q / 10) * (15.5 - 6);
+    this.sunBeams.push({ x: tgt.x, z: tgt.z, t: 0.5, dmg, r });
     this.sunCd = superCd('sunstrike', this.upg['sunstrike']?.sup ?? 0);
     this.showSunRing(tgt.x, tgt.z, r);
     this.burst(this.px, 1.5, this.pz, 8);
@@ -4068,7 +4068,7 @@ export class Game {
     return { x: best.g.position.x, z: best.g.position.z };
   }
 
-  /** Кольцо-метка на точке удара (видно 2с задержки, пульсирует). */
+  /** Кольцо-метка на точке удара (видно 0.5с задержки, пульсирует). */
   private showSunRing(x: number, z: number, r: number): void {
     if (!this.sunRing) {
       const g = new THREE.RingGeometry(0.7, 1, 40);
@@ -5163,7 +5163,7 @@ export class Game {
         if (this.sunCd <= 0) { this.sunCd = 0; this.pushHud(); }
         else if (Math.floor(this.sunCd * 5) !== Math.floor((this.sunCd + dt) * 5)) this.pushHud();
       }
-      // луч санстрайка: точки тикают 2с, потом удар; вспышка столба тает 0.6с
+      // луч санстрайка: точки тикают 0.5с, потом удар; вспышка столба тает 0.6с
       for (let i = this.sunBeams.length - 1; i >= 0; i--) {
         const b = this.sunBeams[i];
         b.t -= dt;
