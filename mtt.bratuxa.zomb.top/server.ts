@@ -457,6 +457,18 @@ async function roomsApi(req: Request): Promise<Response | null> {
     }
     return Response.json({ ok: true, login: target });
   }
+  // панель разработчика: разблокировать аккаунт (только владелец LXX42P2ILX)
+  if (p === '/api/dev/unblock' && req.method === 'POST') {
+    let body: Record<string, unknown> = {};
+    try { body = await req.json() as Record<string, unknown>; } catch { return Response.json({ error: 'bad' }, { status: 400 }); }
+    const login = loginByToken(body.token);
+    if (!login || login !== devOwner()) return Response.json({ error: 'forbidden' }, { status: 403 });
+    const target = String(body.login ?? '').trim().slice(0, 16);
+    if (!target) return Response.json({ error: 'bad' }, { status: 400 });
+    db.run('CREATE TABLE IF NOT EXISTS dev_blocked (login TEXT PRIMARY KEY, ts INTEGER NOT NULL)');
+    db.run('DELETE FROM dev_blocked WHERE login = ?', [target]);
+    return Response.json({ ok: true, login: target });
+  }
   // админ-статистика МТТ: онлайн по комнатам — кто где и что делает
   if (p === '/api/admin/stats' && req.method === 'GET') {
     const login = loginByToken(u.searchParams.get('token'));

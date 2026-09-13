@@ -3021,6 +3021,13 @@ async function loadStats(): Promise<void> {
                         if (d.ok) setDevUsers((u) => (u ?? []).map((y) => y.login === x.login ? { ...y, blocked: true } : y));
                       } catch { /* нет связи */ }
                     }}>ЗАБЛОКИРОВАТЬ</button>}
+                    {x.blocked && <button className="wbtn" onClick={async () => {
+                      try {
+                        const r = await fetch('/api/dev/unblock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), login: x.login }) });
+                        const d = await r.json() as { ok?: boolean };
+                        if (d.ok) setDevUsers((u) => (u ?? []).map((y) => y.login === x.login ? { ...y, blocked: false } : y));
+                      } catch { /* нет связи */ }
+                    }}>РАЗБЛОКИРОВАТЬ</button>}
                   </div>
                 ))}
               </div>
