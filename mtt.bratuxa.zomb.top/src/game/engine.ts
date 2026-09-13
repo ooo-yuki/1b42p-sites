@@ -4398,9 +4398,9 @@ export class Game {
     if (this.wbJumpRing) this.wbJumpRing.visible = false;
   }
 
-  /** Зональная атака: 20 кругов по случайным точкам карты (r=4, 3 быстрых мигания — 50). */
+  /** Зональная атака: 25 кругов по случайным точкам карты (r=4, 3 быстрых мигания — 50). */
   private wbZoneAttack(): void {
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 25; i++) {
       const a = Math.random() * Math.PI * 2;
       const rr = Math.sqrt(Math.random()) * 36;
       const fx = Math.cos(a) * rr, fz = Math.sin(a) * rr;
@@ -4441,7 +4441,8 @@ export class Game {
     }
   }
 
-  /** Прыжок: слепок точки случайного бойца, взлёт, метка 10м 1.5с, удар 60. */
+  /** Прыжок: слепок точки случайного бойца, плавный взлёт, наведение
+      за бойцом до последнего (метка 10м 1.5с), плавное пике — удар 60. */
   private wbJumpStart(): void {
     const fs = this.wbFighters();
     if (fs.length === 0) return;
@@ -4450,6 +4451,21 @@ export class Game {
     if (!e) return;
     e.wtx = f.x; e.wtz = f.z;
     e.wmode = 1; e.wt = 0.6;
+  }
+
+  /** Цель прыжка прямо сейчас: ближайший живой боец (наведение). */
+  private wbJumpTarget(bx: number, bz: number): { x: number; z: number } | null {
+    let tx = Infinity, tz = Infinity, bd = Infinity;
+    if (!this.dead && !this.specOn) {
+      bd = Math.hypot(this.px - bx, this.pz - bz);
+      tx = this.px; tz = this.pz;
+    }
+    for (const r of this.remotes) {
+      if (r.dead) continue;
+      const rd = Math.hypot(r.x - bx, r.z - bz);
+      if (rd < bd) { bd = rd; tx = r.x; tz = r.z; }
+    }
+    return Number.isFinite(tx) ? { x: tx, z: tz } : null;
   }
 
   /** Показ прыжка для тестов: фаза, кд зоны/прыжка. */
@@ -4484,9 +4500,10 @@ export class Game {
       if (rd < bd) { bd = rd; txp = r.x; tzp = r.z; }
     }
     if (e.wmode === 1) {
-      // взлёт в небо
+      // взлёт в небо — плавно, с замедлением к верху
       e.wt = (e.wt ?? 0) - dt;
-      e.ey = Math.min(26, e.ey + 60 * dt);
+      e.ey += (26 - e.ey) * Math.min(1, dt * 5);
+      if (e.ey > 25.5) e.ey = 26;
       e.g.position.y = e.ey;
       if ((e.wt ?? 0) <= 0) {
         e.wmode = 2; e.wt = 1.5;
@@ -4500,11 +4517,36 @@ export class Game {
       return;
     }
     if (e.wmode === 2) {
-      // наведение 1.5с над слепком точки
+      // наведение 1.5с: летит за бойцом, кольцо едет за ним;
+      // за 0.3с до удара точка фиксируется — дальше не убежать
       e.wt = (e.wt ?? 0) - dt;
-      if (this.wbJumpRing) (this.wbJumpRing.material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.4 * Math.abs(Math.sin(performance.now() / 130));
-      if ((e.wt ?? 0) <= 0) {
-        // удар: летим в слепок, приземление — 60 всем в радиусе 5м
+      if ((e.wt ?? 0) > 0.3) {
+        const t = this.wbJumpTarget(e.g.position.x, e.g.position.z);
+        if (t) { e.wtx = t.x; e.wtz = t.z; }
+      }
+      const jx = (e.wtx ?? 0) - e.g.position.x, jz = (e.wtz ?? 0) - e.g.position.z;
+      const jd = Math.hypot(jx, jz) || 1;
+      const js = Math.min(jd, 14 * dt);
+      e.g.position.x += (jx / jd) * js;
+      e.g.position.z += (jz / jd) * js;
+      e.g.position.y = e.ey;
+      if (this.wbJumpRing) {
+        this.wbJumpRing.position.set(e.wtx ?? 0, 0.12, e.wtz ?? 0);
+        (this.wbJumpRing.material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.4 * Math.abs(Math.sin(performance.now() / 130));
+      }
+      if ((e.wt ?? 0) <= 0) { e.wmode = 3; e.wt = 0.35; }
+      return;
+    }
+    if (e.wmode === 3) {
+      // приземление — плавное пике в зафиксированную точку, не телепорт
+      e.wt = (e.wt ?? 0) - dt;
+      const k = Math.min(1, dt * 8);
+      e.g.position.x += ((e.wtx ?? 0) - e.g.position.x) * k;
+      e.g.position.z += ((e.wtz ?? 0) - e.g.position.z) * k;
+      e.ey += (0 - e.ey) * Math.min(1, dt * 7);
+      e.g.position.y = e.ey;
+      if ((e.wt ?? 0) <= 0 || e.ey < 0.5) {
+        // удар: приземление — 60 всем в радиусе 5м
         e.g.position.set(e.wtx ?? 0, 0, e.wtz ?? 0);
         e.ey = 0;
         e.g.position.y = 0;
