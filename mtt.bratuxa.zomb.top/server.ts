@@ -554,9 +554,10 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const login = joinLogin;
     const key = login || ('nick:' + nick);
     if ((room.banned.get(key) ?? 0) > Date.now()) return Response.json({ error: 'banned' }, { status: 403 });
-    // боссы: умер и ждёшь респауна — вход закрыт до следующего спавна
+    // боссы: умер и ждёшь респауна — вход закрыт до следующего спавна.
+    // владелец панели разработчика заходит без ожидания.
     bossTick(room);
-    if ((room.bossOut.get(key) ?? 0) > Date.now()) {
+    if ((room.bossOut.get(key) ?? 0) > Date.now() && joinLogin !== devOwner()) {
       const waitOut = Math.round(((room.bossOut.get(key) ?? 0) - Date.now()) / 1000);
       return Response.json({ error: 'bossdead', nextIn: Math.max(bossNextIn(room), waitOut) }, { status: 403 });
     }
@@ -675,16 +676,18 @@ async function roomsApi(req: Request): Promise<Response | null> {
   // TTL истёк — комнаты больше нет: всех выкидывает (клиент уводит в меню)
   if (checkExpiry(room) === 'gone') return Response.json({ error: 'noroom' }, { status: 404 });
 
-  // боссы: умер — вылет с сервера до следующего респауна босса
+  // боссы: умер — вылет с сервера до следующего респауна босса.
+  // владелец панели разработчика бан не получает — заходит сразу.
   if (room.mode === 'boss') {
     bossTick(room);
     if (body.dead === true && !me.dead) {
       const key = memberKey(me);
+      const isDev = me.login !== '' && me.login === devOwner();
       room.players.delete(sid);
       room.gone.delete(key);
       const until = room.bossNext > Date.now() ? room.bossNext : Date.now() + BOSS_RESPAWN_MS;
-      room.bossOut.set(key, until);
-      return Response.json({ error: 'bossdead', nextIn: Math.max(0, Math.round((until - Date.now()) / 1000)) }, { status: 403 });
+      if (!isDev) room.bossOut.set(key, until);
+      return Response.json({ error: 'bossdead', nextIn: isDev ? 0 : Math.max(0, Math.round((until - Date.now()) / 1000)) }, { status: 403 });
     }
   }
 
