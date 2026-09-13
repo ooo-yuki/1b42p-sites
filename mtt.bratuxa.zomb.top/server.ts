@@ -151,7 +151,13 @@ interface Member {
 interface ChatMsg { nick: string; text: string; t: number }
 /** Общий моб комнаты: симулирует владелец (хост), сервер раздаёт всем. god = неубиваемый (сталкеры Бэкрумса). */
 interface Mob { id: number; kind: string; x: number; z: number; hp: number; dead: boolean; wave: number; god: boolean }
-interface Room { id: string; name: string; mode: 'arena' | 'duel' | 'backrooms' | 'pvp' | 'endless' | 'invasion' | 'szeged'; created: number; /** Сид карты бэкрумса: один на всех в комнате, новый на каждую комнату/рестарт. */ seed: number; /** TTL-рестарт сек (0 = без рестарта) */ ttlSec: number; /** официальная комната батальона — живёт всегда, рестарт сбрасывает игру на месте */ official: boolean; round: number; lastWinner: string; owner: string; started: boolean; players: Map<string, Member>; pending: Map<string, Member>; chat: ChatMsg[]; mobs: Map<number, Mob>; mobHost: string; /** тихий вылет: ключ→когда ушёл (грейс-возврат без заявки) */ gone: Map<string, number>; /** кик = бан: ключ→до когда нельзя */ banned: Map<string, number>; /** выбрались через дверь: ключ→когда (до рестарта только наблюдатели) */ escaped: Map<string, number>; }
+/** Мировой босс: один на комнату, id в общей таблице мобов. */
+const BOSS_ID = 777;
+/** ХП мирового босса. */
+const BOSS_MAXHP = 5000;
+/** Респаун босса после убийства, мс (30 минут). */
+const BOSS_RESPAWN_MS = 30 * 60 * 1000;
+interface Room { id: string; name: string; mode: 'arena' | 'duel' | 'backrooms' | 'pvp' | 'endless' | 'invasion' | 'szeged' | 'boss'; created: number; /** Сид карты бэкрумса: один на всех в комнате, новый на каждую комнату/рестарт. */ seed: number; /** TTL-рестарт сек (0 = без рестарта) */ ttlSec: number; /** официальная комната батальона — живёт всегда, рестарт сбрасывает игру на месте */ official: boolean; round: number; lastWinner: string; owner: string; started: boolean; players: Map<string, Member>; pending: Map<string, Member>; chat: ChatMsg[]; mobs: Map<number, Mob>; mobHost: string; /** тихий вылет: ключ→когда ушёл (грейс-возврат без заявки) */ gone: Map<string, number>; /** кик = бан: ключ→до когда нельзя */ banned: Map<string, number>; /** выбрались через дверь: ключ→когда (до рестарта только наблюдатели) */ escaped: Map<string, number>; /** мировой босс: жив ли, раунд (растёт на каждый респаун), когда следующий, кто умер и ждёт респауна */ bossAlive: boolean; bossRound: number; bossNext: number; bossOut: Map<string, number>; }
 const rooms = new Map<string, Room>();
 const STALE_MS = 12000;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -190,6 +196,7 @@ function prune(room: Room): void {
   // грейс-метки старше 5 минут не храним
   for (const [k, t] of room.gone) if (now - t > 300000) room.gone.delete(k);
   for (const [k, t] of room.banned) if (now - t > 0) room.banned.delete(k);
+  for (const [k, t] of room.bossOut) if (now - t > 0) room.bossOut.delete(k);
   // создатель ушёл — владелец переходит старшему из оставшихся
   // официальные сервера без владельца навсегда (иначе гость станет «создателем»)
   if (!room.official && !room.players.has(room.owner)) {
@@ -198,15 +205,16 @@ function prune(room: Room): void {
   }
 }
 
-/** Лимит игроков по режиму: PvP-арена 12, Бэкрумс/Нашествие 10, дуэль 2, остальное 8. */
+/** Лимит игроков по режиму: PvP-арена 12, Бэкрумс/Нашествие 10, дуэль 2, боссы 7, остальное 8. */
 function roomCap(room: Room): number {
   if (room.mode === 'duel') return 2;
   if (room.mode === 'pvp') return 12;
+  if (room.mode === 'boss') return 7;
   if (room.mode === 'endless' || room.mode === 'invasion') return 10;
   return 8;
 }
 
-/** TTL-рестарт по режиму, сек: Арена 20 мин, Бэкрумс 10 мин, Нашествие 30 мин, PvP 20 мин, Endless 5 мин, Szeged 20 мин (1200). */
+/** TTL-рестарт по режиму, сек: Арена 20 мин, Бэкрумс 10 мин, Нашествие 30 мин, PvP 20 мин, Endless 5 мин, Szeged 20 мин (1200), боссы без рестарта (0 — живёт всегда, босс со своим таймером). */
 function ttlFor(mode: Room['mode']): number {
   if (mode === 'szeged') return 1200;
   if (mode === 'arena') return 1200;
@@ -214,7 +222,36 @@ function ttlFor(mode: Room['mode']): number {
   if (mode === 'invasion') return 1800;
   if (mode === 'pvp') return 1200;
   if (mode === 'endless') return 600;
+  if (mode === 'boss') return 0;
   return 0;
+}
+
+/** Мировой босс: заспавнить (респаун) — все умершие снова могут зайти. */
+function bossSpawn(room: Room): void {
+  room.bossAlive = true;
+  room.bossRound++;
+  room.bossNext = 0;
+  room.bossOut.clear();
+  room.mobs.delete(BOSS_ID);
+}
+
+/** Мировой босс: убит — следующий через 30 минут. */
+function bossKill(room: Room): void {
+  if (!room.bossAlive) return;
+  room.bossAlive = false;
+  room.bossNext = Date.now() + BOSS_RESPAWN_MS;
+}
+
+/** Тик босса: время вышло — спавним заново. */
+function bossTick(room: Room): void {
+  if (room.mode !== 'boss') return;
+  if (!room.bossAlive && room.bossNext > 0 && Date.now() >= room.bossNext) bossSpawn(room);
+}
+
+/** Секунд до респауна босса (0 — жив). */
+function bossNextIn(room: Room): number {
+  if (room.bossAlive) return 0;
+  return Math.max(0, Math.round((room.bossNext - Date.now()) / 1000));
 }
 
 /** Секунд до рестарта (0 = без рестарта). */
@@ -238,6 +275,13 @@ function randSpawnXZ(): { x: number; z: number } {
   return { x: Math.round((Math.random() * 100 - 50) * 10) / 10, z: Math.round((Math.random() * 100 - 50) * 10) / 10 };
 }
 
+/** Спавн на круглой босс-арене: кольцо 25–35м от центра (край — стена 40м). */
+function bossSpawnXZ(): { x: number; z: number } {
+  const a = Math.random() * Math.PI * 2;
+  const r = 25 + Math.random() * 10;
+  return { x: Math.round(Math.cos(a) * r * 10) / 10, z: Math.round(Math.sin(a) * r * 10) / 10 };
+}
+
 /** London-спавн игрока (id карты внутри — szeged): baked-точка tools/szeged-spawn.json
  * из tools/build-london.py (единый источник, не хардкод). */
 const SZEGED_SPAWN: { x: number; z: number } = { x: szegedSpawnJson.x, z: szegedSpawnJson.z };
@@ -247,6 +291,7 @@ const OFFICIAL_DEFS = [
   { id: 'PVP42X', name: '⚔️ PvP-арена', mode: 'pvp' },
   { id: 'END42X', name: '🟨 Бесконечный Бэкрумс', mode: 'endless' },
   { id: 'INV42X', name: '🌊 Нашествие', mode: 'invasion' },
+  { id: 'BOSS42X', name: '👹 Онлайн боссы', mode: 'boss' },
 ] as const;
 
 function ensureOfficial(): void {
@@ -258,6 +303,7 @@ function ensureOfficial(): void {
       official: true, round: 1, lastWinner: '', owner: '', started: true,
       players: new Map(), pending: new Map(), chat: [], mobs: new Map(),
       mobHost: '', gone: new Map(), banned: new Map(), escaped: new Map(),
+      bossAlive: mode === 'boss', bossRound: 1, bossNext: 0, bossOut: new Map(),
     });
   }
 }
@@ -477,13 +523,13 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const login = loginByToken(body.token);
     const name = String(body.name ?? '').slice(0, 24).trim() || `Комната ${nick}`;
     const rawMode = String(body.mode ?? 'arena');
-    const mode: Room['mode'] = rawMode === 'duel' ? 'duel' : rawMode === 'backrooms' ? 'backrooms' : rawMode === 'pvp' ? 'pvp' : rawMode === 'endless' ? 'endless' : rawMode === 'invasion' ? 'invasion' : rawMode === 'szeged' ? 'szeged' : 'arena';
+    const mode: Room['mode'] = rawMode === 'duel' ? 'duel' : rawMode === 'backrooms' ? 'backrooms' : rawMode === 'pvp' ? 'pvp' : rawMode === 'endless' ? 'endless' : rawMode === 'invasion' ? 'invasion' : rawMode === 'boss' ? 'boss' : rawMode === 'szeged' ? 'szeged' : 'arena';
     if (mode === 'szeged' && !canCreate(login, login === devOwner())) return Response.json({ error: 'forbidden' }, { status: 403 });
     const id = newCode();
     const sid = newSid();
     const sp = duelSpawn(0);
     const pvpSp = mode === 'pvp' || mode === 'endless' || mode === 'invasion' ? randSpawnXZ() : mode === 'szeged' ? { ...SZEGED_SPAWN } : { x: 0, z: 22 };
-    const room: Room = { id, name, mode, created: Date.now(), seed: newSeed(), ttlSec: ttlFor(mode), official: false, round: 1, lastWinner: '', owner: sid, started: false, players: new Map(), pending: new Map(), chat: [], mobs: new Map(), mobHost: '', gone: new Map(), banned: new Map(), escaped: new Map() };
+    const room: Room = { id, name, mode, created: Date.now(), seed: newSeed(), ttlSec: ttlFor(mode), official: false, round: 1, lastWinner: '', owner: sid, started: false, players: new Map(), pending: new Map(), chat: [], mobs: new Map(), mobHost: '', gone: new Map(), banned: new Map(), escaped: new Map(), bossAlive: mode === 'boss', bossRound: 1, bossNext: 0, bossOut: new Map() };
     room.players.set(sid, { sid, nick, login, char: cleanChar(body.char), x: mode === 'duel' ? sp.x : pvpSp.x, z: mode === 'duel' ? sp.z : pvpSp.z, yaw: mode === 'duel' ? sp.yaw : 0, hp: 100, score: 0, kills: 0, wave: 1, weapon: 'fists', py: 0, atk: 0, dead: false, duelHp: 100, wins: 0, spawnIdx: 0, frags: 0, spec: false, specTarget: '', respawn: null, ts: Date.now() });
     rooms.set(id, room);
     return Response.json({ id, sid, mode, seed: room.seed, spawn: mode === 'duel' ? sp : null, restartIn: restartIn(room) });
@@ -507,12 +553,15 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const login = joinLogin;
     const key = login || ('nick:' + nick);
     if ((room.banned.get(key) ?? 0) > Date.now()) return Response.json({ error: 'banned' }, { status: 403 });
+    // боссы: умер и ждёшь респауна — вход закрыт до следующего спавна
+    bossTick(room);
+    if ((room.bossOut.get(key) ?? 0) > Date.now()) return Response.json({ error: 'bossdead', nextIn: bossNextIn(room) }, { status: 403 });
     const sid = newSid();
     // выбравшийся через дверь возвращается только наблюдателем (до рестарта); ключ — как в memberKey
     const joinKey = login || ('nick:' + nick);
     const joinEscaped = room.mode === 'endless' && room.escaped.has(joinKey);
     const wantSpec = (body.spec === true && (room.mode === 'endless' || room.mode === 'pvp' || room.mode === 'invasion')) || joinEscaped;
-    const sp = room.mode === 'pvp' || room.mode === 'endless' || room.mode === 'invasion' ? randSpawnXZ() : room.mode === 'szeged' ? { ...SZEGED_SPAWN } : { x: 0, z: 22 };
+    const sp = room.mode === 'pvp' || room.mode === 'endless' || room.mode === 'invasion' ? randSpawnXZ() : room.mode === 'boss' ? bossSpawnXZ() : room.mode === 'szeged' ? { ...SZEGED_SPAWN } : { x: 0, z: 22 };
     const member = { sid, nick, login, char: cleanChar(body.char), x: sp.x, z: sp.z, yaw: 0, hp: 100, score: 0, kills: 0, wave: 1, weapon: 'fists', py: 0, atk: 0, dead: false, duelHp: 100, wins: 0, spawnIdx: room.players.size, frags: 0, spec: wantSpec, specTarget: '', respawn: null, ts: Date.now() };
     // грейс-возврат: свой тихо вылетел <2мин назад, место свободно — сразу в игру без заявки
     const leftAt = room.gone.get(key) ?? 0;
@@ -622,6 +671,19 @@ async function roomsApi(req: Request): Promise<Response | null> {
   // TTL истёк — комнаты больше нет: всех выкидывает (клиент уводит в меню)
   if (checkExpiry(room) === 'gone') return Response.json({ error: 'noroom' }, { status: 404 });
 
+  // боссы: умер — вылет с сервера до следующего респауна босса
+  if (room.mode === 'boss') {
+    bossTick(room);
+    if (body.dead === true && !me.dead) {
+      const key = memberKey(me);
+      room.players.delete(sid);
+      room.gone.delete(key);
+      const until = room.bossNext > Date.now() ? room.bossNext : Date.now() + BOSS_RESPAWN_MS;
+      room.bossOut.set(key, until);
+      return Response.json({ error: 'bossdead', nextIn: Math.max(0, Math.round((until - Date.now()) / 1000)) }, { status: 403 });
+    }
+  }
+
   // дверь выхода из Бесконечного Бэкрумса: живой боец выбрался — +2500 фантиков
   // (раз за рестарт), до рестарта вход только наблюдателем. Призрак дверь не трогает.
   if (req.method === 'POST' && action === 'escape') {
@@ -719,7 +781,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
   // общие мобы: хост (владелец) заливает слепок своих мобов, сервер хранит и раздаёт
   // официальные моб-режимы: пушит назначенный хост (первый боец), остальные мимо
   if (req.method === 'POST' && action === 'mobpush') {
-    if (room.official && (room.mode === 'endless' || room.mode === 'invasion') && !me.spec) {
+    if (room.official && (room.mode === 'endless' || room.mode === 'invasion' || room.mode === 'boss') && !me.spec) {
       const cur = room.mobHost !== '' ? room.players.get(room.mobHost) : undefined;
       if (!cur || cur.spec) {
         const first = [...room.players.values()].find((m) => !m.spec);
@@ -755,6 +817,11 @@ async function roomsApi(req: Request): Promise<Response | null> {
     for (const [id, m] of room.mobs) {
       if (!seen.has(id) && m.wave < top) room.mobs.delete(id);
     }
+    // мировой босс лёг — следующий через 30 минут
+    if (room.mode === 'boss') {
+      const b = room.mobs.get(BOSS_ID);
+      if (b && b.dead) bossKill(room);
+    }
     return Response.json({ ok: true, count: room.mobs.size });
   }
 
@@ -773,6 +840,8 @@ async function roomsApi(req: Request): Promise<Response | null> {
     me.ts = Date.now();
     if (mob.hp <= 0) {
       mob.dead = true;
+      // мирового босса завалили — следующий через 30 минут
+      if (room.mode === 'boss' && mob.id === BOSS_ID && mob.kind === 'boss') bossKill(room);
       return Response.json({ hp: 0, dead: true, freshKill: true, kind: mob.kind, wave: mob.wave });
     }
     return Response.json({ hp: mob.hp, dead: false, freshKill: false });
@@ -799,7 +868,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     prune(room);
     if (checkExpiry(room) === 'gone') return Response.json({ error: 'noroom' }, { status: 404 });
     // официальные моб-режимы: хост мобов — первый боец (детерминированно, без флэппинга)
-    if (room.official && (room.mode === 'endless' || room.mode === 'invasion')) {
+    if (room.official && (room.mode === 'endless' || room.mode === 'invasion' || room.mode === 'boss')) {
       const cur = room.mobHost !== '' ? room.players.get(room.mobHost) : undefined;
       if (!cur || cur.spec) {
         const first = [...room.players.values()].find((m) => !m.spec);
@@ -848,7 +917,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const respawn = me.respawn;
     me.respawn = null;
     if (respawn) { me.hp = 100; me.dead = false; }
-    return Response.json({ players: others, count: room.players.size, duel, scoreboard, specView, respawn, myHp: myHpSnap, mobHost: amMobHost, started: room.started, official: room.official, restartIn: restartIn(room), seed: room.seed, myFrags: me.frags, owner: sid === room.owner, t: Date.now(), chat: room.chat.slice(-20), mobs: [...room.mobs.values()].slice(0, 60).map((m) => ({ id: m.id, kind: m.kind, x: Math.round(m.x * 10) / 10, z: Math.round(m.z * 10) / 10, hp: m.hp, dead: m.dead, wave: m.wave, god: m.god })) });
+    return Response.json({ players: others, count: room.players.size, duel, scoreboard, specView, respawn, myHp: myHpSnap, mobHost: amMobHost, started: room.started, official: room.official, restartIn: restartIn(room), seed: room.seed, myFrags: me.frags, owner: sid === room.owner, t: Date.now(), chat: room.chat.slice(-20), mobs: [...room.mobs.values()].slice(0, 60).map((m) => ({ id: m.id, kind: m.kind, x: Math.round(m.x * 10) / 10, z: Math.round(m.z * 10) / 10, hp: m.hp, dead: m.dead, wave: m.wave, god: m.god })), boss: room.mode === 'boss' ? { alive: room.bossAlive, hp: room.mobs.get(BOSS_ID)?.hp ?? BOSS_MAXHP, round: room.bossRound, nextIn: bossNextIn(room) } : undefined });
   }
 
   // выйти (из игроков и из заявителей; владелец уходит — комната живёт дальше)
