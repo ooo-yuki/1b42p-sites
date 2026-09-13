@@ -4437,7 +4437,7 @@ export class Game {
   }
 
   /** Показ прыжка для тестов: фаза, кд зоны/прыжка. */
-  debugWb(): { alive: boolean; hp: number; mode: number; zoneCd: number; jumpCd: number; zones: number } {
+  debugWb(): { alive: boolean; hp: number; mode: number; zoneCd: number; jumpCd: number; zones: number; x: number; z: number } {
     const e = this.enemies.find((q) => q.wb && !q.dead);
     return {
       alive: !!e,
@@ -4446,6 +4446,8 @@ export class Game {
       zoneCd: e ? Math.round((e.watkT ?? 0) * 10) / 10 : -1,
       jumpCd: e ? Math.round((e.wjumpT ?? 0) * 10) / 10 : -1,
       zones: this.wbZones.length,
+      x: e ? Math.round(e.g.position.x * 10) / 10 : 0,
+      z: e ? Math.round(e.g.position.z * 10) / 10 : 0,
     };
   }
 

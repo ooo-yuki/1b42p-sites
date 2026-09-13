@@ -176,6 +176,7 @@ function modeIcon(mode: string): string {
   if (mode === 'backrooms' || mode === 'endless') return '🟨';
   if (mode === 'pvp') return '⚔️';
   if (mode === 'invasion') return '🌊';
+  if (mode === 'boss') return '👹';
   if (mode === 'custom') return '🧩';
   if (mode === 'random') return '🎲';
   return '🌍';
@@ -188,6 +189,7 @@ function modeName(mode: string): string {
   if (mode === 'pvp') return '⚔️ PvP-АРЕНА';
   if (mode === 'endless') return '🟨 БЕСКОНЕЧНЫЙ БЭКРУМС';
   if (mode === 'invasion') return '🌊 НАШЕСТВИЕ';
+  if (mode === 'boss') return '👹 ОНЛАЙН БОССЫ';
   if (mode === 'custom') return '🧩 СВОЯ';
   return '🌍 Арена';
 }
@@ -203,6 +205,7 @@ function modeDesc(mode: string): string {
   if (mode === 'pvp') return 'Без врагов — только ты и соперники. Побеждает лидер фрагов.';
   if (mode === 'endless') return 'Гигантский лабиринт и 5 неубиваемых быстрых сталкеров. Выживи.';
   if (mode === 'invasion') return 'Орда скалолазов лезет на стены и крыши. Держись.';
+  if (mode === 'boss') return 'Круглая арена, босс 5000 HP: зоны, рука, прыжки. Умер — вылет до респауна (30 мин). Макс 7 бойцов.';
   if (mode === 'duel') return 'Ночной двор 1×1 для разборок.';
   if (mode === 'backrooms') return 'Случайный лабиринт — новый каждый раз.';
   return 'Новый город: витрины, переулки, площадь с фонтаном.';
@@ -211,6 +214,7 @@ function modeDesc(mode: string): string {
 function modeCap(mode: string): number {
   if (mode === 'duel') return 2;
   if (mode === 'pvp') return 12;
+  if (mode === 'boss') return 7;
   if (mode === 'endless' || mode === 'invasion') return 10;
   return 8;
 }
@@ -627,6 +631,12 @@ async function loadStats(): Promise<void> {
   const pvpDeadRef = useRef(false);
   /** Баннер «сервер перезагрузился»: кикнуло TTL — заходи заново */
   const [restartKick, setRestartKick] = useState(false);
+  /** Босс: жив/HP/секунд до респауна (пульс комнаты) */
+  const [bossInfo, setBossInfo] = useState<{ alive: boolean; hp: number; nextIn: number } | null>(null);
+  /** Босс выкинул после смерти: секунд до респауна, когда снова пустит */
+  const [bossKick, setBossKick] = useState<number | null>(null);
+  /** Раунд босса сервера: сменился — свежий спавн локального слепка */
+  const bossRoundRef = useRef(0);
   /** список игроков сервера на Tab (в бою) */
   const [showMates, setShowMates] = useState(false);
   useEffect(() => {
@@ -968,6 +978,12 @@ async function loadStats(): Promise<void> {
         }).then((r) => r.json()).then((d: { hp?: number; dead?: boolean; freshKill?: boolean }) => {
           const g = gameRef.current;
           if (!g) return;
+          // боссы: урон и смерть мирового босса ведёт syncWorldBoss, не куклы
+          if (roomRef.current.mode === 'boss' && nid === 777) {
+            if (d.dead) g.syncWorldBoss(0, true, bossRoundRef.current);
+            else if (typeof d.hp === 'number') g.syncWorldBoss(d.hp, false, bossRoundRef.current);
+            return;
+          }
           if (d.dead) g.netKill(nid, d.freshKill === true);
           else if (typeof d.hp === 'number') g.netSyncHp(nid, d.hp);
         }).catch(() => undefined);
@@ -1029,6 +1045,12 @@ async function loadStats(): Promise<void> {
       xray: () => game.debugXray(),
       doXray: () => game.xray(),
       xrayFlags: () => game.debugXrayFlags(),
+      wb: () => game.debugWb(),
+      spawnWb: (hp?: number, round?: number) => game.spawnWorldBoss(hp ?? 5000, round ?? 1),
+      syncWb: (hp: number, dead: boolean, round: number) => game.syncWorldBoss(hp, dead, round),
+      wba: () => game.worldBossAlive(),
+      bossHost: (on: boolean) => game.setBossHost(on),
+      bossSpawn: () => game.randomBossSpawn(),
       playing: () => game.debugPlaying(),
       atkcd: () => game.debugAtkCd(),
       netsync: () => game.debugNetSync(),
@@ -1148,6 +1170,11 @@ async function loadStats(): Promise<void> {
       if (sp && roomMode === 'duel') g.debugTeleport(sp.x, sp.z, sp.yaw);
       // официальные режимы: случайная точка (сервер тоже раскидал, пульс сведёт)
       if (roomMode === 'pvp' || roomMode === 'endless' || roomMode === 'invasion') g.randomSpawn();
+      // босс-арена: кольцо 25–35м; соло — босс сразу, в комнате ведёт пульс
+      if (g.debugMap() === 'boss') {
+        g.randomBossSpawn();
+        if (!roomRef.current.id) g.spawnWorldBoss(5000, 1);
+      }
       pvpDeadRef.current = false;
       setPvpDead(false);
       g.start();
@@ -1310,6 +1337,9 @@ async function loadStats(): Promise<void> {
       setWaiting(!!d.pending);
       setLobby(null);
       setRestartKick(false);
+      setBossKick(null);
+      setBossInfo(null);
+      bossRoundRef.current = 0;
       refreshRooms();
     } catch { /* noop */ }
   }, [nick, authed, devUnlocked, roomsList, refreshRooms]);
@@ -1465,7 +1495,19 @@ async function loadStats(): Promise<void> {
           // создатель примет — игра продолжится; заявитель просто ждёт; комнаты нет — в меню
           if (r.status === 403) {
             let err = '';
-            try { err = String(((await r.json()) as { error?: string }).error ?? ''); } catch { /* noop */ }
+            let nextIn = 0;
+            try {
+              const jd = (await r.json()) as { error?: string; nextIn?: number };
+              err = String(jd.error ?? '');
+              if (typeof jd.nextIn === 'number') nextIn = jd.nextIn;
+            } catch { /* noop */ }
+            // босс выкинул после смерти — в меню с баннером, назад только после респауна
+            if (err === 'bossdead') {
+              leaveRoom();
+              toMenu();
+              setBossKick(nextIn);
+              return;
+            }
             if (err === 'nosid' && Date.now() - rejoinLast.current > 5000) {
               rejoinLast.current = Date.now();
               try {
@@ -1549,6 +1591,36 @@ async function loadStats(): Promise<void> {
           if (Array.isArray(d.mobs)) g.applyHostKills(d.mobs);
         } else if (inGame && mobMap && !amOwner && Array.isArray(d.mobs)) {
           g.setRemoteMobs(d.mobs);
+        }
+        // 👹 боссы: хост симулирует и пушит слепок, гость тянет HP с сервера.
+        // Раунд сменился — свежий спавн у всех. Босс мёртв — ждём респаун.
+        if (inGame && roomRef.current.mode === 'boss') {
+          const bd = (d as { boss?: { alive: boolean; hp: number; round: number; nextIn: number }; mobs?: Array<{ id: number; hp: number; dead: boolean }> }).boss;
+          if (bd) {
+            setBossInfo({ alive: bd.alive, hp: bd.hp, nextIn: bd.nextIn });
+            const host = d.mobHost === true;
+            try { g.setBossHost(host); } catch { /* noop */ }
+            if (bd.alive && bossRoundRef.current !== bd.round) {
+              bossRoundRef.current = bd.round;
+              g.spawnWorldBoss(Math.max(1, bd.hp), bd.round);
+            }
+            if (bd.alive && host) {
+              if (!g.worldBossAlive()) g.spawnWorldBoss(Math.max(1, bd.hp), bd.round);
+              try {
+                await fetch(`/api/rooms/${id}/mobpush`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ sid, mobs: g.debugMobs() }),
+                });
+              } catch { /* noop */ }
+              if (Array.isArray(d.mobs)) g.applyHostKills(d.mobs);
+            } else if (bd.alive) {
+              const bm = Array.isArray(d.mobs) ? (d.mobs as Array<{ id: number; hp: number; dead: boolean }>).find((m) => m.id === 777) : undefined;
+              g.syncWorldBoss(bm && !bm.dead ? Math.max(1, bm.hp) : bd.hp, bm?.dead === true, bd.round);
+            } else if (g.worldBossAlive()) {
+              g.syncWorldBoss(0, true, bd.round);
+            }
+          }
         }
         // чат своей комнаты: добираем только новое по метке времени
         if (d.chat && d.chat.length > 0) {
@@ -2098,6 +2170,9 @@ async function loadStats(): Promise<void> {
           )}
           {(roomMode === 'endless' || roomMode === 'invasion') && restartIn > 0 && (
             <div id="restartBadge">♻️ Рестарт через {fmtRestart(restartIn)}</div>
+          )}
+          {roomMode === 'boss' && bossInfo && (
+            <div id="wbBadge">{bossInfo.alive ? `👹 БОСС: ${Math.max(0, Math.round(bossInfo.hp))}/5000 ❤️` : `👹 Босс повержен — новый через ${fmtRestart(bossInfo.nextIn)}`}</div>
           )}
           {waveBanner > 0 && (
             <div id="waveBanner" key={`wave-${waveBanner}`}>🌊 ВОЛНА {waveBanner}</div>
@@ -2726,7 +2801,7 @@ async function loadStats(): Promise<void> {
                     <button key={m.id} className={'wbtn' + (draftMode === m.id ? ' cur' : '')} id={`mode-${m.id}`} onClick={() => setDraftMode(m.id)}>{m.name}</button>
                   ))}
                 </div>
-                <div><small>Официальные сервера (PvP, Бэкрумс, Нашествие) — во вкладке <button className="linkBtn" id="gotoServers1" onClick={() => setMenuTab('servers')}>🖥️ Сервера →</button>.</small></div>
+                <div><small>Официальные сервера (PvP, Бэкрумс, Нашествие, Боссы) — во вкладке <button className="linkBtn" id="gotoServers1" onClick={() => setMenuTab('servers')}>🖥️ Сервера →</button>.</small></div>
                 {roomsList.filter((r) => !r.official).length > 0 ? roomsList.filter((r) => !r.official).map((r) => (
                   <div className="srow" key={r.id}>
                     <span>{modeIcon(r.mode)} {r.name} · {r.id} · 👥 {r.count}/{modeCap(r.mode)}{(r.restartIn ?? 0) > 0 ? ` · ♻️ ${fmtRestart(r.restartIn ?? 0)}` : ''}</span>
@@ -2742,6 +2817,7 @@ async function loadStats(): Promise<void> {
           <div className="board" id="serversSec">
             <h3>🖥️ Сервера</h3>
             {restartKick && <div id="kickBanner">♻️ Сервер перезагрузился — все вылетели в меню. Заходи заново!</div>}
+            {bossKick !== null && <div id="bossKickBanner">👹 Босс тебя убил — вылет с сервера. Назад пустит после респауна (≈ {fmtRestart(bossKick)}).</div>}
             <div className="srow">
               <span>API 42 LIVE:</span>
               <b>{apiPing >= 0 ? `🟢 ${apiPing} мс` : '🔴 нет связи'}</b>

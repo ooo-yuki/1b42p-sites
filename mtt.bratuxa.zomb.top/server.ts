@@ -555,7 +555,10 @@ async function roomsApi(req: Request): Promise<Response | null> {
     if ((room.banned.get(key) ?? 0) > Date.now()) return Response.json({ error: 'banned' }, { status: 403 });
     // боссы: умер и ждёшь респауна — вход закрыт до следующего спавна
     bossTick(room);
-    if ((room.bossOut.get(key) ?? 0) > Date.now()) return Response.json({ error: 'bossdead', nextIn: bossNextIn(room) }, { status: 403 });
+    if ((room.bossOut.get(key) ?? 0) > Date.now()) {
+      const waitOut = Math.round(((room.bossOut.get(key) ?? 0) - Date.now()) / 1000);
+      return Response.json({ error: 'bossdead', nextIn: Math.max(bossNextIn(room), waitOut) }, { status: 403 });
+    }
     const sid = newSid();
     // выбравшийся через дверь возвращается только наблюдателем (до рестарта); ключ — как в memberKey
     const joinKey = login || ('nick:' + nick);
