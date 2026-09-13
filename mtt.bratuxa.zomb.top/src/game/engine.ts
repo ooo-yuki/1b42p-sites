@@ -663,6 +663,14 @@ export class Game {
   isDevXray(): boolean { return this.devXray; }
   setDevHit(on: boolean): void { this.devHit = !!on; if (!on && this.hitGroup) this.hitGroup.visible = false; }
   isDevHit(): boolean { return this.devHit; }
+  /** Бесконечный урон: любой удар сносит всё (только у владельца). */
+  private devDmg = false;
+  setDevDmg(on: boolean): void { this.devDmg = !!on; this.pushHud(); }
+  isDevDmg(): boolean { return this.devDmg; }
+  /** Без перезарядки: оружие и скиллы всегда готовы (только у владельца). */
+  private devNoCd = false;
+  setDevNoCd(on: boolean): void { this.devNoCd = !!on; this.pushHud(); }
+  isDevNoCd(): boolean { return this.devNoCd; }
   /** Купол чумного облака: полупрозрачная фиолетовая полусфера 9м. Один на игру. */
   private chumaDome: THREE.Mesh | null = null;
   /** Купол за игроком: стоит на ногах, виден пока облако висит, дышит прозрачностью. */
@@ -3711,6 +3719,8 @@ export class Game {
 
   // удар по врагу: локальному — сразу HP и фраг, сетевому — картинка + заявка на сервер (HP считает сервер)
   private strikeEnemy(e: Enemy, dmg: number, dx: number, dz: number, d: number, push: number): void {
+    // панель разработчика: бесконечный урон — сносит всё с одного удара
+    if (this.devDmg) dmg = 99999;
     if (e.net) {
       e.hurtT = 0.18;
       this.burst(e.g.position.x, 1.2, e.g.position.z, 6);
@@ -5139,6 +5149,15 @@ export class Game {
       }
       // NOTE: призраку input.ability НЕ чистим — это его спуск (C) в flySpec ниже.
       if (this.dashCd > 0) this.dashCd -= dt;
+      // панель разработчика: без перезарядки — оружие и все скиллы всегда готовы
+      if (this.devNoCd) {
+        if (this.atkCd > 0) this.atkCd = 0;
+        if (this.dashCd > 0) this.dashCd = 0;
+        if (this.invisCd > 0) this.invisCd = 0;
+        if (this.chumaCd > 0) this.chumaCd = 0;
+        if (this.xrayCd > 0) this.xrayCd = 0;
+        if (this.sunCd > 0) this.sunCd = 0;
+      }
       // несутка тикает: кончилась — сбрасываем HUD (враги снова видят)
       if (this.invisT > 0) {
         this.invisT -= dt;

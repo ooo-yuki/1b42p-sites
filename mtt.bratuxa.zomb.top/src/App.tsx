@@ -743,8 +743,10 @@ async function loadStats(): Promise<void> {
     try { return localStorage.getItem('mtt_dev') === '1'; } catch { return false; }
   });
   const [devOpen, setDevOpen] = useState(false);
-  /** Кнопки панели: бессмертие, призрак, хитбоксы, рентген, список аккаунтов. */
+  /** Кнопки панели: бессмертие, урон, без кд, призрак, хитбоксы, рентген, список аккаунтов. */
   const [devGod, setDevGodSt] = useState(false);
+  const [devDmg, setDevDmgSt] = useState(false);
+  const [devNoCd, setDevNoCdSt] = useState(false);
   const [devSpec, setDevSpecSt] = useState(false);
   const [devHit, setDevHitSt] = useState(false);
   const [devXray, setDevXraySt] = useState(false);
@@ -1041,8 +1043,10 @@ async function loadStats(): Promise<void> {
       duelHp: (hp: number) => game.setDuelHp(hp),
       teleport: (x: number, z: number, yaw?: number) => game.debugTeleport(x, z, yaw),
       setpy: (n: number) => game.debugSetPy(n),
-      devstate: () => ({ god: game.isDevGod(), xray: game.isDevXray(), hit: game.isDevHit(), spec: game.debugSpec() }),
+      devstate: () => ({ god: game.isDevGod(), dmg: game.isDevDmg(), nocd: game.isDevNoCd(), xray: game.isDevXray(), hit: game.isDevHit(), spec: game.debugSpec() }),
       devgod: (on: boolean) => game.setDevGod(on),
+      devdmg: (on: boolean) => game.setDevDmg(on),
+      devnocd: (on: boolean) => game.setDevNoCd(on),
       devxray: (on: boolean) => game.setDevXray(on),
       devhit: (on: boolean) => game.setDevHit(on),
       pvpHp: (n: number) => game.setPvpHp(n),
@@ -2865,6 +2869,12 @@ async function loadStats(): Promise<void> {
           <div id="devPanelBody">
             <button id="devGodBtn" className="wbtn" onClick={() => { const g = gameRef.current; if (!g) return; const v = !g.isDevGod(); g.setDevGod(v); setDevGodSt(v); }}>
               {devGod ? '💚 БЕССМЕРТИЕ: ВКЛ' : '🤍 БЕССМЕРТИЕ: ВЫКЛ'}
+            </button>
+            <button id="devDmgBtn" className="wbtn" onClick={() => { const g = gameRef.current; if (!g) return; const v = !g.isDevDmg(); g.setDevDmg(v); setDevDmgSt(v); }}>
+              {devDmg ? '💥 БЕСКОНЕЧНЫЙ УРОН: ВКЛ' : '🤍 БЕСКОНЕЧНЫЙ УРОН: ВЫКЛ'}
+            </button>
+            <button id="devNoCdBtn" className="wbtn" onClick={() => { const g = gameRef.current; if (!g) return; const v = !g.isDevNoCd(); g.setDevNoCd(v); setDevNoCdSt(v); }}>
+              {devNoCd ? '⚡ БЕЗ ПЕРЕЗАРЯДКИ: ВКЛ' : '🤍 БЕЗ ПЕРЕЗАРЯДКИ: ВЫКЛ'}
             </button>
             <button id="devSpecBtn" className="wbtn" onClick={() => { const g = gameRef.current; if (!g) return; if (g.debugSpec()) { g.setSpec(false); setDevSpecSt(false); } else { const p = g.debugPos(); g.setSpec(true, p.x, p.z); setDevSpecSt(true); } }}>
               {devSpec ? '👤 ВЕРНУТЬСЯ В ТЕЛО' : '👻 СТАТЬ ПРИЗРАКОМ'}
