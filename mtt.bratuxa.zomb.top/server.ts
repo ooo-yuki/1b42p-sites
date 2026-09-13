@@ -499,14 +499,15 @@ async function roomsApi(req: Request): Promise<Response | null> {
       if (checkExpiry(r) === 'gone') continue;
       if (r.players.size === 0 && r.pending.size === 0 && !r.official) { rooms.delete(r.id); continue; }
       if (r.mode === 'szeged') { const ll = loginByToken(u.searchParams.get('token')); if (!visibleInList(ll, ll === devOwner())) continue; }
-      out.push({ id: r.id, name: r.name, mode: r.mode, count: r.players.size, started: r.started, official: r.official, restartIn: restartIn(r) });
+      if (r.mode === 'boss') bossTick(r);
+      out.push({ id: r.id, name: r.name, mode: r.mode, count: r.players.size, started: r.started, official: r.official, restartIn: restartIn(r), boss: r.mode === 'boss' ? { alive: r.bossAlive, hp: r.mobs.get(BOSS_ID)?.hp ?? BOSS_MAXHP, nextIn: bossNextIn(r) } : undefined });
     }
     // протухшие официальные снесли проверкой выше — сразу пересоздаём, тройка всегда в списке
     ensureOfficial();
     for (const def of OFFICIAL_DEFS) {
       if (out.some((o) => (o as { id: string }).id === def.id)) continue;
       const r = rooms.get(def.id);
-      if (r) out.push({ id: r.id, name: r.name, mode: r.mode, count: r.players.size, started: r.started, official: r.official, restartIn: restartIn(r) });
+      if (r) out.push({ id: r.id, name: r.name, mode: r.mode, count: r.players.size, started: r.started, official: r.official, restartIn: restartIn(r), boss: r.mode === 'boss' ? { alive: r.bossAlive, hp: r.mobs.get(BOSS_ID)?.hp ?? BOSS_MAXHP, nextIn: bossNextIn(r) } : undefined });
     }
     return Response.json(out);
   }

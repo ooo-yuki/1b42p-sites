@@ -134,6 +134,7 @@ interface RoomInfo {
   started?: boolean;
   official?: boolean;
   restartIn?: number;
+  boss?: { alive: boolean; hp: number; nextIn: number };
 }
 
 interface LobbyInfo {
@@ -681,7 +682,7 @@ async function loadStats(): Promise<void> {
   const [profile, setProfile] = useState<{ login: string; games: number; best: number; coins: number } | null>(null);
   const [mapChoice, setMapChoice] = useState<MapId>('arena');
   // вкладки меню в стиле TWD: каждая кнопка слева — своя вкладка справа
-  type TabId = 'play' | 'fighter' | 'cases' | 'promo' | 'maps' | 'editor' | 'rooms' | 'servers' | 'settings' | 'tops';
+  type TabId = 'play' | 'fighter' | 'cases' | 'promo' | 'maps' | 'editor' | 'rooms' | 'servers' | 'boss' | 'settings' | 'tops';
   const [menuTab, setMenuTab] = useState<TabId>('play');
   // мирный режим: врагов нет, можно гулять по карте
   const [noEnemies, setNoEnemies] = useState(false);
@@ -1274,6 +1275,13 @@ async function loadStats(): Promise<void> {
     } catch { setApiPing(-1); }
   }, []);
   useEffect(() => { refreshRooms(); }, [refreshRooms]);
+  // вкладка босса живая: обновляем список и статус босса каждые 10с
+  useEffect(() => {
+    if (menuTab !== 'boss') return;
+    refreshRooms();
+    const id = window.setInterval(refreshRooms, 10000);
+    return () => window.clearInterval(id);
+  }, [menuTab, refreshRooms]);
 
   const createRoom = useCallback(async (nameOverride?: string, modeOverride?: MapId) => {
     if ((modeOverride ?? draftMode) === 'szeged' && !canSee(authed, devUnlocked)) return;
@@ -1605,7 +1613,8 @@ async function loadStats(): Promise<void> {
               g.spawnWorldBoss(Math.max(1, bd.hp), bd.round);
             }
             if (bd.alive && host) {
-              if (!g.worldBossAlive()) g.spawnWorldBoss(Math.max(1, bd.hp), bd.round);
+              // смерть своего слепка сначала уходит на сервер мёртвым слепком —
+              // респаун только по новому раунду выше, иначе босс воскресает мгновенно
               try {
                 await fetch(`/api/rooms/${id}/mobpush`, {
                   method: 'POST',
@@ -2350,7 +2359,7 @@ async function loadStats(): Promise<void> {
           <div id="menuBalance" title="Твои фантики">🎟️ {hud.fantiki}</div>
           <div id="menuNav">
             <h1>👊 42 LIVE 💥</h1>
-            {([['play', '▶ ИГРАТЬ'], ['fighter', '🎭 БОЕЦ'], ['cases', '🎰 КЕЙСЫ'], ['promo', '🎟️ ПРОМОКОДЫ'], ['maps', '🗺️ КАРТЫ'], ['editor', '🧩 РЕДАКТОР'], ['rooms', '🌐 КОМНАТЫ'], ['servers', '🖥️ СЕРВЕРА'], ['settings', '⚙️ НАСТРОЙКИ'], ['tops', '🏆 ТОПЫ']] as Array<[TabId, string]>).map(([id, label]) => (
+            {([['play', '▶ ИГРАТЬ'], ['fighter', '🎭 БОЕЦ'], ['cases', '🎰 КЕЙСЫ'], ['promo', '🎟️ ПРОМОКОДЫ'], ['maps', '🗺️ КАРТЫ'], ['editor', '🧩 РЕДАКТОР'], ['rooms', '🌐 КОМНАТЫ'], ['servers', '🖥️ СЕРВЕРА'], ['boss', '👹 БОСС'], ['settings', '⚙️ НАСТРОЙКИ'], ['tops', '🏆 ТОПЫ']] as Array<[TabId, string]>).map(([id, label]) => (
               <button key={id} id={`nav-${id}`} className={'tnav' + (menuTab === id ? ' active' : '')} onClick={() => setMenuTab(id)}>{label}</button>
             ))}
             <a id="hubLink" href="https://hub.bratuxa.zomb.top">← Хаб 1Б42П</a>
@@ -2837,6 +2846,27 @@ async function loadStats(): Promise<void> {
               </div>
               );
             }) : <div>Сервер пуст — создай комнату во вкладке 🌐!</div>}
+          </div>
+          </div>
+          <div className={'mtab' + (menuTab === 'boss' ? ' show' : '')}>
+          <div className="board" id="bossSec">
+            <h3>👹 Босс</h3>
+            {bossKick !== null && <div id="bossKickBanner2">👹 Босс тебя убил — вылет с сервера. Назад пустит после респауна (≈ {fmtRestart(bossKick)}).</div>}
+            <div className="mdesc">Мировой босс 5000 HP на круглой арене: 20 огненных кругов (50), рука 25, прыжок с меткой 10м (60). Макс 7 бойцов — умер, и тебя выкинуло до следующего респауна (30 мин).</div>
+            {roomsList.filter((r) => r.mode === 'boss').length > 0 ? roomsList.filter((r) => r.mode === 'boss').map((r) => {
+              const cap = modeCap(r.mode);
+              return (
+              <div className="srvcard" key={r.id}>
+                <div className="srvname">👹 {r.name}{r.official ? ' ✅' : ''}</div>
+                <div className="srvdesc">{r.boss && r.boss.alive ? `👹 БОСС: ${Math.max(0, Math.round(r.boss.hp))}/5000 ❤️` : `👹 Босс повержен — новый через ${fmtRestart(r.boss?.nextIn ?? 0)}`}</div>
+                <div className="srvmeta">👥 {r.count}/{cap}{r.started ? ' · ▶️ идёт' : ''}</div>
+                {!roomId && <button className="wbtn srvjoin" id={`bossjoin-${r.id}`} onClick={() => joinRoom(r.id)}>ВОЙТИ В БОЙ</button>}
+              </div>
+              );
+            }) : <div>Пока пусто — обнови или создай комнату-Босса во вкладке 🌐!</div>}
+            <div className="srow">
+              <button className="wbtn" id="bossRefresh" onClick={() => { refreshRooms(); }}>🔄 ОБНОВИТЬ</button>
+            </div>
           </div>
           </div>
           <div className={'mtab' + (menuTab === 'tops' ? ' show' : '')}>

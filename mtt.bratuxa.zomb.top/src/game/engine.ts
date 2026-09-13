@@ -20,7 +20,7 @@ import brWallUrl from '../assets/br-wall.jpg';
 import brCeilUrl from '../assets/br-ceil.jpg';
 import doorExitUrl from '../assets/door-exit.jpg';
 import bossUrl from '../assets/boss.png';
-import bossPhotoUrl from '../assets/boss-photo.jpg';
+import bossPhotoUrl from '../assets/boss-photo.png';
 import charMttUrl from '../assets/char-mtt.png';
 import charKrysaUrl from '../assets/char-krysa.png';
 import charShubaUrl from '../assets/char-shuba.png';
@@ -4398,17 +4398,17 @@ export class Game {
     if (this.wbJumpRing) this.wbJumpRing.visible = false;
   }
 
-  /** Зональная атака: до 3 зон под случайных бойцов (r=4, 3 быстрых мигания — 50). */
+  /** Зональная атака: 20 кругов по случайным точкам карты (r=4, 3 быстрых мигания — 50). */
   private wbZoneAttack(): void {
-    const fs = this.wbFighters();
-    if (fs.length === 0) return;
-    const n = Math.min(3, fs.length);
-    for (let i = 0; i < n; i++) {
-      const f = fs[Math.floor(Math.random() * fs.length)];
+    for (let i = 0; i < 20; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const rr = Math.sqrt(Math.random()) * 36;
+      const fx = Math.cos(a) * rr, fz = Math.sin(a) * rr;
+      if (this.hitSolid(fx, fz, 1)) continue;
       const mesh = this.wbRing(0xff2a1a, 4, 0.85);
-      mesh.position.set(f.x, 0.12, f.z);
+      mesh.position.set(fx, 0.12, fz);
       this.scene.add(mesh);
-      this.wbZones.push({ mesh, x: f.x, z: f.z, r: 4, t: 0, hit: false });
+      this.wbZones.push({ mesh, x: fx, z: fz, r: 4, t: 0, hit: false });
     }
     this.sfx(hitUrl, 0.5);
   }
