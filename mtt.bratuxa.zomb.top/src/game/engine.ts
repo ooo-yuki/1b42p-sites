@@ -20,6 +20,7 @@ import brWallUrl from '../assets/br-wall.jpg';
 import brCeilUrl from '../assets/br-ceil.jpg';
 import doorExitUrl from '../assets/door-exit.jpg';
 import bossUrl from '../assets/boss.png';
+import bossPhotoUrl from '../assets/boss-photo.jpg';
 import charMttUrl from '../assets/char-mtt.png';
 import charKrysaUrl from '../assets/char-krysa.png';
 import charShubaUrl from '../assets/char-shuba.png';
@@ -1207,7 +1208,7 @@ export class Game {
   /** Предзагрузка текстур перед боем: только нужное под карту + общие (бойцы, враги).
       Шуба ужата до 512px, грузим пачками параллельно — экран загрузки пролетает. */
   async preload(onPct: (p: number) => void): Promise<void> {
-    const core = [vrag1Url, vrag2Url, bossUrl, stalkerUrl, charMttUrl, charKrysaUrl, charShubaUrl, charChumaUrl, charGidroxisUrl, charSunstrikeUrl, skyUrl];
+    const core = [vrag1Url, vrag2Url, bossUrl, bossPhotoUrl, stalkerUrl, charMttUrl, charKrysaUrl, charShubaUrl, charChumaUrl, charGidroxisUrl, charSunstrikeUrl, skyUrl];
     const byMap: Record<string, string[]> = {
       arena: [dom1Url, travaUrl, facadeUrl, panelUrl, shopUrl, roofUrl, roadUrl, walkUrl, plazaUrl, fenceUrl, edgeUrl, house2Url, brickUrl],
       duel: [travaUrl, brickUrl, edgeUrl],
@@ -3216,6 +3217,17 @@ export class Game {
     return this.bossTexCache;
   }
 
+  /** Тело мирового босса — тот самый мужик с мема (твой файл). */
+  private wbTexCache: THREE.Texture | null = null;
+  private wbTexture(): THREE.Texture {
+    if (!this.wbTexCache) {
+      const t = new THREE.TextureLoader().load(bossPhotoUrl);
+      t.colorSpace = THREE.SRGBColorSpace;
+      this.wbTexCache = t;
+    }
+    return this.wbTexCache;
+  }
+
   debugSpawn(kind: 'walk' | 'fly' | 'boss'): number {
     this.spawnEnemy(kind);
     return this.debugFlyers();
@@ -4288,6 +4300,10 @@ export class Game {
     const v = this.makeEnemyVisuals('boss');
     v.g.position.set(sx, 0, sz);
     v.g.scale.setScalar(1.35);
+    // тело мирового босса — мужик с мема (и контур под него)
+    const wtex = this.wbTexture();
+    (v.body.material as THREE.SpriteMaterial).map = wtex;
+    (v.ol.material as THREE.SpriteMaterial).map = wtex;
     this.scene.add(v.g);
     const foe: Enemy = {
       ...v, kind: 'boss', hp, maxhp: Math.max(hp, 1), speed: 2.0,
