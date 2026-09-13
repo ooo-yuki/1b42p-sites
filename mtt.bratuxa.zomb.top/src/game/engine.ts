@@ -97,7 +97,7 @@ export type MapId = 'arena' | 'duel' | 'backrooms' | 'custom' | 'random' | 'pvp'
 /** Карты для выбора в меню: id, название, описание. */
 export const MAPS: Array<{ id: MapId; name: string; desc: string }> = [
   { id: 'arena', name: '🌍 Арена', desc: 'Новый город: витрины, переулки, Г/П-дома, площадь с фонтаном' },
-  { id: 'boss', name: '👹 Босс-арена', desc: 'Круглая арена: мировой босс 5000 HP, зоны, прыжки. Респаун 30 мин' },
+  { id: 'boss', name: '👹 Босс-арена', desc: 'Круглая арена: мировой босс 3500 HP, зоны, прыжки. Респаун 30 мин' },
   { id: 'duel', name: '⚔️ Дуэль', desc: 'Ночной двор 1×1 для разборок' },
   { id: 'szeged', name: '🇬🇧 London', desc: 'Приватная карта МТТ' },
   { id: 'backrooms', name: '🟨 Бэкрумс', desc: 'Случайный лабиринт — новый каждый раз' },
@@ -1384,24 +1384,7 @@ export class Game {
     );
     wall.position.set(0, 3.5, 0);
     scene.add(wall);
-    // редкие низкие укрытия ближе к центру (5 ящиков + 2 столба)
-    const crateMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.9 });
-    const crateSpots: Array<[number, number]> = [[-7, -4], [6, -7], [8, 6], [-6, 8], [0, -12]];
-    for (const [cx, cz] of crateSpots) {
-      const c = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.2, 2.6), crateMat);
-      c.position.set(cx, 1.1, cz);
-      c.castShadow = true;
-      scene.add(c);
-      this.solids.push({ x: cx, z: cz, hx: 1.3, hz: 1.3, h: 2.2 });
-    }
-    const pilMat = new THREE.MeshStandardMaterial({ color: 0x4a4a52, roughness: 0.8 });
-    for (const [px2, pz2] of [[-3, 3], [4, 1]] as Array<[number, number]>) {
-      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.1, 5, 10), pilMat);
-      p.position.set(px2, 2.5, pz2);
-      p.castShadow = true;
-      scene.add(p);
-      this.solids.push({ x: px2, z: pz2, r: 1.1, h: 5 });
-    }
+    // голая арена: никаких укрытий — только кольцо, стена и факелы
     // факелы у стены (свет без теней — дёшево)
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2;
@@ -4275,7 +4258,7 @@ export class Game {
     return { charge: this.sunCharge, cd: Math.round(this.sunCd * 10) / 10, pending: this.sunBeams.length };
   }
 
-  // 👹 МИРОВОЙ БОСС: 5000 HP, медленный (2.0), три атаки —
+  // 👹 МИРОВОЙ БОСС: 3500 HP, медленный (2.0), три атаки —
   // рука 25 в упор, зоны (3 мигания — 50), прыжок на случайного бойца (метка 10м 1.5с — 60).
   // Хост симулирует и пушит (mobId 777), гость бьёт через сервер (onNetHit).
 
@@ -4291,7 +4274,7 @@ export class Game {
   }
 
   /** Заспавнить мирового босса (соло-старт, хост, новый раунд). */
-  spawnWorldBoss(hp = 5000, round = 1): void {
+  spawnWorldBoss(hp = 3500, round = 1): void {
     if (this.netSync) return;
     for (const e of this.enemies.filter((q) => q.wb)) this.scene.remove(e.g);
     this.enemies = this.enemies.filter((q) => !q.wb);
@@ -5858,7 +5841,7 @@ export class Game {
           this.wbSoloT -= dt;
           const sec = Math.max(0, Math.ceil(this.wbSoloT));
           if (sec !== this.wbSoloPushed) { this.wbSoloPushed = sec; this.pushHud(); }
-          if (this.wbSoloT <= 0) { this.wbRound++; this.spawnWorldBoss(5000, this.wbRound); }
+          if (this.wbSoloT <= 0) { this.wbRound++; this.spawnWorldBoss(3500, this.wbRound); }
         }
       }
       // враги идут к игроку и бьют в упор; сетевые куклы — догоняют точку хоста

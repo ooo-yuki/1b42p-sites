@@ -154,7 +154,7 @@ interface Mob { id: number; kind: string; x: number; z: number; hp: number; dead
 /** Мировой босс: один на комнату, id в общей таблице мобов. */
 const BOSS_ID = 777;
 /** ХП мирового босса. */
-const BOSS_MAXHP = 5000;
+const BOSS_MAXHP = 3500;
 /** Респаун босса после убийства, мс (30 минут). */
 const BOSS_RESPAWN_MS = 30 * 60 * 1000;
 interface Room { id: string; name: string; mode: 'arena' | 'duel' | 'backrooms' | 'pvp' | 'endless' | 'invasion' | 'szeged' | 'boss'; created: number; /** Сид карты бэкрумса: один на всех в комнате, новый на каждую комнату/рестарт. */ seed: number; /** TTL-рестарт сек (0 = без рестарта) */ ttlSec: number; /** официальная комната батальона — живёт всегда, рестарт сбрасывает игру на месте */ official: boolean; round: number; lastWinner: string; owner: string; started: boolean; players: Map<string, Member>; pending: Map<string, Member>; chat: ChatMsg[]; mobs: Map<number, Mob>; mobHost: string; /** тихий вылет: ключ→когда ушёл (грейс-возврат без заявки) */ gone: Map<string, number>; /** кик = бан: ключ→до когда нельзя */ banned: Map<string, number>; /** выбрались через дверь: ключ→когда (до рестарта только наблюдатели) */ escaped: Map<string, number>; /** мировой босс: жив ли, раунд (растёт на каждый респаун), когда следующий, кто умер и ждёт респауна */ bossAlive: boolean; bossRound: number; bossNext: number; bossOut: Map<string, number>; }

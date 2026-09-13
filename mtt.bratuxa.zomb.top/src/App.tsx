@@ -206,7 +206,7 @@ function modeDesc(mode: string): string {
   if (mode === 'pvp') return 'Без врагов — только ты и соперники. Побеждает лидер фрагов.';
   if (mode === 'endless') return 'Гигантский лабиринт и 5 неубиваемых быстрых сталкеров. Выживи.';
   if (mode === 'invasion') return 'Орда скалолазов лезет на стены и крыши. Держись.';
-  if (mode === 'boss') return 'Круглая арена, босс 5000 HP: зоны, рука, прыжки. Умер — вылет до респауна (30 мин). Макс 7 бойцов.';
+  if (mode === 'boss') return 'Круглая арена, босс 3500 HP: зоны, рука, прыжки. Умер — вылет до респауна (30 мин). Макс 7 бойцов.';
   if (mode === 'duel') return 'Ночной двор 1×1 для разборок.';
   if (mode === 'backrooms') return 'Случайный лабиринт — новый каждый раз.';
   return 'Новый город: витрины, переулки, площадь с фонтаном.';
@@ -1047,7 +1047,7 @@ async function loadStats(): Promise<void> {
       doXray: () => game.xray(),
       xrayFlags: () => game.debugXrayFlags(),
       wb: () => game.debugWb(),
-      spawnWb: (hp?: number, round?: number) => game.spawnWorldBoss(hp ?? 5000, round ?? 1),
+      spawnWb: (hp?: number, round?: number) => game.spawnWorldBoss(hp ?? 3500, round ?? 1),
       syncWb: (hp: number, dead: boolean, round: number) => game.syncWorldBoss(hp, dead, round),
       wba: () => game.worldBossAlive(),
       bossHost: (on: boolean) => game.setBossHost(on),
@@ -1174,7 +1174,7 @@ async function loadStats(): Promise<void> {
       // босс-арена: кольцо 25–35м; соло — босс сразу, в комнате ведёт пульс
       if (g.debugMap() === 'boss') {
         g.randomBossSpawn();
-        if (!roomRef.current.id) g.spawnWorldBoss(5000, 1);
+        if (!roomRef.current.id) g.spawnWorldBoss(3500, 1);
       }
       pvpDeadRef.current = false;
       setPvpDead(false);
@@ -2181,7 +2181,7 @@ async function loadStats(): Promise<void> {
             <div id="restartBadge">♻️ Рестарт через {fmtRestart(restartIn)}</div>
           )}
           {roomMode === 'boss' && bossInfo && (
-            <div id="wbBadge">{bossInfo.alive ? `👹 БОСС: ${Math.max(0, Math.round(bossInfo.hp))}/5000 ❤️` : `👹 Босс повержен — новый через ${fmtRestart(bossInfo.nextIn)}`}</div>
+            <div id="wbBadge">{bossInfo.alive ? `👹 БОСС: ${Math.max(0, Math.round(bossInfo.hp))}/3500 ❤️` : `👹 Босс повержен — новый через ${fmtRestart(bossInfo.nextIn)}`}</div>
           )}
           {!roomId && mapChoice === 'boss' && hud.wbWait > 0 && (
             <div id="wbBadge">👹 Босс повержен — новый через {fmtRestart(hud.wbWait)}</div>
@@ -2855,13 +2855,13 @@ async function loadStats(): Promise<void> {
           <div className="board" id="bossSec">
             <h3>👹 Босс</h3>
             {bossKick !== null && <div id="bossKickBanner2">👹 Босс тебя убил — вылет с сервера. Назад пустит после респауна (≈ {fmtRestart(bossKick)}).</div>}
-            <div className="mdesc">Мировой босс 5000 HP на круглой арене: 25 огненных кругов (50), рука 25, прыжок с меткой 10м (60). Макс 7 бойцов — умер, и тебя выкинуло до следующего респауна (30 мин).</div>
+            <div className="mdesc">Мировой босс 3500 HP на круглой арене: 25 огненных кругов (50), рука 25, прыжок с меткой 10м (60). Макс 7 бойцов — умер, и тебя выкинуло до следующего респауна (30 мин).</div>
             {roomsList.filter((r) => r.mode === 'boss').length > 0 ? roomsList.filter((r) => r.mode === 'boss').map((r) => {
               const cap = modeCap(r.mode);
               return (
               <div className="srvcard" key={r.id}>
                 <div className="srvname">👹 {r.name}{r.official ? ' ✅' : ''}</div>
-                <div className="srvdesc">{r.boss && r.boss.alive ? `👹 БОСС: ${Math.max(0, Math.round(r.boss.hp))}/5000 ❤️` : `👹 Босс повержен — новый через ${fmtRestart(r.boss?.nextIn ?? 0)}`}</div>
+                <div className="srvdesc">{r.boss && r.boss.alive ? `👹 БОСС: ${Math.max(0, Math.round(r.boss.hp))}/3500 ❤️` : `👹 Босс повержен — новый через ${fmtRestart(r.boss?.nextIn ?? 0)}`}</div>
                 <div className="srvmeta">👥 {r.count}/{cap}{r.started ? ' · ▶️ идёт' : ''}</div>
                 {!roomId && <button className="wbtn srvjoin" id={`bossjoin-${r.id}`} onClick={() => joinRoom(r.id)}>ВОЙТИ В БОЙ</button>}
               </div>
