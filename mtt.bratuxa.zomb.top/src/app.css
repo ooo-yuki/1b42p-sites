@@ -328,6 +328,9 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(-
 #scoreboard .sme{color:#39d353}
 #restartBadge{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:6;background:var(--panel);
   border:1px solid var(--amber);border-radius:20px;padding:6px 16px;font-size:14px;font-weight:800;color:var(--amber);font-family:var(--font-d)}
+#wbBadge{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:6;background:rgba(32,4,4,.92);
+  border:1px solid #ff2a1a;border-radius:20px;padding:6px 16px;font-size:14px;font-weight:800;color:#ff6a5a;font-family:var(--font-d);
+  box-shadow:0 0 18px rgba(255,42,26,.45);white-space:nowrap;max-width:94vw;overflow:hidden;text-overflow:ellipsis}
 #doorPulse{position:fixed;top:52px;left:50%;transform:translateX(-50%);z-index:6;background:rgba(4,32,12,.92);
   border:1px solid #39d353;border-radius:20px;padding:6px 16px;font-size:14px;font-weight:800;color:#39d353;font-family:var(--font-d);
   box-shadow:0 0 18px rgba(57,211,83,.55);animation:doorblink 1s ease-in-out infinite}

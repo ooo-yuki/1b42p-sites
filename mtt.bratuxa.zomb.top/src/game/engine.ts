@@ -170,6 +170,8 @@ export interface HudState {
   lvl: number;
   /** Живых боссов на карте — для баннера 👑. */
   boss: number;
+  /** Секунд до респауна мирового босса в соло (0 — жив или не босс-карта). */
+  wbWait: number;
   /** Сглаженный FPS движка. */
   fps: number;
   /** Текущее качество картинки (авто-сброс при просадке). */
@@ -690,6 +692,8 @@ export class Game {
   /** Соло-респаун босса после убийства, сек. */
   private wbSoloT = 120;
   private wbRound = 1;
+  /** Последняя показанная секунда отсчёта (пушим HUD только на смене цифры). */
+  private wbSoloPushed = -1;
   /** Зоны урона босса: мигают 3 раза — потом удар 50. */
   private wbZones: Array<{ mesh: THREE.Mesh; x: number; z: number; r: number; t: number; hit: boolean }> = [];
   /** Кольцо-прицел прыжка босса (диаметр 10м, наведение 1.5с). */
@@ -4469,7 +4473,7 @@ export class Game {
   }
 
   /** Показ прыжка для тестов: фаза, кд зоны/прыжка. */
-  debugWb(): { alive: boolean; hp: number; mode: number; zoneCd: number; jumpCd: number; zones: number; x: number; z: number } {
+  debugWb(): { alive: boolean; hp: number; mode: number; zoneCd: number; jumpCd: number; zones: number; x: number; z: number; wait: number } {
     const e = this.enemies.find((q) => q.wb && !q.dead);
     return {
       alive: !!e,
@@ -4480,6 +4484,7 @@ export class Game {
       zones: this.wbZones.length,
       x: e ? Math.round(e.g.position.x * 10) / 10 : 0,
       z: e ? Math.round(e.g.position.z * 10) / 10 : 0,
+      wait: !e && this.map === 'boss' && !this.wbExt ? Math.max(0, Math.ceil(this.wbSoloT)) : 0,
     };
   }
 
@@ -5138,6 +5143,7 @@ export class Game {
       med: this.medkits,
       lvl: this.level(),
       boss: bosses,
+      wbWait: this.map === 'boss' && !this.wbExt && !this.worldBossAlive() ? Math.max(0, Math.ceil(this.wbSoloT)) : 0,
       dash: Math.round(this.dashCd * 10) / 10,
       kick: Math.round(this.wallKickCd * 10) / 10,
       invis: Math.round(this.invisT * 10) / 10,
@@ -5847,9 +5853,11 @@ export class Game {
       this.updateSpecFollow();
       // боссы соло: без внешнего драйвера — респаун через 120с после убийства
       if (this.map === 'boss' && !this.wbExt && !this.netSync && this.started && !this.dead) {
-        if (this.enemies.some((e) => e.wb && !e.dead)) this.wbSoloT = 120;
+        if (this.enemies.some((e) => e.wb && !e.dead)) { this.wbSoloT = 120; this.wbSoloPushed = -1; }
         else {
           this.wbSoloT -= dt;
+          const sec = Math.max(0, Math.ceil(this.wbSoloT));
+          if (sec !== this.wbSoloPushed) { this.wbSoloPushed = sec; this.pushHud(); }
           if (this.wbSoloT <= 0) { this.wbRound++; this.spawnWorldBoss(5000, this.wbRound); }
         }
       }

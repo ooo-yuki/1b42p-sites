@@ -422,7 +422,7 @@ export default function App() {
   const gameRef = useRef<Game | null>(null);
   const [menu, setMenu] = useState(true);
   const [loading, setLoading] = useState<{ show: boolean; pct: number }>({ show: false, pct: 0 });
-  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, invis: 0, invisCd: 0, chuma: 0, chumaCd: 0, xray: 0, xrayCd: 0, sun: 0, sunCd: 0, med: 0, lvl: 1, boss: 0, fps: 60, quality: 'medium', doorPulse: false });
+  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, invis: 0, invisCd: 0, chuma: 0, chumaCd: 0, xray: 0, xrayCd: 0, sun: 0, sunCd: 0, med: 0, lvl: 1, boss: 0, wbWait: 0, fps: 60, quality: 'medium', doorPulse: false });
   const [scores, setScores] = useState<ScoreRow[]>([]);
   const [duelTop, setDuelTop] = useState<Array<{ login: string; wins: number }>>([]);
   const [gstats, setGstats] = useState<{ games: number; best: number; online: number } | null>(null);
@@ -2182,6 +2182,9 @@ async function loadStats(): Promise<void> {
           )}
           {roomMode === 'boss' && bossInfo && (
             <div id="wbBadge">{bossInfo.alive ? `👹 БОСС: ${Math.max(0, Math.round(bossInfo.hp))}/5000 ❤️` : `👹 Босс повержен — новый через ${fmtRestart(bossInfo.nextIn)}`}</div>
+          )}
+          {!roomId && mapChoice === 'boss' && hud.wbWait > 0 && (
+            <div id="wbBadge">👹 Босс повержен — новый через {fmtRestart(hud.wbWait)}</div>
           )}
           {waveBanner > 0 && (
             <div id="waveBanner" key={`wave-${waveBanner}`}>🌊 ВОЛНА {waveBanner}</div>
