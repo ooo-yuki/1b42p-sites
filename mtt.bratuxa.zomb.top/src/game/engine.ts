@@ -649,6 +649,8 @@ export class Game {
   private sunRing: THREE.Mesh | null = null;
   private sunBeam: THREE.Mesh | null = null;
   private sunFlashT = 0;
+  /** Флаг «бьёт луч»: фраги от способности в заряд не идут. */
+  private sunNoCharge = false;
   /** Панель разработчика: бессмертие, сквозной рентген, хитбоксы (только у владельца). */
   private devGod = false;
   private devXray = false;
@@ -3742,8 +3744,8 @@ export class Game {
       e.dead = true;
       this.scene.remove(e.g);
       this.kills++;
-      // заряд Санстрайка: +1 за убийство (максимум 10)
-      if (this.charId === 'sunstrike') this.sunCharge = Math.min(10, this.sunCharge + 1);
+      // заряд Санстрайка: +1 за убийство руками (фраги от луча не идут)
+      if (this.charId === 'sunstrike' && !this.sunNoCharge) this.sunCharge = Math.min(10, this.sunCharge + 1);
       // за босса — куш: +500 очков и +100 фантиков
       this.score += e.kind === 'boss' ? 500 + e.ewave * 10 : 100 + e.ewave * 10;
       this.fantiki += e.kind === 'boss' ? 100 : 10;
@@ -4031,14 +4033,14 @@ export class Game {
   }
 
   // ЛУЧ Андрея Санстрайка: точка — где стоял враг под прицелом (слепок на касте),
-  // удар через 0.5с. Заряд 0–10: урон 20→142, радиус 6→15.5м. Кд 30с.
+  // удар через 0.5с. Заряд 0–10: урон 20→142, радиус 3→10м. Кд 30с.
   sunstrike(): boolean {
     if (!this.started || this.dead || this.sunCd > 0 || this.charId !== 'sunstrike') return false;
     const tgt = this.aimEnemy(45);
     if (!tgt) return false;
     const q = Math.min(10, Math.max(0, this.sunCharge));
     const dmg = 20 + (q / 10) * (142 - 20);
-    const r = 6 + (q / 10) * (15.5 - 6);
+    const r = 3 + (q / 10) * (10 - 3);
     this.sunBeams.push({ x: tgt.x, z: tgt.z, t: 0.5, dmg, r });
     this.sunCd = superCd('sunstrike', this.upg['sunstrike']?.sup ?? 0);
     this.showSunRing(tgt.x, tgt.z, r);
@@ -4103,12 +4105,15 @@ export class Game {
     if (this.sunRing) this.sunRing.visible = false;
     this.burst(b.x, gy + 1, b.z, 24);
     this.sfx(hitUrl);
+    // фраги от луча в заряд не идут
+    this.sunNoCharge = true;
     for (const e of this.enemies) {
       if (e.dead) continue;
       const dx = e.g.position.x - b.x, dz = e.g.position.z - b.z;
       const d = Math.hypot(dx, dz);
       if (d <= b.r + 0.9) this.strikeEnemy(e, b.dmg, dx, dz, d || 1, 2);
     }
+    this.sunNoCharge = false;
     this.pushHud();
     this.waveClearCheck();
   }
