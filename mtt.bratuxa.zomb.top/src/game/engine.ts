@@ -651,10 +651,11 @@ export class Game {
   // трассеры пуль: светящиеся линии выстрелов, живут долю секунды
   private tracers: Array<{ l: THREE.Line; life: number }> = [];
   // живые пули: летят сами с гравитацией, у каждой свой хитбокс-шар r.
-  // Вид — тонкая линия-росчерк, хитбокс от вида не зависит.
-  private bullets: Array<{ m: THREE.Line; x: number; y: number; z: number; vx: number; vy: number; vz: number; g: number; dmg: number; range: number; flown: number; r: number; fallPow: number; knock: number }> = [];
-  private bulletMatY: THREE.LineBasicMaterial | null = null;
-  private bulletMatO: THREE.LineBasicMaterial | null = null;
+  // Вид — светящийся болт (видно хорошо), хитбокс от вида не зависит.
+  private bullets: Array<{ m: THREE.Mesh; x: number; y: number; z: number; vx: number; vy: number; vz: number; g: number; dmg: number; range: number; flown: number; r: number; fallPow: number; knock: number }> = [];
+  private bulletGeoBolt: THREE.BoxGeometry | null = null;
+  private bulletMatY: THREE.MeshBasicMaterial | null = null;
+  private bulletMatO: THREE.MeshBasicMaterial | null = null;
   private kickTouch(): void {
     if (this.charId !== 'krysa' || this.kickAirT <= 0 || this.py < 0.5) return;
     if (this.wallKickCd > 0) {
@@ -4053,21 +4054,21 @@ export class Game {
   }
 
   // выпустить живую пулю: летит сама, падает от гравитации g, хитбокс — шар r.
-  // Рисуется тонкой линией-росчерком по полёту (хитбокс тот же шар).
+  // Рисуется светящимся болтом (видно издалека), хитбокс тот же шар.
   private spawnBullet(x: number, y: number, z: number, dx: number, dy: number, dz: number, speed: number, dmg: number, range: number, r: number, g: number, fallPow: number, knock: number, orange: boolean): void {
-    if (!this.bulletMatY) {
-      this.bulletMatY = new THREE.LineBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.95 });
-      this.bulletMatO = new THREE.LineBasicMaterial({ color: 0xffa040, transparent: true, opacity: 0.95 });
+    if (!this.bulletGeoBolt) {
+      this.bulletGeoBolt = new THREE.BoxGeometry(0.16, 0.16, 2.5);
+      this.bulletMatY = new THREE.MeshBasicMaterial({ color: 0xffe066 });
+      this.bulletMatO = new THREE.MeshBasicMaterial({ color: 0xffa040 });
     }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([x, y, z, x, y, z]), 3));
-    const m = new THREE.Line(geo, (orange ? this.bulletMatO : this.bulletMatY)!);
-    m.frustumCulled = false;
+    const m = new THREE.Mesh(this.bulletGeoBolt, (orange ? this.bulletMatO : this.bulletMatY)!);
+    m.position.set(x, y, z);
+    m.lookAt(x + dx, y + dy, z + dz);
     this.scene.add(m);
     this.bullets.push({ m, x, y, z, vx: dx * speed, vy: dy * speed, vz: dz * speed, g, dmg, range, flown: 0, r, fallPow, knock });
     if (this.bullets.length > 48) {
       const old = this.bullets.shift();
-      if (old) { this.scene.remove(old.m); old.m.geometry.dispose(); }
+      if (old) this.scene.remove(old.m);
     }
   }
 
@@ -4093,12 +4094,9 @@ export class Game {
         b.vy -= b.g * h;
         b.x += b.vx * h; b.y += b.vy * h; b.z += b.vz * h;
         b.flown += Math.hypot(b.vx, b.vy, b.vz) * h;
-        // росчерк: хвост на 1.4м позади носа по полёту
-        const sp = Math.hypot(b.vx, b.vy, b.vz) || 1;
-        const attr = b.m.geometry.attributes.position as THREE.BufferAttribute;
-        attr.setXYZ(0, b.x - (b.vx / sp) * 1.4, b.y - (b.vy / sp) * 1.4, b.z - (b.vz / sp) * 1.4);
-        attr.setXYZ(1, b.x, b.y, b.z);
-        attr.needsUpdate = true;
+        // болт смотрит носом по полёту
+        b.m.position.set(b.x, b.y, b.z);
+        b.m.lookAt(b.x + b.vx, b.y + b.vy, b.z + b.vz);
         const fall = b.fallPow > 1
           ? Math.pow(Math.max(0, 1 - b.flown / b.range), b.fallPow)
           : 1 - (b.flown / b.range) * 0.5;
@@ -4137,7 +4135,7 @@ export class Game {
           }
         }
       }
-      if (dead) { this.scene.remove(b.m); b.m.geometry.dispose(); this.bullets.splice(i, 1); }
+      if (dead) { this.scene.remove(b.m); this.bullets.splice(i, 1); }
     }
   }
 
