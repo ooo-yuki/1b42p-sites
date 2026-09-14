@@ -171,7 +171,9 @@ const BOSS_ID = 777;
 const BOSS_MAXHP = 3500;
 /** Респаун босса после убийства, мс (30 минут). */
 const BOSS_RESPAWN_MS = 30 * 60 * 1000;
-interface Room { id: string; name: string; mode: 'arena' | 'duel' | 'backrooms' | 'pvp' | 'endless' | 'invasion' | 'szeged' | 'boss'; created: number; /** Сид карты бэкрумса: один на всех в комнате, новый на каждую комнату/рестарт. */ seed: number; /** TTL-рестарт сек (0 = без рестарта) */ ttlSec: number; /** официальная комната батальона — живёт всегда, рестарт сбрасывает игру на месте */ official: boolean; round: number; lastWinner: string; owner: string; started: boolean; players: Map<string, Member>; pending: Map<string, Member>; chat: ChatMsg[]; mobs: Map<number, Mob>; mobHost: string; /** тихий вылет: ключ→когда ушёл (грейс-возврат без заявки) */ gone: Map<string, number>; /** кик = бан: ключ→до когда нельзя */ banned: Map<string, number>; /** выбрались через дверь: ключ→когда (до рестарта только наблюдатели) */ escaped: Map<string, number>; /** мировой босс: жив ли, раунд (растёт на каждый респаун), когда следующий, кто умер и ждёт респауна */ bossAlive: boolean; bossRound: number; bossNext: number; bossOut: Map<string, number>; /** урон по боссу за спавн: ключ→ник/логин/урон (награда 7000 фантиков) */ bossDmg: Map<string, { nick: string; login: string; dmg: number }>; }
+/** Жизнь босса после появления, мс (30 минут): не убили — спавн заново, награды нет. */
+const BOSS_LIFE_MS = 30 * 60 * 1000;
+interface Room { id: string; name: string; mode: 'arena' | 'duel' | 'backrooms' | 'pvp' | 'endless' | 'invasion' | 'szeged' | 'boss'; created: number; /** Сид карты бэкрумса: один на всех в комнате, новый на каждую комнату/рестарт. */ seed: number; /** TTL-рестарт сек (0 = без рестарта) */ ttlSec: number; /** официальная комната батальона — живёт всегда, рестарт сбрасывает игру на месте */ official: boolean; round: number; lastWinner: string; owner: string; started: boolean; players: Map<string, Member>; pending: Map<string, Member>; chat: ChatMsg[]; mobs: Map<number, Mob>; mobHost: string; /** тихий вылет: ключ→когда ушёл (грейс-возврат без заявки) */ gone: Map<string, number>; /** кик = бан: ключ→до когда нельзя */ banned: Map<string, number>; /** выбрались через дверь: ключ→когда (до рестарта только наблюдатели) */ escaped: Map<string, number>; /** мировой босс: жив ли, раунд (растёт на каждый респаун), когда следующий, кто умер и ждёт респауна */ bossAlive: boolean; bossRound: number; bossNext: number; bossOut: Map<string, number>; /** когда босс появился (мс): через 30 мин без убийства — спавн заново без награды */ bossBorn: number; /** урон по боссу за спавн: ключ→ник/логин/урон (награда 7000 фантиков) */ bossDmg: Map<string, { nick: string; login: string; dmg: number }>; }
 const rooms = new Map<string, Room>();
 const STALE_MS = 12000;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -246,6 +248,7 @@ function bossSpawn(room: Room): void {
   room.bossRound++;
   room.bossNext = 0;
   room.bossOut.clear();
+  room.bossBorn = Date.now();
   room.bossDmg.clear();
   room.mobs.delete(BOSS_ID);
 }
@@ -261,6 +264,8 @@ function bossKill(room: Room): void {
 function bossTick(room: Room): void {
   if (room.mode !== 'boss') return;
   if (!room.bossAlive && room.bossNext > 0 && Date.now() >= room.bossNext) bossSpawn(room);
+  // босса не убили за 30 мин после появления — спавн заново: таблица сгорает, награды нет
+  if (room.bossAlive && Date.now() - room.bossBorn >= BOSS_LIFE_MS) bossSpawn(room);
 }
 
 /** Секунд до респауна босса (0 — жив). */
@@ -318,7 +323,7 @@ function ensureOfficial(): void {
       official: true, round: 1, lastWinner: '', owner: '', started: true,
       players: new Map(), pending: new Map(), chat: [], mobs: new Map(),
       mobHost: '', gone: new Map(), banned: new Map(), escaped: new Map(),
-      bossAlive: mode === 'boss', bossRound: 1, bossNext: 0, bossOut: new Map(), bossDmg: new Map(),
+      bossAlive: mode === 'boss', bossRound: 1, bossNext: 0, bossOut: new Map(), bossBorn: Date.now(), bossDmg: new Map(),
     });
   }
 }
@@ -557,7 +562,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const sid = newSid();
     const sp = duelSpawn(0);
     const pvpSp = mode === 'pvp' || mode === 'endless' || mode === 'invasion' ? randSpawnXZ() : mode === 'szeged' ? { ...SZEGED_SPAWN } : { x: 0, z: 22 };
-    const room: Room = { id, name, mode, created: Date.now(), seed: newSeed(), ttlSec: ttlFor(mode), official: false, round: 1, lastWinner: '', owner: sid, started: false, players: new Map(), pending: new Map(), chat: [], mobs: new Map(), mobHost: '', gone: new Map(), banned: new Map(), escaped: new Map(), bossAlive: mode === 'boss', bossRound: 1, bossNext: 0, bossOut: new Map(), bossDmg: new Map() };
+    const room: Room = { id, name, mode, created: Date.now(), seed: newSeed(), ttlSec: ttlFor(mode), official: false, round: 1, lastWinner: '', owner: sid, started: false, players: new Map(), pending: new Map(), chat: [], mobs: new Map(), mobHost: '', gone: new Map(), banned: new Map(), escaped: new Map(), bossAlive: mode === 'boss', bossRound: 1, bossNext: 0, bossOut: new Map(), bossBorn: Date.now(), bossDmg: new Map() };
     room.players.set(sid, { sid, nick, login, char: cleanChar(body.char), x: mode === 'duel' ? sp.x : pvpSp.x, z: mode === 'duel' ? sp.z : pvpSp.z, yaw: mode === 'duel' ? sp.yaw : 0, hp: 100, score: 0, kills: 0, wave: 1, weapon: 'fists', py: 0, atk: 0, dead: false, duelHp: 100, wins: 0, spawnIdx: 0, frags: 0, spec: false, specTarget: '', respawn: null, ts: Date.now() });
     rooms.set(id, room);
     return Response.json({ id, sid, mode, seed: room.seed, spawn: mode === 'duel' ? sp : null, restartIn: restartIn(room) });
