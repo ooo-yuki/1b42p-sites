@@ -245,6 +245,8 @@ export interface GameEvents {
   onSwing: () => void;
   /** удар по сетевому мобу: App шлёт mobhit на сервер, ответ применяет через netSyncHp/netKill */
   onNetHit?: (id: number, dmg: number) => void;
+  /** урон хоста по боссу: ХП уже ушло пушем, App шлёт record-only mobdmg для таблицы спавна */
+  onWbDmg?: (dmg: number) => void;
   /** удар по игроку в PvP: App шлёт pvphit на сервер (fid бойца из последнего beat) */
   onPvpHit?: (fid: number, dmg: number) => void;
   /** серверный hp в PvP упал в ноль: показать экран смерти с ресауном */
@@ -694,6 +696,12 @@ export class Game {
   private wbRound = 1;
   /** Последняя показанная секунда отсчёта (пушим HUD только на смене цифры). */
   private wbSoloPushed = -1;
+  /** Урон по боссу за спавн: кто сколько нанёс (награда 7000 фантиков делится по урону). */
+  private wbDmg: Array<{ nick: string; dmg: number }> = [];
+  /** Мой ник для таблицы урона (ставит App). */
+  private wbNick = 'герой';
+  /** Награда за босса, фантиков (пул на всех дамагеров). */
+  private wbPool = 7000;
   /** Зоны урона босса: мигают 3 раза — потом удар 50. */
   private wbZones: Array<{ mesh: THREE.Mesh; x: number; z: number; r: number; t: number; hit: boolean }> = [];
   /** Кольцо-прицел прыжка босса (диаметр 10м, наведение 1.5с). */
@@ -3844,6 +3852,11 @@ export class Game {
     }
     // панель разработчика: бесконечный урон — сносит всё с одного удара
     if (this.devDmg) dmg = 99999;
+    // мировой босс: мой урон — в таблицу спавна + запись на сервер (комната делит пул 7000)
+    if (e.wb) {
+      const rec = this.wbRecordDmg(dmg, e.hp);
+      if (rec > 0) this.ev.onWbDmg?.(rec);
+    }
     if (e.net) {
       e.hurtT = 0.18;
       this.burst(e.g.position.x, 1.2, e.g.position.z, 6);
@@ -3879,9 +3892,14 @@ export class Game {
       this.kills++;
       // заряд Санстрайка: +1 за убийство руками (фраги от луча не идут), макс 15
       if (this.charId === 'sunstrike' && !this.sunNoCharge) this.sunCharge = Math.min(15, this.sunCharge + 1);
-      // за босса — куш: +500 очков и +100 фантиков
-      this.score += e.kind === 'boss' ? 500 + e.ewave * 10 : 100 + e.ewave * 10;
-      this.fantiki += e.kind === 'boss' ? 100 : 10;
+      // за босса кубков нет: награда — доля пула 7000 фантиков по урону за спавн.
+      // соло — всё моё сразу; в комнате делит серверная таблица (награждает App).
+      if (e.kind === 'boss') {
+        if (this.map === 'boss' && !this.wbExt) this.addFantiki(this.wbMyShare() || this.wbPool);
+      } else {
+        this.score += 100 + e.ewave * 10;
+        this.fantiki += 10;
+      }
       this.addXp(e.kind === 'boss' ? 100 : 10);
       this.saveShop();
       if (!e.net) {
@@ -4268,6 +4286,31 @@ export class Game {
     this.wbExt = true;
   }
 
+  /** Мой ник для таблицы урона по боссу (App ставит при старте). */
+  setWbNick(nick: string): void {
+    const n = String(nick ?? '').trim().slice(0, 20);
+    if (n) this.wbNick = n;
+  }
+
+  /** Записать мой урон по боссу в таблицу спавна (кламп к остатку ХП). */
+  private wbRecordDmg(dmg: number, hpBefore: number): number {
+    const v = Math.max(0, Math.min(Math.round(dmg), Math.max(0, Math.round(hpBefore))));
+    if (v <= 0) return 0;
+    const row = this.wbDmg.find((x) => x.nick === this.wbNick);
+    if (row) row.dmg += v;
+    else this.wbDmg.push({ nick: this.wbNick, dmg: v });
+    return v;
+  }
+
+  /** Моя доля пула 7000 фантиков по таблице спавна (соло — всё моё). */
+  private wbMyShare(): number {
+    const total = this.wbDmg.reduce((s, x) => s + x.dmg, 0);
+    if (total <= 0) return 0;
+    const mine = this.wbDmg.filter((x) => x.nick === this.wbNick).reduce((s, x) => s + x.dmg, 0);
+    if (mine <= 0) return 0;
+    return Math.max(1, Math.round((this.wbPool * mine) / total));
+  }
+
   /** Живой мировой босс прямо сейчас (для App и тестов). */
   worldBossAlive(): boolean {
     return this.enemies.some((e) => e.wb && !e.dead);
@@ -4305,6 +4348,8 @@ export class Game {
     this.enemies.push(foe);
     this.wbRound = round;
     this.wbSoloT = 120;
+    // новый спавн — новая таблица урона (награда 7000 фантиков делится по урону)
+    this.wbDmg = [];
     this.pushHud();
   }
 
@@ -4324,10 +4369,8 @@ export class Game {
       this.burst(e.g.position.x, 1.2, e.g.position.z, 16);
       this.scene.remove(e.g);
       this.clearWbFx();
-      // награда за босса — каждому добившему (кооп, фраг один на сервере)
+      // награда за босса — доля пула 7000 фантиков (кубков нет, награждает App по таблице)
       this.kills++;
-      this.score += 500 + e.ewave * 10;
-      this.fantiki += 100;
       this.addXp(100);
       this.saveShop();
       this.pushHud();

@@ -134,7 +134,7 @@ interface RoomInfo {
   started?: boolean;
   official?: boolean;
   restartIn?: number;
-  boss?: { alive: boolean; hp: number; nextIn: number };
+  boss?: { alive: boolean; hp: number; round: number; nextIn: number; pool: number; dmg: Array<{ nick: string; dmg: number }> };
 }
 
 interface LobbyInfo {
@@ -633,7 +633,11 @@ async function loadStats(): Promise<void> {
   /** Баннер «сервер перезагрузился»: кикнуло TTL — заходи заново */
   const [restartKick, setRestartKick] = useState(false);
   /** Босс: жив/HP/секунд до респауна (пульс комнаты) */
-  const [bossInfo, setBossInfo] = useState<{ alive: boolean; hp: number; nextIn: number } | null>(null);
+  const [bossInfo, setBossInfo] = useState<{ alive: boolean; hp: number; round: number; nextIn: number; pool: number; dmg: Array<{ nick: string; dmg: number }> } | null>(null);
+  /** Раунд босса, за который награда уже выдана (пул 7000 — один раз за спавн). */
+  const bossPaidRef = useRef(0);
+  /** Тост награды за босса: сколько фантиков упало. */
+  const [bossReward, setBossReward] = useState<number | null>(null);
   /** Босс выкинул после смерти: секунд до респауна, когда снова пустит */
   const [bossKick, setBossKick] = useState<number | null>(null);
   /** Раунд босса сервера: сменился — свежий спавн локального слепка */
@@ -989,6 +993,16 @@ async function loadStats(): Promise<void> {
           else if (typeof d.hp === 'number') g.netSyncHp(nid, d.hp);
         }).catch(() => undefined);
       },
+      // хост бьёт босса локально: ХП уйдёт пушем, сюда — только запись в таблицу спавна
+      onWbDmg: (dmg) => {
+        const { id: rid, sid } = roomRef.current;
+        if (!rid || !sid || roomRef.current.mode !== 'boss') return;
+        fetch(`/api/rooms/${rid}/mobdmg`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sid, dmg }),
+        }).catch(() => undefined);
+      },
       onPvpHit: (fid, dmg) => {
         const { id: rid, sid } = roomRef.current;
         if (!rid || !sid) return;
@@ -1163,6 +1177,8 @@ async function loadStats(): Promise<void> {
       await gameRef.current?.preload((p) => setLoading({ show: true, pct: p }));
     } catch { /* noop */ }
     gameRef.current?.setShield(true);
+    // ник для таблицы урона по боссу (пул 7000 делится по урону за спавн)
+    try { gameRef.current?.setWbNick(nick); } catch { /* noop */ }
     setLoading({ show: false, pct: 100 });
     window.setTimeout(() => {
       const g = gameRef.current;
@@ -1348,6 +1364,8 @@ async function loadStats(): Promise<void> {
       setBossKick(null);
       setBossInfo(null);
       bossRoundRef.current = 0;
+      bossPaidRef.current = 0;
+      setBossReward(null);
       refreshRooms();
     } catch { /* noop */ }
   }, [nick, authed, devUnlocked, roomsList, refreshRooms]);
@@ -1603,9 +1621,25 @@ async function loadStats(): Promise<void> {
         // 👹 боссы: хост симулирует и пушит слепок, гость тянет HP с сервера.
         // Раунд сменился — свежий спавн у всех. Босс мёртв — ждём респаун.
         if (inGame && roomRef.current.mode === 'boss') {
-          const bd = (d as { boss?: { alive: boolean; hp: number; round: number; nextIn: number }; mobs?: Array<{ id: number; hp: number; dead: boolean }> }).boss;
+          const bd = (d as { boss?: { alive: boolean; hp: number; round: number; nextIn: number; pool: number; dmg: Array<{ nick: string; dmg: number }> }; mobs?: Array<{ id: number; hp: number; dead: boolean }> }).boss;
           if (bd) {
-            setBossInfo({ alive: bd.alive, hp: bd.hp, nextIn: bd.nextIn });
+            const table = Array.isArray(bd.dmg) ? bd.dmg : [];
+            const pool = bd.pool > 0 ? bd.pool : 7000;
+            setBossInfo({ alive: bd.alive, hp: bd.hp, round: bd.round, nextIn: bd.nextIn, pool, dmg: table });
+            // босс лёг: моя доля пула по урону за спавн — один раз за раунд, кубков нет
+            if (!bd.alive && bd.round > 0 && bossPaidRef.current !== bd.round) {
+              bossPaidRef.current = bd.round;
+              const total = table.reduce((s, x) => s + (x.dmg || 0), 0);
+              const me = nickRef.current;
+              const mine = table.filter((x) => x.nick === me).reduce((s, x) => s + (x.dmg || 0), 0);
+              if (total > 0 && mine > 0) {
+                const share = Math.max(1, Math.round((pool * mine) / total));
+                const gg = gameRef.current;
+                if (gg) gg.addFantiki(share);
+                setBossReward(share);
+                window.setTimeout(() => setBossReward((v) => (v === share ? null : v)), 8000);
+              }
+            }
             const host = d.mobHost === true;
             try { g.setBossHost(host); } catch { /* noop */ }
             if (bd.alive && bossRoundRef.current !== bd.round) {
@@ -2182,6 +2216,17 @@ async function loadStats(): Promise<void> {
           )}
           {roomMode === 'boss' && bossInfo && (
             <div id="wbBadge">{bossInfo.alive ? `👹 БОСС: ${Math.max(0, Math.round(bossInfo.hp))}/3500 ❤️` : `👹 Босс повержен — новый через ${fmtRestart(bossInfo.nextIn)}`}</div>
+          )}
+          {roomMode === 'boss' && bossInfo && bossInfo.dmg.length > 0 && (
+            <div id="wbDmgTag">
+              <div className="wbDmgTitle">🎯 Урон за спавн · 💰 {bossInfo.pool}</div>
+              {bossInfo.dmg.map((x, i) => (
+                <div key={`${x.nick}-${i}`} className="wbDmgRow">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '·'} {x.nick} — {Math.round(x.dmg)}</div>
+              ))}
+            </div>
+          )}
+          {bossReward !== null && (
+            <div id="wbRewardToast">💰 +{bossReward} фантиков за босса!</div>
           )}
           {!roomId && mapChoice === 'boss' && hud.wbWait > 0 && (
             <div id="wbBadge">👹 Босс повержен — новый через {fmtRestart(hud.wbWait)}</div>
@@ -2855,18 +2900,22 @@ async function loadStats(): Promise<void> {
           <div className="board" id="bossSec">
             <h3>👹 Босс</h3>
             {bossKick !== null && <div id="bossKickBanner2">👹 Босс тебя убил — вылет с сервера. Назад пустит после респауна (≈ {fmtRestart(bossKick)}).</div>}
-            <div className="mdesc">Мировой босс 3500 HP на круглой арене: 25 огненных кругов (50), рука 25, прыжок с меткой 10м (60). Макс 7 бойцов — умер, и тебя выкинуло до следующего респауна (30 мин).</div>
+            <div className="mdesc">Мировой босс 3500 HP на круглой арене: 25 огненных кругов (50), рука 25, прыжок с меткой 10м (60). Кубков за него нет — награда 💰 7000 фантиков делится между всеми, кто наносил урон за спавн (пропорционально урону). Макс 7 бойцов — умер, и тебя выкинуло до следующего респауна (30 мин).</div>
             {roomsList.filter((r) => r.mode === 'boss').length > 0 ? roomsList.filter((r) => r.mode === 'boss').map((r) => {
               const cap = modeCap(r.mode);
+              const table = Array.isArray(r.boss?.dmg) ? r.boss!.dmg : [];
               return (
               <div className="srvcard" key={r.id}>
                 <div className="srvname">👹 {r.name}{r.official ? ' ✅' : ''}</div>
                 <div className="srvdesc">{r.boss && r.boss.alive ? `👹 БОСС: ${Math.max(0, Math.round(r.boss.hp))}/3500 ❤️` : `👹 Босс повержен — новый через ${fmtRestart(r.boss?.nextIn ?? 0)}`}</div>
-                <div className="srvmeta">👥 {r.count}/{cap}{r.started ? ' · ▶️ идёт' : ''}</div>
+                <div className="srvmeta">👥 {r.count}/{cap}{r.started ? ' · ▶️ идёт' : ''} · 💰 {r.boss?.pool ?? 7000}</div>
+                {table.length > 0 && (
+                  <div className="srvdesc">🎯 {table.map((x) => `${x.nick} ${Math.round(x.dmg)}`).join(' · ')}</div>
+                )}
                 {!roomId && <button className="wbtn srvjoin" id={`bossjoin-${r.id}`} onClick={() => joinRoom(r.id)}>ВОЙТИ В БОЙ</button>}
               </div>
               );
-            }) : <div>Пока пусто — обнови или создай комнату-Босса во вкладке 🌐!</div>}
+            }) : <div>Пока пусто — жми 🔄 ОБНОВИТЬ.</div>}
             <div className="srow">
               <button className="wbtn" id="bossRefresh" onClick={() => { refreshRooms(); }}>🔄 ОБНОВИТЬ</button>
             </div>
