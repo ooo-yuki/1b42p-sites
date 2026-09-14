@@ -4476,6 +4476,9 @@ export class Game {
     if (e.hitCd > 0) e.hitCd -= dt;
     e.phase += dt * 2;
     this.tickWbZones(dt);
+    // ярость: потерял 70% хп (осталось ≤30%) — краснеет и лупит чаще
+    const enraged = e.hp <= e.maxhp * 0.3;
+    (e.body.material as THREE.SpriteMaterial).color.setHex(enraged ? 0xff5555 : 0xffffff);
     // цель — ближайший живой боец
     let txp = Infinity, tzp = Infinity, bd = Infinity;
     if (!this.dead && !this.specOn) {
@@ -4539,7 +4542,7 @@ export class Game {
         e.ey = 0;
         e.g.position.y = 0;
         e.wmode = 0;
-        e.wjumpT = 13;
+        e.wjumpT = e.hp <= e.maxhp * 0.3 ? 6.5 : 13;
         if (this.wbJumpRing) this.wbJumpRing.visible = false;
         this.burst(e.g.position.x, 1, e.g.position.z, 30);
         this.shakeT = 0.5;
@@ -4549,11 +4552,11 @@ export class Game {
       }
       return;
     }
-    // погоня: медленно (2.0), в лоб со скольжением, край ринга держит
+    // погоня: медленно (2.0, в ярости 2.8), в лоб со скольжением, край ринга держит
     const dx = txp - e.g.position.x, dz = tzp - e.g.position.z;
     const d = Math.hypot(dx, dz) || 1;
     if (Number.isFinite(txp) && d > 2.4) {
-      const step = 2.0 * dt;
+      const step = (enraged ? 2.8 : 2.0) * dt;
       const nx = e.g.position.x + (dx / d) * step;
       const nz = e.g.position.z + (dz / d) * step;
       if (!this.hitSolid(nx, e.g.position.z, 1.3, 0)) e.g.position.x = nx;
@@ -4561,21 +4564,21 @@ export class Game {
       const rr = Math.hypot(e.g.position.x, e.g.position.z);
       if (rr > 38) { e.g.position.x *= 38 / rr; e.g.position.z *= 38 / rr; }
     }
-    // рука: 25 в упор, своя плоскость, кд 1.1с
+    // рука: 25 в упор, своя плоскость, кд 1.1с (в ярости 0.6с)
     if (Number.isFinite(txp) && d <= 2.8 && Math.abs(this.py) <= 2.2 && e.hitCd <= 0 && this.shieldT <= 0 && !this.devGod) {
-      e.hitCd = 1.1;
+      e.hitCd = enraged ? 0.6 : 1.1;
       this.wbHurt(25);
     }
-    // зоны каждые 7с
+    // зоны каждые 7с (в ярости каждые 3.5с)
     e.watkT = (e.watkT ?? 7) - dt;
     if ((e.watkT ?? 0) <= 0) {
-      e.watkT = 7;
+      e.watkT = enraged ? 3.5 : 7;
       this.wbZoneAttack();
     }
-    // прыжок каждые 13с
+    // прыжок каждые 13с (в ярости каждые 6.5с)
     e.wjumpT = (e.wjumpT ?? 13) - dt;
     if ((e.wjumpT ?? 0) <= 0) {
-      e.wjumpT = 13;
+      e.wjumpT = enraged ? 6.5 : 13;
       this.wbJumpStart();
     }
     // тело по земле, полоса HP над головой
