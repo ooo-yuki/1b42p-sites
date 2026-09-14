@@ -651,11 +651,14 @@ export class Game {
   // трассеры пуль: светящиеся линии выстрелов, живут долю секунды
   private tracers: Array<{ l: THREE.Line; life: number }> = [];
   // живые пули: летят сами с гравитацией, у каждой свой хитбокс-шар r.
-  // Вид — светящийся болт (видно хорошо), хитбокс от вида не зависит.
-  private bullets: Array<{ m: THREE.Mesh; x: number; y: number; z: number; vx: number; vy: number; vz: number; g: number; dmg: number; range: number; flown: number; r: number; fallPow: number; knock: number }> = [];
+  // Вид — светящийся болт (видно хорошо) + белый еле видный след, хитбокс от вида не зависит.
+  private bullets: Array<{ m: THREE.Mesh; glow: THREE.Sprite; trail: THREE.Line; hist: Array<[number, number, number]>; x: number; y: number; z: number; vx: number; vy: number; vz: number; g: number; dmg: number; range: number; flown: number; r: number; fallPow: number; knock: number }> = [];
   private bulletGeoBolt: THREE.BoxGeometry | null = null;
   private bulletMatY: THREE.MeshBasicMaterial | null = null;
   private bulletMatO: THREE.MeshBasicMaterial | null = null;
+  private bulletTrailMat: THREE.LineBasicMaterial | null = null;
+  private bulletGlowTex: THREE.CanvasTexture | null = null;
+  private bulletGlowMat: THREE.SpriteMaterial | null = null;
   private kickTouch(): void {
     if (this.charId !== 'krysa' || this.kickAirT <= 0 || this.py < 0.5) return;
     if (this.wallKickCd > 0) {
@@ -4057,18 +4060,39 @@ export class Game {
   // Рисуется светящимся болтом (видно издалека), хитбокс тот же шар.
   private spawnBullet(x: number, y: number, z: number, dx: number, dy: number, dz: number, speed: number, dmg: number, range: number, r: number, g: number, fallPow: number, knock: number, orange: boolean): void {
     if (!this.bulletGeoBolt) {
-      this.bulletGeoBolt = new THREE.BoxGeometry(0.16, 0.16, 2.5);
+      this.bulletGeoBolt = new THREE.BoxGeometry(0.2, 0.2, 3.0);
       this.bulletMatY = new THREE.MeshBasicMaterial({ color: 0xffe066 });
       this.bulletMatO = new THREE.MeshBasicMaterial({ color: 0xffa040 });
+      this.bulletTrailMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35 });
+      // светящаяся голова: видна с любого ракурса, даже торцом
+      const gc = document.createElement('canvas'); gc.width = gc.height = 64;
+      const gg = gc.getContext('2d')!;
+      const grad = gg.createRadialGradient(32, 32, 2, 32, 32, 30);
+      grad.addColorStop(0, 'rgba(255,242,160,1)');
+      grad.addColorStop(0.4, 'rgba(255,200,80,0.85)');
+      grad.addColorStop(1, 'rgba(255,180,60,0)');
+      gg.fillStyle = grad; gg.fillRect(0, 0, 64, 64);
+      this.bulletGlowTex = new THREE.CanvasTexture(gc);
+      this.bulletGlowMat = new THREE.SpriteMaterial({ map: this.bulletGlowTex, transparent: true, depthWrite: false });
     }
     const m = new THREE.Mesh(this.bulletGeoBolt, (orange ? this.bulletMatO : this.bulletMatY)!);
     m.position.set(x, y, z);
     m.lookAt(x + dx, y + dy, z + dz);
     this.scene.add(m);
-    this.bullets.push({ m, x, y, z, vx: dx * speed, vy: dy * speed, vz: dz * speed, g, dmg, range, flown: 0, r, fallPow, knock });
+    // след: белая еле видная нитка из 6 точек, тянется за болтом
+    const tgeo = new THREE.BufferGeometry();
+    tgeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([x, y, z, x, y, z, x, y, z, x, y, z, x, y, z, x, y, z]), 3));
+    const trail = new THREE.Line(tgeo, this.bulletTrailMat!);
+    trail.frustumCulled = false;
+    this.scene.add(trail);
+    const glow = new THREE.Sprite(this.bulletGlowMat!);
+    glow.scale.set(0.9, 0.9, 1);
+    glow.position.set(x, y, z);
+    this.scene.add(glow);
+    this.bullets.push({ m, glow, trail, hist: [[x, y, z], [x, y, z], [x, y, z], [x, y, z], [x, y, z], [x, y, z]], x, y, z, vx: dx * speed, vy: dy * speed, vz: dz * speed, g, dmg, range, flown: 0, r, fallPow, knock });
     if (this.bullets.length > 48) {
       const old = this.bullets.shift();
-      if (old) this.scene.remove(old.m);
+      if (old) { this.scene.remove(old.m); this.scene.remove(old.glow); this.scene.remove(old.trail); old.trail.geometry.dispose(); }
     }
   }
 
@@ -4094,9 +4118,10 @@ export class Game {
         b.vy -= b.g * h;
         b.x += b.vx * h; b.y += b.vy * h; b.z += b.vz * h;
         b.flown += Math.hypot(b.vx, b.vy, b.vz) * h;
-        // болт смотрит носом по полёту
+        // болт смотрит носом по полёту, голова-светляк едет с ним
         b.m.position.set(b.x, b.y, b.z);
         b.m.lookAt(b.x + b.vx, b.y + b.vy, b.z + b.vz);
+        b.glow.position.set(b.x, b.y, b.z);
         const fall = b.fallPow > 1
           ? Math.pow(Math.max(0, 1 - b.flown / b.range), b.fallPow)
           : 1 - (b.flown / b.range) * 0.5;
@@ -4135,7 +4160,18 @@ export class Game {
           }
         }
       }
-      if (dead) { this.scene.remove(b.m); this.bullets.splice(i, 1); }
+      if (!dead) {
+        // белый еле видный след: хвост из 6 прошлых точек тянется за болтом
+        b.hist.unshift([b.x, b.y, b.z]);
+        if (b.hist.length > 6) b.hist.pop();
+        const tattr = b.trail.geometry.attributes.position as THREE.BufferAttribute;
+        for (let k = 0; k < 6; k++) {
+          const p = b.hist[Math.min(k, b.hist.length - 1)];
+          tattr.setXYZ(k, p[0], p[1], p[2]);
+        }
+        tattr.needsUpdate = true;
+      }
+      if (dead) { this.scene.remove(b.m); this.scene.remove(b.glow); this.scene.remove(b.trail); b.trail.geometry.dispose(); this.bullets.splice(i, 1); }
     }
   }
 
@@ -5519,6 +5555,9 @@ export class Game {
   /** Сколько линий пуль сейчас висит в кадре (для тестов). */
   debugTracers(): number { return this.tracers.length; }
   debugBullets(): number { return this.bullets.length; }
+  debugBpos(): Array<{ x: number; y: number; z: number; hist: number }> {
+    return this.bullets.map((b) => ({ x: Math.round(b.x * 10) / 10, y: Math.round(b.y * 10) / 10, z: Math.round(b.z * 10) / 10, hist: b.hist.length }));
+  }
 
   // хуки для тестов
   debugPos(): { x: number; z: number; hp: number; enemies: number; kills: number; wave: number; yaw: number; py: number; pitch: number } {

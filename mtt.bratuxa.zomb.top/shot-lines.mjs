@@ -10,7 +10,7 @@ await page.waitForTimeout(300);
 await page.click('#goBtn');
 await page.waitForTimeout(4000);
 await page.evaluate(() => { const m = window.__mtt; m.devgod(true); m.weapon('shotgun'); m.teleport(0, 10, Math.PI); m.resetcd(); m.attack(); });
-await page.waitForTimeout(60);
+await page.waitForTimeout(120);
 await page.screenshot({ path: '/tmp/bullets-line.png' });
 console.log('BULLETS:', await page.evaluate(() => window.__mtt.bullets()));
 await browser.close();

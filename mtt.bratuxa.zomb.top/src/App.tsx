@@ -1054,6 +1054,7 @@ async function loadStats(): Promise<void> {
       ground: (x: number, z: number) => game.debugGround(x, z),
       tracers: () => game.debugTracers(),
       bullets: () => game.debugBullets(),
+      bpos: () => game.debugBpos(),
       weapon: (id: string) => game.debugWeapon(id),
       give: (n: number) => game.debugGive(n),
       hurt: (n: number) => game.debugHurt(n),
