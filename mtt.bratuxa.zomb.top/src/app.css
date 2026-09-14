@@ -142,6 +142,7 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(-
 .rarity.base{color:#c6cdf2}
 .rarity.leg{color:var(--gold);text-shadow:0 0 8px rgba(255,210,63,.6)}
 .rarity.myth{color:#c77dff;text-shadow:0 0 10px rgba(199,125,255,.7)}
+.rarity.srare{color:#4ade80;text-shadow:0 0 10px rgba(74,222,128,.7)}
 .charCard.locked{opacity:.92;border-style:dashed}
 .charCard.locked img{filter:grayscale(.7) brightness(.75)}
 .clocked{font-size:12px;font-weight:900;color:var(--amber);margin:4px 0}

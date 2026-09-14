@@ -27,6 +27,7 @@ import charShubaUrl from '../assets/char-shuba.png';
 import charChumaUrl from '../assets/char-chuma.png';
 import charGidroxisUrl from '../assets/char-gidroxis.png';
 import charSunstrikeUrl from '../assets/char-sunstrike.png';
+import charArbuzUrl from '../assets/char-arbuziha.png';
 import stalkerUrl from '../assets/stalker.png';
 import shotUrl from '../assets/shot.mp3';
 import hitUrl from '../assets/hit.mp3';
@@ -44,9 +45,10 @@ export function upgCost(key: keyof UpgState, lvl: number): number {
   const base = key === 'sup' ? 150 : 100;
   return Math.round(base * Math.pow(3.5, lvl));
 }
-/** Кд суперспособности с учётом прокачки: МТТ/рывок мин 1.7с, Крыса мин 1.7с, Ивангой-несутка и Чума-облако 30с мин 20с, Гидроксис-рентген 20с мин 15с. */
+/** Кд суперспособности с учётом прокачки: МТТ/рывок мин 1.7с, Крыса мин 1.7с, Ивангой-несутка и Чума-облако 30с мин 20с, Гидроксис-рентген 20с мин 15с, Санстрайк-луч 30с, Арбузиха-воронка 15с. */
 export function superCd(id: string, sup: number): number {
   if (id === 'sunstrike') return 30;
+  if (id === 'arbuz') return 15;
   if (id === 'shuba' || id === 'chuma') return Math.max(20, Math.round((30 - sup * 2) * 10) / 10);
   if (id === 'gidroxis') return Math.max(15, Math.round((20 - sup) * 10) / 10);
   const base = id === 'krysa' ? 5 : 3;
@@ -75,6 +77,7 @@ export const CHARS: CharDef[] = [
   { id: 'chuma', name: '🐦‍⬛ Чума', desc: 'Чумной доктор в чёрном · супер — чумное облако 5с', hp: 100, spd: 1.05, rarity: 'Редкий' },
   { id: 'gidroxis', name: '🧪 Гидроксис', desc: 'Сканер в жёлтом · супер — рентген существ 5с', hp: 95, spd: 1.1, rarity: 'Легендарный' },
   { id: 'sunstrike', name: '☀️ Андрей Санстрайк', desc: 'Мифический в фиолете · супер — луч света с неба по прицелу (заряд от убийств)', hp: 100, spd: 1.05, rarity: 'Мифический' },
+  { id: 'arbuz', name: '🍉 Арбузиха', desc: 'Сверхредкая в короне · супер — цветочная воронка тянет всех к центру 4с', hp: 100, spd: 1.05, rarity: 'Сверхредкий' },
 ];
 
 /** Кейс бойца: цена открытия в фантиках. */
@@ -166,6 +169,10 @@ export interface HudState {
   sun: number;
   /** Перезарядка луча Санстрайка: осталось секунд (0 — готов). */
   sunCd: number;
+  /** Воронка Арбузихи: крутит секунд (0 — нет). Кд смотри в superCdOf. */
+  arbuz: number;
+  /** Перезарядка воронки Арбузихи: осталось секунд (0 — готова). */
+  arbuzCd: number;
   med: number;
   lvl: number;
   /** Живых боссов на карте — для баннера 👑. */
@@ -445,8 +452,8 @@ export class Game {
     return fresh;
   }
   /** Открыть кейс бойца за фантики. Редкие по 30%: Шуба (0–0.3) и Чума (0.3–0.6),
-      легендарные по 20%: Стейси (0.6–0.8) и Гидроксис (0.8–1.0).
-      40+40+20+20 в сотню не лезет — редким ужались до 30, чтобы легендам хватило.
+      легендарные по 5%: Стейси (0.6–0.65) и Гидроксис (0.65–0.7),
+      мифик Санстрайк 20% (0.7–0.9), сверхредкая Арбузиха 5% (0.9–0.95).
       Занятый диапазон — утешительный приз. */
   openCase(): CaseDrop {
     if (this.fantiki < CASE_PRICE) return { ok: false, kind: 'empty', text: 'Не хватает фантиков' };
@@ -492,6 +499,14 @@ export class Game {
       this.pushHud();
       return { ok: true, kind: 'char', char: 'sunstrike', text: '☀️ АНДРЕЙ САНСТРАЙК · Мифический — твоя!' };
     }
+    // Арбузиха ещё закрыта — 5% на неё (сверхредкая, из утешительной зоны)
+    if (!this.ownedChars.includes('arbuz') && roll >= 0.9 && roll < 0.95) {
+      this.unlockChar('arbuz');
+      this.addXp(100);
+      this.saveShop();
+      this.pushHud();
+      return { ok: true, kind: 'char', char: 'arbuz', text: '🍉 АРБУЗИХА · Сверхредкий — твоя!' };
+    }
     if (roll < 0.68) {
       this.fantiki += 300;
       this.saveShop();
@@ -536,8 +551,8 @@ export class Game {
         spd: Math.max(0, Math.min(UPG_MAX.spd, Math.floor(p?.spd ?? 0))),
         sup: Math.max(0, Math.min(UPG_MAX.sup, Math.floor(p?.sup ?? 0))),
       });
-      return { mtt: clean(d.mtt), krysa: clean(d.krysa), shuba: clean(d.shuba), chuma: clean(d.chuma), gidroxis: clean(d.gidroxis) };
-    } catch { return { mtt: blank(), krysa: blank(), shuba: blank(), chuma: blank(), gidroxis: blank() }; }
+      return { mtt: clean(d.mtt), krysa: clean(d.krysa), shuba: clean(d.shuba), chuma: clean(d.chuma), gidroxis: clean(d.gidroxis), sunstrike: clean(d.sunstrike), arbuz: clean(d.arbuz) };
+    } catch { return { mtt: blank(), krysa: blank(), shuba: blank(), chuma: blank(), gidroxis: blank(), sunstrike: blank(), arbuz: blank() }; }
   })();
   private saveUpg(): void {
     try { localStorage.setItem('mtt_upg_v1', JSON.stringify(this.upg)); } catch { /* noop */ }
@@ -545,8 +560,8 @@ export class Game {
   private xp: Record<string, number> = (() => {
     try {
       const d = JSON.parse(localStorage.getItem('mtt_xp_v1') ?? '{}') as Record<string, number>;
-      return { mtt: Math.max(0, Math.floor(d.mtt ?? 0)), krysa: Math.max(0, Math.floor(d.krysa ?? 0)), shuba: Math.max(0, Math.floor(d.shuba ?? 0)), chuma: Math.max(0, Math.floor(d.chuma ?? 0)), gidroxis: Math.max(0, Math.floor(d.gidroxis ?? 0)) };
-    } catch { return { mtt: 0, krysa: 0, shuba: 0, chuma: 0, gidroxis: 0 }; }
+      return { mtt: Math.max(0, Math.floor(d.mtt ?? 0)), krysa: Math.max(0, Math.floor(d.krysa ?? 0)), shuba: Math.max(0, Math.floor(d.shuba ?? 0)), chuma: Math.max(0, Math.floor(d.chuma ?? 0)), gidroxis: Math.max(0, Math.floor(d.gidroxis ?? 0)), sunstrike: Math.max(0, Math.floor(d.sunstrike ?? 0)), arbuz: Math.max(0, Math.floor(d.arbuz ?? 0)) };
+    } catch { return { mtt: 0, krysa: 0, shuba: 0, chuma: 0, gidroxis: 0, sunstrike: 0, arbuz: 0 }; }
   })();
   private soundOn = true;
   /** Общая громкость 0..1 (слайдер в настройках). Множит все звуки. */
@@ -663,6 +678,17 @@ export class Game {
   private sunCd = 0;
   private sunBeams: Array<{ x: number; z: number; t: number; dmg: number; r: number }> = [];
   private sunRing: THREE.Mesh | null = null;
+  /** Воронка Арбузихи: arbuzT — крутит секунд (4с), arbuzCd — перезарядка 15с,
+      arbuzX/Z — центр на поверхности, arbuzR — радиус затягивания. */
+  private arbuzT = 0;
+  private arbuzCd = 0;
+  private arbuzX = 0;
+  private arbuzZ = 0;
+  private arbuzR = 8;
+  /** Таймер лепестков воронки (частицы каждые 0.3с, пока крутит). */
+  private arbuzFxT = 0;
+  /** Зелёная цветочная воронка: конус + кольца. Одна на игру. */
+  private arbuzMesh: THREE.Group | null = null;
   private sunBeam: THREE.Mesh | null = null;
   private sunFlashT = 0;
   /** Флаг «бьёт луч»: фраги от способности в заряд не идут. */
@@ -4202,6 +4228,74 @@ export class Game {
     return true;
   }
 
+  /** Точка на поверхности, куда смотрит прицел: пересечение луча взгляда
+      с плоскостью y=0 (не дальше range). В небо — точка в 30м по горизонту. */
+  private aimGround(range = 45): { x: number; z: number } {
+    const cp = Math.cos(this.pitch);
+    const dx = -Math.sin(this.yaw) * cp, dy = Math.sin(this.pitch), dz = -Math.cos(this.yaw) * cp;
+    const cx = this.px, cy = 1.7 + this.py, cz = this.pz;
+    let gx = cx, gz = cz;
+    if (dy < -0.05) {
+      const t = (0 - cy) / dy;
+      if (t > 0.15 && t <= range) { gx = cx + dx * t; gz = cz + dz * t; }
+      else { const hl = Math.hypot(dx, dz) || 1; gx = cx + (dx / hl) * 30; gz = cz + (dz / hl) * 30; }
+    } else { const hl = Math.hypot(dx, dz) || 1; gx = cx + (dx / hl) * 30; gz = cz + (dz / hl) * 30; }
+    gx = clampArena(gx, this.half);
+    gz = clampArena(gz, this.half);
+    return { x: Math.round(gx * 10) / 10, z: Math.round(gz * 10) / 10 };
+  }
+
+  // ВОРОНКА Арбузихи: в точке поверхности под прицелом 4с крутит зелёную
+  // цветочную воронку (r=8м) — всех затягивает к центру. Кд 15с.
+  arbuz(): boolean {
+    if (!this.started || this.dead || this.arbuzCd > 0 || this.arbuzT > 0 || this.charId !== 'arbuz') return false;
+    const p = this.aimGround(45);
+    this.arbuzX = p.x;
+    this.arbuzZ = p.z;
+    this.arbuzR = 8;
+    this.arbuzT = 4;
+    this.arbuzCd = superCd('arbuz', this.upg['arbuz']?.sup ?? 0);
+    this.burst(p.x, 0.5, p.z, 18);
+    this.pushHud();
+    return true;
+  }
+
+  debugArbuz(): { t: number; cd: number; x: number; z: number } {
+    return { t: Math.round(this.arbuzT * 10) / 10, cd: Math.round(this.arbuzCd * 10) / 10, x: this.arbuzX, z: this.arbuzZ };
+  }
+
+  /** Зелёная воронка: конус воронкой вверх + два кольца, крутятся пока висит. */
+  private syncArbuzFx(): void {
+    if (!this.arbuzMesh) {
+      const grp = new THREE.Group();
+      const cone = new THREE.Mesh(
+        new THREE.ConeGeometry(8, 7, 24, 1, true),
+        new THREE.MeshBasicMaterial({ color: 0x39d353, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }),
+      );
+      cone.position.y = 3.5;
+      grp.add(cone);
+      for (const [ry, rr] of [[0.3, 8], [3.2, 4.6]] as Array<[number, number]>) {
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(Math.max(0.5, rr - 0.7), rr, 40),
+          new THREE.MeshBasicMaterial({ color: 0x7dff8a, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }),
+        );
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.y = ry;
+        grp.add(ring);
+      }
+      grp.renderOrder = 6;
+      this.arbuzMesh = grp;
+    }
+    const m = this.arbuzMesh;
+    if (!m.parent) this.scene.add(m);
+    m.visible = this.arbuzT > 0 && this.started && !this.dead;
+    if (m.visible) {
+      m.position.set(this.arbuzX, 0, this.arbuzZ);
+      m.rotation.y += 0.12;
+      const fade = Math.min(1, this.arbuzT / 0.6);
+      for (const c of m.children) (c.material as THREE.MeshBasicMaterial).opacity = (c.geometry instanceof THREE.ConeGeometry ? 0.28 : 0.7) * fade;
+    }
+  }
   /** Враг под прицелом: ближайший к лучу взгляда (допуск 1.2м), не дальше range. */
   private aimEnemy(range: number): { x: number; z: number } | null {
     const cp = Math.cos(this.pitch);
@@ -5183,6 +5277,8 @@ export class Game {
       xrayCd: Math.round(this.xrayCd * 10) / 10,
       sun: this.sunCharge,
       sunCd: Math.round(this.sunCd * 10) / 10,
+      arbuz: Math.round(this.arbuzT * 10) / 10,
+      arbuzCd: Math.round(this.arbuzCd * 10) / 10,
       fps: Math.round(this.fpsE),
       quality: this.quality,
       doorPulse: this.doorPulse,
@@ -5225,10 +5321,10 @@ export class Game {
   private charTexCache: Record<string, THREE.Texture> = {};
 
   private charTexture(id: string): THREE.Texture {
-    const key = id === 'krysa' ? 'krysa' : id === 'shuba' ? 'shuba' : id === 'chuma' ? 'chuma' : id === 'gidroxis' ? 'gidroxis' : id === 'sunstrike' ? 'sunstrike' : 'mtt';
+    const key = id === 'krysa' ? 'krysa' : id === 'shuba' ? 'shuba' : id === 'chuma' ? 'chuma' : id === 'gidroxis' ? 'gidroxis' : id === 'sunstrike' ? 'sunstrike' : id === 'arbuz' ? 'arbuz' : 'mtt';
     let t = this.charTexCache[key];
     if (!t) {
-      t = new THREE.TextureLoader().load(key === 'krysa' ? charKrysaUrl : key === 'shuba' ? charShubaUrl : key === 'chuma' ? charChumaUrl : key === 'gidroxis' ? charGidroxisUrl : key === 'sunstrike' ? charSunstrikeUrl : charMttUrl);
+      t = new THREE.TextureLoader().load(key === 'krysa' ? charKrysaUrl : key === 'shuba' ? charShubaUrl : key === 'chuma' ? charChumaUrl : key === 'gidroxis' ? charGidroxisUrl : key === 'sunstrike' ? charSunstrikeUrl : key === 'arbuz' ? charArbuzUrl : charMttUrl);
       t.colorSpace = THREE.SRGBColorSpace;
       this.charTexCache[key] = t;
     }
@@ -5528,6 +5624,7 @@ export class Game {
     if (this.torch || this.lampFlicker.length > 0) this.updateLamps(dt);
     // купол Чумы — каждый кадр (виден, пока облако висит; смерть и меню гасят)
     this.syncChumaDome();
+    this.syncArbuzFx();
     // рентген Гидроксиса тикает + щёлкает видимость сквозь стены каждый кадр
     if (this.xrayT > 0) {
       this.xrayT -= dt;
@@ -5640,7 +5737,7 @@ export class Game {
       // Наблюдатель способностей не жмёт.
       if (this.input[km.ability] && this.charId !== 'krysa' && !this.specOn) {
         this.input[km.ability] = false;
-        if (this.charId === 'shuba') this.invis(); else if (this.charId === 'chuma') this.chuma(); else if (this.charId === 'gidroxis') this.xray(); else if (this.charId === 'sunstrike') this.sunstrike(); else this.dash();
+        if (this.charId === 'shuba') this.invis(); else if (this.charId === 'chuma') this.chuma(); else if (this.charId === 'gidroxis') this.xray(); else if (this.charId === 'sunstrike') this.sunstrike(); else if (this.charId === 'arbuz') this.arbuz(); else this.dash();
       }
       // NOTE: призраку input.ability НЕ чистим — это его спуск (C) в flySpec ниже.
       if (this.dashCd > 0) this.dashCd -= dt;
@@ -5652,6 +5749,7 @@ export class Game {
         if (this.chumaCd > 0) this.chumaCd = 0;
         if (this.xrayCd > 0) this.xrayCd = 0;
         if (this.sunCd > 0) this.sunCd = 0;
+        if (this.arbuzCd > 0) this.arbuzCd = 0;
       }
       // несутка тикает: кончилась — сбрасываем HUD (враги снова видят)
       if (this.invisT > 0) {
@@ -5683,6 +5781,21 @@ export class Game {
         this.sunCd -= dt;
         if (this.sunCd <= 0) { this.sunCd = 0; this.pushHud(); }
         else if (Math.floor(this.sunCd * 5) !== Math.floor((this.sunCd + dt) * 5)) this.pushHud();
+      }
+      // воронка тикает: крутит — лепестки и затягивание в ветке врагов, кончилась — сброс HUD
+      if (this.arbuzT > 0) {
+        this.arbuzT -= dt;
+        if (this.arbuzT <= 0) { this.arbuzT = 0; this.pushHud(); }
+        else {
+          this.arbuzFxT -= dt;
+          if (this.arbuzFxT <= 0) { this.arbuzFxT = 0.3; this.burst(this.arbuzX, 0.6, this.arbuzZ, 5); }
+          if (Math.floor(this.arbuzT * 2) !== Math.floor((this.arbuzT + dt) * 2)) this.pushHud();
+        }
+      }
+      if (this.arbuzCd > 0) {
+        this.arbuzCd -= dt;
+        if (this.arbuzCd <= 0) { this.arbuzCd = 0; this.pushHud(); }
+        else if (Math.floor(this.arbuzCd * 5) !== Math.floor((this.arbuzCd + dt) * 5)) this.pushHud();
       }
       // луч санстрайка: точки тикают 0.5с, потом удар; вспышка столба тает 0.6с
       for (let i = this.sunBeams.length - 1; i >= 0; i--) {
@@ -6144,6 +6257,19 @@ export class Game {
           }
           if (!blockedX) e.g.position.x = cx;
           if (!blockedZ) e.g.position.z = cz;
+          // ВОРОНКА Арбузихи: в радиусе 8м от центра всех тянет к середине.
+          // Босса и бессмертных сталкеров не трогает — только обычную нечисть.
+          if (this.arbuzT > 0 && !e.dead && !e.wb && !e.god) {
+            const vdx = this.arbuzX - e.g.position.x, vdz = this.arbuzZ - e.g.position.z;
+            const vd = Math.hypot(vdx, vdz);
+            if (vd < this.arbuzR && vd > 0.4) {
+              const pull = Math.min(vd, (4 + (1 - vd / this.arbuzR) * 7) * dt);
+              const px2 = clampArena(e.g.position.x + (vdx / vd) * pull, this.half);
+              const pz2 = clampArena(e.g.position.z + (vdz / vd) * pull, this.half);
+              if (!this.hitSolid(px2, e.g.position.z, 0.8, eyH)) e.g.position.x = px2;
+              if (!this.hitSolid(e.g.position.x, pz2, 0.8, eyH)) e.g.position.z = pz2;
+            }
+          }
           // ЛАЗАНЬЕ + ПРЫЖКИ: все ходоки кроме босса (босс — kind 'boss', летуны — 'fly').
           // Низкое (до 1.9м: ящик, забор) — перепрыгивают (прыжок 6 м/с, вершина 1.8м —
           // solidHit считает верх объекта полом, пролетают свободно).

@@ -12,10 +12,11 @@ import charShubaUrl from './assets/char-shuba.png';
 import charChumaUrl from './assets/char-chuma.png';
 import charGidroxisUrl from './assets/char-gidroxis.png';
 import charSunstrikeUrl from './assets/char-sunstrike.png';
+import charArbuzUrl from './assets/char-arbuziha.png';
 import jumpscareUrl from './assets/jumpscare.jpg';
 import menuBgUrl from './assets/menu-bg.jpg';
 
-const CHARIMG: Record<string, string> = { mtt: charMttUrl, krysa: charKrysaUrl, shuba: charShubaUrl, chuma: charChumaUrl, gidroxis: charGidroxisUrl, sunstrike: charSunstrikeUrl };
+const CHARIMG: Record<string, string> = { mtt: charMttUrl, krysa: charKrysaUrl, shuba: charShubaUrl, chuma: charChumaUrl, gidroxis: charGidroxisUrl, sunstrike: charSunstrikeUrl, arbuz: charArbuzUrl };
 
 /** Подробные описания способностей бойцов для меню. */
 const CHAR_ABILITIES: Record<string, { lines: string[]; sup: string }> = {
@@ -66,6 +67,14 @@ const CHAR_ABILITIES: Record<string, { lines: string[]; sup: string }> = {
       '☀️ Луч с неба — супер бьёт по врагу под прицелом',
     ],
     sup: '☀️ СУПЕР — Луч Санстрайка на C: метка на точке врага, через 0.5с удар с неба. Заряд 0–15 (+1 за убийство руками, фраги от луча не идут, каст сжигает заряд в 0, урон по тебе — в 0): урон 20→142, радиус 3→6.5м. Кд 30с.',
+  },
+  arbuz: {
+    lines: [
+      '❤️ Здоровье 100 — держит удар',
+      '💨 Скорость ×1.05 — чуть бодрее МТТ',
+      '🌪️ Воронка тянет — супер крутит всех к центру 4 секунды',
+    ],
+    sup: '🌪️ СУПЕР — Цветочная воронка на C: в точке поверхности под прицелом 4с зелёная воронка (r=8м) затягивает всех к центру. Босса и сталкеров не трогает. Кд 15с.',
   },
 };
 
@@ -422,7 +431,7 @@ export default function App() {
   const gameRef = useRef<Game | null>(null);
   const [menu, setMenu] = useState(true);
   const [loading, setLoading] = useState<{ show: boolean; pct: number }>({ show: false, pct: 0 });
-  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, invis: 0, invisCd: 0, chuma: 0, chumaCd: 0, xray: 0, xrayCd: 0, sun: 0, sunCd: 0, med: 0, lvl: 1, boss: 0, wbWait: 0, fps: 60, quality: 'medium', doorPulse: false });
+  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, invis: 0, invisCd: 0, chuma: 0, chumaCd: 0, xray: 0, xrayCd: 0, sun: 0, sunCd: 0, arbuz: 0, arbuzCd: 0, med: 0, lvl: 1, boss: 0, wbWait: 0, fps: 60, quality: 'medium', doorPulse: false });
   const [scores, setScores] = useState<ScoreRow[]>([]);
   const [duelTop, setDuelTop] = useState<Array<{ login: string; wins: number }>>([]);
   const [gstats, setGstats] = useState<{ games: number; best: number; online: number } | null>(null);
@@ -474,7 +483,7 @@ async function loadStats(): Promise<void> {
   const fillerReel = (k: CaseDrop['kind']): ReelItem => {
     if (k === 'char') {
       const r = Math.random();
-      const c = r < 0.3 ? 'shuba' : r < 0.6 ? 'chuma' : r < 0.65 ? 'krysa' : r < 0.7 ? 'gidroxis' : 'sunstrike';
+      const c = r < 0.3 ? 'shuba' : r < 0.6 ? 'chuma' : r < 0.65 ? 'krysa' : r < 0.7 ? 'gidroxis' : r < 0.9 ? 'sunstrike' : 'arbuz';
       return c === 'shuba'
         ? { kind: 'char', char: 'shuba', label: '🥷 ИВАНГОЙ', sub: 'Редкий' }
         : c === 'chuma'
@@ -483,6 +492,8 @@ async function loadStats(): Promise<void> {
             ? { kind: 'char', char: 'krysa', label: '🐀 СТЕЙСИ', sub: 'Легендарный' }
             : c === 'gidroxis'
               ? { kind: 'char', char: 'gidroxis', label: '🧪 ГИДРОКСИС', sub: 'Легендарный' }
+              : c === 'arbuz'
+                ? { kind: 'char', char: 'arbuz', label: '🍉 АРБУЗИХА', sub: 'Сверхредкий' }
               : { kind: 'char', char: 'sunstrike', label: '☀️ САНСТРАЙК', sub: 'Мифический' };
     }
     const v = reelLabel(k);
@@ -490,7 +501,7 @@ async function loadStats(): Promise<void> {
   };
   const dropToReel = (d: CaseDrop): ReelItem => {
     if (d.kind === 'char') {
-      const c = d.char === 'shuba' ? 'shuba' : d.char === 'chuma' ? 'chuma' : d.char === 'gidroxis' ? 'gidroxis' : d.char === 'sunstrike' ? 'sunstrike' : 'krysa';
+      const c = d.char === 'shuba' ? 'shuba' : d.char === 'chuma' ? 'chuma' : d.char === 'gidroxis' ? 'gidroxis' : d.char === 'sunstrike' ? 'sunstrike' : d.char === 'arbuz' ? 'arbuz' : 'krysa';
       return c === 'shuba'
         ? { kind: 'char', char: 'shuba', label: '🥷 ИВАНГОЙ', sub: 'ТВОЯ!' }
         : c === 'chuma'
@@ -499,6 +510,8 @@ async function loadStats(): Promise<void> {
             ? { kind: 'char', char: 'gidroxis', label: '🧪 ГИДРОКСИС', sub: 'ТВОЯ!' }
             : c === 'sunstrike'
               ? { kind: 'char', char: 'sunstrike', label: '☀️ САНСТРАЙК', sub: 'ТВОЯ!' }
+            : c === 'arbuz'
+              ? { kind: 'char', char: 'arbuz', label: '🍉 АРБУЗИХА', sub: 'ТВОЯ!' }
             : { kind: 'char', char: 'krysa', label: '🐀 СТЕЙСИ', sub: 'ТВОЯ!' };
     }
     const v = reelLabel(d.kind);
@@ -1056,6 +1069,8 @@ async function loadStats(): Promise<void> {
       invis: () => game.debugInvis(),
       chuma: () => game.debugChuma(),
       doChuma: () => game.chuma(),
+      arbuz: () => game.debugArbuz(),
+      doArbuz: () => game.arbuz(),
       dome: () => game.debugDome(),
       xray: () => game.debugXray(),
       doXray: () => game.xray(),
@@ -2099,7 +2114,7 @@ async function loadStats(): Promise<void> {
             <div id="hpBar"><div id="hpFill" style={{ width: `${hpFrac * 100}%` }} /></div>
           </div>
           <div id="hudRow">{noEnemies ? '🕊️ МИРНЫЙ РЕЖИМ · ' : `🌊 Волна ${hud.wave} · 👹 ${hud.enemies} · `}💀 {hud.kills} · 🏆 {hud.score}</div>
-          <div id="hudRow2">🎟️ {hud.fantiki} · 💊 {hud.med}/3 · ⭐ {hud.lvl} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}{char === 'krysa' && (hud.kick > 0 ? ` · 🌀 ${hud.kick.toFixed(1)}с` : ' · 🌀 вол-кик готов')}{char === 'shuba' && (hud.invis > 0 ? ` · 👻 ещё ${hud.invis.toFixed(1)}с` : hud.invisCd > 0 ? ` · 👻 ${hud.invisCd.toFixed(1)}с` : ' · 👻 несутка готова')}{char === 'chuma' && (hud.chuma > 0 ? ` · 🦠 ещё ${hud.chuma.toFixed(1)}с` : hud.chumaCd > 0 ? ` · 🦠 ${hud.chumaCd.toFixed(1)}с` : ' · 🦠 облако готово')}{char === 'gidroxis' && (hud.xray > 0 ? ` · 🔍 ещё ${hud.xray.toFixed(1)}с` : hud.xrayCd > 0 ? ` · 🔍 ${hud.xrayCd.toFixed(1)}с` : ' · 🔍 рентген готов')}{char === 'sunstrike' && (hud.sunCd > 0 ? ` · ☀️ ${hud.sunCd.toFixed(1)}с` : ` · ☀️ заряд ${hud.sun}/15`)}</div>
+          <div id="hudRow2">🎟️ {hud.fantiki} · 💊 {hud.med}/3 · ⭐ {hud.lvl} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}{char === 'krysa' && (hud.kick > 0 ? ` · 🌀 ${hud.kick.toFixed(1)}с` : ' · 🌀 вол-кик готов')}{char === 'shuba' && (hud.invis > 0 ? ` · 👻 ещё ${hud.invis.toFixed(1)}с` : hud.invisCd > 0 ? ` · 👻 ${hud.invisCd.toFixed(1)}с` : ' · 👻 несутка готова')}{char === 'chuma' && (hud.chuma > 0 ? ` · 🦠 ещё ${hud.chuma.toFixed(1)}с` : hud.chumaCd > 0 ? ` · 🦠 ${hud.chumaCd.toFixed(1)}с` : ' · 🦠 облако готово')}{char === 'gidroxis' && (hud.xray > 0 ? ` · 🔍 ещё ${hud.xray.toFixed(1)}с` : hud.xrayCd > 0 ? ` · 🔍 ${hud.xrayCd.toFixed(1)}с` : ' · 🔍 рентген готов')}{char === 'sunstrike' && (hud.sunCd > 0 ? ` · ☀️ ${hud.sunCd.toFixed(1)}с` : ` · ☀️ заряд ${hud.sun}/15`)}{char === 'arbuz' && (hud.arbuz > 0 ? ` · 🌪️ ещё ${hud.arbuz.toFixed(1)}с` : hud.arbuzCd > 0 ? ` · 🌪️ ${hud.arbuzCd.toFixed(1)}с` : ' · 🌪️ воронка готова')}</div>
         </div>
       )}
       {!menu && (
@@ -2448,8 +2463,8 @@ async function loadStats(): Promise<void> {
                         <div className="cdesc">{c.desc}</div>
                       </button>
                       <div className="cstats">❤️ {c.hp} · 💨 {c.spd}× · ⭐ Ур. {lvl}</div>
-                      <div className={'rarity ' + (c.rarity === 'Мифический' ? 'myth' : c.rarity === 'Легендарный' ? 'leg' : c.rarity === 'Редкий' ? 'rare' : 'base')} id={`rarity-${c.id}`}>
-                        {c.rarity === 'Мифический' ? '🔮 Редкость: Мифический' : c.rarity === 'Легендарный' ? '🌟 Редкость: Легендарный' : c.rarity === 'Редкий' ? '💎 Редкость: Редкий' : '⚪ Редкость: Базовый'}
+                      <div className={'rarity ' + (c.rarity === 'Мифический' ? 'myth' : c.rarity === 'Сверхредкий' ? 'srare' : c.rarity === 'Легендарный' ? 'leg' : c.rarity === 'Редкий' ? 'rare' : 'base')} id={`rarity-${c.id}`}>
+                        {c.rarity === 'Мифический' ? '🔮 Редкость: Мифический' : c.rarity === 'Сверхредкий' ? '💚 Редкость: Сверхредкий' : c.rarity === 'Легендарный' ? '🌟 Редкость: Легендарный' : c.rarity === 'Редкий' ? '💎 Редкость: Редкий' : '⚪ Редкость: Базовый'}
                       </div>
                       {locked && <div className="clocked" id={`locked-${c.id}`}>🔒 ЗАКРЫТ — выбей из 🎰 кейса</div>}
                       <div className="cxp" id={`xp-${c.id}`}>
@@ -2460,7 +2475,7 @@ async function loadStats(): Promise<void> {
                         {ab?.lines.map((l) => <li key={l}>{l}</li>)}
                         <li className="csup">{ab?.sup}</li>
                       </ul>
-                      <div className="cupgLine"><small>🔧 Прокачка: ❤️×{u.hp} 💪×{u.dmg} 💨×{u.spd} {c.id === 'mtt' ? '⚡' : c.id === 'shuba' ? '👻' : c.id === 'chuma' ? '🦠' : c.id === 'gidroxis' ? '🔍' : c.id === 'sunstrike' ? '☀️' : '🌀'}×{u.sup} · кд супера {g?.superCdOf(c.id) ?? (c.id === 'krysa' ? 5 : c.id === 'shuba' || c.id === 'chuma' || c.id === 'sunstrike' ? 30 : c.id === 'gidroxis' ? 20 : 3)}с</small></div>
+                      <div className="cupgLine"><small>🔧 Прокачка: ❤️×{u.hp} 💪×{u.dmg} 💨×{u.spd} {c.id === 'mtt' ? '⚡' : c.id === 'shuba' ? '👻' : c.id === 'chuma' ? '🦠' : c.id === 'gidroxis' ? '🔍' : c.id === 'sunstrike' ? '☀️' : c.id === 'arbuz' ? '🌪️' : '🌀'}×{u.sup} · кд супера {g?.superCdOf(c.id) ?? (c.id === 'krysa' ? 5 : c.id === 'shuba' || c.id === 'chuma' || c.id === 'sunstrike' ? 30 : c.id === 'gidroxis' || c.id === 'arbuz' ? 15 : 3)}с</small></div>
                       <button
                         className="wbtn"
                         id={`upg-${c.id}`}
@@ -2474,7 +2489,7 @@ async function loadStats(): Promise<void> {
                             ['hp', '❤️ Здоровье', `+15 maxHP за уровень (макс +${UPG_MAX.hp * 15})`],
                             ['dmg', '💪 Сила', '+8% к урону за уровень'],
                             ['spd', '💨 Скорость', '+6% к скорости за уровень'],
-                            ['sup', c.id === 'mtt' ? '⚡ Супер: рывок' : c.id === 'shuba' ? '👻 Супер: несутка' : c.id === 'chuma' ? '🦠 Супер: облако' : c.id === 'gidroxis' ? '🔍 Супер: рентген' : c.id === 'sunstrike' ? '☀️ Супер: луч с неба' : '🌀 Супер: вол-кик', `кд → мин ${c.id === 'shuba' || c.id === 'chuma' || c.id === 'sunstrike' ? '30' : c.id === 'gidroxis' ? '15' : '1.7'}с (сейчас ${g?.superCdOf(c.id)}с)${c.id === 'shuba' || c.id === 'chuma' || c.id === 'gidroxis' || c.id === 'sunstrike' ? '' : ` · дальность ×${superRange(u.sup)} (+15%/ур)`}`],
+                            ['sup', c.id === 'mtt' ? '⚡ Супер: рывок' : c.id === 'shuba' ? '👻 Супер: несутка' : c.id === 'chuma' ? '🦠 Супер: облако' : c.id === 'gidroxis' ? '🔍 Супер: рентген' : c.id === 'sunstrike' ? '☀️ Супер: луч с неба' : c.id === 'arbuz' ? '🌪️ Супер: воронка' : '🌀 Супер: вол-кик', `кд → мин ${c.id === 'shuba' || c.id === 'chuma' || c.id === 'sunstrike' ? '30' : c.id === 'gidroxis' || c.id === 'arbuz' ? '15' : '1.7'}с (сейчас ${g?.superCdOf(c.id)}с)${c.id === 'shuba' || c.id === 'chuma' || c.id === 'gidroxis' || c.id === 'sunstrike' || c.id === 'arbuz' ? '' : ` · дальность ×${superRange(u.sup)} (+15%/ур)`}`],
                           ] as Array<[keyof UpgState, string, string]>).map(([key, label, hint]) => {
                             const lvlU = u[key];
                             const max = UPG_MAX[key];
@@ -2718,7 +2733,7 @@ async function loadStats(): Promise<void> {
             placeholder="Твой ник"
           />
           <button id="charBtn" className="wbtn" onClick={() => setMenuTab('fighter')}>
-            🎭 БОЕЦ: {char === 'krysa' ? '🐀 Стейси' : char === 'shuba' ? '🥷 Ивангой' : char === 'chuma' ? '🐦‍⬛ Чума' : char === 'gidroxis' ? '🧪 Гидроксис' : char === 'sunstrike' ? '☀️ Санстрайк' : '🕶️ МТТ'} — ВЫБРАТЬ
+            🎭 БОЕЦ: {char === 'krysa' ? '🐀 Стейси' : char === 'shuba' ? '🥷 Ивангой' : char === 'chuma' ? '🐦‍⬛ Чума' : char === 'gidroxis' ? '🧪 Гидроксис' : char === 'sunstrike' ? '☀️ Санстрайк' : char === 'arbuz' ? '🍉 Арбузиха' : '🕶️ МТТ'} — ВЫБРАТЬ
           </button>
           {(roomId && !isOwner) || waiting ? (
             <button id="goBtn" disabled title="Ждём старта от создателя">⏳ ЖДУ СТАРТА…</button>
@@ -2741,7 +2756,7 @@ async function loadStats(): Promise<void> {
                     <div>🎮 Игр сыграно: <b>{profile.games}</b></div>
                     <div>🏆 Лучший счёт: <b>{profile.best}</b></div>
                     <div>🎟️ Фантиков всего: <b>{profile.coins}</b></div>
-                    <div>🎭 Боец: {char === 'krysa' ? '🐀 Стейси' : char === 'shuba' ? '🥷 Ивангой' : char === 'chuma' ? '🐦‍⬛ Чума' : char === 'gidroxis' ? '🧪 Гидроксис' : char === 'sunstrike' ? '☀️ Санстрайк' : '🕶️ МТТ'} · ⭐ Ур. {hud.lvl} · Ник: {nick}</div>
+                    <div>🎭 Боец: {char === 'krysa' ? '🐀 Стейси' : char === 'shuba' ? '🥷 Ивангой' : char === 'chuma' ? '🐦‍⬛ Чума' : char === 'gidroxis' ? '🧪 Гидроксис' : char === 'sunstrike' ? '☀️ Санстрайк' : char === 'arbuz' ? '🍉 Арбузиха' : '🕶️ МТТ'} · ⭐ Ур. {hud.lvl} · Ник: {nick}</div>
                     <h3>🔑 Сменить пароль</h3>
                     <input
                       id="passOld"
