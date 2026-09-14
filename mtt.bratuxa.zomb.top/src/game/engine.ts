@@ -650,11 +650,11 @@ export class Game {
   private kickAirT = 0;
   // трассеры пуль: светящиеся линии выстрелов, живут долю секунды
   private tracers: Array<{ l: THREE.Line; life: number }> = [];
-  // живые пули: летят сами с гравитацией, у каждой свой хитбокс-шар r
-  private bullets: Array<{ m: THREE.Mesh; x: number; y: number; z: number; vx: number; vy: number; vz: number; g: number; dmg: number; range: number; flown: number; r: number; fallPow: number; knock: number }> = [];
-  private bulletGeo: THREE.SphereGeometry | null = null;
-  private bulletMatY: THREE.MeshBasicMaterial | null = null;
-  private bulletMatO: THREE.MeshBasicMaterial | null = null;
+  // живые пули: летят сами с гравитацией, у каждой свой хитбокс-шар r.
+  // Вид — тонкая линия-росчерк, хитбокс от вида не зависит.
+  private bullets: Array<{ m: THREE.Line; x: number; y: number; z: number; vx: number; vy: number; vz: number; g: number; dmg: number; range: number; flown: number; r: number; fallPow: number; knock: number }> = [];
+  private bulletMatY: THREE.LineBasicMaterial | null = null;
+  private bulletMatO: THREE.LineBasicMaterial | null = null;
   private kickTouch(): void {
     if (this.charId !== 'krysa' || this.kickAirT <= 0 || this.py < 0.5) return;
     if (this.wallKickCd > 0) {
@@ -3949,12 +3949,12 @@ export class Game {
   }
 
   // 🔫 выстрел: живая пуля летит строго по прицелу с гравитацией (свой хитбокс r=0.3);
-  // урон тает с дистанцией полёта
+  // вид — тонкая линия, скорость 140 м/с, урон тает с дистанцией полёта
   private shoot(baseDmg: number, range: number): number {
     this.sfx(shotUrl);
     const cp = Math.cos(this.pitch);
     const dx = -Math.sin(this.yaw) * cp, dy = Math.sin(this.pitch), dz = -Math.cos(this.yaw) * cp;
-    this.spawnBullet(this.px, 1.7 + this.py, this.pz, dx, dy, dz, 70, baseDmg, range, 0.3, 6, 1, 0.8, false);
+    this.spawnBullet(this.px, 1.7 + this.py, this.pz, dx, dy, dz, 140, baseDmg, range, 0.3, 24, 1, 0.8, false);
     this.pushHud();
     return 1;
   }
@@ -3993,7 +3993,7 @@ export class Game {
     const dx = -Math.sin(this.yaw) * cp, dy = Math.sin(this.pitch), dz = -Math.cos(this.yaw) * cp;
     const cx = this.px, cy = 1.7 + this.py, cz = this.pz;
     this.burst(cx + dx * 2, cy + dy * 2, cz + dz * 2, 14);
-    // 8 дробин — живые пули честным веером (~4° вокруг прицела): летят сами,
+    // 8 дробин — живые пули честным веером (~4° вокруг прицела): летят сами 110 м/с,
     // сыплются от гравитации, у каждой свой хитбокс r=0.25. Куда навёл — туда и ушло.
     const PELLETS = 8, SPREAD = 0.07;
     let rx = -dz, ry = 0, rz = dx;
@@ -4006,7 +4006,7 @@ export class Game {
       const ox = (Math.random() * 2 - 1) * SPREAD, oy = (Math.random() * 2 - 1) * SPREAD;
       let pdx = dx + rx * ox + ux * oy, pdy = dy + ry * ox + uy * oy, pdz = dz + rz * ox + uz * oy;
       const pl = Math.hypot(pdx, pdy, pdz) || 1;
-      this.spawnBullet(cx, cy, cz, pdx / pl, pdy / pl, pdz / pl, 55, perPellet, range, 0.25, 14, 1.6, 2.2, true);
+      this.spawnBullet(cx, cy, cz, pdx / pl, pdy / pl, pdz / pl, 110, perPellet, range, 0.25, 56, 1.6, 2.2, true);
     }
     // СТЕНА + дробовик = катапульта: луч первым упёрся в стену (≤12м) —
     // швыряет на ~13м против выстрела видимым полётом (стены тормозят) + подброс.
@@ -4052,23 +4052,33 @@ export class Game {
     }
   }
 
-  // выпустить живую пулю: летит сама, падает от гравитации g, хитбокс — шар r
+  // выпустить живую пулю: летит сама, падает от гравитации g, хитбокс — шар r.
+  // Рисуется тонкой линией-росчерком по полёту (хитбокс тот же шар).
   private spawnBullet(x: number, y: number, z: number, dx: number, dy: number, dz: number, speed: number, dmg: number, range: number, r: number, g: number, fallPow: number, knock: number, orange: boolean): void {
-    if (!this.bulletGeo) {
-      this.bulletGeo = new THREE.SphereGeometry(0.14, 10, 8);
-      this.bulletMatY = new THREE.MeshBasicMaterial({ color: 0xffe066 });
-      this.bulletMatO = new THREE.MeshBasicMaterial({ color: 0xffa040 });
+    if (!this.bulletMatY) {
+      this.bulletMatY = new THREE.LineBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.95 });
+      this.bulletMatO = new THREE.LineBasicMaterial({ color: 0xffa040, transparent: true, opacity: 0.95 });
     }
-    const geo: THREE.SphereGeometry = this.bulletGeo!;
-    const mat: THREE.MeshBasicMaterial = (orange ? this.bulletMatO : this.bulletMatY)!;
-    const m = new THREE.Mesh(geo, mat);
-    m.position.set(x, y, z);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([x, y, z, x, y, z]), 3));
+    const m = new THREE.Line(geo, (orange ? this.bulletMatO : this.bulletMatY)!);
+    m.frustumCulled = false;
     this.scene.add(m);
     this.bullets.push({ m, x, y, z, vx: dx * speed, vy: dy * speed, vz: dz * speed, g, dmg, range, flown: 0, r, fallPow, knock });
     if (this.bullets.length > 48) {
       const old = this.bullets.shift();
-      if (old) this.scene.remove(old.m);
+      if (old) { this.scene.remove(old.m); old.m.geometry.dispose(); }
     }
+  }
+
+  // отрезок полёта задевает шар-хитбокс (защита от проскока на скорости/низком FPS)
+  private segHitsBall(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, cx: number, cy: number, cz: number, r: number): boolean {
+    const abx = x1 - x0, aby = y1 - y0, abz = z1 - z0;
+    const len2 = abx * abx + aby * aby + abz * abz;
+    let t = len2 > 0 ? ((cx - x0) * abx + (cy - y0) * aby + (cz - z0) * abz) / len2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    const dx = x0 + abx * t - cx, dy = y0 + aby * t - cy, dz = z0 + abz * t - cz;
+    return dx * dx + dy * dy + dz * dz <= r * r;
   }
 
   // физика пуль: гравитация тянет вниз, шар-хитбокс встречает мобов/игроков/стены/землю
@@ -4077,12 +4087,18 @@ export class Game {
     for (let i = this.bullets.length - 1; i >= 0; i--) {
       const b = this.bullets[i];
       let dead = false;
-      for (let s = 0; s < 2 && !dead; s++) {
-        const h = dt / 2;
+      for (let s = 0; s < 3 && !dead; s++) {
+        const h = dt / 3;
+        const x0 = b.x, y0 = b.y, z0 = b.z;
         b.vy -= b.g * h;
         b.x += b.vx * h; b.y += b.vy * h; b.z += b.vz * h;
         b.flown += Math.hypot(b.vx, b.vy, b.vz) * h;
-        b.m.position.set(b.x, b.y, b.z);
+        // росчерк: хвост на 1.4м позади носа по полёту
+        const sp = Math.hypot(b.vx, b.vy, b.vz) || 1;
+        const attr = b.m.geometry.attributes.position as THREE.BufferAttribute;
+        attr.setXYZ(0, b.x - (b.vx / sp) * 1.4, b.y - (b.vy / sp) * 1.4, b.z - (b.vz / sp) * 1.4);
+        attr.setXYZ(1, b.x, b.y, b.z);
+        attr.needsUpdate = true;
         const fall = b.fallPow > 1
           ? Math.pow(Math.max(0, 1 - b.flown / b.range), b.fallPow)
           : 1 - (b.flown / b.range) * 0.5;
@@ -4090,13 +4106,12 @@ export class Game {
         if (this.hitSolid(b.x, b.z, b.r, b.y)) { this.burst(b.x, b.y, b.z, 6); dead = true; break; }
         const gy = this.groundAt(b.x, b.z);
         if (b.y <= gy + 0.05) { this.burst(b.x, gy + 0.15, b.z, 6); dead = true; break; }
-        // мобы: шар пули встречает тушу R~0.9
+        // мобы: отрезок полёта за подшаг встречает тушу R~0.9 (не проскочить на скорости)
         for (const e of this.enemies) {
           if (e.dead) continue;
           const ty = e.kind === 'fly' ? 3.2 : 1.0 + e.ey;
-          const ddx = b.x - e.g.position.x, ddy = b.y - ty, ddz = b.z - e.g.position.z;
           const rr = 0.9 + b.r;
-          if (ddx * ddx + ddy * ddy + ddz * ddz > rr * rr) continue;
+          if (!this.segHitsBall(x0, y0, z0, b.x, b.y, b.z, e.g.position.x, ty, e.g.position.z, rr)) continue;
           const bdx = e.g.position.x - this.px, bdz = e.g.position.z - this.pz;
           this.strikeEnemy(e, b.dmg * fall * this.dmgMul() + Math.random() * 5, bdx, bdz, Math.hypot(bdx, bdz), b.knock);
           this.sfx(hitUrl);
@@ -4107,14 +4122,13 @@ export class Game {
           dead = true; break;
         }
         if (dead) break;
-        // PvP: пули встречают игроков
+        // PvP: пули встречают игроков (тем же отрезком)
         if (pvpMode) {
           for (const r of this.remotes) {
             if (r.dead || r.fid < 0) continue;
             const ty = 1.0 + (r.py || 0);
-            const ddx = b.x - r.x, ddy = b.y - ty, ddz = b.z - r.z;
             const rr = 0.9 + b.r;
-            if (ddx * ddx + ddy * ddy + ddz * ddz > rr * rr) continue;
+            if (!this.segHitsBall(x0, y0, z0, b.x, b.y, b.z, r.x, ty, r.z, rr)) continue;
             this.hitRemote(r, b.dmg * fall * this.dmgMul() + Math.random() * 5);
             this.burst(b.x, b.y, b.z, 5);
             this.pushHud();
@@ -4123,7 +4137,7 @@ export class Game {
           }
         }
       }
-      if (dead) { this.scene.remove(b.m); this.bullets.splice(i, 1); }
+      if (dead) { this.scene.remove(b.m); b.m.geometry.dispose(); this.bullets.splice(i, 1); }
     }
   }
 

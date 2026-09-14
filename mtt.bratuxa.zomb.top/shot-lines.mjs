@@ -1,0 +1,16 @@
+import { chromium } from '@playwright/test';
+const browser = await chromium.launch({ executablePath: '/usr/local/bin/chromium', args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const page = await browser.newPage({ viewport: { width: 800, height: 600 } });
+await page.goto('http://localhost:8097/', { waitUntil: 'load', timeout: 60000 });
+await page.waitForFunction(() => window.__mtt, null, { timeout: 60000 });
+await page.waitForTimeout(1500);
+await page.click('#guestBtn');
+await page.evaluate(() => document.querySelector('#nav-play')?.click());
+await page.waitForTimeout(300);
+await page.click('#goBtn');
+await page.waitForTimeout(4000);
+await page.evaluate(() => { const m = window.__mtt; m.devgod(true); m.weapon('shotgun'); m.teleport(0, 10, Math.PI); m.resetcd(); m.attack(); });
+await page.waitForTimeout(60);
+await page.screenshot({ path: '/tmp/bullets-line.png' });
+console.log('BULLETS:', await page.evaluate(() => window.__mtt.bullets()));
+await browser.close();
