@@ -479,11 +479,11 @@ async function loadStats(): Promise<void> {
     if (r < 0.7) return 'xp';
     return 'med';
   };
-  /** Карта-пустышка для барабана: боец — по шансам кейса (редкие 30/30, легенды 5/5, мифик 20) */
+  /** Карта-пустышка для барабана: боец — по шансам кейса (редкие 22.5/22.5, легенды 5/5, мифик 15, сверхредкая 30) */
   const fillerReel = (k: CaseDrop['kind']): ReelItem => {
     if (k === 'char') {
       const r = Math.random();
-      const c = r < 0.3 ? 'shuba' : r < 0.6 ? 'chuma' : r < 0.65 ? 'krysa' : r < 0.7 ? 'gidroxis' : r < 0.9 ? 'sunstrike' : 'arbuz';
+      const c = r < 0.225 ? 'shuba' : r < 0.45 ? 'chuma' : r < 0.5 ? 'krysa' : r < 0.55 ? 'gidroxis' : r < 0.7 ? 'sunstrike' : 'arbuz';
       return c === 'shuba'
         ? { kind: 'char', char: 'shuba', label: '🥷 ИВАНГОЙ', sub: 'Редкий' }
         : c === 'chuma'
@@ -2531,7 +2531,7 @@ async function loadStats(): Promise<void> {
             <h3>🎰 Кейсы</h3>
             <div className="caseCard" id="case-fighter">
               <div className="mname">📦 КЕЙС БОЙЦА</div>
-              <div className="mdesc">Внутри — боец! Редкие по 30%: 🥷 Ивангой и 🐦‍⬛ Чума. Легендарные по 5% (всего 10%): 🌟 Стейси Крыса и 🧪 Гидроксис. Мифический 20%: ☀️ Андрей Санстрайк. Не повезло — утешительный приз: фантики, опыт или аптечка.</div>
+              <div className="mdesc">Внутри — боец! Редкие 45% на двоих: 🥷 Ивангой и 🐦‍⬛ Чума. Легендарные по 5%: 🌟 Стейси Крыса и 🧪 Гидроксис. Мифический 15%: ☀️ Андрей Санстрайк. Сверхредкая 30%: 🍉 Арбузиха. Не повезло — утешительный приз: фантики, опыт или аптечка.</div>
               <ul className="cabilityList">
                 <li>⚪ МТТ — у тебя уже есть (Базовый)</li>
                 <li>💎 Ивангой — только из кейса (Редкий)</li>
@@ -2539,6 +2539,7 @@ async function loadStats(): Promise<void> {
                 <li>🌟 Стейси Крыса — только из кейса (Легендарный)</li>
                 <li>🌟 Гидроксис — только из кейса (Легендарный)</li>
                 <li>🔮 Андрей Санстрайк — только из кейса (Мифический)</li>
+                <li>💚 Арбузиха — только из кейса (Сверхредкий)</li>
               </ul>
               <div className="srow">
                 <button
