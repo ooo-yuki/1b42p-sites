@@ -684,7 +684,7 @@ export class Game {
   private arbuzCd = 0;
   private arbuzX = 0;
   private arbuzZ = 0;
-  private arbuzR = 8;
+  private arbuzR = 5;
   /** Таймер лепестков воронки (частицы каждые 0.3с, пока крутит). */
   private arbuzFxT = 0;
   /** Зелёная цветочная воронка: конус + кольца. Одна на игру. */
@@ -4246,13 +4246,13 @@ export class Game {
   }
 
   // ВОРОНКА Арбузихи: в точке поверхности под прицелом 4с крутит зелёную
-  // цветочную воронку (r=8м) — всех затягивает к центру. Кд 15с.
+  // цветочную воронку (r=5м) — всех затягивает к центру. Кд 15с.
   arbuz(): boolean {
     if (!this.started || this.dead || this.arbuzCd > 0 || this.arbuzT > 0 || this.charId !== 'arbuz') return false;
     const p = this.aimGround(45);
     this.arbuzX = p.x;
     this.arbuzZ = p.z;
-    this.arbuzR = 8;
+    this.arbuzR = 5;
     this.arbuzT = 4;
     this.arbuzCd = superCd('arbuz', this.upg['arbuz']?.sup ?? 0);
     this.burst(p.x, 0.5, p.z, 18);
@@ -4264,17 +4264,19 @@ export class Game {
     return { t: Math.round(this.arbuzT * 10) / 10, cd: Math.round(this.arbuzCd * 10) / 10, x: this.arbuzX, z: this.arbuzZ };
   }
 
-  /** Зелёная воронка: конус воронкой вверх + два кольца, крутятся пока висит. */
+  /** Зелёная воронка: конус воронкой вверх (остриё в землю, раструб в небо) + два кольца, крутятся пока висит. */
   private syncArbuzFx(): void {
     if (!this.arbuzMesh) {
       const grp = new THREE.Group();
       const cone = new THREE.Mesh(
-        new THREE.ConeGeometry(8, 7, 24, 1, true),
+        new THREE.ConeGeometry(5, 6, 24, 1, true),
         new THREE.MeshBasicMaterial({ color: 0x39d353, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }),
       );
-      cone.position.y = 3.5;
+      // вверх ногами: широкое горло в небо, остриё в землю
+      cone.rotation.x = Math.PI;
+      cone.position.y = 3;
       grp.add(cone);
-      for (const [ry, rr] of [[0.3, 8], [3.2, 4.6]] as Array<[number, number]>) {
+      for (const [ry, rr] of [[0.3, 5], [2.8, 2.7]] as Array<[number, number]>) {
         const ring = new THREE.Mesh(
           new THREE.RingGeometry(Math.max(0.5, rr - 0.7), rr, 40),
           new THREE.MeshBasicMaterial({ color: 0x7dff8a, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }),
@@ -6225,12 +6227,15 @@ export class Game {
           // чумное облако Чумы: в радиусе 9м враг травится (9/с) и ползёт на 55% скорости.
           // Бессмертного сталкера не убивает (HP 9999), но тормозит — можно убежать.
           const inCloud = this.chumaT > 0 && d < 9 && !e.dead;
+          // воронка Арбузихи: попал в круг — самого тянет к середине, сам еле идёт
+          const inVortex = this.arbuzT > 0 && !e.dead && !e.wb && !e.god &&
+            Math.hypot(e.g.position.x - this.arbuzX, e.g.position.z - this.arbuzZ) < this.arbuzR;
           if (inCloud) {
             e.hp -= 9 * dt;
             this.updateHpBar(e);
             if (e.hp <= 0) this.strikeEnemy(e, 1, ddx, ddz, dd || 1, 0);
           }
-          const foeSpd = e.speed * (inCloud ? 0.55 : 1);
+          const foeSpd = e.speed * (inCloud ? 0.55 : 1) * (inVortex ? 0.35 : 1);
           const nx = e.g.position.x + mdx * foeSpd * dt;
           const nz = e.g.position.z + mdz * foeSpd * dt;
           // топот орды: слышно в радиусе 18м, громкость тает с дистанцией
@@ -6257,13 +6262,13 @@ export class Game {
           }
           if (!blockedX) e.g.position.x = cx;
           if (!blockedZ) e.g.position.z = cz;
-          // ВОРОНКА Арбузихи: в радиусе 8м от центра всех тянет к середине.
+          // ВОРОНКА Арбузихи: в радиусе 5м от центра всех тянет строго в середину.
           // Босса и бессмертных сталкеров не трогает — только обычную нечисть.
           if (this.arbuzT > 0 && !e.dead && !e.wb && !e.god) {
             const vdx = this.arbuzX - e.g.position.x, vdz = this.arbuzZ - e.g.position.z;
             const vd = Math.hypot(vdx, vdz);
-            if (vd < this.arbuzR && vd > 0.4) {
-              const pull = Math.min(vd, (4 + (1 - vd / this.arbuzR) * 7) * dt);
+            if (vd < this.arbuzR && vd > 0.05) {
+              const pull = Math.min(vd, (5 + (1 - vd / this.arbuzR) * 8) * dt);
               const px2 = clampArena(e.g.position.x + (vdx / vd) * pull, this.half);
               const pz2 = clampArena(e.g.position.z + (vdz / vd) * pull, this.half);
               if (!this.hitSolid(px2, e.g.position.z, 0.8, eyH)) e.g.position.x = px2;
