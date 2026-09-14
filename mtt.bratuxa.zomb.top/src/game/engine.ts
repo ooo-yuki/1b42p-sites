@@ -650,6 +650,11 @@ export class Game {
   private kickAirT = 0;
   // трассеры пуль: светящиеся линии выстрелов, живут долю секунды
   private tracers: Array<{ l: THREE.Line; life: number }> = [];
+  // живые пули: летят сами с гравитацией, у каждой свой хитбокс-шар r
+  private bullets: Array<{ m: THREE.Mesh; x: number; y: number; z: number; vx: number; vy: number; vz: number; g: number; dmg: number; range: number; flown: number; r: number; fallPow: number; knock: number }> = [];
+  private bulletGeo: THREE.SphereGeometry | null = null;
+  private bulletMatY: THREE.MeshBasicMaterial | null = null;
+  private bulletMatO: THREE.MeshBasicMaterial | null = null;
   private kickTouch(): void {
     if (this.charId !== 'krysa' || this.kickAirT <= 0 || this.py < 0.5) return;
     if (this.wallKickCd > 0) {
@@ -1075,6 +1080,14 @@ export class Game {
     if (!this.owned.includes(id)) return false;
     this.weaponId = id;
     this.saveShop();
+    this.pushHud();
+    return true;
+  }
+
+  /** Выдать ствол в обход магазина (только отладка/тесты). */
+  debugWeapon(id: string): boolean {
+    if (!Game.weapon(id)) return false;
+    this.weaponId = id;
     this.pushHud();
     return true;
   }
@@ -3935,64 +3948,14 @@ export class Game {
     }
   }
 
-  // 🔫 выстрел: хитскан строго по прицелу (конус ~2°) — без автонаводки;
-  // урон тает с дистанцией
+  // 🔫 выстрел: живая пуля летит строго по прицелу с гравитацией (свой хитбокс r=0.3);
+  // урон тает с дистанцией полёта
   private shoot(baseDmg: number, range: number): number {
     this.sfx(shotUrl);
     const cp = Math.cos(this.pitch);
     const dx = -Math.sin(this.yaw) * cp, dy = Math.sin(this.pitch), dz = -Math.cos(this.yaw) * cp;
-    const cx = this.px, cy = 1.7 + this.py, cz = this.pz;
-    let best: Enemy | null = null;
-    let bestD = Infinity;
-    for (const e of this.enemies) {
-      if (e.dead) continue;
-      const ty = e.kind === 'fly' ? 3.2 : 1.0 + e.ey;
-      const vx = e.g.position.x - cx, vy = ty - cy, vz = e.g.position.z - cz;
-      // хитбокс-туша R~0.9м: сближение луча с центром — вплотную бьёт, вдаль строго
-      const t = vx * dx + vy * dy + vz * dz;
-      if (t > range || t < 0.15) continue;
-      const mx = vx - dx * t, my = vy - dy * t, mz = vz - dz * t;
-      if (Math.sqrt(mx * mx + my * my + mz * mz) > 0.9) continue;
-      if (t < bestD) { bestD = t; best = e; }
-    }
-    // PvP: луч встречает и игроков (туша та же R~0.9, высота по прыжку)
-    let bestR: Remote | null = null;
-    let bestRD = Infinity;
-    if (this.map === 'pvp') {
-      for (const r of this.remotes) {
-        if (r.dead || r.fid < 0) continue;
-        const ty = 1.0 + (r.py || 0);
-        const vx = r.x - cx, vy = ty - cy, vz = r.z - cz;
-        const t = vx * dx + vy * dy + vz * dz;
-        if (t > range || t < 0.15) continue;
-        const mx = vx - dx * t, my = vy - dy * t, mz = vz - dz * t;
-        if (Math.sqrt(mx * mx + my * my + mz * mz) > 0.9) continue;
-        if (t < bestRD) { bestRD = t; bestR = r; }
-      }
-      if (bestR && bestRD < bestD) {
-        const fall = 1 - (bestRD / range) * 0.5;
-        this.tracer(cx, cy, cz, bestR.x, 1.0 + (bestR.py || 0), bestR.z);
-        this.hitRemote(bestR, baseDmg * fall * this.dmgMul() + Math.random() * 5);
-        this.pushHud();
-        this.drawMM();
-        return 1;
-      }
-    }
-    if (!best) {
-      // мимо: пыль на излёте пули + трассер в никуда
-      this.burst(cx + dx * 8, cy + dy * 8, cz + dz * 8, 3);
-      this.tracer(cx, cy, cz, cx + dx * range, cy + dy * range, cz + dz * range);
-      this.pushHud();
-      return 0;
-    }
-    const fall = 1 - (bestD / range) * 0.5;
-    const bdx = best.g.position.x - cx, bdz = best.g.position.z - cz;
-    this.tracer(cx, cy, cz, best.g.position.x, (best.kind === 'fly' ? 3.2 : 1.0 + best.ey), best.g.position.z);
-    this.strikeEnemy(best, baseDmg * fall * this.dmgMul() + Math.random() * 5, bdx, bdz, Math.hypot(bdx, bdz), 0.8);
-    this.sfx(hitUrl);
+    this.spawnBullet(this.px, 1.7 + this.py, this.pz, dx, dy, dz, 70, baseDmg, range, 0.3, 6, 1, 0.8, false);
     this.pushHud();
-    this.waveClearCheck();
-    this.drawMM();
     return 1;
   }
 
@@ -4030,8 +3993,8 @@ export class Game {
     const dx = -Math.sin(this.yaw) * cp, dy = Math.sin(this.pitch), dz = -Math.cos(this.yaw) * cp;
     const cx = this.px, cy = 1.7 + this.py, cz = this.pz;
     this.burst(cx + dx * 2, cy + dy * 2, cz + dz * 2, 14);
-    // 8 дробин летят честным веером (~4° вокруг прицела): куда навёл — туда и ушло,
-    // никакой автонаводки — попадание считается по пересечению луча дробины с тушей
+    // 8 дробин — живые пули честным веером (~4° вокруг прицела): летят сами,
+    // сыплются от гравитации, у каждой свой хитбокс r=0.25. Куда навёл — туда и ушло.
     const PELLETS = 8, SPREAD = 0.07;
     let rx = -dz, ry = 0, rz = dx;
     let rl = Math.hypot(rx, ry, rz);
@@ -4039,65 +4002,12 @@ export class Game {
     rx /= rl; ry /= rl; rz /= rl;
     const ux = ry * dz - rz * dy, uy = rz * dx - rx * dz, uz = rx * dy - ry * dx;
     const perPellet = totalDmg / PELLETS;
-    const hitsBy = new Map<number, number>();
-    const hitPos = new Map<number, { x: number; y: number; z: number; hx: number; hz: number }>();
-    const pvpMode = this.map === 'pvp';
-    const remHits = new Map<number, number>();
-    const remPos = new Map<number, { dist: number }>();
     for (let pi = 0; pi < PELLETS; pi++) {
       const ox = (Math.random() * 2 - 1) * SPREAD, oy = (Math.random() * 2 - 1) * SPREAD;
       let pdx = dx + rx * ox + ux * oy, pdy = dy + ry * ox + uy * oy, pdz = dz + rz * ox + uz * oy;
       const pl = Math.hypot(pdx, pdy, pdz) || 1;
-      pdx /= pl; pdy /= pl; pdz /= pl;
-      for (let ei = 0; ei < this.enemies.length; ei++) {
-        const e = this.enemies[ei];
-        if (e.dead) continue;
-        const ty = e.kind === 'fly' ? 3.2 : 1.0 + e.ey;
-        const ex = e.g.position.x - cx, ey = ty - cy, ez = e.g.position.z - cz;
-        const t = ex * pdx + ey * pdy + ez * pdz;
-        if (t < 0.5 || t > range) continue;
-        const dd = Math.sqrt(Math.max(0, ex * ex + ey * ey + ez * ez - t * t));
-        if (dd > 0.9) continue;
-        hitsBy.set(ei, (hitsBy.get(ei) ?? 0) + 1);
-        if (!hitPos.has(ei)) hitPos.set(ei, { x: e.g.position.x, y: ty, z: e.g.position.z, hx: ex, hz: ez });
-        this.tracer(cx, cy, cz, cx + pdx * t, cy + pdy * t, cz + pdz * t);
-      }
-      // PvP: дробины встречают и игроков
-      if (pvpMode) {
-        for (let ri = 0; ri < this.remotes.length; ri++) {
-          const r = this.remotes[ri];
-          if (r.dead || r.fid < 0) continue;
-          const ty = 1.0 + (r.py || 0);
-          const ex = r.x - cx, ey = ty - cy, ez = r.z - cz;
-          const t = ex * pdx + ey * pdy + ez * pdz;
-          if (t < 0.5 || t > range) continue;
-          const dd = Math.sqrt(Math.max(0, ex * ex + ey * ey + ez * ez - t * t));
-          if (dd > 0.9) continue;
-          remHits.set(ri, (remHits.get(ri) ?? 0) + 1);
-          if (!remPos.has(ri)) remPos.set(ri, { dist: Math.hypot(ex, ez) });
-          this.tracer(cx, cy, cz, cx + pdx * t, cy + pdy * t, cz + pdz * t);
-        }
-      }
+      this.spawnBullet(cx, cy, cz, pdx / pl, pdy / pl, pdz / pl, 55, perPellet, range, 0.25, 14, 1.6, 2.2, true);
     }
-    let hits = 0;
-    remHits.forEach((count, ri) => {
-      const r = this.remotes[ri];
-      const rp = remPos.get(ri);
-      if (!r || !rp || r.dead || r.fid < 0) return;
-      const fall = Math.pow(Math.max(0, 1 - rp.dist / range), 1.6);
-      this.hitRemote(r, count * perPellet * fall * this.dmgMul() + Math.random() * 3);
-      hits++;
-    });
-    hitsBy.forEach((count, ei) => {
-      const e = this.enemies[ei];
-      const hp = hitPos.get(ei);
-      if (!hp) return;
-      const dist = Math.hypot(hp.hx, hp.hz);
-      const fall = Math.pow(Math.max(0, 1 - dist / range), 1.6);
-      this.strikeEnemy(e, count * perPellet * fall * this.dmgMul() + Math.random() * 3, hp.hx, hp.hz, dist, 2.2);
-      hits++;
-    });
-    if (hits > 0) this.sfx(hitUrl);
     // СТЕНА + дробовик = катапульта: луч первым упёрся в стену (≤12м) —
     // швыряет на ~13м против выстрела видимым полётом (стены тормозят) + подброс.
     // Иначе классика: круто вниз в землю рядом (≤3.5м) — рокет-джамп 6м вверх.
@@ -4126,7 +4036,7 @@ export class Game {
     this.pushHud();
     this.waveClearCheck();
     this.drawMM();
-    return hits;
+    return 1;
   }
 
   // светящаяся линия выстрела от дула до точки попадания
@@ -4139,6 +4049,81 @@ export class Game {
     if (this.tracers.length > 12) {
       const old = this.tracers.shift();
       if (old) { this.scene.remove(old.l); old.l.geometry.dispose(); (old.l.material as THREE.Material).dispose(); }
+    }
+  }
+
+  // выпустить живую пулю: летит сама, падает от гравитации g, хитбокс — шар r
+  private spawnBullet(x: number, y: number, z: number, dx: number, dy: number, dz: number, speed: number, dmg: number, range: number, r: number, g: number, fallPow: number, knock: number, orange: boolean): void {
+    if (!this.bulletGeo) {
+      this.bulletGeo = new THREE.SphereGeometry(0.14, 10, 8);
+      this.bulletMatY = new THREE.MeshBasicMaterial({ color: 0xffe066 });
+      this.bulletMatO = new THREE.MeshBasicMaterial({ color: 0xffa040 });
+    }
+    const geo: THREE.SphereGeometry = this.bulletGeo!;
+    const mat: THREE.MeshBasicMaterial = (orange ? this.bulletMatO : this.bulletMatY)!;
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x, y, z);
+    this.scene.add(m);
+    this.bullets.push({ m, x, y, z, vx: dx * speed, vy: dy * speed, vz: dz * speed, g, dmg, range, flown: 0, r, fallPow, knock });
+    if (this.bullets.length > 48) {
+      const old = this.bullets.shift();
+      if (old) this.scene.remove(old.m);
+    }
+  }
+
+  // физика пуль: гравитация тянет вниз, шар-хитбокс встречает мобов/игроков/стены/землю
+  private tickBullets(dt: number): void {
+    const pvpMode = this.map === 'pvp';
+    for (let i = this.bullets.length - 1; i >= 0; i--) {
+      const b = this.bullets[i];
+      let dead = false;
+      for (let s = 0; s < 2 && !dead; s++) {
+        const h = dt / 2;
+        b.vy -= b.g * h;
+        b.x += b.vx * h; b.y += b.vy * h; b.z += b.vz * h;
+        b.flown += Math.hypot(b.vx, b.vy, b.vz) * h;
+        b.m.position.set(b.x, b.y, b.z);
+        const fall = b.fallPow > 1
+          ? Math.pow(Math.max(0, 1 - b.flown / b.range), b.fallPow)
+          : 1 - (b.flown / b.range) * 0.5;
+        if (b.flown > b.range) { this.burst(b.x, b.y, b.z, 2); dead = true; break; }
+        if (this.hitSolid(b.x, b.z, b.r, b.y)) { this.burst(b.x, b.y, b.z, 6); dead = true; break; }
+        const gy = this.groundAt(b.x, b.z);
+        if (b.y <= gy + 0.05) { this.burst(b.x, gy + 0.15, b.z, 6); dead = true; break; }
+        // мобы: шар пули встречает тушу R~0.9
+        for (const e of this.enemies) {
+          if (e.dead) continue;
+          const ty = e.kind === 'fly' ? 3.2 : 1.0 + e.ey;
+          const ddx = b.x - e.g.position.x, ddy = b.y - ty, ddz = b.z - e.g.position.z;
+          const rr = 0.9 + b.r;
+          if (ddx * ddx + ddy * ddy + ddz * ddz > rr * rr) continue;
+          const bdx = e.g.position.x - this.px, bdz = e.g.position.z - this.pz;
+          this.strikeEnemy(e, b.dmg * fall * this.dmgMul() + Math.random() * 5, bdx, bdz, Math.hypot(bdx, bdz), b.knock);
+          this.sfx(hitUrl);
+          this.burst(b.x, b.y, b.z, 5);
+          this.pushHud();
+          this.waveClearCheck();
+          this.drawMM();
+          dead = true; break;
+        }
+        if (dead) break;
+        // PvP: пули встречают игроков
+        if (pvpMode) {
+          for (const r of this.remotes) {
+            if (r.dead || r.fid < 0) continue;
+            const ty = 1.0 + (r.py || 0);
+            const ddx = b.x - r.x, ddy = b.y - ty, ddz = b.z - r.z;
+            const rr = 0.9 + b.r;
+            if (ddx * ddx + ddy * ddy + ddz * ddz > rr * rr) continue;
+            this.hitRemote(r, b.dmg * fall * this.dmgMul() + Math.random() * 5);
+            this.burst(b.x, b.y, b.z, 5);
+            this.pushHud();
+            this.drawMM();
+            dead = true; break;
+          }
+        }
+      }
+      if (dead) { this.scene.remove(b.m); this.bullets.splice(i, 1); }
     }
   }
 
@@ -5521,6 +5506,7 @@ export class Game {
   debugRemotes(): number { return this.remotes.length; }
   /** Сколько линий пуль сейчас висит в кадре (для тестов). */
   debugTracers(): number { return this.tracers.length; }
+  debugBullets(): number { return this.bullets.length; }
 
   // хуки для тестов
   debugPos(): { x: number; z: number; hp: number; enemies: number; kills: number; wave: number; yaw: number; py: number; pitch: number } {
@@ -5737,6 +5723,8 @@ export class Game {
           (t.l.material as THREE.LineBasicMaterial).opacity = t.life * 0.95;
         }
       }
+      // живые пули тикают тут же: полёт + гравитация + свои хитбоксы
+      this.tickBullets(dt);
       if (this.wallKickCd > 0) {
         this.wallKickCd -= dt;
         if (Math.floor(this.wallKickCd * 5) !== Math.floor((this.wallKickCd + dt) * 5)) this.pushHud();
