@@ -988,7 +988,8 @@ Bun.serve({
   port: PORT,
   routes: {
     '/api/scores': () => {
-      const rows = db.query('SELECT nick, score, coins FROM scores ORDER BY score DESC LIMIT 10').all();
+      // топ — один лучший результат на аккаунт (гости — на ник)
+      const rows = db.query(`SELECT nick, MAX(score) AS score, MAX(coins) AS coins FROM scores GROUP BY CASE WHEN login != '' THEN 'L:' || login ELSE 'N:' || nick END ORDER BY score DESC LIMIT 10`).all();
       return Response.json(rows);
     },
     '/api/duel-top': () => {
