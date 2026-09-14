@@ -4245,11 +4245,12 @@ export class Game {
     return { x: Math.round(gx * 10) / 10, z: Math.round(gz * 10) / 10 };
   }
 
-  // ВОРОНКА Арбузихи: в точке поверхности под прицелом 4с крутит зелёную
-  // цветочную воронку (r=5м) — всех затягивает к центру. Кд 15с.
+  // ВОРОНКА Арбузихи: прицел на враге — центр на нём, иначе точка поверхности
+  // под прицелом. 4с крутит зелёную цветочную воронку (r=5м) — всех затягивает к центру. Кд 15с.
   arbuz(): boolean {
     if (!this.started || this.dead || this.arbuzCd > 0 || this.arbuzT > 0 || this.charId !== 'arbuz') return false;
-    const p = this.aimGround(45);
+    const tgt = this.aimEnemy(45);
+    const p = tgt ?? this.aimGround(45);
     this.arbuzX = p.x;
     this.arbuzZ = p.z;
     this.arbuzR = 5;
