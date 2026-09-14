@@ -2885,8 +2885,9 @@ async function loadStats(): Promise<void> {
               <b>{apiPing >= 0 ? `🟢 ${apiPing} мс` : '🔴 нет связи'}</b>
               <button className="wbtn" id="serversRefresh" onClick={() => { pingApi(); refreshRooms(); }}>🔄 ОБНОВИТЬ</button>
             </div>
-            <div>🟢 Онлайн: <b>{gstats?.online ?? '…'}</b> · 🖥️ Серверов: <b>{roomsList.length}</b></div>
-            {roomsList.length > 0 ? roomsList.map((r) => {
+            <div>🟢 Онлайн: <b>{gstats?.online ?? '…'}</b> · 🖥️ Серверов: <b>{roomsList.filter((r) => r.mode !== 'boss').length}</b></div>
+            <div className="srow"><small>👹 Боссы живут отдельно — вход только через вкладку 👹 БОСС.</small></div>
+            {roomsList.filter((r) => r.mode !== 'boss').length > 0 ? roomsList.filter((r) => r.mode !== 'boss').map((r) => {
               const cap = modeCap(r.mode);
               const pct = Math.min(100, Math.round((r.count / cap) * 100));
               return (
