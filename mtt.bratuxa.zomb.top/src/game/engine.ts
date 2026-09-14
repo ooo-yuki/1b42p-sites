@@ -77,7 +77,7 @@ export const CHARS: CharDef[] = [
   { id: 'chuma', name: '🐦‍⬛ Чума', desc: 'Чумной доктор в чёрном · супер — чумное облако 5с', hp: 100, spd: 1.05, rarity: 'Редкий' },
   { id: 'gidroxis', name: '🧪 Гидроксис', desc: 'Сканер в жёлтом · супер — рентген существ 5с', hp: 95, spd: 1.1, rarity: 'Легендарный' },
   { id: 'sunstrike', name: '☀️ Андрей Санстрайк', desc: 'Мифический в фиолете · супер — луч света с неба по прицелу (заряд от убийств)', hp: 100, spd: 1.05, rarity: 'Мифический' },
-  { id: 'arbuz', name: '🍉 Арбузиха', desc: 'Сверхредкая в короне · супер — цветочная воронка тянет всех к центру 4с', hp: 100, spd: 1.05, rarity: 'Сверхредкий' },
+  { id: 'arbuz', name: '🍉 Арбузиха', desc: 'Сверхредкая в короне · супер — цветочная воронка стягивает всех в центр 4с', hp: 100, spd: 1.05, rarity: 'Сверхредкий' },
 ];
 
 /** Кейс бойца: цена открытия в фантиках. */
@@ -4703,6 +4703,19 @@ export class Game {
       const rr = Math.hypot(e.g.position.x, e.g.position.z);
       if (rr > 38) { e.g.position.x *= 38 / rr; e.g.position.z *= 38 / rr; }
     }
+    // ВОРОНКА Арбузихи: тянет даже босса — тяжёлый, ползёт к центру медленно.
+    // В прыжке (wmode 1–3) не трогаем — туда мы уже не заходим, это ветка погони.
+    if (this.arbuzT > 0) {
+      const vdx = this.arbuzX - e.g.position.x, vdz = this.arbuzZ - e.g.position.z;
+      const vd = Math.hypot(vdx, vdz);
+      if (vd < this.arbuzR && vd > 0.05) {
+        const pull = Math.min(vd, 2.5 * dt);
+        e.g.position.x += (vdx / vd) * pull;
+        e.g.position.z += (vdz / vd) * pull;
+        const rr2 = Math.hypot(e.g.position.x, e.g.position.z);
+        if (rr2 > 38) { e.g.position.x *= 38 / rr2; e.g.position.z *= 38 / rr2; }
+      }
+    }
     // рука: 25 в упор, своя плоскость, кд 1.1с (в ярости 0.6с)
     if (Number.isFinite(txp) && d <= 2.8 && Math.abs(this.py) <= 2.2 && e.hitCd <= 0 && this.shieldT <= 0 && !this.devGod) {
       e.hitCd = enraged ? 0.6 : 1.1;
@@ -6227,8 +6240,9 @@ export class Game {
           // чумное облако Чумы: в радиусе 9м враг травится (9/с) и ползёт на 55% скорости.
           // Бессмертного сталкера не убивает (HP 9999), но тормозит — можно убежать.
           const inCloud = this.chumaT > 0 && d < 9 && !e.dead;
-          // воронка Арбузихи: попал в круг — самого тянет к середине, сам еле идёт
-          const inVortex = this.arbuzT > 0 && !e.dead && !e.wb && !e.god &&
+          // воронка Арбузихи: попал в круг — самого тянет к середине, сам еле идёт.
+          // Тянет ВСЕХ без разбора — и сталкеров, и босса (босс — в своей ветке ниже).
+          const inVortex = this.arbuzT > 0 && !e.dead &&
             Math.hypot(e.g.position.x - this.arbuzX, e.g.position.z - this.arbuzZ) < this.arbuzR;
           if (inCloud) {
             e.hp -= 9 * dt;
@@ -6263,8 +6277,8 @@ export class Game {
           if (!blockedX) e.g.position.x = cx;
           if (!blockedZ) e.g.position.z = cz;
           // ВОРОНКА Арбузихи: в радиусе 5м от центра всех тянет строго в середину.
-          // Босса и бессмертных сталкеров не трогает — только обычную нечисть.
-          if (this.arbuzT > 0 && !e.dead && !e.wb && !e.god) {
+          // Всех без разбора — сталкеров тоже (босс тянется в своей ветке ниже).
+          if (this.arbuzT > 0 && !e.dead) {
             const vdx = this.arbuzX - e.g.position.x, vdz = this.arbuzZ - e.g.position.z;
             const vd = Math.hypot(vdx, vdz);
             if (vd < this.arbuzR && vd > 0.05) {
