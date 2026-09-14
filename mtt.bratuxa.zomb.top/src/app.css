@@ -334,7 +334,7 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(-
 #doorPulse{position:fixed;top:52px;left:50%;transform:translateX(-50%);z-index:6;background:rgba(4,32,12,.92);
   border:1px solid #39d353;border-radius:20px;padding:6px 16px;font-size:14px;font-weight:800;color:#39d353;font-family:var(--font-d);
   box-shadow:0 0 18px rgba(57,211,83,.55);animation:doorblink 1s ease-in-out infinite}
-#wbDmgTag{position:fixed;top:170px;right:10px;z-index:6;background:rgba(20,12,2,.92);
+#wbDmgTag{position:fixed;top:calc(40% + 76px);right:10px;z-index:6;background:rgba(20,12,2,.92);
   border:1px solid var(--amber);border-radius:12px;padding:8px 12px;font-size:13px;font-weight:700;color:#ffd98a;font-family:var(--font-d);
   box-shadow:0 0 14px rgba(255,180,60,.35);max-width:44vw}
 #wbDmgTag .wbDmgTitle{font-weight:800;color:var(--amber);margin-bottom:4px;white-space:nowrap}
