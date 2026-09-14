@@ -1657,6 +1657,11 @@ async function loadStats(): Promise<void> {
                 });
               } catch { /* noop */ }
               if (Array.isArray(d.mobs)) g.applyHostKills(d.mobs);
+              // хост тоже тянет ХП босса с сервера: урон гостей иначе виден только
+              // серверу, а следующий пуш затрёт его высоким локальным ХП.
+              // syncWorldBoss только понижает — свой урон не потеряется.
+              const bm = Array.isArray(d.mobs) ? (d.mobs as Array<{ id: number; hp: number; dead: boolean }>).find((m) => m.id === 777) : undefined;
+              if (bm) g.syncWorldBoss(bm.hp, bm.dead === true, bd.round);
             } else if (bd.alive) {
               const bm = Array.isArray(d.mobs) ? (d.mobs as Array<{ id: number; hp: number; dead: boolean }>).find((m) => m.id === 777) : undefined;
               g.syncWorldBoss(bm && !bm.dead ? Math.max(1, bm.hp) : bd.hp, bm?.dead === true, bd.round);
