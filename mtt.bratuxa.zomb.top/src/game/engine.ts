@@ -1675,13 +1675,12 @@ export class Game {
       scene.add(shore);
     }
 
-    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3018, roughness: 1 });
-    const leafMats = [
-      new THREE.MeshStandardMaterial({ color: 0x2a6828, roughness: 1 }),
-      new THREE.MeshStandardMaterial({ color: 0x1a4a18, roughness: 1 }),
-      new THREE.MeshStandardMaterial({ color: 0x5a3020, roughness: 1 }),
-      new THREE.MeshStandardMaterial({ color: 0x3a5a28, roughness: 1 }),
-    ];
+    // ————— деревья: InstancedMesh (1 draw call на тип) вместо тысяч отдельных мешей —————
+    const trunkGeo = new THREE.CylinderGeometry(0.2, 0.35, 1, 6);
+    const crownGeo = new THREE.SphereGeometry(1, 7, 5);
+    // собираем позиции и параметры
+    interface TreeData { x: number; z: number; h: number; crownR: number; biome: Biome }
+    const trees: TreeData[] = [];
     const treeDensity: Record<string, number> = {
       dense: 0.025, dark: 0.020, swamp: 0.010, burned: 0.008, road: 0, lake: 0,
     };
@@ -1695,64 +1694,119 @@ export class Game {
         if (rng() > density * treeStep * treeStep) continue;
         if (b === 'road' || b === 'lake') continue;
         if (Math.hypot(jx + 130, jz - 130) < 5) continue;
-
         const treeH = R(7, 10);
-        const crownR = R(2.0, 3.5);
-        const trunkH = treeH * 0.45;
-        const crownY = treeH - crownR * 0.3;
-
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.35, trunkH, 6), trunkMat);
-        trunk.position.set(jx, trunkH / 2, jz);
-        trunk.castShadow = true;
-        scene.add(trunk);
-
-        const li = b === 'dark' ? 1 : b === 'burned' ? 2 : b === 'swamp' ? 3 : 0;
-        const lm = leafMats[li];
-        const c1 = new THREE.Mesh(new THREE.SphereGeometry(crownR, 8, 6), lm);
-        c1.position.set(jx, crownY, jz);
-        c1.castShadow = true;
-        scene.add(c1);
-        const c2 = new THREE.Mesh(new THREE.SphereGeometry(crownR * 0.7, 7, 5), lm);
-        c2.position.set(jx + R(-0.5, 0.5), crownY + crownR * 0.5, jz + R(-0.5, 0.5));
-        c2.castShadow = true;
-        scene.add(c2);
-
+        trees.push({ x: jx, z: jz, h: treeH, crownR: R(2.0, 3.5), biome: b });
         this.solids.push({ x: jx, z: jz, r: 0.4, h: treeH });
       }
     }
+    const tmpMat = new THREE.Matrix4();
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3018, roughness: 1 });
+    // стволы — 1 InstancedMesh
+    const trunkInst = new THREE.InstancedMesh(trunkGeo, trunkMat, trees.length);
+    trunkInst.castShadow = true;
+    for (let i = 0; i < trees.length; i++) {
+      const t = trees[i]!;
+      const s = t.h * 0.45;
+      tmpMat.makeScale(1, s, 1);
+      tmpMat.setPosition(t.x, s / 2, t.z);
+      trunkInst.setMatrixAt(i, tmpMat);
+    }
+    trunkInst.instanceMatrix.needsUpdate = true;
+    scene.add(trunkInst);
+    // кроны — 1 InstancedMesh на листья, с vertexColors по биому
+    const crownColors = [0x2a6828, 0x1a4a18, 0x5a3020, 0x3a5a28];
+    const crownMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
+    const crownInst = new THREE.InstancedMesh(crownGeo, crownMat, trees.length * 2);
+    crownInst.castShadow = true;
+    const crownsC3 = new THREE.Color();
+    for (let i = 0; i < trees.length; i++) {
+      const t = trees[i]!;
+      const li = t.biome === 'dark' ? 1 : t.biome === 'burned' ? 2 : t.biome === 'swamp' ? 3 : 0;
+      crownsC3.set(crownColors[li]!);
+      const crownY = t.h - t.crownR * 0.3;
+      tmpMat.makeScale(t.crownR, t.crownR, t.crownR);
+      tmpMat.setPosition(t.x, crownY, t.z);
+      crownInst.setMatrixAt(i * 2, tmpMat);
+      crownInst.setColorAt(i * 2, crownsC3);
+      // вторая крона (поменьше)
+      const c2r = t.crownR * 0.7;
+      crownsC3.set(crownColors[li]!);
+      tmpMat.makeScale(c2r, c2r, c2r);
+      tmpMat.setPosition(t.x + (rng() - 0.5), crownY + t.crownR * 0.5, t.z + (rng() - 0.5));
+      crownInst.setMatrixAt(i * 2 + 1, tmpMat);
+      crownInst.setColorAt(i * 2 + 1, crownsC3);
+    }
+    crownInst.instanceMatrix.needsUpdate = true;
+    if (crownInst.instanceColor) crownInst.instanceColor.needsUpdate = true;
+    scene.add(crownInst);
 
+    // ————— выжженные обугленные стволы — InstancedMesh —————
     const charMat = new THREE.MeshStandardMaterial({ color: 0x1a1210, roughness: 1 });
+    const stumpGeo = new THREE.CylinderGeometry(0.15, 0.25, 1, 5);
+    const stumpPositions: Array<[number, number, number]> = [];
     for (let t = 0; t < 40; t++) {
       const bx = R(-H + 10, H - 10), bz = R(-H + 10, H - 10);
       if (biomeAt(bx, bz) !== 'burned') continue;
       const bh = R(3, 7);
-      const stump = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, bh, 5), charMat);
-      stump.position.set(bx, bh / 2, bz);
-      stump.castShadow = true;
-      scene.add(stump);
+      stumpPositions.push([bx, bh, bz]);
       this.solids.push({ x: bx, z: bz, r: 0.25, h: bh });
     }
+    if (stumpPositions.length > 0) {
+      const stumpInst = new THREE.InstancedMesh(stumpGeo, charMat, stumpPositions.length);
+      stumpInst.castShadow = true;
+      for (let i = 0; i < stumpPositions.length; i++) {
+        const [bx, bh, bz] = stumpPositions[i]!;
+        tmpMat.makeScale(1, bh, 1);
+        tmpMat.setPosition(bx, bh / 2, bz);
+        stumpInst.setMatrixAt(i, tmpMat);
+      }
+      stumpInst.instanceMatrix.needsUpdate = true;
+      scene.add(stumpInst);
+    }
 
+    // ————— камыши — 1 InstancedMesh —————
     const reedMat = new THREE.MeshStandardMaterial({ color: 0x3a5a20, roughness: 1 });
+    const reedGeo = new THREE.CylinderGeometry(0.03, 0.05, 1, 4);
+    const reedPositions: Array<[number, number, number]> = [];
     for (let t = 0; t < 60; t++) {
       const rx = R(-H + 5, H - 5), rz = R(-H + 5, H - 5);
       if (biomeAt(rx, rz) !== 'swamp') continue;
-      const rh = R(0.8, 1.8);
-      const reed = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, rh, 4), reedMat);
-      reed.position.set(rx, rh / 2, rz);
-      scene.add(reed);
+      reedPositions.push([rx, R(0.8, 1.8), rz]);
+    }
+    if (reedPositions.length > 0) {
+      const reedInst = new THREE.InstancedMesh(reedGeo, reedMat, reedPositions.length);
+      for (let i = 0; i < reedPositions.length; i++) {
+        const [rx, rh, rz] = reedPositions[i]!;
+        tmpMat.makeScale(1, rh, 1);
+        tmpMat.setPosition(rx, rh / 2, rz);
+        reedInst.setMatrixAt(i, tmpMat);
+      }
+      reedInst.instanceMatrix.needsUpdate = true;
+      scene.add(reedInst);
     }
 
+    // ————— камни — 1 InstancedMesh —————
     const rockMat = new THREE.MeshStandardMaterial({ color: 0x6a6258, roughness: 1 });
+    const rockGeo = new THREE.SphereGeometry(1, 6, 5);
+    const rockData: Array<[number, number, number]> = [];
     for (let t = 0; t < 30; t++) {
       const rx = R(-H + 5, H - 5), rz = R(-H + 5, H - 5);
       if (distToRoad(rx, rz) < 5) continue;
       const rr = R(0.5, 2.0);
-      const rock = new THREE.Mesh(new THREE.SphereGeometry(rr, 6, 5), rockMat);
-      rock.position.set(rx, rr * 0.4, rz);
-      rock.castShadow = true;
-      scene.add(rock);
+      rockData.push([rx, rr, rz]);
       this.solids.push({ x: rx, z: rz, r: rr, h: rr * 1.2 });
+    }
+    if (rockData.length > 0) {
+      const rockInst = new THREE.InstancedMesh(rockGeo, rockMat, rockData.length);
+      rockInst.castShadow = true;
+      for (let i = 0; i < rockData.length; i++) {
+        const [rx, rr, rz] = rockData[i]!;
+        tmpMat.makeScale(rr, rr * 0.4, rr);
+        tmpMat.setPosition(rx, rr * 0.4, rz);
+        rockInst.setMatrixAt(i, tmpMat);
+      }
+      rockInst.instanceMatrix.needsUpdate = true;
+      scene.add(rockInst);
     }
 
     const spawnX = -H + 12, spawnZ = H - 12;
