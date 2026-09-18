@@ -886,6 +886,13 @@ export class Game {
     } else if (map === 'forest') {
       this.scene.background = new THREE.Color(0x1a2a10);
       this.scene.fog = new THREE.Fog(0x1a2a10, 30, 120);
+      const skyTex = new THREE.TextureLoader().load(skyUrl);
+      skyTex.colorSpace = THREE.SRGBColorSpace;
+      const sky = new THREE.Mesh(
+        new THREE.SphereGeometry(300, 24, 16),
+        new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false }),
+      );
+      this.scene.add(sky);
     } else {
       this.scene.background = new THREE.Color(0x9ecdf0);
       this.scene.fog = new THREE.Fog(0x9ecdf0, 60, 200);
