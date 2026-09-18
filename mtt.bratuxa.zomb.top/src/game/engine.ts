@@ -182,8 +182,6 @@ export interface HudState {
   wbWait: number;
   /** Сглаженный FPS движка. */
   fps: number;
-  /** Текущее качество картинки (авто-сброс при просадке). */
-  quality: Quality;
   /** Маяк двери: светится прямо сейчас (раз в минуту 5 секунд). */
   doorPulse: boolean;
 }
@@ -767,7 +765,6 @@ export class Game {
   private dashDx = 0;
   private dashDy = 0;
   private dashDz = 0;
-  private quality: Quality = 'medium';
   private foeTexCache: THREE.Texture[] = [];
   private enemies: Enemy[] = [];
   // хитбокс окружения строго внутри текстуры и только до своей высоты h:
@@ -778,8 +775,6 @@ export class Game {
   private bfsBudget = 5;
   /** Сглаженный FPS для счётчика. */
   private fpsE = 60;
-  /** Кадров подряд с просадкой (авто-сброс качества). */
-  private lowT = 0;
   /** Счётчик кадров (LOD дальних врагов). */
   private frame = 0;
   /** Пространственная сетка солидов (ячейка 6м): hitSolid смотрит 3×3 клетки вместо всех стен. */
@@ -807,10 +802,9 @@ export class Game {
   private lookLY = 0;
   private parts: Array<{ s: THREE.Sprite; vx: number; vy: number; vz: number; life: number }> = [];
 
-  /** Красные частицы удара: брызги в точке попадания. На low — втрое меньше (FPS). */
+  /** Красные частицы удара: брызги в точке попадания. */
   burst(x: number, y: number, z: number, n = 10): void {
-    const scaled = this.quality === 'low' ? Math.ceil(n / 3) : this.quality === 'medium' ? Math.ceil(n / 1.5) : n;
-    for (let i = 0; i < scaled; i++) {
+    for (let i = 0; i < n; i++) {
       let p = this.parts.find((q) => q.life <= 0);
       if (!p) {
         if (this.parts.length >= 90) return;
@@ -856,7 +850,7 @@ export class Game {
     this.custom = opts.custom ?? null;
     this.mapSeed = (opts.seed ?? Math.floor(Math.random() * 2 ** 31)) >>> 0;
     // Бэкрумс большой: лабиринт ~120м. Размер задаёт сам строитель через halfOverride.
-    this.half = map === 'duel' ? 32 : map === 'boss' ? 45 : map === 'forest' ? 150 : HALF;
+    this.half = map === 'duel' ? 32 : map === 'boss' ? 45 : map === 'forest' ? 100 : HALF;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
     // свет наблюдателя: день вместо жути — висят выключенными, зажигаются в specOn
     this.specLight = new THREE.AmbientLight(0xfff6e6, 1.15);
@@ -866,7 +860,6 @@ export class Game {
     this.specSun.position.set(40, 120, 20);
     this.specSun.visible = false;
     this.scene.add(this.specSun);
-    this.loadQuality();
     this.loadChar();
     // старый сейв мог держать закрытого бойца — откатываем на МТТ
     if (!this.ownedChars.includes(this.charId)) this.charId = 'mtt';
@@ -875,9 +868,9 @@ export class Game {
     this.hp = this.maxhp;
     this.charSpd = spec0.spd * (1 + (this.upg[this.charId]?.spd ?? 0) * 0.06);
     this.jumpVel = this.charId === 'krysa' ? 4.8 * Math.sqrt(3) : 4.8;
-    this.renderer.setPixelRatio(this.quality === 'high' ? Math.min(window.devicePixelRatio, 2) : this.quality === 'low' ? 0.75 : 1);
+    this.renderer.setPixelRatio(1);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.shadowMap.enabled = this.quality === 'high';
+    this.renderer.shadowMap.enabled = false;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
@@ -890,6 +883,9 @@ export class Game {
       // жуть: почти тьма, тёплый туман, небо не нужно — сверху потолок
       this.scene.background = new THREE.Color(0x060503);
       this.scene.fog = new THREE.Fog(0x060503, 6, 50);
+    } else if (map === 'forest') {
+      this.scene.background = new THREE.Color(0x1a2a10);
+      this.scene.fog = new THREE.Fog(0x1a2a10, 30, 120);
     } else {
       this.scene.background = new THREE.Color(0x9ecdf0);
       this.scene.fog = new THREE.Fog(0x9ecdf0, 60, 200);
@@ -901,17 +897,11 @@ export class Game {
         new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false }),
       );
       this.scene.add(sky);
-      this.skyMesh = sky;
     }
-    // запоминаем родной туман карты — ползунок дальности будет резать от него
-    const fg0 = this.scene.fog as THREE.Fog | null;
-    if (fg0) this.fogOrig = { near: fg0.near, far: fg0.far };
     this.loadShop();
     this.loadKeys();
     this.buildWorld();
     this.rebuildSolidGrid();
-    this.loadDrawDist();
-    this.applyDrawDist();
     // endless: только сталкеры (волн нет); duel/pvp: без врагов вообще; boss: только мировой босс (спавнит App/таймер)
     if (map !== 'duel' && map !== 'endless' && map !== 'pvp' && map !== 'boss' && this.enemiesOn) this.spawnWave();
     window.addEventListener('resize', this.onResize);
@@ -1135,73 +1125,8 @@ export class Game {
       if (v) this.charId = charSpec(v).id;
     } catch { /* noop */ }
   }
-  getQuality(): Quality { return this.quality; }
-  /** Переключить на следующее: low → medium → high → low. Возвращает новое. */
-  cycleQuality(): Quality {
-    return this.setQuality(this.quality === 'low' ? 'medium' : this.quality === 'medium' ? 'high' : 'low');
-  }
-  setQuality(q: Quality): Quality {
-    this.quality = q === 'high' ? 'high' : q === 'low' ? 'low' : 'medium';
-    try { localStorage.setItem('mtt_quality_v1', this.quality); } catch { /* noop */ }
-    this.applyQuality();
-    return this.quality;
-  }
-  private loadQuality(): void {
-    try {
-      const v = localStorage.getItem('mtt_quality_v1');
-      // старые сейвы: fast → medium, nice → high
-      this.quality = v === 'high' || v === 'nice' ? 'high' : v === 'low' ? 'low' : 'medium';
-    } catch { /* noop */ }
-  }
-  private applyQuality(): void {
-    if (this.quality === 'high') this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    else if (this.quality === 'low') this.renderer.setPixelRatio(0.75);
-    else this.renderer.setPixelRatio(1);
-    this.renderer.shadowMap.enabled = this.quality === 'high';
-    this.scene.traverse((o) => {
-      const m = o as { material?: { needsUpdate?: boolean } | Array<{ needsUpdate?: boolean }> };
-      if (Array.isArray(m.material)) m.material.forEach((x) => { x.needsUpdate = true; });
-      else if (m.material) m.material.needsUpdate = true;
-    });
-  }
   getSound(): boolean { return this.soundOn; }
   getVolume(): number { return this.volume; }
-  /** Дальность прорисовки 80–500м: сохраняется, применяется сразу. */
-  getDrawDist(): number { return this.drawDist; }
-  setDrawDist(v: number): number {
-    this.drawDist = Math.max(80, Math.min(500, Math.round(Number(v) || 500)));
-    try { localStorage.setItem('mtt_drawdist_v1', String(this.drawDist)); } catch { /* noop */ }
-    this.applyDrawDist();
-    return this.drawDist;
-  }
-  private loadDrawDist(): void {
-    try {
-      const raw = localStorage.getItem('mtt_drawdist_v1');
-      if (raw === null || raw === '') return;
-      const v = Number(raw);
-      if (Number.isFinite(v)) this.drawDist = Math.max(80, Math.min(500, Math.round(v)));
-    } catch { /* noop */ }
-  }
-  /** Применяем дальность во ВСЕХ режимах: край камеры + туман жмётся
-      пропорционально (в лабиринте родной туман 50м — иначе ползунок там не
-      чувствовался) + небо под край. Туманом владеет спек — пока он летит, не трогаем. */
-  private applyDrawDist(): void {
-    const d = this.drawDist;
-    this.camera.far = d;
-    this.camera.updateProjectionMatrix();
-    if (this.skyMesh) {
-      const s = (d * 0.95) / 420;
-      this.skyMesh.scale.set(s, s, s);
-    }
-    if (!this.fogSave && this.fogOrig) {
-      const fog = this.scene.fog as THREE.Fog | null;
-      if (fog) {
-        const k = d / 500;
-        fog.far = Math.max(12, this.fogOrig.far * k);
-        fog.near = Math.min(this.fogOrig.near, fog.far * 0.8);
-      }
-    }
-  }
   /** Громкость 0..1: сохраняется, применяется ко всем звукам сразу. */
   setVolume(v: number): number {
     this.volume = Math.max(0, Math.min(1, Number(v) || 0));
@@ -1546,58 +1471,55 @@ export class Game {
     this.px = -S; this.pz = -S; this.yaw = 0;
   }
 
-  // ===== ЛЕС: приватная карта админа 300×300м =====
-  // Биомы: густой лес, тёмный лес, болота, выжженный лес, озёра, дороги.
-  // Деревья 7–10 м, крона наверху. Точка спавна — жёлтая метка.
+  // ===== ЛЕС: приватная карта админа 200×200м =====
+  // По схеме: зелёный=густой, тёмно-зелёный=тёмный, фиолетовый=болото, красный=выжженный, синий=озеро, серый=дороги.
   private buildForest(): void {
     const scene = this.scene;
-    const H = this.half; // 150
-    const S = H * 2;    // 300
+    const H = this.half; // 100
+    const S = H * 2;    // 200
 
-    scene.add(new THREE.AmbientLight(0xb0d090, 0.7));
-    scene.add(new THREE.HemisphereLight(0x8fbc6a, 0x4a3a20, 0.5));
-    const sun = new THREE.DirectionalLight(0xfff0c0, 1.3);
-    sun.position.set(60, 120, -40);
-    sun.castShadow = true;
-    sun.shadow.mapSize.width = 2048;
-    sun.shadow.mapSize.height = 2048;
-    sun.shadow.camera.left = -H; sun.shadow.camera.right = H;
-    sun.shadow.camera.top = H; sun.shadow.camera.bottom = -H;
-    sun.shadow.camera.near = 10; sun.shadow.camera.far = 400;
-    sun.shadow.bias = -0.0005;
+    scene.add(new THREE.AmbientLight(0xb0d090, 0.6));
+    scene.add(new THREE.HemisphereLight(0x6a8a4a, 0x2a1a0a, 0.4));
+    const sun = new THREE.DirectionalLight(0xfff0c0, 1.0);
+    sun.position.set(60, 100, -40);
     scene.add(sun);
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.2;
 
     const rng = mulberry32(this.mapSeed);
     const R = (a: number, b: number): number => a + rng() * (b - a);
 
     type Biome = 'dense' | 'dark' | 'swamp' | 'burned' | 'lake' | 'road';
+    // Зоны по схеме (координаты центров, H=100):
     const zones: Array<{ cx: number; cz: number; r: number; b: Biome }> = [
-      { cx: -30, cz: -10, r: 65, b: 'dense' },
-      { cx: -20, cz: 30, r: 55, b: 'dense' },
-      { cx: 20, cz: -40, r: 50, b: 'dense' },
-      { cx: -10, cz: -60, r: 45, b: 'dark' },
-      { cx: 10, cz: 60, r: 35, b: 'dark' },
-      { cx: -40, cz: -50, r: 30, b: 'dark' },
-      { cx: -90, cz: -20, r: 35, b: 'swamp' },
-      { cx: -80, cz: 40, r: 28, b: 'swamp' },
-      { cx: 70, cz: 10, r: 55, b: 'burned' },
-      { cx: 80, cz: -40, r: 35, b: 'burned' },
-      { cx: -70, cz: -70, r: 18, b: 'lake' },
-      { cx: -10, cz: 10, r: 14, b: 'lake' },
-      { cx: 50, cz: -20, r: 20, b: 'lake' },
-      { cx: 30, cz: 55, r: 12, b: 'lake' },
-      { cx: -50, cz: 70, r: 15, b: 'lake' },
+      // густой лес (ярко-зелёный): два больших пятна
+      { cx: -30, cz: 25, r: 55, b: 'dense' },
+      { cx: -15, cz: -35, r: 50, b: 'dense' },
+      // тёмный лес (тёмно-зелёный): нижний левый + нижний центр
+      { cx: -55, cz: 60, r: 25, b: 'dark' },
+      { cx: 15, cz: 65, r: 20, b: 'dark' },
+      { cx: -25, cz: 55, r: 18, b: 'dark' },
+      // болото/фил (фиолетовый): верхний центр + маленький центр
+      { cx: -5, cz: -40, r: 30, b: 'swamp' },
+      { cx: 10, cz: 5, r: 15, b: 'swamp' },
+      // выжженный (красный): правая сторона
+      { cx: 55, cz: 10, r: 45, b: 'burned' },
+      // озёра (синие)
+      { cx: -70, cz: -40, r: 14, b: 'lake' },
+      { cx: -40, cz: 45, r: 10, b: 'lake' },
+      { cx: 30, cz: 50, r: 18, b: 'lake' },
+      { cx: 15, cz: 30, r: 8, b: 'lake' },
+      { cx: 50, cz: 55, r: 12, b: 'lake' },
     ];
 
+    // Дороги: периметр + диагонали (как на схеме — серая рамка + пересечения)
     const roadPts: Array<{ x1: number; z1: number; x2: number; z2: number; w: number }> = [
-      { x1: -H, z1: -H, x2: H, z2: H, w: 8 },
-      { x1: -H, z1: H, x2: H, z2: -H, w: 8 },
-      { x1: -H, z1: -H + 5, x2: -H, z2: H - 5, w: 6 },
-      { x1: H, z1: -H + 5, x2: H, z2: H - 5, w: 6 },
-      { x1: -H + 5, z1: -H, x2: H - 5, z2: -H, w: 6 },
-      { x1: -H + 5, z1: H, x2: H - 5, z2: H, w: 6 },
+      // периметр
+      { x1: -H, z1: -H, x2: H, z2: -H, w: 5 },
+      { x1: -H, z1: H, x2: H, z2: H, w: 5 },
+      { x1: -H, z1: -H, x2: -H, z2: H, w: 5 },
+      { x1: H, z1: -H, x2: H, z2: H, w: 5 },
+      // диагонали
+      { x1: -H, z1: H, x2: H, z2: -H, w: 5 },
+      { x1: -H, z1: -H, x2: H, z2: H, w: 5 },
     ];
 
     function distToRoad(x: number, z: number): number {
@@ -1615,7 +1537,7 @@ export class Game {
     }
 
     function biomeAt(x: number, z: number): Biome {
-      if (distToRoad(x, z) < 4) return 'road';
+      if (distToRoad(x, z) < 3) return 'road';
       for (const z2 of zones) {
         if (z2.b === 'lake') {
           if (Math.hypot(x - z2.cx, z - z2.cz) < z2.r) return 'lake';
@@ -1631,7 +1553,7 @@ export class Game {
       return best;
     }
 
-    const GRANULARITY = 4;
+    const GRANULARITY = 3;
     const cellsX = Math.ceil(S / GRANULARITY);
     const cellsZ = Math.ceil(S / GRANULARITY);
     const geo = new THREE.PlaneGeometry(S, S, cellsX, cellsZ);
@@ -1640,17 +1562,17 @@ export class Game {
     const colors = new Float32Array(posAttr.count * 3);
     const biomeColor: Record<Biome, [number, number, number]> = {
       dense:  [0.18, 0.42, 0.15],
-      dark:   [0.25, 0.12, 0.35],
-      swamp:  [0.10, 0.28, 0.12],
-      burned: [0.65, 0.15, 0.10],
-      lake:   [0.08, 0.25, 0.70],
-      road:   [0.45, 0.45, 0.45],
+      dark:   [0.10, 0.25, 0.12],
+      swamp:  [0.35, 0.12, 0.40],
+      burned: [0.60, 0.12, 0.08],
+      lake:   [0.06, 0.20, 0.65],
+      road:   [0.50, 0.50, 0.50],
     };
     for (let i = 0; i < posAttr.count; i++) {
       const x = posAttr.getX(i), z = posAttr.getZ(i);
       const b = biomeAt(x, z);
       const c = biomeColor[b];
-      const noise = (rng() - 0.5) * 0.06;
+      const noise = (rng() - 0.5) * 0.05;
       colors[i * 3] = c[0] + noise;
       colors[i * 3 + 1] = c[1] + noise;
       colors[i * 3 + 2] = c[2] + noise;
@@ -1658,33 +1580,32 @@ export class Game {
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geo.computeVertexNormals();
     const ground = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
-    ground.receiveShadow = true;
     scene.add(ground);
 
-    const waterMat = new THREE.MeshStandardMaterial({ color: 0x2266aa, roughness: 0.2, transparent: true, opacity: 0.85 });
-    const shoreMat = new THREE.MeshStandardMaterial({ color: 0x5a5a3a, roughness: 1 });
+    // озёра
+    const waterMat = new THREE.MeshStandardMaterial({ color: 0x1155cc, roughness: 0.15, transparent: true, opacity: 0.9 });
+    const shoreMat = new THREE.MeshStandardMaterial({ color: 0x4a4a2a, roughness: 1 });
     for (const z2 of zones) {
       if (z2.b !== 'lake') continue;
-      const water = new THREE.Mesh(new THREE.CircleGeometry(z2.r, 32), waterMat);
+      const water = new THREE.Mesh(new THREE.CircleGeometry(z2.r, 24), waterMat);
       water.rotation.x = -Math.PI / 2;
       water.position.set(z2.cx, 0.05, z2.cz);
       scene.add(water);
-      const shore = new THREE.Mesh(new THREE.RingGeometry(z2.r, z2.r + 1.5, 32), shoreMat);
+      const shore = new THREE.Mesh(new THREE.RingGeometry(z2.r, z2.r + 1.2, 24), shoreMat);
       shore.rotation.x = -Math.PI / 2;
       shore.position.set(z2.cx, 0.06, z2.cz);
       scene.add(shore);
     }
 
-    // ————— деревья: InstancedMesh (1 draw call на тип) вместо тысяч отдельных мешей —————
-    const trunkGeo = new THREE.CylinderGeometry(0.2, 0.35, 1, 6);
-    const crownGeo = new THREE.SphereGeometry(1, 7, 5);
-    // собираем позиции и параметры
+    // деревья — InstancedMesh
+    const trunkGeo = new THREE.CylinderGeometry(0.18, 0.32, 1, 5);
+    const crownGeo = new THREE.SphereGeometry(1, 6, 4);
     interface TreeData { x: number; z: number; h: number; crownR: number; biome: Biome }
     const trees: TreeData[] = [];
     const treeDensity: Record<string, number> = {
-      dense: 0.025, dark: 0.020, swamp: 0.010, burned: 0.008, road: 0, lake: 0,
+      dense: 0.030, dark: 0.025, swamp: 0.012, burned: 0.006, road: 0, lake: 0,
     };
-    const treeStep = 6;
+    const treeStep = 5;
     for (let tx = -H + 3; tx < H; tx += treeStep) {
       for (let tz = -H + 3; tz < H; tz += treeStep) {
         const jx = tx + (rng() - 0.5) * treeStep * 0.8;
@@ -1693,17 +1614,15 @@ export class Game {
         const density = treeDensity[b] ?? 0;
         if (rng() > density * treeStep * treeStep) continue;
         if (b === 'road' || b === 'lake') continue;
-        if (Math.hypot(jx + 130, jz - 130) < 5) continue;
+        if (Math.hypot(jx - (-H + 8), jz - (H - 8)) < 4) continue;
         const treeH = R(7, 10);
-        trees.push({ x: jx, z: jz, h: treeH, crownR: R(2.0, 3.5), biome: b });
+        trees.push({ x: jx, z: jz, h: treeH, crownR: R(2.0, 3.2), biome: b });
         this.solids.push({ x: jx, z: jz, r: 0.4, h: treeH });
       }
     }
     const tmpMat = new THREE.Matrix4();
     const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3018, roughness: 1 });
-    // стволы — 1 InstancedMesh
     const trunkInst = new THREE.InstancedMesh(trunkGeo, trunkMat, trees.length);
-    trunkInst.castShadow = true;
     for (let i = 0; i < trees.length; i++) {
       const t = trees[i]!;
       const s = t.h * 0.45;
@@ -1713,11 +1632,10 @@ export class Game {
     }
     trunkInst.instanceMatrix.needsUpdate = true;
     scene.add(trunkInst);
-    // кроны — 1 InstancedMesh на листья, с vertexColors по биому
-    const crownColors = [0x2a6828, 0x1a4a18, 0x5a3020, 0x3a5a28];
+
+    const crownColors = [0x2a6828, 0x153a15, 0x5a3020, 0x2a4a18];
     const crownMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
     const crownInst = new THREE.InstancedMesh(crownGeo, crownMat, trees.length * 2);
-    crownInst.castShadow = true;
     const crownsC3 = new THREE.Color();
     for (let i = 0; i < trees.length; i++) {
       const t = trees[i]!;
@@ -1728,9 +1646,7 @@ export class Game {
       tmpMat.setPosition(t.x, crownY, t.z);
       crownInst.setMatrixAt(i * 2, tmpMat);
       crownInst.setColorAt(i * 2, crownsC3);
-      // вторая крона (поменьше)
       const c2r = t.crownR * 0.7;
-      crownsC3.set(crownColors[li]!);
       tmpMat.makeScale(c2r, c2r, c2r);
       tmpMat.setPosition(t.x + (rng() - 0.5), crownY + t.crownR * 0.5, t.z + (rng() - 0.5));
       crownInst.setMatrixAt(i * 2 + 1, tmpMat);
@@ -1740,22 +1656,21 @@ export class Game {
     if (crownInst.instanceColor) crownInst.instanceColor.needsUpdate = true;
     scene.add(crownInst);
 
-    // ————— выжженные обугленные стволы — InstancedMesh —————
+    // обугленные стволы
     const charMat = new THREE.MeshStandardMaterial({ color: 0x1a1210, roughness: 1 });
-    const stumpGeo = new THREE.CylinderGeometry(0.15, 0.25, 1, 5);
-    const stumpPositions: Array<[number, number, number]> = [];
-    for (let t = 0; t < 40; t++) {
-      const bx = R(-H + 10, H - 10), bz = R(-H + 10, H - 10);
+    const stumpGeo = new THREE.CylinderGeometry(0.12, 0.22, 1, 4);
+    const stumpArr: Array<[number, number, number]> = [];
+    for (let t = 0; t < 30; t++) {
+      const bx = R(-H + 8, H - 8), bz = R(-H + 8, H - 8);
       if (biomeAt(bx, bz) !== 'burned') continue;
-      const bh = R(3, 7);
-      stumpPositions.push([bx, bh, bz]);
-      this.solids.push({ x: bx, z: bz, r: 0.25, h: bh });
+      const bh = R(3, 6);
+      stumpArr.push([bx, bh, bz]);
+      this.solids.push({ x: bx, z: bz, r: 0.22, h: bh });
     }
-    if (stumpPositions.length > 0) {
-      const stumpInst = new THREE.InstancedMesh(stumpGeo, charMat, stumpPositions.length);
-      stumpInst.castShadow = true;
-      for (let i = 0; i < stumpPositions.length; i++) {
-        const [bx, bh, bz] = stumpPositions[i]!;
+    if (stumpArr.length > 0) {
+      const stumpInst = new THREE.InstancedMesh(stumpGeo, charMat, stumpArr.length);
+      for (let i = 0; i < stumpArr.length; i++) {
+        const [bx, bh, bz] = stumpArr[i]!;
         tmpMat.makeScale(1, bh, 1);
         tmpMat.setPosition(bx, bh / 2, bz);
         stumpInst.setMatrixAt(i, tmpMat);
@@ -1764,19 +1679,19 @@ export class Game {
       scene.add(stumpInst);
     }
 
-    // ————— камыши — 1 InstancedMesh —————
+    // камыши
     const reedMat = new THREE.MeshStandardMaterial({ color: 0x3a5a20, roughness: 1 });
-    const reedGeo = new THREE.CylinderGeometry(0.03, 0.05, 1, 4);
-    const reedPositions: Array<[number, number, number]> = [];
-    for (let t = 0; t < 60; t++) {
-      const rx = R(-H + 5, H - 5), rz = R(-H + 5, H - 5);
+    const reedGeo = new THREE.CylinderGeometry(0.03, 0.05, 1, 3);
+    const reedArr: Array<[number, number, number]> = [];
+    for (let t = 0; t < 40; t++) {
+      const rx = R(-H + 4, H - 4), rz = R(-H + 4, H - 4);
       if (biomeAt(rx, rz) !== 'swamp') continue;
-      reedPositions.push([rx, R(0.8, 1.8), rz]);
+      reedArr.push([rx, R(0.6, 1.5), rz]);
     }
-    if (reedPositions.length > 0) {
-      const reedInst = new THREE.InstancedMesh(reedGeo, reedMat, reedPositions.length);
-      for (let i = 0; i < reedPositions.length; i++) {
-        const [rx, rh, rz] = reedPositions[i]!;
+    if (reedArr.length > 0) {
+      const reedInst = new THREE.InstancedMesh(reedGeo, reedMat, reedArr.length);
+      for (let i = 0; i < reedArr.length; i++) {
+        const [rx, rh, rz] = reedArr[i]!;
         tmpMat.makeScale(1, rh, 1);
         tmpMat.setPosition(rx, rh / 2, rz);
         reedInst.setMatrixAt(i, tmpMat);
@@ -1785,22 +1700,21 @@ export class Game {
       scene.add(reedInst);
     }
 
-    // ————— камни — 1 InstancedMesh —————
+    // камни
     const rockMat = new THREE.MeshStandardMaterial({ color: 0x6a6258, roughness: 1 });
-    const rockGeo = new THREE.SphereGeometry(1, 6, 5);
-    const rockData: Array<[number, number, number]> = [];
-    for (let t = 0; t < 30; t++) {
-      const rx = R(-H + 5, H - 5), rz = R(-H + 5, H - 5);
-      if (distToRoad(rx, rz) < 5) continue;
-      const rr = R(0.5, 2.0);
-      rockData.push([rx, rr, rz]);
+    const rockGeo = new THREE.SphereGeometry(1, 5, 4);
+    const rockArr: Array<[number, number, number]> = [];
+    for (let t = 0; t < 20; t++) {
+      const rx = R(-H + 4, H - 4), rz = R(-H + 4, H - 4);
+      if (distToRoad(rx, rz) < 4) continue;
+      const rr = R(0.4, 1.5);
+      rockArr.push([rx, rr, rz]);
       this.solids.push({ x: rx, z: rz, r: rr, h: rr * 1.2 });
     }
-    if (rockData.length > 0) {
-      const rockInst = new THREE.InstancedMesh(rockGeo, rockMat, rockData.length);
-      rockInst.castShadow = true;
-      for (let i = 0; i < rockData.length; i++) {
-        const [rx, rr, rz] = rockData[i]!;
+    if (rockArr.length > 0) {
+      const rockInst = new THREE.InstancedMesh(rockGeo, rockMat, rockArr.length);
+      for (let i = 0; i < rockArr.length; i++) {
+        const [rx, rr, rz] = rockArr[i]!;
         tmpMat.makeScale(rr, rr * 0.4, rr);
         tmpMat.setPosition(rx, rr * 0.4, rz);
         rockInst.setMatrixAt(i, tmpMat);
@@ -1809,9 +1723,10 @@ export class Game {
       scene.add(rockInst);
     }
 
-    const spawnX = -H + 12, spawnZ = H - 12;
+    // спавн — нижний левый угол (жёлтая метка)
+    const spawnX = -H + 8, spawnZ = H - 8;
     const spawnMark = new THREE.Mesh(
-      new THREE.CircleGeometry(1.5, 16),
+      new THREE.CircleGeometry(1.2, 12),
       new THREE.MeshBasicMaterial({ color: 0xffdd00 }),
     );
     spawnMark.rotation.x = -Math.PI / 2;
@@ -1819,8 +1734,9 @@ export class Game {
     scene.add(spawnMark);
     this.px = spawnX; this.pz = spawnZ; this.yaw = 0;
 
+    // стены периметра
     const wallMat = new THREE.MeshStandardMaterial({ color: 0x4a5a3a, roughness: 0.9 });
-    const wallH = 12;
+    const wallH = 10;
     const wt = 1;
     const walls: Array<[number, number, number, number]> = [
       [0, -H - wt / 2, S + wt * 2, wt],
@@ -1831,8 +1747,6 @@ export class Game {
     for (const [wx, wz, ww, wd] of walls) {
       const wall = new THREE.Mesh(new THREE.BoxGeometry(ww, wallH, wd), wallMat);
       wall.position.set(wx, wallH / 2, wz);
-      wall.castShadow = true;
-      wall.receiveShadow = true;
       scene.add(wall);
       this.solids.push({ x: wx, z: wz, hx: ww / 2, hz: wd / 2, h: wallH });
     }
@@ -3741,12 +3655,6 @@ export class Game {
   private specSun: THREE.DirectionalLight | null = null;
   /** Родной туман карты: отодвигаем на время полёта, при выходе возвращаем. */
   private fogSave: { near: number; far: number } | null = null;
-  /** Дальность прорисовки 80–500м (ползунок в настройках): меньше — выше FPS. */
-  private drawDist = 500;
-  /** Родной туман карты (для пересчёта под дальность). */
-  private fogOrig: { near: number; far: number } | null = null;
-  /** Небо-сфера: масштабируем под дальность, иначе на минимуме пустота вместо неба. */
-  private skyMesh: THREE.Mesh | null = null;
   /** Дверь выхода из Бэкрумса (для тестов/миникарты). */
   private door: { x: number; z: number } | null = null;
   /** Дверь выхода живёт ТОЛЬКО в Бесконечном Бэкрумсе (не обычный, не арена). */
@@ -5624,7 +5532,6 @@ export class Game {
       arbuz: Math.round(this.arbuzT * 10) / 10,
       arbuzCd: Math.round(this.arbuzCd * 10) / 10,
       fps: Math.round(this.fpsE),
-      quality: this.quality,
       doorPulse: this.doorPulse,
     });
   }
@@ -5986,15 +5893,6 @@ export class Game {
     }
     this.syncXray();
     this.syncHit();
-    // авто-качество: 4с просадки ниже 28 FPS — тихо спускаемся на ступень (high → medium → low)
-    if (this.started) {
-      if (this.fpsE < 28 && this.quality !== 'low') this.lowT += dt;
-      else this.lowT = 0;
-      if (this.lowT > 4) {
-        this.lowT = 0;
-        this.setQuality(this.quality === 'high' ? 'medium' : 'low');
-      }
-    }
     // Бой и движение — живым; НАБЛЮДАТЕЛЬ (и мёртвый тоже) идёт здесь же:
     // в наблюдатели попадают именно мёртвыми, а полёт/камера/следование живут ниже.
     // Защита от трупных артефактов — внутри: attack/jump/абилки/урон проверяют specOn/dead сами.

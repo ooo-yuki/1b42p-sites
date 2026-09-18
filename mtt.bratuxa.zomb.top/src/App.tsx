@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Game, WEAPONS, CHARS, MAPS, hashSeed, KEY_ACTIONS, DEFAULT_KEYS, UPG_MAX, upgCost, superCd, superRange, CASE_PRICE, type HudState, type KeyMap, type Quality, type MapId, type CustomMap, type UpgState, type CaseDrop, type RemoteMob } from './game/engine';
+import { Game, WEAPONS, CHARS, MAPS, hashSeed, KEY_ACTIONS, DEFAULT_KEYS, UPG_MAX, upgCost, superCd, superRange, CASE_PRICE, type HudState, type KeyMap, type MapId, type CustomMap, type UpgState, type CaseDrop, type RemoteMob } from './game/engine';
 import { canSee } from '../shared/szeged-gate';
 import oruzh1Url from './assets/oruzh1.png';
 import oruzh2Url from './assets/oruzh2.png';
@@ -431,7 +431,7 @@ export default function App() {
   const gameRef = useRef<Game | null>(null);
   const [menu, setMenu] = useState(true);
   const [loading, setLoading] = useState<{ show: boolean; pct: number }>({ show: false, pct: 0 });
-  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, invis: 0, invisCd: 0, chuma: 0, chumaCd: 0, xray: 0, xrayCd: 0, sun: 0, sunCd: 0, arbuz: 0, arbuzCd: 0, med: 0, lvl: 1, boss: 0, wbWait: 0, fps: 60, quality: 'medium', doorPulse: false });
+  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, invis: 0, invisCd: 0, chuma: 0, chumaCd: 0, xray: 0, xrayCd: 0, sun: 0, sunCd: 0, arbuz: 0, arbuzCd: 0, med: 0, lvl: 1, boss: 0, wbWait: 0, fps: 60, doorPulse: false });
   const [scores, setScores] = useState<ScoreRow[]>([]);
   const [duelTop, setDuelTop] = useState<Array<{ login: string; wins: number }>>([]);
   const [gstats, setGstats] = useState<{ games: number; best: number; online: number } | null>(null);
@@ -446,10 +446,8 @@ async function loadStats(): Promise<void> {
   const [setOpen, setSetOpen] = useState(false);
   const [sound, setSound] = useState(true);
   const [sens, setSens] = useState(1);
-  const [quality, setQuality] = useState<Quality>('medium');
   /** Громкость 0..1 (слайдер в настройках, дублируется в бою и в меню). */
   const [volume, setVolume] = useState(1);
-  const [drawDist, setDrawDist] = useState(500);
   const [char, setChar] = useState('mtt');
   // прокачка бойцов: какой боец раскрыт, тик для перерисовки после покупки
   const [upgOpen, setUpgOpen] = useState<string | null>(null);
@@ -956,7 +954,7 @@ async function loadStats(): Promise<void> {
     if (!canvasRef.current) return;
     if (gameRef.current) { gameRef.current.destroy(); gameRef.current = null; }
     const game = new Game(canvasRef.current, null, {
-      onHud: (h) => { setHud(h); setQuality((q) => (q === h.quality ? q : h.quality)); },
+      onHud: (h) => { setHud(h); },
       onBusted: () => undefined,
       onJumpscare: () => {
         setJumpscare(true);
@@ -1035,9 +1033,7 @@ async function loadStats(): Promise<void> {
     gameRef.current = game;
     setSound(game.getSound());
     setVolume(game.getVolume());
-    setDrawDist(game.getDrawDist());
     setSens(game.getSens());
-    setQuality(game.getQuality());
     setChar(game.getChar());
     setKeys(game.getKeys());
     (window as unknown as { __mtt?: object }).__mtt = {
@@ -1065,9 +1061,7 @@ async function loadStats(): Promise<void> {
       remotes: () => game.debugRemotes(),
       setRemotes: (list: RoomMate[]) => game.setRemotes(list),
       chara: () => game.getChar(),
-      quality: () => game.getQuality(),
-      drawd: () => game.getDrawDist(),
-      setdraw: (n: number) => game.setDrawDist(n),
+      sound: () => game.getSound(),
       dash: () => game.debugDash(),
       invis: () => game.debugInvis(),
       chuma: () => game.debugChuma(),
@@ -2039,27 +2033,9 @@ async function loadStats(): Promise<void> {
     if (g) setChar(g.setChar(id));
   }, []);
 
-  const toggleQuality = useCallback(() => {
-    const g = gameRef.current;
-    if (g) setQuality(g.cycleQuality());
-  }, []);
-
-  /** Название уровня графики для кнопок. */
-  const qualityName = (q: Quality): string =>
-    q === 'low' ? '🥔 КАРТОШКА' : q === 'high' ? '💎 КРАСИВО' : '⚖️ СРЕДНЕ';
-
   const changeVolume = useCallback((v: number) => {
     const g = gameRef.current;
     setVolume(g ? g.setVolume(v) : Math.max(0, Math.min(1, v)));
-  }, []);
-
-  /** Дальность прорисовки: меньше — выше FPS (край камеры + туман + небо). */
-  const changeDrawDist = useCallback((v: number) => {
-    const vv = Math.max(80, Math.min(500, Math.round(v)));
-    // в меню игры может не быть — тогда просто запоминаем (подхватит следующий бой)
-    try { localStorage.setItem('mtt_drawdist_v1', String(vv)); } catch { /* noop */ }
-    const g = gameRef.current;
-    setDrawDist(g ? g.setDrawDist(vv) : vv);
   }, []);
 
   const hpFrac = Math.max(0, hud.hp / hud.maxhp);
@@ -2367,22 +2343,6 @@ async function loadStats(): Promise<void> {
               type="range" min={0.3} max={2.5} step={0.1} value={sens}
               onChange={(e) => changeSens(Number(e.target.value))}
             />
-            <div className="srow">
-              <span>🎨 Графика</span>
-              <button id="qualityBtn" className="wbtn" onClick={toggleQuality}>
-                {qualityName(quality)}
-              </button>
-            </div>
-            <div className="srow">
-              <span>🔭 Дальность: {drawDist}м</span>
-            </div>
-            <input
-              id="drawRange"
-              type="range" min={80} max={500} step={20} value={drawDist}
-              onChange={(e) => changeDrawDist(Number(e.target.value))}
-            />
-            <div className="wdesc">Меньше — выше FPS (даль не рисуется). Если лагает — крути влево.</div>
-            <div className="wdesc">Картошка — максимум fps (пиксели крупнее, без теней). Средне — баланс. Красиво — тени и чёткость, слабым телефонам тяжело.</div>
             <div className="srow"><span>🎮 Управление (ткни и жми клавишу)</span></div>
             <div id="keysSec">
               {KEY_ACTIONS.map((a) => (
@@ -2994,21 +2954,6 @@ async function loadStats(): Promise<void> {
               type="range" min={0.3} max={2.5} step={0.1} value={sens}
               onChange={(e) => changeSens(Number(e.target.value))}
             />
-            <div className="srow">
-              <span>🎨 Графика</span>
-              <button id="m-qualityBtn" className="wbtn" onClick={toggleQuality}>
-                {qualityName(quality)}
-              </button>
-            </div>
-            <div className="srow">
-              <span>🔭 Дальность: {drawDist}м</span>
-            </div>
-            <input
-              id="m-drawRange"
-              type="range" min={80} max={500} step={20} value={drawDist}
-              onChange={(e) => changeDrawDist(Number(e.target.value))}
-            />
-            <div><small>Меньше — выше FPS (даль не рисуется).</small></div>
             <div><small>Клавиши — в бою кнопкой ⚙️ (там же сброс).</small></div>
           </div>
           </div>
