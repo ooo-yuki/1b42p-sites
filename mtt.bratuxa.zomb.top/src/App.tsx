@@ -2636,7 +2636,7 @@ async function loadStats(): Promise<void> {
           <div className="board" id="mapSec">
             <h3>🗺️ Карта</h3>
             <div className="mapRow">
-              {MAPS.filter((m) => (m.id !== 'szeged' || canSee(authed, devUnlocked)) && m.id !== 'boss').map((m) => (
+              {MAPS.filter((m) => (m.id !== 'szeged' || canSee(authed, devUnlocked)) && (m.id !== 'forest' || canSee(authed, devUnlocked)) && m.id !== 'boss').map((m) => (
                 <button
                   key={m.id}
                   id={`map-${m.id}`}
@@ -3111,9 +3111,14 @@ async function loadStats(): Promise<void> {
               {devPos ? `📍 X: ${devPos.x.toFixed(1)} Z: ${devPos.z.toFixed(1)} Y: ${devPos.py.toFixed(1)}` : '📍 X: — Z: — Y: —'}
             </div>
             {canSee(authed, devUnlocked) && (
+              <>
               <button id="devSzegedBtn" className="wbtn" onClick={() => createRoom(undefined, 'szeged')}>
                 🗺️ НА SZEGED
               </button>
+              <button id="devForestBtn" className="wbtn" onClick={() => { setMapChoice('forest'); }}>
+                🌲 НА ЛЕС
+              </button>
+              </>
             )}
           </div>
         </div>
