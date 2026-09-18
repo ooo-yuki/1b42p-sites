@@ -95,7 +95,7 @@ export function charSpec(id: string): CharDef {
 }
 
 export type Quality = 'low' | 'medium' | 'high';
-export type MapId = 'arena' | 'duel' | 'backrooms' | 'custom' | 'random' | 'pvp' | 'endless' | 'invasion' | 'szeged' | 'boss';
+export type MapId = 'arena' | 'duel' | 'backrooms' | 'custom' | 'random' | 'pvp' | 'endless' | 'invasion' | 'szeged' | 'boss' | 'forest';
 
 /** Карты для выбора в меню: id, название, описание. */
 export const MAPS: Array<{ id: MapId; name: string; desc: string }> = [
@@ -103,6 +103,7 @@ export const MAPS: Array<{ id: MapId; name: string; desc: string }> = [
   { id: 'boss', name: '👹 Босс-арена', desc: 'Круглая арена: мировой босс 3500 HP, зоны, прыжки. Респаун 30 мин' },
   { id: 'duel', name: '⚔️ Дуэль', desc: 'Ночной двор 1×1 для разборок' },
   { id: 'szeged', name: '🇬🇧 London', desc: 'Приватная карта МТТ' },
+  { id: 'forest', name: '🌲 Лес', desc: '300×300 — густой лес, болота, озёра. Карта админа' },
   { id: 'backrooms', name: '🟨 Бэкрумс', desc: 'Случайный лабиринт — новый каждый раз' },
   { id: 'random', name: '🎲 Случайная', desc: 'Дикий ландшафт: холмы, скалы, озеро — новый каждый раз' },
 ];
@@ -855,7 +856,7 @@ export class Game {
     this.custom = opts.custom ?? null;
     this.mapSeed = (opts.seed ?? Math.floor(Math.random() * 2 ** 31)) >>> 0;
     // Бэкрумс большой: лабиринт ~120м. Размер задаёт сам строитель через halfOverride.
-    this.half = map === 'duel' ? 32 : map === 'boss' ? 45 : HALF;
+    this.half = map === 'duel' ? 32 : map === 'boss' ? 45 : map === 'forest' ? 150 : HALF;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
     // свет наблюдателя: день вместо жути — висят выключенными, зажигаются в specOn
     this.specLight = new THREE.AmbientLight(0xfff6e6, 1.15);
@@ -1275,6 +1276,7 @@ export class Game {
       pvp: [travaUrl, brickUrl, edgeUrl, house2Url],
       invasion: [dom1Url, travaUrl, facadeUrl, brickUrl, edgeUrl],
       boss: [travaUrl, brickUrl],
+      forest: [travaUrl, walkUrl],
     };
     const urls = [...core, ...(byMap[this.map] ?? Object.values(byMap).flat())];
     if (urls.length === 0) { onPct(100); return; }
@@ -1542,6 +1544,244 @@ export class Game {
       if (!this.hitSolid(qx, qz, 1.5)) { this.px = qx; this.pz = qz; this.yaw = 0; return; }
     }
     this.px = -S; this.pz = -S; this.yaw = 0;
+  }
+
+  // ===== ЛЕС: приватная карта админа 300×300м =====
+  // Биомы: густой лес, тёмный лес, болота, выжженный лес, озёра, дороги.
+  // Деревья 7–10 м, крона наверху. Точка спавна — жёлтая метка.
+  private buildForest(): void {
+    const scene = this.scene;
+    const H = this.half; // 150
+    const S = H * 2;    // 300
+
+    scene.add(new THREE.AmbientLight(0xb0d090, 0.7));
+    scene.add(new THREE.HemisphereLight(0x8fbc6a, 0x4a3a20, 0.5));
+    const sun = new THREE.DirectionalLight(0xfff0c0, 1.3);
+    sun.position.set(60, 120, -40);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 2048;
+    sun.shadow.mapSize.height = 2048;
+    sun.shadow.camera.left = -H; sun.shadow.camera.right = H;
+    sun.shadow.camera.top = H; sun.shadow.camera.bottom = -H;
+    sun.shadow.camera.near = 10; sun.shadow.camera.far = 400;
+    sun.shadow.bias = -0.0005;
+    scene.add(sun);
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.2;
+
+    const rng = mulberry32(this.mapSeed);
+    const R = (a: number, b: number): number => a + rng() * (b - a);
+
+    type Biome = 'dense' | 'dark' | 'swamp' | 'burned' | 'lake' | 'road';
+    const zones: Array<{ cx: number; cz: number; r: number; b: Biome }> = [
+      { cx: -30, cz: -10, r: 65, b: 'dense' },
+      { cx: -20, cz: 30, r: 55, b: 'dense' },
+      { cx: 20, cz: -40, r: 50, b: 'dense' },
+      { cx: -10, cz: -60, r: 45, b: 'dark' },
+      { cx: 10, cz: 60, r: 35, b: 'dark' },
+      { cx: -40, cz: -50, r: 30, b: 'dark' },
+      { cx: -90, cz: -20, r: 35, b: 'swamp' },
+      { cx: -80, cz: 40, r: 28, b: 'swamp' },
+      { cx: 70, cz: 10, r: 55, b: 'burned' },
+      { cx: 80, cz: -40, r: 35, b: 'burned' },
+      { cx: -70, cz: -70, r: 18, b: 'lake' },
+      { cx: -10, cz: 10, r: 14, b: 'lake' },
+      { cx: 50, cz: -20, r: 20, b: 'lake' },
+      { cx: 30, cz: 55, r: 12, b: 'lake' },
+      { cx: -50, cz: 70, r: 15, b: 'lake' },
+    ];
+
+    const roadPts: Array<{ x1: number; z1: number; x2: number; z2: number; w: number }> = [
+      { x1: -H, z1: -H, x2: H, z2: H, w: 8 },
+      { x1: -H, z1: H, x2: H, z2: -H, w: 8 },
+      { x1: -H, z1: -H + 5, x2: -H, z2: H - 5, w: 6 },
+      { x1: H, z1: -H + 5, x2: H, z2: H - 5, w: 6 },
+      { x1: -H + 5, z1: -H, x2: H - 5, z2: -H, w: 6 },
+      { x1: -H + 5, z1: H, x2: H - 5, z2: H, w: 6 },
+    ];
+
+    function distToRoad(x: number, z: number): number {
+      let minD = Infinity;
+      for (const rd of roadPts) {
+        const dx = rd.x2 - rd.x1, dz = rd.z2 - rd.z1;
+        const len2 = dx * dx + dz * dz;
+        let t = ((x - rd.x1) * dx + (z - rd.z1) * dz) / len2;
+        t = Math.max(0, Math.min(1, t));
+        const px = rd.x1 + t * dx, pz = rd.z1 + t * dz;
+        const d = Math.hypot(x - px, z - pz);
+        if (d < minD) minD = d;
+      }
+      return minD;
+    }
+
+    function biomeAt(x: number, z: number): Biome {
+      if (distToRoad(x, z) < 4) return 'road';
+      for (const z2 of zones) {
+        if (z2.b === 'lake') {
+          if (Math.hypot(x - z2.cx, z - z2.cz) < z2.r) return 'lake';
+        }
+      }
+      let best: Biome = 'dense';
+      let bestDist = Infinity;
+      for (const z2 of zones) {
+        if (z2.b === 'lake') continue;
+        const d = Math.hypot(x - z2.cx, z - z2.cz);
+        if (d < z2.r && d < bestDist) { bestDist = d; best = z2.b; }
+      }
+      return best;
+    }
+
+    const GRANULARITY = 4;
+    const cellsX = Math.ceil(S / GRANULARITY);
+    const cellsZ = Math.ceil(S / GRANULARITY);
+    const geo = new THREE.PlaneGeometry(S, S, cellsX, cellsZ);
+    geo.rotateX(-Math.PI / 2);
+    const posAttr = geo.getAttribute('position') as THREE.BufferAttribute;
+    const colors = new Float32Array(posAttr.count * 3);
+    const biomeColor: Record<Biome, [number, number, number]> = {
+      dense:  [0.18, 0.42, 0.15],
+      dark:   [0.25, 0.12, 0.35],
+      swamp:  [0.10, 0.28, 0.12],
+      burned: [0.65, 0.15, 0.10],
+      lake:   [0.08, 0.25, 0.70],
+      road:   [0.45, 0.45, 0.45],
+    };
+    for (let i = 0; i < posAttr.count; i++) {
+      const x = posAttr.getX(i), z = posAttr.getZ(i);
+      const b = biomeAt(x, z);
+      const c = biomeColor[b];
+      const noise = (rng() - 0.5) * 0.06;
+      colors[i * 3] = c[0] + noise;
+      colors[i * 3 + 1] = c[1] + noise;
+      colors[i * 3 + 2] = c[2] + noise;
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.computeVertexNormals();
+    const ground = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    const waterMat = new THREE.MeshStandardMaterial({ color: 0x2266aa, roughness: 0.2, transparent: true, opacity: 0.85 });
+    const shoreMat = new THREE.MeshStandardMaterial({ color: 0x5a5a3a, roughness: 1 });
+    for (const z2 of zones) {
+      if (z2.b !== 'lake') continue;
+      const water = new THREE.Mesh(new THREE.CircleGeometry(z2.r, 32), waterMat);
+      water.rotation.x = -Math.PI / 2;
+      water.position.set(z2.cx, 0.05, z2.cz);
+      scene.add(water);
+      const shore = new THREE.Mesh(new THREE.RingGeometry(z2.r, z2.r + 1.5, 32), shoreMat);
+      shore.rotation.x = -Math.PI / 2;
+      shore.position.set(z2.cx, 0.06, z2.cz);
+      scene.add(shore);
+    }
+
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3018, roughness: 1 });
+    const leafMats = [
+      new THREE.MeshStandardMaterial({ color: 0x2a6828, roughness: 1 }),
+      new THREE.MeshStandardMaterial({ color: 0x1a4a18, roughness: 1 }),
+      new THREE.MeshStandardMaterial({ color: 0x5a3020, roughness: 1 }),
+      new THREE.MeshStandardMaterial({ color: 0x3a5a28, roughness: 1 }),
+    ];
+    const treeDensity: Record<string, number> = {
+      dense: 0.025, dark: 0.020, swamp: 0.010, burned: 0.008, road: 0, lake: 0,
+    };
+    const treeStep = 6;
+    for (let tx = -H + 3; tx < H; tx += treeStep) {
+      for (let tz = -H + 3; tz < H; tz += treeStep) {
+        const jx = tx + (rng() - 0.5) * treeStep * 0.8;
+        const jz = tz + (rng() - 0.5) * treeStep * 0.8;
+        const b = biomeAt(jx, jz);
+        const density = treeDensity[b] ?? 0;
+        if (rng() > density * treeStep * treeStep) continue;
+        if (b === 'road' || b === 'lake') continue;
+        if (Math.hypot(jx + 130, jz - 130) < 5) continue;
+
+        const treeH = R(7, 10);
+        const crownR = R(2.0, 3.5);
+        const trunkH = treeH * 0.45;
+        const crownY = treeH - crownR * 0.3;
+
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.35, trunkH, 6), trunkMat);
+        trunk.position.set(jx, trunkH / 2, jz);
+        trunk.castShadow = true;
+        scene.add(trunk);
+
+        const li = b === 'dark' ? 1 : b === 'burned' ? 2 : b === 'swamp' ? 3 : 0;
+        const lm = leafMats[li];
+        const c1 = new THREE.Mesh(new THREE.SphereGeometry(crownR, 8, 6), lm);
+        c1.position.set(jx, crownY, jz);
+        c1.castShadow = true;
+        scene.add(c1);
+        const c2 = new THREE.Mesh(new THREE.SphereGeometry(crownR * 0.7, 7, 5), lm);
+        c2.position.set(jx + R(-0.5, 0.5), crownY + crownR * 0.5, jz + R(-0.5, 0.5));
+        c2.castShadow = true;
+        scene.add(c2);
+
+        this.solids.push({ x: jx, z: jz, r: 0.4, h: treeH });
+      }
+    }
+
+    const charMat = new THREE.MeshStandardMaterial({ color: 0x1a1210, roughness: 1 });
+    for (let t = 0; t < 40; t++) {
+      const bx = R(-H + 10, H - 10), bz = R(-H + 10, H - 10);
+      if (biomeAt(bx, bz) !== 'burned') continue;
+      const bh = R(3, 7);
+      const stump = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, bh, 5), charMat);
+      stump.position.set(bx, bh / 2, bz);
+      stump.castShadow = true;
+      scene.add(stump);
+      this.solids.push({ x: bx, z: bz, r: 0.25, h: bh });
+    }
+
+    const reedMat = new THREE.MeshStandardMaterial({ color: 0x3a5a20, roughness: 1 });
+    for (let t = 0; t < 60; t++) {
+      const rx = R(-H + 5, H - 5), rz = R(-H + 5, H - 5);
+      if (biomeAt(rx, rz) !== 'swamp') continue;
+      const rh = R(0.8, 1.8);
+      const reed = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, rh, 4), reedMat);
+      reed.position.set(rx, rh / 2, rz);
+      scene.add(reed);
+    }
+
+    const rockMat = new THREE.MeshStandardMaterial({ color: 0x6a6258, roughness: 1 });
+    for (let t = 0; t < 30; t++) {
+      const rx = R(-H + 5, H - 5), rz = R(-H + 5, H - 5);
+      if (distToRoad(rx, rz) < 5) continue;
+      const rr = R(0.5, 2.0);
+      const rock = new THREE.Mesh(new THREE.SphereGeometry(rr, 6, 5), rockMat);
+      rock.position.set(rx, rr * 0.4, rz);
+      rock.castShadow = true;
+      scene.add(rock);
+      this.solids.push({ x: rx, z: rz, r: rr, h: rr * 1.2 });
+    }
+
+    const spawnX = -H + 12, spawnZ = H - 12;
+    const spawnMark = new THREE.Mesh(
+      new THREE.CircleGeometry(1.5, 16),
+      new THREE.MeshBasicMaterial({ color: 0xffdd00 }),
+    );
+    spawnMark.rotation.x = -Math.PI / 2;
+    spawnMark.position.set(spawnX, 0.12, spawnZ);
+    scene.add(spawnMark);
+    this.px = spawnX; this.pz = spawnZ; this.yaw = 0;
+
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x4a5a3a, roughness: 0.9 });
+    const wallH = 12;
+    const wt = 1;
+    const walls: Array<[number, number, number, number]> = [
+      [0, -H - wt / 2, S + wt * 2, wt],
+      [0, H + wt / 2, S + wt * 2, wt],
+      [-H - wt / 2, 0, wt, S + wt * 2],
+      [H + wt / 2, 0, wt, S + wt * 2],
+    ];
+    for (const [wx, wz, ww, wd] of walls) {
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(ww, wallH, wd), wallMat);
+      wall.position.set(wx, wallH / 2, wz);
+      wall.castShadow = true;
+      wall.receiveShadow = true;
+      scene.add(wall);
+      this.solids.push({ x: wx, z: wz, hx: ww / 2, hz: wd / 2, h: wallH });
+    }
   }
 
   /**
@@ -2749,6 +2989,7 @@ export class Game {
     if (this.map === 'custom') { this.buildCustom(); return; }
     if (this.map === 'random') { this.buildRandom(); return; }
     if (this.map === 'szeged') { this.buildSzeged(); return; }
+    if (this.map === 'forest') { this.buildForest(); return; }
     // arena, pvp, invasion — город
     this.buildCity(); return;
     const scene = this.scene;
@@ -3966,7 +4207,7 @@ export class Game {
   // зачистка волны: +волна, +25HP, +25 фантиков, +50 опыта (один хелпер на все стволы)
   private waveClearCheck(): void {
     if (this.netSync) return;
-    if ((this.map === 'arena' || this.map === 'backrooms' || this.map === 'custom' || this.map === 'random' || this.map === 'invasion') && this.map !== 'boss' && this.enemiesOn && this.enemies.length > 0 && this.enemies.every((e) => e.dead)) {
+    if ((this.map === 'arena' || this.map === 'backrooms' || this.map === 'custom' || this.map === 'random' || this.map === 'invasion' || this.map === 'forest') && this.enemiesOn && this.enemies.length > 0 && this.enemies.every((e) => e.dead)) {
       this.wave++;
       this.hp = Math.min(this.maxhp, this.hp + 25);
       this.fantiki += 25;

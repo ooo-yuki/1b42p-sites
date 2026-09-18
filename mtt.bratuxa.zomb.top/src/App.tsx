@@ -2879,7 +2879,7 @@ async function loadStats(): Promise<void> {
                 </div>
                 <div className="srow">
                   <span>Режим</span>
-                  {MAPS.filter((m) => (m.id !== 'szeged' || canSee(authed, devUnlocked)) && m.id !== 'boss').map((m) => (
+              {MAPS.filter((m) => (m.id !== 'szeged' || canSee(authed, devUnlocked)) && (m.id !== 'forest' || canSee(authed, devUnlocked)) && m.id !== 'boss').map((m) => (
                     <button key={m.id} className={'wbtn' + (draftMode === m.id ? ' cur' : '')} id={`mode-${m.id}`} onClick={() => setDraftMode(m.id)}>{m.name}</button>
                   ))}
                 </div>
