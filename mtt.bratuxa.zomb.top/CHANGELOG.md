@@ -11,6 +11,27 @@
 
 ---
 
+## [2026-09-18] — Удалены настройки прорисовки + оптимизация
+
+**Коммит**: `257d585`
+
+### engine.ts
+- Удалены: `quality`, `drawDist`, `skyMesh`, `fogOrig`, `lowT`
+- Удалены методы: `getQuality`, `cycleQuality`, `setQuality`, `loadQuality`, `applyQuality`, `getDrawDist`, `setDrawDist`, `loadDrawDist`, `applyDrawDist`
+- Удалена авто-понижение качества при просадке FPS
+- Renderer захардкожен: `pixelRatio=1`, `shadows=off`, `toneMapping=ACES`, `exposure=1.15`
+- Чацыцы удара: без质量-масштабирования (всегда n штук)
+- Лес: убран `castShadow` + `shadowMap 2048×2048`, убран дублирующий `scene.add(sun)`, убран дублирующий `toneMapping`
+- Убрана белая сфера неба (масштабировалась под drawDist → становилась видимой)
+
+### App.tsx
+- Удалены state: `quality`, `drawDist`
+- Удалены: `toggleQuality`, `qualityName`, `changeDrawDist`
+- Удалены UI-элементы: кнопка «Графика», слайдер «Дальность» (в обоих местах)
+- Удалён импорт `Quality` типа
+
+---
+
 ## [2026-09-18] — Приватная карта «Лес» + оптимизация
 
 **Коммиты**: `3be318b`, `54ba41d`, `46fe9a8`
