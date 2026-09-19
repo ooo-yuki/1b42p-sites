@@ -215,7 +215,7 @@ export const WEAPONS: WeaponDef[] = [
   { id: 'bat', name: '🏏 Бита', desc: 'Длиннее и злее', dmg: 48, range: 4.3, cd: 0.6, price: 300, minWave: 2 },
   { id: 'axe', name: '🪓 Секира', desc: 'Тяжёлый аргумент', dmg: 70, range: 4.6, cd: 0.85, price: 800, minWave: 3 },
   { id: 'pistol', name: '🔫 Пистолет', desc: 'Бьёт далеко — целься прицелом', dmg: 45, range: 30, cd: 0.7, price: 1200, minWave: 4, ranged: true },
-  { id: 'shotgun', name: '💥 Дробовик', desc: 'Дробь веером: в упор сносит, вдаль щекочет · в стену — катапульта на 13м назад, в землю под ногами — вверх на 6м (от воздуха — нет)', dmg: 160, range: 20, cd: 1.1, price: 1500, minWave: 5, ranged: true, spread: true },
+  { id: 'shotgun', name: '💥 Дробовик', desc: 'Дробь веером: в упор сносит, вдаль щекочет · в стену — катапульта на 13м назад, в землю под ногами — вверх на 6м (от воздуха — нет)', dmg: 142, range: 20, cd: 1.1, price: 1500, minWave: 5, ranged: true, spread: true },
 ];
 
 export interface KeyMap {
@@ -4410,7 +4410,7 @@ export class Game {
       const ox = (Math.random() * 2 - 1) * SPREAD, oy = (Math.random() * 2 - 1) * SPREAD;
       let pdx = dx + rx * ox + ux * oy, pdy = dy + ry * ox + uy * oy, pdz = dz + rz * ox + uz * oy;
       const pl = Math.hypot(pdx, pdy, pdz) || 1;
-      this.spawnBullet(cx, cy, cz, pdx / pl, pdy / pl, pdz / pl, 110, perPellet, range, 0.25, 56, 1.6, 1.0, true);
+      this.spawnBullet(cx, cy, cz, pdx / pl, pdy / pl, pdz / pl, 110, perPellet, range, 0.25, 56, 1.2, 0.375, true);
     }
     // СТЕНА + дробовик = катапульта: луч первым упёрся в стену (≤12м) —
     // швыряет на ~13м против выстрела видимым полётом (стены тормозят) + подброс.
