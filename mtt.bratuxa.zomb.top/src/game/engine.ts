@@ -1495,7 +1495,7 @@ export class Game {
     const R = (a: number, b: number): number => a + rng() * (b - a);
 
     // --- БИОМЫ по макету (H=100, координаты от -100 до +100) ---
-    type Biome = 'dense' | 'dark' | 'swamp' | 'burned' | 'lake' | 'road';
+    type Biome = 'dense' | 'dark' | 'swamp' | 'burned' | 'lake' | 'river' | 'road';
     const zones: Array<{ cx: number; cz: number; r: number; b: Biome }> = [
       // Густой лес (ярко-зелёный): два больших пятна — левая половина + центр-низ
       { cx: -35, cz: 5,   r: 60, b: 'dense' },
@@ -1561,10 +1561,40 @@ export class Game {
       return minD;
     }
 
+    // --- РЕКИ по макету: извилистые пути (массив точек [x,z], ширина) ---
+    const RIVER_W = 3.0;
+    const rivers: Array<{ pts: Array<[number, number]>; w: number }> = [
+      // Главная река: изгибается сверху-слева через центр вправо-вниз
+      { pts: [[-80, -70], [-60, -50], [-35, -30], [-10, -15], [10, 0], [30, 10], [50, 5], [70, -10], [90, -30]], w: RIVER_W },
+      // Малый приток: от главной реки вниз-лево
+      { pts: [[-10, -15], [-25, 10], [-40, 30], [-50, 50]], w: RIVER_W * 0.7 },
+      // Еще приток: вправо через выжженную зону
+      { pts: [[30, 10], [45, 25], [55, 40], [60, 60]], w: RIVER_W * 0.6 },
+    ];
+
+    function distToRiver(x: number, z: number): number {
+      let minD = Infinity;
+      for (const rv of rivers) {
+        for (let i = 0; i < rv.pts.length - 1; i++) {
+          const [ax, az] = rv.pts[i]!, [bx, bz] = rv.pts[i + 1]!;
+          const dx = bx - ax, dz = bz - az;
+          const len2 = dx * dx + dz * dz;
+          let t = ((x - ax) * dx + (z - az) * dz) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const px = ax + t * dx, pz = az + t * dz;
+          const d = Math.hypot(x - px, z - pz);
+          if (d < minD) minD = d;
+        }
+      }
+      return minD;
+    }
+
     function biomeAt(x: number, z: number): Biome {
       const edge = 6;
       if (x < -H + edge || x > H - edge || z < -H + edge || z > H - edge) return 'road';
       if (distToRoad(x, z) < ROAD_W * 0.7) return 'road';
+      // Реки приоритетнее озёр
+      if (distToRiver(x, z) < RIVER_W) return 'river';
       for (const z2 of zones) {
         if (z2.b === 'lake') {
           if (Math.hypot(x - z2.cx, z - z2.cz) < z2.r) return 'lake';
@@ -1594,6 +1624,7 @@ export class Game {
       swamp:  [0.30, 0.10, 0.40],
       burned: [0.45, 0.12, 0.06],
       lake:   [0.05, 0.18, 0.55],
+      river:  [0.06, 0.20, 0.50],
       road:   [0.42, 0.40, 0.36],
     };
     for (let i = 0; i < posAttr.count; i++) {
@@ -1667,6 +1698,44 @@ export class Game {
       scene.add(shore);
     }
 
+    // --- РЕКИ (извилистые полосы воды) ---
+    for (const rv of rivers) {
+      const pts = rv.pts;
+      const w = rv.w;
+      // Генерируем сегменты вдоль пути реки
+      for (let i = 0; i < pts.length - 1; i++) {
+        const [ax, az] = pts[i]!, [bx, bz] = pts[i + 1]!;
+        const dx = bx - ax, dz = bz - az;
+        const segLen = Math.hypot(dx, dz);
+        const steps = Math.ceil(segLen / 3);
+        for (let s = 0; s < steps; s++) {
+          const t1 = s / steps, t2 = (s + 1) / steps;
+          const x1 = ax + dx * t1, z1 = az + dz * t1;
+          const x2 = ax + dx * t2, z2 = az + dz * t2;
+          const cx = (x1 + x2) / 2, cz = (z1 + z2) / 2;
+          const angle = Math.atan2(bx - ax, bz - az);
+          const segW = w * (0.8 + rng() * 0.4);
+          const riverSeg = new THREE.Mesh(
+            new THREE.PlaneGeometry(segW, 3),
+            waterMat,
+          );
+          riverSeg.rotation.x = -Math.PI / 2;
+          riverSeg.rotation.z = -angle;
+          riverSeg.position.set(cx, 0.04, cz);
+          scene.add(riverSeg);
+          // Берег реки
+          const shoreSeg = new THREE.Mesh(
+            new THREE.PlaneGeometry(segW + 1.5, 3.5),
+            shoreMat,
+          );
+          shoreSeg.rotation.x = -Math.PI / 2;
+          shoreSeg.rotation.z = -angle;
+          shoreSeg.position.set(cx, 0.03, cz);
+          scene.add(shoreSeg);
+        }
+      }
+    }
+
     // --- ДЕРЕВЬЯ (InstancedMesh, плотные как на макете) ---
     const trunkGeo = new THREE.CylinderGeometry(0.15, 0.28, 1, 5);
     const crownGeo = new THREE.SphereGeometry(1, 6, 4);
@@ -1674,7 +1743,7 @@ export class Game {
     const trees: TreeData[] = [];
     // Плотность деревьев по макету: густой лес очень плотный, тёмный — плотный, выжженный — редко
     const treeDensity: Record<string, number> = {
-      dense: 0.045, dark: 0.035, swamp: 0.008, burned: 0.004, road: 0, lake: 0,
+      dense: 0.045, dark: 0.035, swamp: 0.008, burned: 0.004, road: 0, lake: 0, river: 0,
     };
     const treeStep = 4;
     for (let tx = -H + 4; tx < H; tx += treeStep) {
@@ -1684,7 +1753,7 @@ export class Game {
         const b = biomeAt(jx, jz);
         const density = treeDensity[b] ?? 0;
         if (rng() > density * treeStep * treeStep) continue;
-        if (b === 'road' || b === 'lake') continue;
+        if (b === 'road' || b === 'lake' || b === 'river') continue;
         // Не деревья у спавна
         if (Math.hypot(jx - (-H + 8), jz - (H - 8)) < 5) continue;
         if (Math.hypot(jx - (H - 8), jz - (-H + 8)) < 5) continue;
