@@ -462,77 +462,57 @@ export class Game {
     if (fresh.length) { this.saveChars(); this.pushHud(); }
     return fresh;
   }
-  /** Открыть кейс бойца за фантики. Редкие 40% на двоих: Шуба (0–0.2) и Чума (0.2–0.4),
-      легендарные по 5%: Стейси (0.4–0.45), Гидроксис (0.45–0.5), JBLка (0.5–0.55),
-      мифик Санстрайк 15% (0.55–0.7), сверхредкая Арбузиха 30% (0.7–1.0).
-      Занятый диапазон — утешительный приз. */
+  /** Открыть кейс бойца за фантики. Двухэтапная система:
+      1) Бросок редкости: Редкий 45%, Сверхредкий 35%, Мифический 10%, Легендарный 10%
+      2) Случайный персонаж из выбранной редкости (все равны)
+      Если все персонажи редкости открыты — утешительный приз. */
   openCase(): CaseDrop {
     if (this.fantiki < CASE_PRICE) return { ok: false, kind: 'empty', text: 'Не хватает фантиков' };
     this.fantiki -= CASE_PRICE;
-    const roll = Math.random();
-    // Шуба ещё закрыта — 20% на неё (редкий)
-    if (!this.ownedChars.includes('shuba') && roll < 0.2) {
-      this.unlockChar('shuba');
+
+    // Этап 1: определяем редкость
+    const rarityRoll = Math.random();
+    let pool: string[];
+    let rarityName: string;
+    if (rarityRoll < 0.45) {
+      pool = ['shuba', 'chuma'];
+      rarityName = 'Редкий';
+    } else if (rarityRoll < 0.80) {
+      pool = ['arbuz'];
+      rarityName = 'Сверхредкий';
+    } else if (rarityRoll < 0.90) {
+      pool = ['sunstrike'];
+      rarityName = 'Мифический';
+    } else {
+      pool = ['krysa', 'gidroxis', 'jbl'];
+      rarityName = 'Легендарный';
+    }
+
+    // Этап 2: выбираем случайного персонажа из пула, которого ещё нет
+    const available = pool.filter((id) => !this.ownedChars.includes(id));
+    if (available.length > 0) {
+      const pick = available[Math.floor(Math.random() * available.length)];
+      this.unlockChar(pick);
       this.addXp(100);
       this.saveShop();
       this.pushHud();
-      return { ok: true, kind: 'char', char: 'shuba', text: '🥷 ИВАНГОЙ · Редкий — твоя!' };
+      const labels: Record<string, string> = {
+        shuba: '🥷 ИВАНГОЙ', chuma: '🐦‍⬛ ЧУМА', krysa: '🐀 СТЕЙСИ КРЫСА',
+        gidroxis: '🧪 ГИДРОКСИС', jbl: '🔊 JBLКА', sunstrike: '☀️ АНДРЕЙ САНСТРАЙК',
+        arbuz: '🍉 АРБУЗИХА',
+      };
+      return { ok: true, kind: 'char', char: pick, text: `${labels[pick] ?? pick} · ${rarityName} — твоя!` };
     }
-    // Чума ещё закрыта — те же 20% (редкий)
-    if (!this.ownedChars.includes('chuma') && roll >= 0.2 && roll < 0.4) {
-      this.unlockChar('chuma');
-      this.addXp(100);
-      this.saveShop();
-      this.pushHud();
-      return { ok: true, kind: 'char', char: 'chuma', text: '🐦‍⬛ ЧУМА · Редкий — твоя!' };
-    }
-    // Стейси ещё закрыта — 5% на неё (легендарный)
-    if (!this.ownedChars.includes('krysa') && roll >= 0.4 && roll < 0.45) {
-      this.unlockChar('krysa');
-      this.addXp(100);
-      this.saveShop();
-      this.pushHud();
-      return { ok: true, kind: 'char', char: 'krysa', text: '🐀 СТЕЙСИ КРЫСА · Легендарный — твоя!' };
-    }
-    // Гидроксис ещё закрыт — 5% (легендарный)
-    if (!this.ownedChars.includes('gidroxis') && roll >= 0.45 && roll < 0.5) {
-      this.unlockChar('gidroxis');
-      this.addXp(100);
-      this.saveShop();
-      this.pushHud();
-      return { ok: true, kind: 'char', char: 'gidroxis', text: '🧪 ГИДРОКСИС · Легендарный — твоя!' };
-    }
-    // JBLка ещё закрыта — 5% (легендарный)
-    if (!this.ownedChars.includes('jbl') && roll >= 0.5 && roll < 0.55) {
-      this.unlockChar('jbl');
-      this.addXp(100);
-      this.saveShop();
-      this.pushHud();
-      return { ok: true, kind: 'char', char: 'jbl', text: '🔊 JBLКА · Легендарный — твоя!' };
-    }
-    // Санстрайк ещё закрыт — 15% на него (мифический)
-    if (!this.ownedChars.includes('sunstrike') && roll >= 0.55 && roll < 0.7) {
-      this.unlockChar('sunstrike');
-      this.addXp(100);
-      this.saveShop();
-      this.pushHud();
-      return { ok: true, kind: 'char', char: 'sunstrike', text: '☀️ АНДРЕЙ САНСТРАЙК · Мифический — твоя!' };
-    }
-    // Арбузиха ещё закрыта — 30% на неё (сверхредкая)
-    if (!this.ownedChars.includes('arbuz') && roll >= 0.7) {
-      this.unlockChar('arbuz');
-      this.addXp(100);
-      this.saveShop();
-      this.pushHud();
-      return { ok: true, kind: 'char', char: 'arbuz', text: '🍉 АРБУЗИХА · Сверхредкий — твоя!' };
-    }
-    if (roll < 0.68) {
+
+    // Все персонажи этой редкости уже открыты — утешительный приз
+    const roll2 = Math.random();
+    if (roll2 < 0.50) {
       this.fantiki += 300;
       this.saveShop();
       this.pushHud();
       return { ok: true, kind: 'fantiki', text: '+300 🎟️ фантиков' };
     }
-    if (roll < 0.85) {
+    if (roll2 < 0.80) {
       this.addXp(150);
       this.saveShop();
       this.pushHud();

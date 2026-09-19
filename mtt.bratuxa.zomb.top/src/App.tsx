@@ -487,24 +487,36 @@ async function loadStats(): Promise<void> {
     if (r < 0.7) return 'xp';
     return 'med';
   };
-  /** Карта-пустышка для барабана: боец — по шансам кейса (редкие 20/20, легенды 5/5/5, мифик 15, сверхредкая 30) */
+  /** Карта-пустышка для барабана: редкость — 45% редкий, 35% сверхредкий, 10% мифик, 10% легенда */
   const fillerReel = (k: CaseDrop['kind']): ReelItem => {
     if (k === 'char') {
       const r = Math.random();
-      const c = r < 0.2 ? 'shuba' : r < 0.4 ? 'chuma' : r < 0.45 ? 'krysa' : r < 0.5 ? 'gidroxis' : r < 0.55 ? 'jbl' : r < 0.7 ? 'sunstrike' : 'arbuz';
-      return c === 'shuba'
-        ? { kind: 'char', char: 'shuba', label: '🥷 ИВАНГОЙ', sub: 'Редкий' }
-        : c === 'chuma'
-          ? { kind: 'char', char: 'chuma', label: '🐦‍⬛ ЧУМА', sub: 'Редкий' }
-          : c === 'krysa'
-            ? { kind: 'char', char: 'krysa', label: '🐀 СТЕЙСИ', sub: 'Легендарный' }
-            : c === 'gidroxis'
-              ? { kind: 'char', char: 'gidroxis', label: '🧪 ГИДРОКСИС', sub: 'Легендарный' }
-              : c === 'jbl'
-                ? { kind: 'char', char: 'jbl', label: '🔊 JBLКА', sub: 'Легендарный' }
-                : c === 'arbuz'
-                  ? { kind: 'char', char: 'arbuz', label: '🍉 АРБУЗИХА', sub: 'Сверхредкий' }
-                  : { kind: 'char', char: 'sunstrike', label: '☀️ САНСТРАЙК', sub: 'Мифический' };
+      // Этап 1: редкость
+      let rarity: string;
+      if (r < 0.45) rarity = 'rare';
+      else if (r < 0.80) rarity = 'superrare';
+      else if (r < 0.90) rarity = 'mythic';
+      else rarity = 'legendary';
+      // Этап 2: случайный персонаж из редкости
+      const pools: Record<string, Array<{ id: string; label: string; sub: string }>> = {
+        rare: [
+          { id: 'shuba', label: '🥷 ИВАНГОЙ', sub: 'Редкий' },
+          { id: 'chuma', label: '🐦‍⬛ ЧУМА', sub: 'Редкий' },
+        ],
+        superrare: [
+          { id: 'arbuz', label: '🍉 АРБУЗИХА', sub: 'Сверхредкий' },
+        ],
+        mythic: [
+          { id: 'sunstrike', label: '☀️ САНСТРАЙК', sub: 'Мифический' },
+        ],
+        legendary: [
+          { id: 'krysa', label: '🐀 СТЕЙСИ', sub: 'Легендарный' },
+          { id: 'gidroxis', label: '🧪 ГИДРОКСИС', sub: 'Легендарный' },
+          { id: 'jbl', label: '🔊 JBLКА', sub: 'Легендарный' },
+        ],
+      };
+      const pick = pools[rarity][Math.floor(Math.random() * pools[rarity].length)];
+      return { kind: 'char', char: pick.id, label: pick.label, sub: pick.sub };
     }
     const v = reelLabel(k);
     return { kind: k, label: v.label, sub: v.sub };
