@@ -4123,6 +4123,12 @@ export class Game {
     g.fillText(`${Math.ceil(e.hp)}/${e.maxhp}`, 65, 17);
     g.fillStyle = '#fff';
     g.fillText(`${Math.ceil(e.hp)}/${e.maxhp}`, 64, 16);
+    // 🌀 спираль над HP если подчинён
+    if (e.charmT && e.charmT > 0) {
+      g.font = '16px serif';
+      g.textAlign = 'right';
+      g.fillText('🌀', 124, 14);
+    }
     e.hpTex.needsUpdate = true;
   }
 
@@ -4736,12 +4742,12 @@ export class Game {
   // В радиусе 4м подчиняет врагов на 5с: атакуют других врагов. Кд 35с.
   charm(): boolean {
     if (!this.started || this.dead || this.charmCd > 0 || this.charmT > 0 || this.charId !== 'jbl') return false;
-    this.charmT = 5;
+    this.charmT = 10;
     this.charmCd = 35;
     // 3D-визуал: пульсирующая аура подчинения (4м)
     if (!this.charmAura) {
       this.charmAura = new THREE.Mesh(
-        new THREE.RingGeometry(3.2, 4.2, 48),
+        new THREE.RingGeometry(4.2, 5.2, 48),
         new THREE.MeshBasicMaterial({ color: 0xff44ff, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }),
       );
       this.charmAura.rotation.x = -Math.PI / 2;
@@ -4757,8 +4763,8 @@ export class Game {
     for (const e of this.enemies) {
       if (e.dead) continue;
       const d = Math.hypot(e.g.position.x - this.px, e.g.position.z - this.pz);
-      if (d <= 4) {
-        e.charmT = 5;
+      if (d <= 5) {
+        e.charmT = 10;
         if (e.path) e.path = [];
         e.repathT = 0.3;
       }
