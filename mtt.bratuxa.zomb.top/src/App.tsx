@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Game, WEAPONS, CHARS, MAPS, hashSeed, KEY_ACTIONS, DEFAULT_KEYS, UPG_MAX, upgCost, superCd, superRange, CASE_PRICE, type HudState, type KeyMap, type MapId, type CustomMap, type UpgState, type CaseDrop, type RemoteMob } from './game/engine';
 import { canSee } from '../shared/szeged-gate';
 import oruzh1Url from './assets/oruzh1.png';
@@ -823,13 +824,6 @@ async function loadStats(): Promise<void> {
     const id = window.setInterval(tick, 250);
     return () => window.clearInterval(id);
   }, [devUnlocked, devOpen]);
-  // закрыть выпадающее меню действий при клике вне
-  useEffect(() => {
-    if (!devUserMenu) return;
-    const h = () => setDevUserMenu(null);
-    window.addEventListener('click', h);
-    return () => window.removeEventListener('click', h);
-  }, [devUserMenu]);
   const hudRef = useRef(hud);
   hudRef.current = hud;
   // ник в рефах: пульс и переподключение живут в []-эффекте и видят только протухшее замыкание
@@ -3109,51 +3103,58 @@ async function loadStats(): Promise<void> {
                       {x.ip && <span style={{ fontSize: 10, color: '#666', display: 'block' }}>IP: {x.ip}</span>}
                     </div>
                     {x.login !== authed && (
-                      <div style={{ position: 'relative' }}>
-                        <button className="wbtn" onClick={() => setDevUserMenu(devUserMenu === x.login ? null : x.login)}>
-                          {x.blocked || x.ipBlocked ? '⚙️ Действия' : '⋮ Меню'}
-                        </button>
-                        {devUserMenu === x.login && (
-                          <div className="devActionMenu">
-                            {!x.blocked && <button onClick={async () => {
-                              if (!window.confirm(`Заблокировать аккаунт ${x.login}? Игрок не сможет войти.`)) return;
-                              await fetch('/api/dev/block', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), login: x.login }) });
-                              setDevUsers((u) => (u ?? []).map((y) => y.login === x.login ? { ...y, blocked: true } : y));
-                              setDevUserMenu(null);
-                            }}>🚫 Заблокировать аккаунт</button>}
-                            {!x.ipBlocked && x.ip && <button onClick={async () => {
-                              if (!window.confirm(`Заблокировать IP ${x.ip} (${x.login})? Игрок не сможет играть и регистрироваться.`)) return;
-                              await fetch('/api/dev/block-ip', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), login: x.login }) });
-                              setDevUsers((u) => (u ?? []).map((y) => y.login === x.login ? { ...y, ipBlocked: true } : y));
-                              setDevUserMenu(null);
-                            }}>🚫 Заблокировать по IP</button>}
-                            {x.ipBlocked && x.ip && <button onClick={async () => {
-                              await fetch('/api/dev/unblock-ip', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), ip: x.ip }) });
-                              setDevUsers((u) => (u ?? []).map((y) => y.login === x.login ? { ...y, ipBlocked: false } : y));
-                              setDevUserMenu(null);
-                            }}>✅ Разблокировать IP</button>}
-                            <button className="devActionDanger" onClick={async () => {
-                              const confirmText = `УДАЛИТЬ аккаунт ${x.login}?\n\nВся информация пропадёт из топов.\nЭто НЕЛЬЗЯ отменить!`;
-                              if (!window.confirm(confirmText)) return;
-                              if (!window.confirm('Точно удалить? Невозможно отменить!')) return;
-                              const alsoBanIp = x.ip && !x.ipBlocked && window.confirm(`Также заблокировать IP ${x.ip}?`);
-                              await fetch('/api/dev/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), login: x.login, banIp: alsoBanIp }) });
-                              setDevUsers((u) => (u ?? []).filter((y) => y.login !== x.login));
-                              setDevUserMenu(null);
-                            }}>🗑️ Удалить аккаунт</button>}
-                            {x.blocked && <button onClick={async () => {
-                              await fetch('/api/dev/unblock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), login: x.login }) });
-                              setDevUsers((u) => (u ?? []).map((y) => y.login === x.login ? { ...y, blocked: false } : y));
-                              setDevUserMenu(null);
-                            }}>✅ Разблокировать аккаунт</button>}
-                          </div>
-                        )}
-                      </div>
+                      <button className="wbtn" onClick={() => setDevUserMenu(x.login)}>
+                        {x.blocked || x.ipBlocked ? '⚙️' : '⋮'}
+                      </button>
                     )}
                   </div>
                 ))}
               </div>
             )}
+            {devUserMenu && (() => {
+              const x = (devUsers ?? []).find((u) => u.login === devUserMenu);
+              if (!x) return null;
+              return createPortal(
+                <div className="devModalOverlay" onClick={(e) => { if (e.target === e.currentTarget) setDevUserMenu(null); }}>
+                  <div className="devModalBox">
+                    <h3>{x.login}{x.blocked ? ' ⛔' : ''}{x.ipBlocked ? ' 🚫IP' : ''}</h3>
+                    {x.ip && <div style={{ fontSize: 11, color: '#888', marginBottom: 10 }}>IP: {x.ip}</div>}
+                    {!x.blocked && <button className="wbtn" onClick={async () => {
+                      if (!window.confirm(`Заблокировать аккаунт ${x.login}? Игрок не сможет войти.`)) return;
+                      await fetch('/api/dev/block', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), login: x.login }) });
+                      setDevUsers((u) => (u ?? []).map((y) => y.login === x.login ? { ...y, blocked: true } : y));
+                      setDevUserMenu(null);
+                    }}>🚫 Заблокировать аккаунт</button>}
+                    {x.blocked && <button className="wbtn" onClick={async () => {
+                      await fetch('/api/dev/unblock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), login: x.login }) });
+                      setDevUsers((u) => (u ?? []).map((y) => y.login === x.login ? { ...y, blocked: false } : y));
+                      setDevUserMenu(null);
+                    }}>✅ Разблокировать аккаунт</button>}
+                    {!x.ipBlocked && x.ip && <button className="wbtn" onClick={async () => {
+                      if (!window.confirm(`Заблокировать IP ${x.ip} (${x.login})? Игрок не сможет играть и регистрироваться.`)) return;
+                      await fetch('/api/dev/block-ip', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), login: x.login }) });
+                      setDevUsers((u) => (u ?? []).map((y) => y.login === x.login ? { ...y, ipBlocked: true } : y));
+                      setDevUserMenu(null);
+                    }}>🚫 Заблокировать по IP</button>}
+                    {x.ipBlocked && x.ip && <button className="wbtn" onClick={async () => {
+                      await fetch('/api/dev/unblock-ip', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), ip: x.ip }) });
+                      setDevUsers((u) => (u ?? []).map((y) => y.login === x.login ? { ...y, ipBlocked: false } : y));
+                      setDevUserMenu(null);
+                    }}>✅ Разблокировать IP</button>}
+                    <button className="wbtn devActionDanger" onClick={async () => {
+                      if (!window.confirm(`УДАЛИТЬ аккаунт ${x.login}?\n\nВся информация пропадёт из топов.\nЭто НЕЛЬЗЯ отменить!`)) return;
+                      if (!window.confirm('Точно удалить? Невозможно отменить!')) return;
+                      const alsoBanIp = x.ip && !x.ipBlocked && window.confirm(`Также заблокировать IP ${x.ip}?`);
+                      await fetch('/api/dev/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), login: x.login, banIp: alsoBanIp }) });
+                      setDevUsers((u) => (u ?? []).filter((y) => y.login !== x.login));
+                      setDevUserMenu(null);
+                    }}>🗑️ Удалить аккаунт</button>}
+                    <button className="wbtn devModalCancel" onClick={() => setDevUserMenu(null)}>Отмена</button>
+                  </div>
+                </div>,
+                document.body,
+              );
+            })()}
             <div id="devPos">
               {devPos ? `📍 X: ${devPos.x.toFixed(1)} Z: ${devPos.z.toFixed(1)} Y: ${devPos.py.toFixed(1)}` : '📍 X: — Z: — Y: —'}
             </div>
