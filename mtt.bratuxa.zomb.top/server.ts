@@ -46,7 +46,8 @@ const PROMOS: Record<string, number | 'ALL' | 'DEV' | 'JBL'> = { G1PRT: 2500, AL
 /** Коды на весь сервер разом: кто первый забрал — остальным «taken». */
 const PROMO_ONCE_GLOBAL = new Set(['MTT', 'LXX42P2ILX']);
 
-async function registerUser(login: string, pass: string): Promise<{ ok: boolean; error?: string; token?: string }> {
+async function registerUser(login: string, pass: string, ip?: string): Promise<{ ok: boolean; error?: string; token?: string }> {
+  if (ip && isIpBlocked(ip)) return { ok: false, error: 'ipblocked' };
   if (String(pass ?? '').length < 4 || String(pass ?? '').length > 64) return { ok: false, error: 'passlen' };
   const row = db.query('SELECT login FROM users WHERE login = ?').get(login) as { login: string } | null;
   if (row) return { ok: false, error: 'taken' };
@@ -58,10 +59,11 @@ async function registerUser(login: string, pass: string): Promise<{ ok: boolean;
   return { ok: true, token };
 }
 
-async function loginUser(login: string, pass: string): Promise<{ ok: boolean; error?: string; token?: string }> {
+async function loginUser(login: string, pass: string, ip?: string): Promise<{ ok: boolean; error?: string; token?: string }> {
   const row = db.query('SELECT phash FROM users WHERE login = ?').get(login) as { phash: string } | null;
   if (!row) return { ok: false, error: 'nouser' };
   if (isBlocked(login)) return { ok: false, error: 'blocked' };
+  if (ip && isIpBlocked(ip)) return { ok: false, error: 'ipblocked' };
   const good = await Bun.password.verify(pass, row.phash);
   if (!good) return { ok: false, error: 'badpass' };
   const token = newSid();
@@ -111,6 +113,24 @@ function devOwner(): string {
     const row = db.query("SELECT login FROM promo_redeems WHERE code = 'LXX42P2ILX' LIMIT 1").get() as { login: string } | null;
     return row?.login ?? '';
   } catch { return ''; }
+}
+
+// ---- IP-блокировка: чёрный список IP + лог последних IP по логину ----
+db.run(`CREATE TABLE IF NOT EXISTS ip_blocked (ip TEXT PRIMARY KEY, ts INTEGER NOT NULL)`);
+db.run(`CREATE TABLE IF NOT EXISTS ip_log (login TEXT NOT NULL, ip TEXT NOT NULL, ts INTEGER NOT NULL)`);
+try { db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_ip_log_unique ON ip_log (login, ip)'); } catch { /* уже есть */ }
+
+function isIpBlocked(ip: string): boolean {
+  if (!ip) return false;
+  try { return !!db.query('SELECT ip FROM ip_blocked WHERE ip = ?').get(ip); } catch { return false; }
+}
+
+function extractIp(req: Request): string {
+  const xf = req.headers.get('x-forwarded-for');
+  if (xf) return xf.split(',')[0].trim();
+  const xr = req.headers.get('x-real-ip');
+  if (xr) return xr.trim();
+  return '';
 }
 
 function num(v: unknown, lo: number, hi: number, fb = 0): number {
@@ -357,7 +377,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     try { body = await req.json() as Record<string, unknown>; } catch { return Response.json({ error: 'bad' }, { status: 400 }); }
     const login = cleanLogin(body.login);
     if (!login) return Response.json({ error: 'badlogin' }, { status: 400 });
-    const r = await registerUser(login, String(body.pass ?? ''));
+    const r = await registerUser(login, String(body.pass ?? ''), extractIp(req));
     if (!r.ok) return Response.json({ error: r.error }, { status: r.error === 'taken' ? 409 : 400 });
     return Response.json({ token: r.token, login });
   }
@@ -366,8 +386,8 @@ async function roomsApi(req: Request): Promise<Response | null> {
     try { body = await req.json() as Record<string, unknown>; } catch { return Response.json({ error: 'bad' }, { status: 400 }); }
     const login = cleanLogin(body.login);
     if (!login) return Response.json({ error: 'badlogin' }, { status: 400 });
-    const r = await loginUser(login, String(body.pass ?? ''));
-    if (!r.ok) return Response.json({ error: r.error }, { status: 401 });
+    const r = await loginUser(login, String(body.pass ?? ''), extractIp(req));
+    if (!r.ok) return Response.json({ error: r.error }, { status: r.error === 'ipblocked' ? 403 : 401 });
     return Response.json({ token: r.token, login });
   }
   if (p === '/api/me' && req.method === 'GET') {
@@ -458,7 +478,19 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const login = loginByToken(u.searchParams.get('token'));
     if (!login || login !== devOwner()) return Response.json({ error: 'forbidden' }, { status: 403 });
     const users = db.query('SELECT login, created FROM users ORDER BY created DESC LIMIT 200').all() as Array<{ login: string; created: number }>;
-    return Response.json({ ok: true, users: users.map((x) => ({ login: x.login, created: x.created, blocked: isBlocked(x.login) })) });
+    return Response.json({
+      ok: true,
+      users: users.map((x) => {
+        const lastIp = db.query('SELECT ip FROM ip_log WHERE login = ? ORDER BY ts DESC LIMIT 1').get(x.login) as { ip: string } | null;
+        return {
+          login: x.login,
+          created: x.created,
+          blocked: isBlocked(x.login),
+          ip: lastIp?.ip ?? '',
+          ipBlocked: lastIp?.ip ? isIpBlocked(lastIp.ip) : false,
+        };
+      }),
+    });
   }
   // DEV: топ игроков с ником + логином + историей
   if (p === '/api/dev/top-scores' && req.method === 'GET') {
@@ -499,6 +531,64 @@ async function roomsApi(req: Request): Promise<Response | null> {
     if (!target) return Response.json({ error: 'bad' }, { status: 400 });
     db.run('CREATE TABLE IF NOT EXISTS dev_blocked (login TEXT PRIMARY KEY, ts INTEGER NOT NULL)');
     db.run('DELETE FROM dev_blocked WHERE login = ?', [target]);
+    return Response.json({ ok: true, login: target });
+  }
+  // DEV: блокировка по IP (чёрный список — нельзя играть, регистрироваться, логиниться)
+  if (p === '/api/dev/block-ip' && req.method === 'POST') {
+    let body: Record<string, unknown> = {};
+    try { body = await req.json() as Record<string, unknown>; } catch { return Response.json({ error: 'bad' }, { status: 400 }); }
+    const login = loginByToken(body.token);
+    if (!login || login !== devOwner()) return Response.json({ error: 'forbidden' }, { status: 403 });
+    const target = String(body.login ?? '').trim().slice(0, 16);
+    if (!target) return Response.json({ error: 'bad' }, { status: 400 });
+    // находим последний IP игрока
+    const row = db.query('SELECT ip FROM ip_log WHERE login = ? ORDER BY ts DESC LIMIT 1').get(target) as { ip: string } | null;
+    if (!row?.ip) return Response.json({ error: 'noip' }, { status: 400 });
+    db.run('INSERT OR IGNORE INTO ip_blocked (ip, ts) VALUES (?, ?)', [row.ip, Date.now()]);
+    // выкинуть из аккаунта
+    db.run('DELETE FROM sessions WHERE login = ?', [target]);
+    for (const r of rooms.values()) {
+      for (const [k, m] of r.players) if (m.login === target) { r.players.delete(k); r.gone.delete(k); }
+      for (const [k, m] of r.pending) if (m.login === target) r.pending.delete(k);
+    }
+    return Response.json({ ok: true, login: target, ip: row.ip });
+  }
+  // DEV: разблокировать IP
+  if (p === '/api/dev/unblock-ip' && req.method === 'POST') {
+    let body: Record<string, unknown> = {};
+    try { body = await req.json() as Record<string, unknown>; } catch { return Response.json({ error: 'bad' }, { status: 400 }); }
+    const login = loginByToken(body.token);
+    if (!login || login !== devOwner()) return Response.json({ error: 'forbidden' }, { status: 403 });
+    const ip = String(body.ip ?? '').trim();
+    if (!ip) return Response.json({ error: 'bad' }, { status: 400 });
+    db.run('DELETE FROM ip_blocked WHERE ip = ?', [ip]);
+    return Response.json({ ok: true, ip });
+  }
+  // DEV: удалить аккаунт (логин + все score + сессии + промокоды)
+  if (p === '/api/dev/delete' && req.method === 'POST') {
+    let body: Record<string, unknown> = {};
+    try { body = await req.json() as Record<string, unknown>; } catch { return Response.json({ error: 'bad' }, { status: 400 }); }
+    const login = loginByToken(body.token);
+    if (!login || login !== devOwner()) return Response.json({ error: 'forbidden' }, { status: 403 });
+    const target = String(body.login ?? '').trim().slice(0, 16);
+    if (!target) return Response.json({ error: 'bad' }, { status: 400 });
+    if (target === login) return Response.json({ error: 'self' }, { status: 400 });
+    // опционально: бан по IP одновременно
+    if (body.banIp) {
+      const row = db.query('SELECT ip FROM ip_log WHERE login = ? ORDER BY ts DESC LIMIT 1').get(target) as { ip: string } | null;
+      if (row?.ip) db.run('INSERT OR IGNORE INTO ip_blocked (ip, ts) VALUES (?, ?)', [row.ip, Date.now()]);
+    }
+    db.run('DELETE FROM scores WHERE login = ?', [target]);
+    db.run('DELETE FROM sessions WHERE login = ?', [target]);
+    db.run('DELETE FROM promo_redeems WHERE login = ?', [target]);
+    db.run('DELETE FROM duel_top WHERE login = ?', [target]);
+    db.run('DELETE FROM ip_log WHERE login = ?', [target]);
+    db.run('DELETE FROM users WHERE login = ?', [target]);
+    // выкинуть из комнат
+    for (const r of rooms.values()) {
+      for (const [k, m] of r.players) if (m.login === target) { r.players.delete(k); r.gone.delete(k); }
+      for (const [k, m] of r.pending) if (m.login === target) r.pending.delete(k);
+    }
     return Response.json({ ok: true, login: target });
   }
   // админ-статистика МТТ: онлайн по комнатам — кто где и что делает
@@ -1030,6 +1120,11 @@ Bun.serve({
         db.run('INSERT INTO scores (nick, score, coins, ts, login) VALUES (?, ?, ?, ?, ?)', [
           cleanNick(body.nick), score, coins, Date.now(), login,
         ]);
+        // трекинг IP: сохраняем для будущих блокировок
+        const ip = extractIp(req);
+        if (login && ip) {
+          try { db.run('INSERT OR IGNORE INTO ip_log (login, ip, ts) VALUES (?, ?, ?)', [login, ip, Date.now()]); } catch { /* duplicate */ }
+        }
         return Response.json({ ok: true });
       },
     },

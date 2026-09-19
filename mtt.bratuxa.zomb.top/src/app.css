@@ -400,3 +400,8 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(-
 #devPanelBody .wbtn{width:100%;margin-bottom:8px}
 #devUsers .srow{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;font-size:14px}
 #devUsers .srow .wbtn{width:auto;margin-bottom:0;padding:6px 10px;font-size:12px}
+.devActionMenu{position:absolute;right:0;top:100%;z-index:70;background:#1a1408;border:1px solid #5a4a22;border-radius:6px;min-width:200px;padding:4px;box-shadow:0 4px 16px rgba(0,0,0,.6)}
+.devActionMenu button{display:block;width:100%;text-align:left;background:transparent;border:none;color:#fff;padding:8px 10px;font-size:13px;cursor:pointer;border-radius:4px;font-family:inherit}
+.devActionMenu button:hover{background:#2a2010}
+.devActionMenu .devActionDanger{color:#ff4444}
+.devActionMenu .devActionDanger:hover{background:#3a1010}

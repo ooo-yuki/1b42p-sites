@@ -802,8 +802,9 @@ async function loadStats(): Promise<void> {
   const [devSpec, setDevSpecSt] = useState(false);
   const [devHit, setDevHitSt] = useState(false);
   const [devXray, setDevXraySt] = useState(false);
-  const [devUsers, setDevUsers] = useState<Array<{ login: string; created: number; blocked: boolean }> | null>(null);
+  const [devUsers, setDevUsers] = useState<Array<{ login: string; created: number; blocked: boolean; ip: string; ipBlocked: boolean }> | null>(null);
   const [devUsersBusy, setDevUsersBusy] = useState(false);
+  const [devUserMenu, setDevUserMenu] = useState<string | null>(null);
   const [devTopScores, setDevTopScores] = useState<Array<{ nick: string; best: number; login: string; games: number }> | null>(null);
   const [devTopBusy, setDevTopBusy] = useState(false);
   /** Живые координаты игрока для дев-панели (опрос движка, пока панель открыта). */
@@ -822,6 +823,13 @@ async function loadStats(): Promise<void> {
     const id = window.setInterval(tick, 250);
     return () => window.clearInterval(id);
   }, [devUnlocked, devOpen]);
+  // закрыть выпадающее меню действий при клике вне
+  useEffect(() => {
+    if (!devUserMenu) return;
+    const h = () => setDevUserMenu(null);
+    window.addEventListener('click', h);
+    return () => window.removeEventListener('click', h);
+  }, [devUserMenu]);
   const hudRef = useRef(hud);
   hudRef.current = hud;
   // ник в рефах: пульс и переподключение живут в []-эффекте и видят только протухшее замыкание
@@ -887,7 +895,7 @@ async function loadStats(): Promise<void> {
       });
       const d = (await r.json()) as { token?: string; login?: string; error?: string };
       if (!r.ok || !d.token || !d.login) {
-        setAuthMsg(d.error === 'taken' ? 'Логин занят' : d.error === 'blocked' ? 'Аккаунт заблокирован' : d.error === 'badpass' || d.error === 'nouser' ? 'Неверный логин/пароль' : d.error === 'badlogin' ? 'Логин: 3–16, буквы/цифры/_' : 'Пароль: от 4 символов');
+        setAuthMsg(d.error === 'taken' ? 'Логин занят' : d.error === 'blocked' ? 'Аккаунт заблокирован' : d.error === 'ipblocked' ? 'IP заблокирован' : d.error === 'badpass' || d.error === 'nouser' ? 'Неверный логин/пароль' : d.error === 'badlogin' ? 'Логин: 3–16, буквы/цифры/_' : 'Пароль: от 4 символов');
         return;
       }
       try {
@@ -3096,22 +3104,52 @@ async function loadStats(): Promise<void> {
                 {devUsers.length === 0 && <div>Аккаунтов нет.</div>}
                 {devUsers.map((x) => (
                   <div key={x.login} className="srow">
-                    <span>{x.login}{x.blocked ? ' ⛔' : ''}</span>
-                    {!x.blocked && x.login !== authed && <button className="wbtn" onClick={async () => {
-                      if (!window.confirm(`Заблокировать ${x.login}? Выкинет из аккаунта навсегда.`)) return;
-                      try {
-                        const r = await fetch('/api/dev/block', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), login: x.login }) });
-                        const d = await r.json() as { ok?: boolean };
-                        if (d.ok) setDevUsers((u) => (u ?? []).map((y) => y.login === x.login ? { ...y, blocked: true } : y));
-                      } catch { /* нет связи */ }
-                    }}>ЗАБЛОКИРОВАТЬ</button>}
-                    {x.blocked && <button className="wbtn" onClick={async () => {
-                      try {
-                        const r = await fetch('/api/dev/unblock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), login: x.login }) });
-                        const d = await r.json() as { ok?: boolean };
-                        if (d.ok) setDevUsers((u) => (u ?? []).map((y) => y.login === x.login ? { ...y, blocked: false } : y));
-                      } catch { /* нет связи */ }
-                    }}>РАЗБЛОКИРОВАТЬ</button>}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <span>{x.login}{x.blocked ? ' ⛔' : ''}{x.ipBlocked ? ' 🚫IP' : ''}</span>
+                      {x.ip && <span style={{ fontSize: 10, color: '#666', display: 'block' }}>IP: {x.ip}</span>}
+                    </div>
+                    {x.login !== authed && (
+                      <div style={{ position: 'relative' }}>
+                        <button className="wbtn" onClick={() => setDevUserMenu(devUserMenu === x.login ? null : x.login)}>
+                          {x.blocked || x.ipBlocked ? '⚙️' : '⛔'}
+                        </button>
+                        {devUserMenu === x.login && (
+                          <div className="devActionMenu">
+                            {!x.blocked && <button onClick={async () => {
+                              if (!window.confirm(`Заблокировать аккаунт ${x.login}? Игрок не сможет войти.`)) return;
+                              await fetch('/api/dev/block', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), login: x.login }) });
+                              setDevUsers((u) => (u ?? []).map((y) => y.login === x.login ? { ...y, blocked: true } : y));
+                              setDevUserMenu(null);
+                            }}>🚫 Заблокировать аккаунт</button>}
+                            {!x.ipBlocked && x.ip && <button onClick={async () => {
+                              if (!window.confirm(`Заблокировать IP ${x.ip} (${x.login})? Игрок не сможет играть и регистрироваться.`)) return;
+                              await fetch('/api/dev/block-ip', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), login: x.login }) });
+                              setDevUsers((u) => (u ?? []).map((y) => y.login === x.login ? { ...y, ipBlocked: true } : y));
+                              setDevUserMenu(null);
+                            }}>🚫 Заблокировать по IP</button>}
+                            {x.ipBlocked && x.ip && <button onClick={async () => {
+                              await fetch('/api/dev/unblock-ip', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), ip: x.ip }) });
+                              setDevUsers((u) => (u ?? []).map((y) => y.login === x.login ? { ...y, ipBlocked: false } : y));
+                              setDevUserMenu(null);
+                            }}>✅ Разблокировать IP</button>}
+                            <button className="devActionDanger" onClick={async () => {
+                              const confirmText = `УДАЛИТЬ аккаунт ${x.login}?\n\nВся информация пропадёт из топов.\nЭто НЕЛЬЗЯ отменить!`;
+                              if (!window.confirm(confirmText)) return;
+                              if (!window.confirm('Точно удалить? Невозможно отменить!')) return;
+                              const alsoBanIp = x.ip && !x.ipBlocked && window.confirm(`Также заблокировать IP ${x.ip}?`);
+                              await fetch('/api/dev/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), login: x.login, banIp: alsoBanIp }) });
+                              setDevUsers((u) => (u ?? []).filter((y) => y.login !== x.login));
+                              setDevUserMenu(null);
+                            }}>🗑️ Удалить аккаунт</button>}
+                            {x.blocked && <button onClick={async () => {
+                              await fetch('/api/dev/unblock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), login: x.login }) });
+                              setDevUsers((u) => (u ?? []).map((y) => y.login === x.login ? { ...y, blocked: false } : y));
+                              setDevUserMenu(null);
+                            }}>✅ Разблокировать аккаунт</button>}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
