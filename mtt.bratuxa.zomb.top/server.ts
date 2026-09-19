@@ -460,6 +460,17 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const users = db.query('SELECT login, created FROM users ORDER BY created DESC LIMIT 200').all() as Array<{ login: string; created: number }>;
     return Response.json({ ok: true, users: users.map((x) => ({ login: x.login, created: x.created, blocked: isBlocked(x.login) })) });
   }
+  // DEV: топ игроков с ником + логином + историей
+  if (p === '/api/dev/top-scores' && req.method === 'GET') {
+    const login = loginByToken(u.searchParams.get('token'));
+    if (!login || login !== devOwner()) return Response.json({ error: 'forbidden' }, { status: 403 });
+    const rows = db.query(
+      `SELECT nick, MAX(score) AS best, login, COUNT(*) AS games FROM scores
+       GROUP BY CASE WHEN login != '' THEN 'L:' || login ELSE 'N:' || nick END
+       ORDER BY best DESC LIMIT 30`
+    ).all() as Array<{ nick: string; best: number; login: string; games: number }>;
+    return Response.json({ ok: true, rows });
+  }
   if (p === '/api/dev/block' && req.method === 'POST') {
     let body: Record<string, unknown> = {};
     try { body = await req.json() as Record<string, unknown>; } catch { return Response.json({ error: 'bad' }, { status: 400 }); }

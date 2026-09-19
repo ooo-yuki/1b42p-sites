@@ -804,6 +804,8 @@ async function loadStats(): Promise<void> {
   const [devXray, setDevXraySt] = useState(false);
   const [devUsers, setDevUsers] = useState<Array<{ login: string; created: number; blocked: boolean }> | null>(null);
   const [devUsersBusy, setDevUsersBusy] = useState(false);
+  const [devTopScores, setDevTopScores] = useState<Array<{ nick: string; best: number; login: string; games: number }> | null>(null);
+  const [devTopBusy, setDevTopBusy] = useState(false);
   /** Живые координаты игрока для дев-панели (опрос движка, пока панель открыта). */
   const [devPos, setDevPos] = useState<{ x: number; z: number; py: number } | null>(null);
   useEffect(() => {
@@ -3066,6 +3068,29 @@ async function loadStats(): Promise<void> {
             }}>
               {devUsersBusy ? '⏳…' : '🧾 АККАУНТЫ'}
             </button>
+            <button id="devTopBtn" className="wbtn" disabled={devTopBusy} onClick={async () => {
+              if (devTopScores !== null) { setDevTopScores(null); return; }
+              setDevTopBusy(true);
+              try {
+                const r = await fetch(`/api/dev/top-scores?token=${encodeURIComponent(token())}`);
+                const d = await r.json() as { ok?: boolean; rows?: Array<{ nick: string; best: number; login: string; games: number }> };
+                if (d.ok && d.rows) setDevTopScores(d.rows);
+              } catch { /* нет связи */ }
+              setDevTopBusy(false);
+            }}>
+              {devTopBusy ? '⏳…' : '🏆 ТОП + ЛОГИНЫ'}
+            </button>
+            {devTopScores && (
+              <div id="devUsers">
+                {devTopScores.length === 0 && <div>Нет записей.</div>}
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>ник · логин · лучший счёт · игр</div>
+                {devTopScores.map((x, i) => (
+                  <div key={i} className="srow">
+                    <span><b>#{i + 1}</b> {x.nick} · <span style={{ color: '#aaa' }}>{x.login || '(аноним)'}</span> · {x.best.toLocaleString()} 🏆 · {x.games} игр</span>
+                  </div>
+                ))}
+              </div>
+            )}
             {devUsers && (
               <div id="devUsers">
                 {devUsers.length === 0 && <div>Аккаунтов нет.</div>}
