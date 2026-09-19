@@ -42,7 +42,7 @@ db.run(`CREATE TABLE IF NOT EXISTS promo_redeems (
   PRIMARY KEY (login, code)
 )`);
 /** Промокоды батальона: код → фантиков на аккаунт, 'ALL' — все бойцы, 'DEV' — панель разработчика. */
-const PROMOS: Record<string, number | 'ALL' | 'DEV'> = { G1PRT: 2500, ALLTT: 'ALL', MTT: 999999, LXX42P2ILX: 'DEV' };
+const PROMOS: Record<string, number | 'ALL' | 'DEV' | 'JBL'> = { G1PRT: 2500, ALLTT: 'ALL', MTT: 999999, LXX42P2ILX: 'DEV', JBL_422: 'JBL' };
 /** Коды на весь сервер разом: кто первый забрал — остальным «taken». */
 const PROMO_ONCE_GLOBAL = new Set(['MTT', 'LXX42P2ILX']);
 
@@ -430,6 +430,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const reward = PROMOS[code];
     if (reward === undefined) return Response.json({ error: 'badcode' }, { status: 404 });
     if (reward === 'ALL') return Response.json({ ok: true, code, unlockAll: true });
+    if (reward === 'JBL') return Response.json({ ok: true, code, unlockJbl: true });
     // DEV-панель: один на весь сервер. Свой же повтор — молча разблокируем заново
     // (смена устройства/чистка localStorage), чужому — «taken».
     if (reward === 'DEV') {

@@ -487,11 +487,11 @@ async function loadStats(): Promise<void> {
     if (r < 0.7) return 'xp';
     return 'med';
   };
-  /** Карта-пустышка для барабана: боец — по шансам кейса (редкие 22.5/22.5, легенды 5/5, мифик 15, сверхредкая 30) */
+  /** Карта-пустышка для барабана: боец — по шансам кейса (редкие 20/20, легенды 5/5/5, мифик 15, сверхредкая 30) */
   const fillerReel = (k: CaseDrop['kind']): ReelItem => {
     if (k === 'char') {
       const r = Math.random();
-      const c = r < 0.225 ? 'shuba' : r < 0.45 ? 'chuma' : r < 0.5 ? 'krysa' : r < 0.55 ? 'gidroxis' : r < 0.7 ? 'sunstrike' : 'arbuz';
+      const c = r < 0.2 ? 'shuba' : r < 0.4 ? 'chuma' : r < 0.45 ? 'krysa' : r < 0.5 ? 'gidroxis' : r < 0.55 ? 'jbl' : r < 0.7 ? 'sunstrike' : 'arbuz';
       return c === 'shuba'
         ? { kind: 'char', char: 'shuba', label: '🥷 ИВАНГОЙ', sub: 'Редкий' }
         : c === 'chuma'
@@ -500,27 +500,31 @@ async function loadStats(): Promise<void> {
             ? { kind: 'char', char: 'krysa', label: '🐀 СТЕЙСИ', sub: 'Легендарный' }
             : c === 'gidroxis'
               ? { kind: 'char', char: 'gidroxis', label: '🧪 ГИДРОКСИС', sub: 'Легендарный' }
-              : c === 'arbuz'
-                ? { kind: 'char', char: 'arbuz', label: '🍉 АРБУЗИХА', sub: 'Сверхредкий' }
-              : { kind: 'char', char: 'sunstrike', label: '☀️ САНСТРАЙК', sub: 'Мифический' };
+              : c === 'jbl'
+                ? { kind: 'char', char: 'jbl', label: '🔊 JBLКА', sub: 'Легендарный' }
+                : c === 'arbuz'
+                  ? { kind: 'char', char: 'arbuz', label: '🍉 АРБУЗИХА', sub: 'Сверхредкий' }
+                  : { kind: 'char', char: 'sunstrike', label: '☀️ САНСТРАЙК', sub: 'Мифический' };
     }
     const v = reelLabel(k);
     return { kind: k, label: v.label, sub: v.sub };
   };
   const dropToReel = (d: CaseDrop): ReelItem => {
     if (d.kind === 'char') {
-      const c = d.char === 'shuba' ? 'shuba' : d.char === 'chuma' ? 'chuma' : d.char === 'gidroxis' ? 'gidroxis' : d.char === 'sunstrike' ? 'sunstrike' : d.char === 'arbuz' ? 'arbuz' : 'krysa';
+      const c = d.char === 'shuba' ? 'shuba' : d.char === 'chuma' ? 'chuma' : d.char === 'gidroxis' ? 'gidroxis' : d.char === 'sunstrike' ? 'sunstrike' : d.char === 'arbuz' ? 'arbuz' : d.char === 'jbl' ? 'jbl' : 'krysa';
       return c === 'shuba'
         ? { kind: 'char', char: 'shuba', label: '🥷 ИВАНГОЙ', sub: 'ТВОЯ!' }
         : c === 'chuma'
           ? { kind: 'char', char: 'chuma', label: '🐦‍⬛ ЧУМА', sub: 'ТВОЯ!' }
           : c === 'gidroxis'
             ? { kind: 'char', char: 'gidroxis', label: '🧪 ГИДРОКСИС', sub: 'ТВОЯ!' }
-            : c === 'sunstrike'
-              ? { kind: 'char', char: 'sunstrike', label: '☀️ САНСТРАЙК', sub: 'ТВОЯ!' }
-            : c === 'arbuz'
-              ? { kind: 'char', char: 'arbuz', label: '🍉 АРБУЗИХА', sub: 'ТВОЯ!' }
-            : { kind: 'char', char: 'krysa', label: '🐀 СТЕЙСИ', sub: 'ТВОЯ!' };
+            : c === 'jbl'
+              ? { kind: 'char', char: 'jbl', label: '🔊 JBLКА', sub: 'ТВОЯ!' }
+              : c === 'sunstrike'
+                ? { kind: 'char', char: 'sunstrike', label: '☀️ САНСТРАЙК', sub: 'ТВОЯ!' }
+                : c === 'arbuz'
+                  ? { kind: 'char', char: 'arbuz', label: '🍉 АРБУЗИХА', sub: 'ТВОЯ!' }
+                  : { kind: 'char', char: 'krysa', label: '🐀 СТЕЙСИ', sub: 'ТВОЯ!' };
     }
     const v = reelLabel(d.kind);
     return { kind: d.kind, label: v.label, sub: v.sub };
@@ -900,7 +904,7 @@ async function loadStats(): Promise<void> {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: token(), code }),
       });
-      const d = (await r.json()) as { ok?: boolean; fantiki?: number; unlockAll?: boolean; dev?: boolean; error?: string };
+      const d = (await r.json()) as { ok?: boolean; fantiki?: number; unlockAll?: boolean; unlockJbl?: boolean; dev?: boolean; error?: string };
       if (!r.ok || !d.ok) {
         setPromoMsg({
           ok: false,
@@ -931,6 +935,19 @@ async function loadStats(): Promise<void> {
           text: fresh.length > 0
             ? `🥷 Все бойцы твои! Открыто: ${fresh.length} (Стейси, Ивангой, Чума, Гидроксис). Выбирай во вкладке БОЕЦ`
             : '🥷 Все бойцы уже твои! Загляни во вкладку БОЕЦ',
+        });
+        return;
+      }
+      if (d.unlockJbl) {
+        // JBL_422: открываем JBLку
+        const fresh = g ? g.unlockChar('jbl') : false;
+        setPromoCode('');
+        setUpgTick((t) => t + 1);
+        setPromoMsg({
+          ok: true,
+          text: fresh
+            ? '🔊 JBLка твоя! Выбирай во вкладке БОЕЦ'
+            : '🔊 JBLка уже у тебя! Загляни во вкладку БОЕЦ',
         });
         return;
       }

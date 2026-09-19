@@ -215,7 +215,7 @@ export const WEAPONS: WeaponDef[] = [
   { id: 'bat', name: '🏏 Бита', desc: 'Длиннее и злее', dmg: 48, range: 4.3, cd: 0.6, price: 300, minWave: 2 },
   { id: 'axe', name: '🪓 Секира', desc: 'Тяжёлый аргумент', dmg: 70, range: 4.6, cd: 0.85, price: 800, minWave: 3 },
   { id: 'pistol', name: '🔫 Пистолет', desc: 'Бьёт далеко — целься прицелом', dmg: 45, range: 30, cd: 0.7, price: 1200, minWave: 4, ranged: true },
-  { id: 'shotgun', name: '💥 Дробовик', desc: 'Дробь веером: в упор сносит, вдаль щекочет · в стену — катапульта на 13м назад, в землю под ногами — вверх на 6м (от воздуха — нет)', dmg: 142, range: 20, cd: 1.1, price: 1500, minWave: 5, ranged: true, spread: true },
+  { id: 'shotgun', name: '💥 Дробовик', desc: 'Дробь веером: в упор сносит, вдаль щекочет · в стену — катапульта на 13м назад, в землю под ногами — вверх на 6м (от воздуха — нет)', dmg: 142, range: 20, cd: 1.1, price: 4500, minWave: 5, ranged: true, spread: true },
 ];
 
 export interface KeyMap {
@@ -462,24 +462,24 @@ export class Game {
     if (fresh.length) { this.saveChars(); this.pushHud(); }
     return fresh;
   }
-  /** Открыть кейс бойца за фантики. Редкие 45% на двоих: Шуба (0–0.225) и Чума (0.225–0.45),
-      легендарные по 5%: Стейси (0.45–0.5) и Гидроксис (0.5–0.55),
+  /** Открыть кейс бойца за фантики. Редкие 40% на двоих: Шуба (0–0.2) и Чума (0.2–0.4),
+      легендарные по 5%: Стейси (0.4–0.45), Гидроксис (0.45–0.5), JBLка (0.5–0.55),
       мифик Санстрайк 15% (0.55–0.7), сверхредкая Арбузиха 30% (0.7–1.0).
       Занятый диапазон — утешительный приз. */
   openCase(): CaseDrop {
     if (this.fantiki < CASE_PRICE) return { ok: false, kind: 'empty', text: 'Не хватает фантиков' };
     this.fantiki -= CASE_PRICE;
     const roll = Math.random();
-    // Шуба ещё закрыта — 22.5% на неё (редкий)
-    if (!this.ownedChars.includes('shuba') && roll < 0.225) {
+    // Шуба ещё закрыта — 20% на неё (редкий)
+    if (!this.ownedChars.includes('shuba') && roll < 0.2) {
       this.unlockChar('shuba');
       this.addXp(100);
       this.saveShop();
       this.pushHud();
       return { ok: true, kind: 'char', char: 'shuba', text: '🥷 ИВАНГОЙ · Редкий — твоя!' };
     }
-    // Чума ещё закрыта — те же 22.5% (редкий)
-    if (!this.ownedChars.includes('chuma') && roll >= 0.225 && roll < 0.45) {
+    // Чума ещё закрыта — те же 20% (редкий)
+    if (!this.ownedChars.includes('chuma') && roll >= 0.2 && roll < 0.4) {
       this.unlockChar('chuma');
       this.addXp(100);
       this.saveShop();
@@ -487,20 +487,28 @@ export class Game {
       return { ok: true, kind: 'char', char: 'chuma', text: '🐦‍⬛ ЧУМА · Редкий — твоя!' };
     }
     // Стейси ещё закрыта — 5% на неё (легендарный)
-    if (!this.ownedChars.includes('krysa') && roll >= 0.45 && roll < 0.5) {
+    if (!this.ownedChars.includes('krysa') && roll >= 0.4 && roll < 0.45) {
       this.unlockChar('krysa');
       this.addXp(100);
       this.saveShop();
       this.pushHud();
       return { ok: true, kind: 'char', char: 'krysa', text: '🐀 СТЕЙСИ КРЫСА · Легендарный — твоя!' };
     }
-    // Гидроксис ещё закрыт — те же 5% (легендарный)
-    if (!this.ownedChars.includes('gidroxis') && roll >= 0.5 && roll < 0.55) {
+    // Гидроксис ещё закрыт — 5% (легендарный)
+    if (!this.ownedChars.includes('gidroxis') && roll >= 0.45 && roll < 0.5) {
       this.unlockChar('gidroxis');
       this.addXp(100);
       this.saveShop();
       this.pushHud();
       return { ok: true, kind: 'char', char: 'gidroxis', text: '🧪 ГИДРОКСИС · Легендарный — твоя!' };
+    }
+    // JBLка ещё закрыта — 5% (легендарный)
+    if (!this.ownedChars.includes('jbl') && roll >= 0.5 && roll < 0.55) {
+      this.unlockChar('jbl');
+      this.addXp(100);
+      this.saveShop();
+      this.pushHud();
+      return { ok: true, kind: 'char', char: 'jbl', text: '🔊 JBLКА · Легендарный — твоя!' };
     }
     // Санстрайк ещё закрыт — 15% на него (мифический)
     if (!this.ownedChars.includes('sunstrike') && roll >= 0.55 && roll < 0.7) {
