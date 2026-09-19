@@ -215,7 +215,7 @@ export const WEAPONS: WeaponDef[] = [
   { id: 'bat', name: '🏏 Бита', desc: 'Длиннее и злее', dmg: 48, range: 4.3, cd: 0.6, price: 300, minWave: 2 },
   { id: 'axe', name: '🪓 Секира', desc: 'Тяжёлый аргумент', dmg: 70, range: 4.6, cd: 0.85, price: 800, minWave: 3 },
   { id: 'pistol', name: '🔫 Пистолет', desc: 'Бьёт далеко — целься прицелом', dmg: 45, range: 30, cd: 0.7, price: 1200, minWave: 4, ranged: true },
-  { id: 'shotgun', name: '💥 Дробовик', desc: 'Дробь веером: в упор сносит, вдаль щекочет · в стену — катапульта на 13м назад, в землю под ногами — вверх на 6м (от воздуха — нет)', dmg: 110, range: 20, cd: 1.1, price: 1500, minWave: 5, ranged: true, spread: true },
+  { id: 'shotgun', name: '💥 Дробовик', desc: 'Дробь веером: в упор сносит, вдаль щекочет · в стену — катапульта на 13м назад, в землю под ногами — вверх на 6м (от воздуха — нет)', dmg: 160, range: 20, cd: 1.1, price: 1500, minWave: 5, ranged: true, spread: true },
 ];
 
 export interface KeyMap {
@@ -4125,9 +4125,17 @@ export class Game {
     g.fillText(`${Math.ceil(e.hp)}/${e.maxhp}`, 64, 16);
     // 🌀 спираль над HP если подчинён
     if (e.charmT && e.charmT > 0) {
-      g.font = '16px serif';
-      g.textAlign = 'right';
-      g.fillText('🌀', 124, 14);
+      g.strokeStyle = '#ff44ff';
+      g.lineWidth = 1.5;
+      g.beginPath();
+      const cx2 = 118, cy2 = 8;
+      for (let a = 0; a < Math.PI * 3.5; a += 0.15) {
+        const r = 1.2 + a * 0.8;
+        const x2 = cx2 + Math.cos(a + (performance.now() * 0.005)) * r;
+        const y2 = cy2 + Math.sin(a + (performance.now() * 0.005)) * r * 0.6;
+        if (a === 0) g.moveTo(x2, y2); else g.lineTo(x2, y2);
+      }
+      g.stroke();
     }
     e.hpTex.needsUpdate = true;
   }
@@ -4402,7 +4410,7 @@ export class Game {
       const ox = (Math.random() * 2 - 1) * SPREAD, oy = (Math.random() * 2 - 1) * SPREAD;
       let pdx = dx + rx * ox + ux * oy, pdy = dy + ry * ox + uy * oy, pdz = dz + rz * ox + uz * oy;
       const pl = Math.hypot(pdx, pdy, pdz) || 1;
-      this.spawnBullet(cx, cy, cz, pdx / pl, pdy / pl, pdz / pl, 110, perPellet, range, 0.25, 56, 1.6, 2.2, true);
+      this.spawnBullet(cx, cy, cz, pdx / pl, pdy / pl, pdz / pl, 110, perPellet, range, 0.25, 56, 1.6, 1.0, true);
     }
     // СТЕНА + дробовик = катапульта: луч первым упёрся в стену (≤12м) —
     // швыряет на ~13м против выстрела видимым полётом (стены тормозят) + подброс.
@@ -6599,7 +6607,8 @@ export class Game {
         // Подчинение JBLка: таймер тикает, враг атакует других врагов
         if (e.charmT && e.charmT > 0) {
           e.charmT -= dt;
-          if (e.charmT <= 0) { e.charmT = undefined; }
+          this.updateHpBar(e);
+          if (e.charmT <= 0) { e.charmT = undefined; this.updateHpBar(e); }
           // Ищем ближайшего другого живого врага как цель
           let bestD = Infinity, bestE: typeof e | null = null;
           for (const o of this.enemies) {
