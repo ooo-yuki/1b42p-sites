@@ -1479,54 +1479,72 @@ export class Game {
   }
 
   // ===== ЛЕС: приватная карта админа 200×200м =====
-  // По схеме: зелёный=густой, тёмно-зелёный=тёмный, фиолетовый=болото, красный=выжженный, синий=озеро, серый=дороги.
+  // Точная копия макета: густой лес, тёмный лес, болото, выжженный, озёра, дороги, каменные стены.
   private buildForest(): void {
     const scene = this.scene;
     const H = this.half; // 100
     const S = H * 2;    // 200
 
-    scene.add(new THREE.AmbientLight(0xb0d090, 0.6));
-    scene.add(new THREE.HemisphereLight(0x6a8a4a, 0x2a1a0a, 0.4));
-    const sun = new THREE.DirectionalLight(0xfff0c0, 1.0);
-    sun.position.set(60, 100, -40);
+    scene.add(new THREE.AmbientLight(0x90b070, 0.55));
+    scene.add(new THREE.HemisphereLight(0x6a9a4a, 0x1a0a00, 0.35));
+    const sun = new THREE.DirectionalLight(0xffeebb, 0.9);
+    sun.position.set(50, 80, -30);
     scene.add(sun);
 
     const rng = mulberry32(this.mapSeed);
     const R = (a: number, b: number): number => a + rng() * (b - a);
 
+    // --- БИОМЫ по макету (H=100, координаты от -100 до +100) ---
     type Biome = 'dense' | 'dark' | 'swamp' | 'burned' | 'lake' | 'road';
-    // Зоны по схеме (координаты центров, H=100):
     const zones: Array<{ cx: number; cz: number; r: number; b: Biome }> = [
-      // густой лес (ярко-зелёный): два больших пятна
-      { cx: -30, cz: 25, r: 55, b: 'dense' },
-      { cx: -15, cz: -35, r: 50, b: 'dense' },
-      // тёмный лес (тёмно-зелёный): нижний левый + нижний центр
-      { cx: -55, cz: 60, r: 25, b: 'dark' },
-      { cx: 15, cz: 65, r: 20, b: 'dark' },
-      { cx: -25, cz: 55, r: 18, b: 'dark' },
-      // болото/фил (фиолетовый): верхний центр + маленький центр
-      { cx: -5, cz: -40, r: 30, b: 'swamp' },
-      { cx: 10, cz: 5, r: 15, b: 'swamp' },
-      // выжженный (красный): правая сторона
-      { cx: 55, cz: 10, r: 45, b: 'burned' },
-      // озёра (синие)
-      { cx: -70, cz: -40, r: 14, b: 'lake' },
-      { cx: -40, cz: 45, r: 10, b: 'lake' },
-      { cx: 30, cz: 50, r: 18, b: 'lake' },
-      { cx: 15, cz: 30, r: 8, b: 'lake' },
-      { cx: 50, cz: 55, r: 12, b: 'lake' },
+      // Густой лес (ярко-зелёный): два больших пятна — левая половина + центр-низ
+      { cx: -35, cz: 5,   r: 60, b: 'dense' },
+      { cx: -10, cz: 40,  r: 48, b: 'dense' },
+      { cx: -55, cz: -20, r: 35, b: 'dense' },
+      { cx: 15,  cz: 35,  r: 30, b: 'dense' },
+
+      // Тёмный лес (тёмно-зелёный): нижний левый угол + полоса снизу
+      { cx: -60, cz: 65,  r: 28, b: 'dark' },
+      { cx: -20, cz: 70,  r: 22, b: 'dark' },
+      { cx: 30,  cz: 60,  r: 18, b: 'dark' },
+      { cx: -45, cz: 50,  r: 15, b: 'dark' },
+
+      // Болото (фиолетовый): верхний центр — большое пятно
+      { cx: -5,  cz: -50, r: 40, b: 'swamp' },
+      { cx: -40, cz: -40, r: 20, b: 'swamp' },
+      { cx: 20,  cz: -55, r: 15, b: 'swamp' },
+
+      // Выжженный (красно-коричневый): правая сторона — большое
+      { cx: 65,  cz: -10, r: 45, b: 'burned' },
+      { cx: 55,  cz: 30,  r: 25, b: 'burned' },
+      { cx: 75,  cz: -50, r: 20, b: 'burned' },
+
+      // Озёра (синие): 4 штуки по макету
+      // 1) Большое озеро справа-центр (изогнутое)
+      { cx: 45,  cz: 10,  r: 22, b: 'lake' },
+      // 2) Маленькое озеро внизу-центр
+      { cx: -5,  cz: 55,  r: 10, b: 'lake' },
+      // 3) Озеро верх-лево
+      { cx: -70, cz: -60, r: 12, b: 'lake' },
+      // 4) Маленькое озеро в центре болота
+      { cx: -15, cz: -35, r: 8,  b: 'lake' },
     ];
 
-    // Дороги: периметр + диагонали (как на схеме — серая рамка + пересечения)
+    // --- ДОРОГИ по макету: рамка + диагональ снизу-лево вверх-право ---
+    const ROAD_W = 3.5;
     const roadPts: Array<{ x1: number; z1: number; x2: number; z2: number; w: number }> = [
-      // периметр
-      { x1: -H, z1: -H, x2: H, z2: -H, w: 5 },
-      { x1: -H, z1: H, x2: H, z2: H, w: 5 },
-      { x1: -H, z1: -H, x2: -H, z2: H, w: 5 },
-      { x1: H, z1: -H, x2: H, z2: H, w: 5 },
-      // диагонали
-      { x1: -H, z1: H, x2: H, z2: -H, w: 5 },
-      { x1: -H, z1: -H, x2: H, z2: H, w: 5 },
+      // Диагональная главная дорога (снизу-лево → вверх-право)
+      { x1: -H, z1: H, x2: H, z2: -H, w: ROAD_W },
+      // Горизонтальная от диагонали влево (вниз-лево угол → к диагонали)
+      { x1: -H, z1: H * 0.6, x2: -H * 0.3, z2: H * 0.6, w: ROAD_W },
+      // Вертикальная внизу-лево
+      { x1: -H, z1: -H, x2: -H, z2: H, w: ROAD_W },
+      // Периметр
+      { x1: -H, z1: -H, x2: H, z2: -H, w: ROAD_W },
+      { x1: H,  z1: -H, x2: H, z2: H,  w: ROAD_W },
+      { x1: -H, z1: H,  x2: H, z2: H,  w: ROAD_W },
+      // Дополнительная тропа через болото
+      { x1: -H * 0.5, z1: -H, x2: 0, z2: -H * 0.3, w: ROAD_W * 0.8 },
     ];
 
     function distToRoad(x: number, z: number): number {
@@ -1544,7 +1562,9 @@ export class Game {
     }
 
     function biomeAt(x: number, z: number): Biome {
-      if (distToRoad(x, z) < 3) return 'road';
+      const edge = 6;
+      if (x < -H + edge || x > H - edge || z < -H + edge || z > H - edge) return 'road';
+      if (distToRoad(x, z) < ROAD_W * 0.7) return 'road';
       for (const z2 of zones) {
         if (z2.b === 'lake') {
           if (Math.hypot(x - z2.cx, z - z2.cz) < z2.r) return 'lake';
@@ -1560,6 +1580,7 @@ export class Game {
       return best;
     }
 
+    // --- ПОЛ (vertex colors по биомам) ---
     const GRANULARITY = 3;
     const cellsX = Math.ceil(S / GRANULARITY);
     const cellsZ = Math.ceil(S / GRANULARITY);
@@ -1568,19 +1589,19 @@ export class Game {
     const posAttr = geo.getAttribute('position') as THREE.BufferAttribute;
     const colors = new Float32Array(posAttr.count * 3);
     const biomeColor: Record<Biome, [number, number, number]> = {
-      dense:  [0.18, 0.42, 0.15],
-      dark:   [0.10, 0.25, 0.12],
-      swamp:  [0.35, 0.12, 0.40],
-      burned: [0.60, 0.12, 0.08],
-      lake:   [0.06, 0.20, 0.65],
-      road:   [0.50, 0.50, 0.50],
+      dense:  [0.15, 0.40, 0.12],
+      dark:   [0.08, 0.22, 0.10],
+      swamp:  [0.30, 0.10, 0.40],
+      burned: [0.45, 0.12, 0.06],
+      lake:   [0.05, 0.18, 0.55],
+      road:   [0.42, 0.40, 0.36],
     };
     for (let i = 0; i < posAttr.count; i++) {
       const x = posAttr.getX(i), z = posAttr.getZ(i);
       const b = biomeAt(x, z);
       const c = biomeColor[b];
-      const noise = (rng() - 0.5) * 0.05;
-      colors[i * 3] = c[0] + noise;
+      const noise = (rng() - 0.5) * 0.04;
+      colors[i * 3]     = c[0] + noise;
       colors[i * 3 + 1] = c[1] + noise;
       colors[i * 3 + 2] = c[2] + noise;
     }
@@ -1589,46 +1610,91 @@ export class Game {
     const ground = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
     scene.add(ground);
 
-    // озёра
-    const waterMat = new THREE.MeshStandardMaterial({ color: 0x1155cc, roughness: 0.15, transparent: true, opacity: 0.9 });
-    const shoreMat = new THREE.MeshStandardMaterial({ color: 0x4a4a2a, roughness: 1 });
+    // --- КАМЕННАЯ СТЕНА ПО ПЕРИМЕТРУ (как на макете) ---
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x5a5a50, roughness: 0.9 });
+    const wallH = 6;
+    const wallThick = 3;
+    // 4 стены периметра
+    const wallDefs: Array<[number, number, number, number]> = [
+      [0, -H - wallThick / 2, S + wallThick * 2, wallThick],
+      [0, H + wallThick / 2,  S + wallThick * 2, wallThick],
+      [-H - wallThick / 2, 0, wallThick, S + wallThick * 2],
+      [H + wallThick / 2,  0, wallThick, S + wallThick * 2],
+    ];
+    for (const [wx, wz, ww, wd] of wallDefs) {
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(ww, wallH, wd), wallMat);
+      wall.position.set(wx, wallH / 2, wz);
+      scene.add(wall);
+      this.solids.push({ x: wx, z: wz, hx: ww / 2, hz: wd / 2, h: wallH });
+    }
+    // Зубцы на стенах (как на макете — неровный край)
+    const merlonMat = new THREE.MeshStandardMaterial({ color: 0x6a6a5a, roughness: 0.85 });
+    const merlonGeo = new THREE.BoxGeometry(2.5, 2, 1.5);
+    for (let i = -H + 5; i < H; i += 6) {
+      if (rng() > 0.7) continue;
+      // северная стена
+      const m1 = new THREE.Mesh(merlonGeo, merlonMat);
+      m1.position.set(i, wallH + 1, -H - wallThick / 2);
+      scene.add(m1);
+      // южная
+      const m2 = new THREE.Mesh(merlonGeo, merlonMat);
+      m2.position.set(i, wallH + 1, H + wallThick / 2);
+      scene.add(m2);
+      // западная
+      const m3 = new THREE.Mesh(merlonGeo, merlonMat);
+      m3.position.set(-H - wallThick / 2, wallH + 1, i);
+      m3.rotation.y = Math.PI / 2;
+      scene.add(m3);
+      // восточная
+      const m4 = new THREE.Mesh(merlonGeo, merlonMat);
+      m4.position.set(H + wallThick / 2, wallH + 1, i);
+      m4.rotation.y = Math.PI / 2;
+      scene.add(m4);
+    }
+
+    // --- ОЗЁРА (синяя вода + берег) ---
+    const waterMat = new THREE.MeshStandardMaterial({ color: 0x0e4488, roughness: 0.1, transparent: true, opacity: 0.92 });
+    const shoreMat = new THREE.MeshStandardMaterial({ color: 0x3a3a28, roughness: 1 });
     for (const z2 of zones) {
       if (z2.b !== 'lake') continue;
-      const water = new THREE.Mesh(new THREE.CircleGeometry(z2.r, 24), waterMat);
+      const water = new THREE.Mesh(new THREE.CircleGeometry(z2.r, 28), waterMat);
       water.rotation.x = -Math.PI / 2;
-      water.position.set(z2.cx, 0.05, z2.cz);
+      water.position.set(z2.cx, 0.04, z2.cz);
       scene.add(water);
-      const shore = new THREE.Mesh(new THREE.RingGeometry(z2.r, z2.r + 1.2, 24), shoreMat);
+      const shore = new THREE.Mesh(new THREE.RingGeometry(z2.r, z2.r + 1.8, 28), shoreMat);
       shore.rotation.x = -Math.PI / 2;
-      shore.position.set(z2.cx, 0.06, z2.cz);
+      shore.position.set(z2.cx, 0.05, z2.cz);
       scene.add(shore);
     }
 
-    // деревья — InstancedMesh
-    const trunkGeo = new THREE.CylinderGeometry(0.18, 0.32, 1, 5);
+    // --- ДЕРЕВЬЯ (InstancedMesh, плотные как на макете) ---
+    const trunkGeo = new THREE.CylinderGeometry(0.15, 0.28, 1, 5);
     const crownGeo = new THREE.SphereGeometry(1, 6, 4);
     interface TreeData { x: number; z: number; h: number; crownR: number; biome: Biome }
     const trees: TreeData[] = [];
+    // Плотность деревьев по макету: густой лес очень плотный, тёмный — плотный, выжженный — редко
     const treeDensity: Record<string, number> = {
-      dense: 0.030, dark: 0.025, swamp: 0.012, burned: 0.006, road: 0, lake: 0,
+      dense: 0.045, dark: 0.035, swamp: 0.008, burned: 0.004, road: 0, lake: 0,
     };
-    const treeStep = 5;
-    for (let tx = -H + 3; tx < H; tx += treeStep) {
-      for (let tz = -H + 3; tz < H; tz += treeStep) {
-        const jx = tx + (rng() - 0.5) * treeStep * 0.8;
-        const jz = tz + (rng() - 0.5) * treeStep * 0.8;
+    const treeStep = 4;
+    for (let tx = -H + 4; tx < H; tx += treeStep) {
+      for (let tz = -H + 4; tz < H; tz += treeStep) {
+        const jx = tx + (rng() - 0.5) * treeStep * 0.85;
+        const jz = tz + (rng() - 0.5) * treeStep * 0.85;
         const b = biomeAt(jx, jz);
         const density = treeDensity[b] ?? 0;
         if (rng() > density * treeStep * treeStep) continue;
         if (b === 'road' || b === 'lake') continue;
-        if (Math.hypot(jx - (-H + 8), jz - (H - 8)) < 4) continue;
-        const treeH = R(7, 10);
-        trees.push({ x: jx, z: jz, h: treeH, crownR: R(2.0, 3.2), biome: b });
-        this.solids.push({ x: jx, z: jz, r: 0.4, h: treeH });
+        // Не деревья у спавна
+        if (Math.hypot(jx - (-H + 8), jz - (H - 8)) < 5) continue;
+        if (Math.hypot(jx - (H - 8), jz - (-H + 8)) < 5) continue;
+        const treeH = R(6, 9);
+        trees.push({ x: jx, z: jz, h: treeH, crownR: R(1.8, 3.0), biome: b });
+        this.solids.push({ x: jx, z: jz, r: 0.35, h: treeH });
       }
     }
     const tmpMat = new THREE.Matrix4();
-    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3018, roughness: 1 });
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3a2810, roughness: 1 });
     const trunkInst = new THREE.InstancedMesh(trunkGeo, trunkMat, trees.length);
     for (let i = 0; i < trees.length; i++) {
       const t = trees[i]!;
@@ -1640,7 +1706,8 @@ export class Game {
     trunkInst.instanceMatrix.needsUpdate = true;
     scene.add(trunkInst);
 
-    const crownColors = [0x2a6828, 0x153a15, 0x5a3020, 0x2a4a18];
+    // Кроны: 4 оттенка зелёного + коричневый для выжженного
+    const crownColors = [0x1e5a18, 0x0e3210, 0x4a2810, 0x2a4a15];
     const crownMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
     const crownInst = new THREE.InstancedMesh(crownGeo, crownMat, trees.length * 2);
     const crownsC3 = new THREE.Color();
@@ -1653,9 +1720,9 @@ export class Game {
       tmpMat.setPosition(t.x, crownY, t.z);
       crownInst.setMatrixAt(i * 2, tmpMat);
       crownInst.setColorAt(i * 2, crownsC3);
-      const c2r = t.crownR * 0.7;
+      const c2r = t.crownR * 0.65;
       tmpMat.makeScale(c2r, c2r, c2r);
-      tmpMat.setPosition(t.x + (rng() - 0.5), crownY + t.crownR * 0.5, t.z + (rng() - 0.5));
+      tmpMat.setPosition(t.x + (rng() - 0.5) * 1.5, crownY + t.crownR * 0.4, t.z + (rng() - 0.5) * 1.5);
       crownInst.setMatrixAt(i * 2 + 1, tmpMat);
       crownInst.setColorAt(i * 2 + 1, crownsC3);
     }
@@ -1663,16 +1730,16 @@ export class Game {
     if (crownInst.instanceColor) crownInst.instanceColor.needsUpdate = true;
     scene.add(crownInst);
 
-    // обугленные стволы
-    const charMat = new THREE.MeshStandardMaterial({ color: 0x1a1210, roughness: 1 });
-    const stumpGeo = new THREE.CylinderGeometry(0.12, 0.22, 1, 4);
+    // --- ОБУГЛЕННЫЕ СТВОЛЫ (выжженная зона) ---
+    const charMat = new THREE.MeshStandardMaterial({ color: 0x1a1008, roughness: 1 });
+    const stumpGeo = new THREE.CylinderGeometry(0.10, 0.20, 1, 4);
     const stumpArr: Array<[number, number, number]> = [];
-    for (let t = 0; t < 30; t++) {
+    for (let t = 0; t < 35; t++) {
       const bx = R(-H + 8, H - 8), bz = R(-H + 8, H - 8);
       if (biomeAt(bx, bz) !== 'burned') continue;
-      const bh = R(3, 6);
+      const bh = R(2, 5);
       stumpArr.push([bx, bh, bz]);
-      this.solids.push({ x: bx, z: bz, r: 0.22, h: bh });
+      this.solids.push({ x: bx, z: bz, r: 0.2, h: bh });
     }
     if (stumpArr.length > 0) {
       const stumpInst = new THREE.InstancedMesh(stumpGeo, charMat, stumpArr.length);
@@ -1686,14 +1753,35 @@ export class Game {
       scene.add(stumpInst);
     }
 
-    // камыши
-    const reedMat = new THREE.MeshStandardMaterial({ color: 0x3a5a20, roughness: 1 });
-    const reedGeo = new THREE.CylinderGeometry(0.03, 0.05, 1, 3);
+    // --- ОГОНЬ в выжженной зоне (оранжевые точки как на макете) ---
+    const fireMat = new THREE.MeshBasicMaterial({ color: 0xff6622 });
+    const fireGeo = new THREE.SphereGeometry(0.3, 4, 3);
+    const fireArr: Array<[number, number]> = [];
+    for (let t = 0; t < 20; t++) {
+      const fx = R(-H + 8, H - 8), fz = R(-H + 8, H - 8);
+      if (biomeAt(fx, fz) !== 'burned') continue;
+      fireArr.push([fx, fz]);
+    }
+    if (fireArr.length > 0) {
+      const fireInst = new THREE.InstancedMesh(fireGeo, fireMat, fireArr.length);
+      for (let i = 0; i < fireArr.length; i++) {
+        const [fx, fz] = fireArr[i]!;
+        tmpMat.makeScale(1, R(0.5, 1.2), 1);
+        tmpMat.setPosition(fx, R(0.3, 0.8), fz);
+        fireInst.setMatrixAt(i, tmpMat);
+      }
+      fireInst.instanceMatrix.needsUpdate = true;
+      scene.add(fireInst);
+    }
+
+    // --- КАМЫШИ (болото) ---
+    const reedMat = new THREE.MeshStandardMaterial({ color: 0x2a4a18, roughness: 1 });
+    const reedGeo = new THREE.CylinderGeometry(0.02, 0.04, 1, 3);
     const reedArr: Array<[number, number, number]> = [];
-    for (let t = 0; t < 40; t++) {
-      const rx = R(-H + 4, H - 4), rz = R(-H + 4, H - 4);
+    for (let t = 0; t < 30; t++) {
+      const rx = R(-H + 5, H - 5), rz = R(-H + 5, H - 5);
       if (biomeAt(rx, rz) !== 'swamp') continue;
-      reedArr.push([rx, R(0.6, 1.5), rz]);
+      reedArr.push([rx, R(0.5, 1.3), rz]);
     }
     if (reedArr.length > 0) {
       const reedInst = new THREE.InstancedMesh(reedGeo, reedMat, reedArr.length);
@@ -1707,14 +1795,15 @@ export class Game {
       scene.add(reedInst);
     }
 
-    // камни
-    const rockMat = new THREE.MeshStandardMaterial({ color: 0x6a6258, roughness: 1 });
+    // --- КАМНИ (вдоль дорог и берегов) ---
+    const rockMat = new THREE.MeshStandardMaterial({ color: 0x5a5a50, roughness: 0.9 });
     const rockGeo = new THREE.SphereGeometry(1, 5, 4);
     const rockArr: Array<[number, number, number]> = [];
-    for (let t = 0; t < 20; t++) {
-      const rx = R(-H + 4, H - 4), rz = R(-H + 4, H - 4);
-      if (distToRoad(rx, rz) < 4) continue;
-      const rr = R(0.4, 1.5);
+    for (let t = 0; t < 25; t++) {
+      const rx = R(-H + 5, H - 5), rz = R(-H + 5, H - 5);
+      const dRoad = distToRoad(rx, rz);
+      if (dRoad > 8) continue;
+      const rr = R(0.3, 1.2);
       rockArr.push([rx, rr, rz]);
       this.solids.push({ x: rx, z: rz, r: rr, h: rr * 1.2 });
     }
@@ -1722,7 +1811,7 @@ export class Game {
       const rockInst = new THREE.InstancedMesh(rockGeo, rockMat, rockArr.length);
       for (let i = 0; i < rockArr.length; i++) {
         const [rx, rr, rz] = rockArr[i]!;
-        tmpMat.makeScale(rr, rr * 0.4, rr);
+        tmpMat.makeScale(rr, rr * 0.5, rr);
         tmpMat.setPosition(rx, rr * 0.4, rz);
         rockInst.setMatrixAt(i, tmpMat);
       }
@@ -1730,10 +1819,10 @@ export class Game {
       scene.add(rockInst);
     }
 
-    // спавн — нижний левый угол (жёлтая метка)
+    // --- СПАВН (жёлтая метка, нижний левый угол) ---
     const spawnX = -H + 8, spawnZ = H - 8;
     const spawnMark = new THREE.Mesh(
-      new THREE.CircleGeometry(1.2, 12),
+      new THREE.CircleGeometry(1.0, 10),
       new THREE.MeshBasicMaterial({ color: 0xffdd00 }),
     );
     spawnMark.rotation.x = -Math.PI / 2;
@@ -1741,22 +1830,15 @@ export class Game {
     scene.add(spawnMark);
     this.px = spawnX; this.pz = spawnZ; this.yaw = 0;
 
-    // стены периметра
-    const wallMat = new THREE.MeshStandardMaterial({ color: 0x4a5a3a, roughness: 0.9 });
-    const wallH = 10;
-    const wt = 1;
-    const walls: Array<[number, number, number, number]> = [
-      [0, -H - wt / 2, S + wt * 2, wt],
-      [0, H + wt / 2, S + wt * 2, wt],
-      [-H - wt / 2, 0, wt, S + wt * 2],
-      [H + wt / 2, 0, wt, S + wt * 2],
-    ];
-    for (const [wx, wz, ww, wd] of walls) {
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(ww, wallH, wd), wallMat);
-      wall.position.set(wx, wallH / 2, wz);
-      scene.add(wall);
-      this.solids.push({ x: wx, z: wz, hx: ww / 2, hz: wd / 2, h: wallH });
-    }
+    // Второй спавн — верхний правый угол (жёлтая метка)
+    const spawn2X = H - 8, spawn2Z = -H + 8;
+    const spawn2Mark = new THREE.Mesh(
+      new THREE.CircleGeometry(1.0, 10),
+      new THREE.MeshBasicMaterial({ color: 0xffdd00 }),
+    );
+    spawn2Mark.rotation.x = -Math.PI / 2;
+    spawn2Mark.position.set(spawn2X, 0.12, spawn2Z);
+    scene.add(spawn2Mark);
   }
 
   /**
