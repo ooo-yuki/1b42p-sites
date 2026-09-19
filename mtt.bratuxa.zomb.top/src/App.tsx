@@ -3111,7 +3111,7 @@ async function loadStats(): Promise<void> {
                     {x.login !== authed && (
                       <div style={{ position: 'relative' }}>
                         <button className="wbtn" onClick={() => setDevUserMenu(devUserMenu === x.login ? null : x.login)}>
-                          {x.blocked || x.ipBlocked ? '⚙️' : '⛔'}
+                          {x.blocked || x.ipBlocked ? '⚙️ Действия' : '⋮ Меню'}
                         </button>
                         {devUserMenu === x.login && (
                           <div className="devActionMenu">
