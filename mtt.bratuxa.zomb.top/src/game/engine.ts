@@ -718,6 +718,11 @@ export class Game {
   /** Подчинение JBLка: charmT — таймер (5с), charmCd — перезарядка 35с. */
   private charmT = 0;
   private charmCd = 0;
+  /** Визуал: расширяющееся кольцо звуковой волны JBLка. */
+  private waveRing: THREE.Mesh | null = null;
+  private waveRingT = 0;
+  /** Визуал: аура подчинения JBLка (пульсирующее кольцо). */
+  private charmAura: THREE.Mesh | null = null;
   /** Панель разработчика: бессмертие, сквозной рентген, хитбоксы (только у владельца). */
   private devGod = false;
   private devXray = false;
@@ -4141,6 +4146,8 @@ export class Game {
     window.removeEventListener('pointerup', this.onPointerUp);
     this.canvas.removeEventListener('mousedown', this.onMouseDown);
     this.renderer.dispose();
+    if (this.waveRing) { this.scene.remove(this.waveRing); this.waveRing.geometry.dispose(); (this.waveRing.material as THREE.Material).dispose(); }
+    if (this.charmAura) { this.scene.remove(this.charmAura); this.charmAura.geometry.dispose(); (this.charmAura.material as THREE.Material).dispose(); }
   }
 
   attack(): number {
@@ -4685,6 +4692,20 @@ export class Game {
     const dx = -Math.sin(this.yaw) * cp;
     const dz = -Math.cos(this.yaw) * cp;
     this.waveCd = 25;
+    // 3D-визуал: расширяющееся кольцо волны
+    if (!this.waveRing) {
+      this.waveRing = new THREE.Mesh(
+        new THREE.RingGeometry(0.3, 1.2, 48),
+        new THREE.MeshBasicMaterial({ color: 0x00d4ff, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }),
+      );
+      this.waveRing.rotation.x = -Math.PI / 2;
+      this.waveRing.renderOrder = 8;
+    }
+    this.waveRing.position.set(this.px + dx * 2, 0.6, this.pz + dz * 2);
+    this.waveRing.scale.set(1, 1, 1);
+    (this.waveRing.material as THREE.MeshBasicMaterial).opacity = 0.85;
+    if (!this.waveRing.parent) this.scene.add(this.waveRing);
+    this.waveRingT = 0.6;
     // Визуальный burst
     this.burst(this.px + dx * 2, 0.5, this.pz + dz * 2, 20);
     // Отталкиваем врагов в радиусе 12м перед игроком
@@ -4717,6 +4738,19 @@ export class Game {
     if (!this.started || this.dead || this.charmCd > 0 || this.charmT > 0 || this.charId !== 'jbl') return false;
     this.charmT = 5;
     this.charmCd = 35;
+    // 3D-визуал: пульсирующая аура подчинения (4м)
+    if (!this.charmAura) {
+      this.charmAura = new THREE.Mesh(
+        new THREE.RingGeometry(3.2, 4.2, 48),
+        new THREE.MeshBasicMaterial({ color: 0xff44ff, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }),
+      );
+      this.charmAura.rotation.x = -Math.PI / 2;
+      this.charmAura.renderOrder = 8;
+    }
+    this.charmAura.position.set(this.px, 0.3, this.pz);
+    this.charmAura.scale.set(1, 1, 1);
+    (this.charmAura.material as THREE.MeshBasicMaterial).opacity = 0.7;
+    if (!this.charmAura.parent) this.scene.add(this.charmAura);
     // Визуальный burst
     this.burst(this.px, 0.8, this.pz, 24);
     // Подчиняем врагов в радиусе 4м
@@ -4765,6 +4799,37 @@ export class Game {
       m.rotation.y += 0.12;
       const fade = Math.min(1, this.arbuzT / 0.6);
       for (const c of m.children) (c.material as THREE.MeshBasicMaterial).opacity = (c.geometry instanceof THREE.ConeGeometry ? 0.28 : 0.7) * fade;
+    }
+  }
+  /** JBLка: анимация волны и ауры подчинения (каждый кадр). */
+  private syncJblFx(dt: number): void {
+    // Кольцо звуковой волны: расширяется и тает за 0.6с
+    if (this.waveRing) {
+      if (this.waveRingT > 0) {
+        this.waveRingT -= dt;
+        if (!this.waveRing.parent) this.scene.add(this.waveRing);
+        this.waveRing.visible = true;
+        const p = 1 - Math.max(0, this.waveRingT / 0.6);
+        const s = 1 + p * 8;
+        this.waveRing.scale.set(s, s, s);
+        (this.waveRing.material as THREE.MeshBasicMaterial).opacity = 0.85 * (1 - p);
+      } else {
+        this.waveRing.visible = false;
+      }
+    }
+    // Аура подчинения: пульсирует пока charmT > 0
+    if (this.charmAura) {
+      if (this.charmT > 0) {
+        if (!this.charmAura.parent) this.scene.add(this.charmAura);
+        this.charmAura.visible = true;
+        this.charmAura.position.set(this.px, 0.3, this.pz);
+        const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.008);
+        (this.charmAura.material as THREE.MeshBasicMaterial).opacity = 0.35 + 0.35 * pulse;
+        const sc = 0.9 + 0.15 * pulse;
+        this.charmAura.scale.set(sc, sc, sc);
+      } else {
+        this.charmAura.visible = false;
+      }
     }
   }
   /** Враг под прицелом: ближайший к лучу взгляда (допуск 1.2м), не дальше range. */
@@ -6115,6 +6180,7 @@ export class Game {
     // купол Чумы — каждый кадр (виден, пока облако висит; смерть и меню гасят)
     this.syncChumaDome();
     this.syncArbuzFx();
+    this.syncJblFx(dt);
     // рентген Гидроксиса тикает + щёлкает видимость сквозь стены каждый кадр
     if (this.xrayT > 0) {
       this.xrayT -= dt;
@@ -6517,6 +6583,13 @@ export class Game {
           continue;
         }
         if (e.dead) continue;
+        // наблюдателя и несутку-Ивангоя враги не видят: себя из целей убираем, бьём только живых бойцов.
+        // ВСЕ местные (и сталкеры, и обычные) идут к ближайшему живому — себе или
+        // сокомнатнику. Раньше обычные шли только на хоста, а второй игрок для них
+        // был пустым местом. Урон считает клиент жертвы (см. huntingRemote ниже).
+        const hidden = this.specOn || this.invisT > 0;
+        let txp = hidden ? Infinity : this.px, tzp = hidden ? Infinity : this.pz;
+        let huntingRemote = false;
         // Подчинение JBLка: таймер тикает, враг атакует других врагов
         if (e.charmT && e.charmT > 0) {
           e.charmT -= dt;
@@ -6533,15 +6606,7 @@ export class Game {
             tzp = bestE.g.position.z;
             huntingRemote = false;
           }
-        }
-        // наблюдателя и несутку-Ивангоя враги не видят: себя из целей убираем, бьём только живых бойцов.
-        // ВСЕ местные (и сталкеры, и обычные) идут к ближайшему живому — себе или
-        // сокомнатнику. Раньше обычные шли только на хоста, а второй игрок для них
-        // был пустым местом. Урон считает клиент жертвы (см. huntingRemote ниже).
-        const hidden = this.specOn || this.invisT > 0;
-        let txp = hidden ? Infinity : this.px, tzp = hidden ? Infinity : this.pz;
-        let huntingRemote = false;
-        if (hidden) {
+        } else if (hidden) {
           // только живые сокомнатники; нет живых — проваливаемся в стойбище ниже
           // (маршрут чистим, BFS-бюджет не жрём)
           let bd = Infinity;
