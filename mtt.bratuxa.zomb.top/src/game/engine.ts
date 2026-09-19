@@ -49,6 +49,7 @@ export function upgCost(key: keyof UpgState, lvl: number): number {
 export function superCd(id: string, sup: number): number {
   if (id === 'sunstrike') return 30;
   if (id === 'arbuz') return 15;
+  if (id === 'jbl') return 25;
   if (id === 'shuba' || id === 'chuma') return Math.max(20, Math.round((30 - sup * 2) * 10) / 10);
   if (id === 'gidroxis') return Math.max(15, Math.round((20 - sup) * 10) / 10);
   const base = id === 'krysa' ? 5 : 3;
@@ -78,6 +79,7 @@ export const CHARS: CharDef[] = [
   { id: 'gidroxis', name: '🧪 Гидроксис', desc: 'Сканер в жёлтом · супер — рентген существ 5с', hp: 95, spd: 1.1, rarity: 'Легендарный' },
   { id: 'sunstrike', name: '☀️ Андрей Санстрайк', desc: 'Мифический в фиолете · супер — луч света с неба по прицелу (заряд от убийств)', hp: 100, spd: 1.05, rarity: 'Мифический' },
   { id: 'arbuz', name: '🍉 Арбузиха', desc: 'Сверхредкая в короне · супер — цветочная воронка стягивает всех в центр 4с', hp: 100, spd: 1.05, rarity: 'Сверхредкий' },
+  { id: 'jbl', name: '🔊 JBLка', desc: 'Легендарный колонка · звуковая волна + подчинение врагов', hp: 110, spd: 1.08, rarity: 'Легендарный' },
 ];
 
 /** Кейс бойца: цена открытия в фантиках. */
@@ -174,6 +176,12 @@ export interface HudState {
   arbuz: number;
   /** Перезарядка воронки Арбузихи: осталось секунд (0 — готова). */
   arbuzCd: number;
+  /** Звуковая волна JBLка: перезарядка (0 — готова). */
+  waveCd: number;
+  /** Подчинение JBLка: висит секунд (0 — нет). */
+  charm: number;
+  /** Перезарядка подчинения JBLка: осталось секунд (0 — готово). */
+  charmCd: number;
   med: number;
   lvl: number;
   /** Живых боссов на карте — для баннера 👑. */
@@ -219,6 +227,7 @@ export interface KeyMap {
   run: string;
   jump: string;
   ability: string;
+  ability2: string;
   switch: string;
   use: string;
 }
@@ -231,14 +240,15 @@ export const KEY_ACTIONS: Array<{ id: keyof KeyMap; label: string }> = [
   { id: 'hit', label: '👊 Удар' },
   { id: 'jump', label: '🐇 Прыжок' },
   { id: 'run', label: '💨 Бег' },
-  { id: 'ability', label: '⚡ Способность: рывок / вол-кик' },
+  { id: 'ability', label: '⚡ Способность 1' },
+  { id: 'ability2', label: '🔊 Способность 2' },
   { id: 'switch', label: '🔫 Смена оружия' },
   { id: 'use', label: '💊 Аптечка' },
 ];
 
 export const DEFAULT_KEYS: KeyMap = {
   fwd: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD',
-  hit: 'KeyJ', run: 'ShiftLeft', jump: 'Space', ability: 'KeyC', switch: 'KeyE', use: 'KeyX',
+  hit: 'KeyJ', run: 'ShiftLeft', jump: 'Space', ability: 'KeyC', ability2: 'KeyV', switch: 'KeyE', use: 'KeyX',
 };
 
 export interface GameEvents {
@@ -369,6 +379,8 @@ interface Enemy {
   wtz?: number;
   /** шаги: таймер топота (звук — по дистанции до игрока) */
   stepT: number;
+  /** Подчинение JBLка: таймер (секунды), враг атакует других врагов вместо игроков */
+  charmT?: number;
 }
 
 /** Сетевой моб из пульса комнаты (сервер — правда). */
@@ -701,6 +713,11 @@ export class Game {
   private sunFlashT = 0;
   /** Флаг «бьёт луч»: фраги от способности в заряд не идут. */
   private sunNoCharge = false;
+  /** Звуковая волна JBLка: waveCd — перезарядка 25с. */
+  private waveCd = 0;
+  /** Подчинение JBLка: charmT — таймер (5с), charmCd — перезарядка 35с. */
+  private charmT = 0;
+  private charmCd = 0;
   /** Панель разработчика: бессмертие, сквозной рентген, хитбоксы (только у владельца). */
   private devGod = false;
   private devXray = false;
@@ -1123,6 +1140,9 @@ export class Game {
     this.jumpVel = this.charId === 'krysa' ? 4.8 * Math.sqrt(3) : 4.8;
     this.dashT = 0;
     this.dashCd = 0;
+    this.waveCd = 0;
+    this.charmT = 0;
+    this.charmCd = 0;
     this.pushHud();
     return this.charId;
   }
@@ -4657,6 +4677,62 @@ export class Game {
     return { t: Math.round(this.arbuzT * 10) / 10, cd: Math.round(this.arbuzCd * 10) / 10, x: this.arbuzX, z: this.arbuzZ };
   }
 
+  // ===== JBLКА: Способность 1 — Звуковая волна =====
+  // Создаёт волну в сторону взгляда, отталкивает врагов на 5м. Кд 25с.
+  soundWave(): boolean {
+    if (!this.started || this.dead || this.waveCd > 0 || this.charId !== 'jbl') return false;
+    const cp = Math.cos(this.pitch);
+    const dx = -Math.sin(this.yaw) * cp;
+    const dz = -Math.cos(this.yaw) * cp;
+    this.waveCd = 25;
+    // Визуальный burst
+    this.burst(this.px + dx * 2, 0.5, this.pz + dz * 2, 20);
+    // Отталкиваем врагов в радиусе 12м перед игроком
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      const ex = e.g.position.x, ez = e.g.position.z;
+      const d = Math.hypot(ex - this.px, ez - this.pz);
+      if (d > 12) continue;
+      // Проверяем, что враг примерно перед игроком (в конусе ~90°)
+      const toEx = ex - this.px, toEz = ez - this.pz;
+      const dot = toEx * dx + toEz * dz;
+      if (dot < 0) continue;
+      // Отбрасываем на 5м
+      const pushDist = 5;
+      const nx = d > 0.1 ? toEx / d : dx;
+      const nz = d > 0.1 ? toEz / d : dz;
+      e.g.position.x += nx * pushDist;
+      e.g.position.z += nz * pushDist;
+      if (e.path) e.path = [];
+      e.repathT = 0.5;
+      e.hurtT = 0.3;
+    }
+    this.pushHud();
+    return true;
+  }
+
+  // ===== JBLКА: Способность 2 — Подчинение =====
+  // В радиусе 4м подчиняет врагов на 5с: атакуют других врагов. Кд 35с.
+  charm(): boolean {
+    if (!this.started || this.dead || this.charmCd > 0 || this.charmT > 0 || this.charId !== 'jbl') return false;
+    this.charmT = 5;
+    this.charmCd = 35;
+    // Визуальный burst
+    this.burst(this.px, 0.8, this.pz, 24);
+    // Подчиняем врагов в радиусе 4м
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      const d = Math.hypot(e.g.position.x - this.px, e.g.position.z - this.pz);
+      if (d <= 4) {
+        e.charmT = 5;
+        if (e.path) e.path = [];
+        e.repathT = 0.3;
+      }
+    }
+    this.pushHud();
+    return true;
+  }
+
   /** Зелёная воронка: конус воронкой вверх (остриё в землю, раструб в небо) + два кольца, крутятся пока висит. */
   private syncArbuzFx(): void {
     if (!this.arbuzMesh) {
@@ -5687,6 +5763,9 @@ export class Game {
       sunCd: Math.round(this.sunCd * 10) / 10,
       arbuz: Math.round(this.arbuzT * 10) / 10,
       arbuzCd: Math.round(this.arbuzCd * 10) / 10,
+      waveCd: Math.round(this.waveCd * 10) / 10,
+      charm: Math.round(this.charmT * 10) / 10,
+      charmCd: Math.round(this.charmCd * 10) / 10,
       fps: Math.round(this.fpsE),
       doorPulse: this.doorPulse,
     });
@@ -6137,23 +6216,34 @@ export class Game {
         const e = 1 - t * t;
         this.yaw = this.kickTurnFrom + this.kickTurnDelta * e;
       }
-      // способность на C: Крыса — вол-кик (съедено выше), Шуба-Ивангой — несутка, остальные — рывок МТТ.
+      // способность на C: Крыса — вол-кик (съедено выше), Шуба-Ивангой — несутка, JBLка — звуковая волна, остальные — рывок МТТ.
       // Наблюдатель способностей не жмёт.
       if (this.input[km.ability] && this.charId !== 'krysa' && !this.specOn) {
         this.input[km.ability] = false;
-        if (this.charId === 'shuba') this.invis(); else if (this.charId === 'chuma') this.chuma(); else if (this.charId === 'gidroxis') this.xray(); else if (this.charId === 'sunstrike') this.sunstrike(); else if (this.charId === 'arbuz') this.arbuz(); else this.dash();
+        if (this.charId === 'shuba') this.invis(); else if (this.charId === 'chuma') this.chuma(); else if (this.charId === 'gidroxis') this.xray(); else if (this.charId === 'sunstrike') this.sunstrike(); else if (this.charId === 'arbuz') this.arbuz(); else if (this.charId === 'jbl') this.soundWave(); else this.dash();
+      }
+      // способность 2 на V: JBLка — подчинение
+      if (this.input[km.ability2] && !this.specOn) {
+        this.input[km.ability2] = false;
+        if (this.charId === 'jbl') this.charm();
       }
       // NOTE: призраку input.ability НЕ чистим — это его спуск (C) в flySpec ниже.
       if (this.dashCd > 0) this.dashCd -= dt;
+      if (this.waveCd > 0) {
+        this.waveCd -= dt;
+        if (Math.floor(this.waveCd * 5) !== Math.floor((this.waveCd + dt) * 5)) this.pushHud();
+      }
       // панель разработчика: без перезарядки — оружие и все скиллы всегда готовы
       if (this.devNoCd) {
         if (this.atkCd > 0) this.atkCd = 0;
         if (this.dashCd > 0) this.dashCd = 0;
+        if (this.waveCd > 0) this.waveCd = 0;
         if (this.invisCd > 0) this.invisCd = 0;
         if (this.chumaCd > 0) this.chumaCd = 0;
         if (this.xrayCd > 0) this.xrayCd = 0;
         if (this.sunCd > 0) this.sunCd = 0;
         if (this.arbuzCd > 0) this.arbuzCd = 0;
+        if (this.charmCd > 0) this.charmCd = 0;
       }
       // несутка тикает: кончилась — сбрасываем HUD (враги снова видят)
       if (this.invisT > 0) {
@@ -6200,6 +6290,17 @@ export class Game {
         this.arbuzCd -= dt;
         if (this.arbuzCd <= 0) { this.arbuzCd = 0; this.pushHud(); }
         else if (Math.floor(this.arbuzCd * 5) !== Math.floor((this.arbuzCd + dt) * 5)) this.pushHud();
+      }
+      // подчинение JBLка тикает: кончилось — сбрасываем HUD
+      if (this.charmT > 0) {
+        this.charmT -= dt;
+        if (this.charmT <= 0) { this.charmT = 0; this.pushHud(); }
+        else if (Math.floor(this.charmT * 2) !== Math.floor((this.charmT + dt) * 2)) this.pushHud();
+      }
+      if (this.charmCd > 0) {
+        this.charmCd -= dt;
+        if (this.charmCd <= 0) { this.charmCd = 0; this.pushHud(); }
+        else if (Math.floor(this.charmCd * 5) !== Math.floor((this.charmCd + dt) * 5)) this.pushHud();
       }
       // луч санстрайка: точки тикают 0.5с, потом удар; вспышка столба тает 0.6с
       for (let i = this.sunBeams.length - 1; i >= 0; i--) {
@@ -6416,6 +6517,23 @@ export class Game {
           continue;
         }
         if (e.dead) continue;
+        // Подчинение JBLка: таймер тикает, враг атакует других врагов
+        if (e.charmT && e.charmT > 0) {
+          e.charmT -= dt;
+          if (e.charmT <= 0) { e.charmT = undefined; }
+          // Ищем ближайшего другого живого врага как цель
+          let bestD = Infinity, bestE: typeof e | null = null;
+          for (const o of this.enemies) {
+            if (o === e || o.dead || o.wb) continue;
+            const od = Math.hypot(o.g.position.x - e.g.position.x, o.g.position.z - e.g.position.z);
+            if (od < bestD) { bestD = od; bestE = o; }
+          }
+          if (bestE) {
+            txp = bestE.g.position.x;
+            tzp = bestE.g.position.z;
+            huntingRemote = false;
+          }
+        }
         // наблюдателя и несутку-Ивангоя враги не видят: себя из целей убираем, бьём только живых бойцов.
         // ВСЕ местные (и сталкеры, и обычные) идут к ближайшему живому — себе или
         // сокомнатнику. Раньше обычные шли только на хоста, а второй игрок для них
@@ -6736,7 +6854,7 @@ export class Game {
           }
           } // LOD: дальние двигаются через кадр
         // d<=2.1 (рядом) + своя плоскость: игрок на крыше, враг на земле — урона нет
-        } else if (!huntingRemote && !this.dead && Math.abs(e.ey - this.py) <= (e.kind === 'boss' ? 2.8 : 2.2) && e.hitCd <= 0 && this.shieldT <= 0 && !this.specOn && this.invisT <= 0 && !this.devGod) {
+        } else if (!huntingRemote && !this.dead && Math.abs(e.ey - this.py) <= (e.kind === 'boss' ? 2.8 : 2.2) && e.hitCd <= 0 && this.shieldT <= 0 && !this.specOn && this.invisT <= 0 && !this.devGod && !(e.charmT && e.charmT > 0)) {
           // бьём ТОЛЬКО себя: враг добежал до сокомнатника (huntingRemote) — урон считает его клиент, нам чужого не надо.
           // Труп тоже не бьём: умер — тишина, без добивания и звуков после смерти.
           // Облако Чумы достаёт и в упор (враг бьёт — сам травится).

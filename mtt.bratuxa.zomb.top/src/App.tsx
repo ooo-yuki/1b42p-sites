@@ -13,10 +13,11 @@ import charChumaUrl from './assets/char-chuma.png';
 import charGidroxisUrl from './assets/char-gidroxis.png';
 import charSunstrikeUrl from './assets/char-sunstrike.png';
 import charArbuzUrl from './assets/char-arbuziha.png';
+import charJblUrl from './assets/char-jbl.png';
 import jumpscareUrl from './assets/jumpscare.jpg';
 import menuBgUrl from './assets/menu-bg.jpg';
 
-const CHARIMG: Record<string, string> = { mtt: charMttUrl, krysa: charKrysaUrl, shuba: charShubaUrl, chuma: charChumaUrl, gidroxis: charGidroxisUrl, sunstrike: charSunstrikeUrl, arbuz: charArbuzUrl };
+const CHARIMG: Record<string, string> = { mtt: charMttUrl, krysa: charKrysaUrl, shuba: charShubaUrl, chuma: charChumaUrl, gidroxis: charGidroxisUrl, sunstrike: charSunstrikeUrl, arbuz: charArbuzUrl, jbl: charJblUrl };
 
 /** Подробные описания способностей бойцов для меню. */
 const CHAR_ABILITIES: Record<string, { lines: string[]; sup: string }> = {
@@ -75,6 +76,15 @@ const CHAR_ABILITIES: Record<string, { lines: string[]; sup: string }> = {
       '🌪️ Воронка тянет — супер крутит всех к центру 4 секунды',
     ],
     sup: '🌪️ СУПЕР — Цветочная воронка на C: прицел на враге — центр на нём, иначе точка поверхности под прицелом. 4с зелёная воронка (r=5м) затягивает ВСЕХ строго в центр — и нечисть, и сталкеров, и даже босса. Кд 15с.',
+  },
+  jbl: {
+    lines: [
+      '❤️ Здоровье 110 — крепкий колонка',
+      '💨 Скорость ×1.08 — быстрее МТТ',
+      '🔊 Звуковая волна — отталкивает врагов на 5м (C)',
+      '🧠 Подчинение — враги 5с атакуют друг друга (V)',
+    ],
+    sup: '🔊 Способность 1 (C) — Звуковая волна: волна в сторону взгляда, отбрасывает врагов в радиусе 12м на 5м. Кд 25с.\n🧠 Способность 2 (V) — Подчинение: в радиусе 4м подчиняет врагов на 5с — они атакуют других врагов вместо игроков. Кд 35с.',
   },
 };
 
@@ -2094,7 +2104,7 @@ async function loadStats(): Promise<void> {
             <div id="hpBar"><div id="hpFill" style={{ width: `${hpFrac * 100}%` }} /></div>
           </div>
           <div id="hudRow">{noEnemies ? '🕊️ МИРНЫЙ РЕЖИМ · ' : `🌊 Волна ${hud.wave} · 👹 ${hud.enemies} · `}💀 {hud.kills} · 🏆 {hud.score}</div>
-          <div id="hudRow2">🎟️ {hud.fantiki} · 💊 {hud.med}/3 · ⭐ {hud.lvl} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}{char === 'krysa' && (hud.kick > 0 ? ` · 🌀 ${hud.kick.toFixed(1)}с` : ' · 🌀 вол-кик готов')}{char === 'shuba' && (hud.invis > 0 ? ` · 👻 ещё ${hud.invis.toFixed(1)}с` : hud.invisCd > 0 ? ` · 👻 ${hud.invisCd.toFixed(1)}с` : ' · 👻 несутка готова')}{char === 'chuma' && (hud.chuma > 0 ? ` · 🦠 ещё ${hud.chuma.toFixed(1)}с` : hud.chumaCd > 0 ? ` · 🦠 ${hud.chumaCd.toFixed(1)}с` : ' · 🦠 облако готово')}{char === 'gidroxis' && (hud.xray > 0 ? ` · 🔍 ещё ${hud.xray.toFixed(1)}с` : hud.xrayCd > 0 ? ` · 🔍 ${hud.xrayCd.toFixed(1)}с` : ' · 🔍 рентген готов')}{char === 'sunstrike' && (hud.sunCd > 0 ? ` · ☀️ ${hud.sunCd.toFixed(1)}с` : ` · ☀️ заряд ${hud.sun}/15`)}{char === 'arbuz' && (hud.arbuz > 0 ? ` · 🌪️ ещё ${hud.arbuz.toFixed(1)}с` : hud.arbuzCd > 0 ? ` · 🌪️ ${hud.arbuzCd.toFixed(1)}с` : ' · 🌪️ воронка готова')}</div>
+          <div id="hudRow2">🎟️ {hud.fantiki} · 💊 {hud.med}/3 · ⭐ {hud.lvl} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}{char === 'krysa' && (hud.kick > 0 ? ` · 🌀 ${hud.kick.toFixed(1)}с` : ' · 🌀 вол-кик готов')}{char === 'shuba' && (hud.invis > 0 ? ` · 👻 ещё ${hud.invis.toFixed(1)}с` : hud.invisCd > 0 ? ` · 👻 ${hud.invisCd.toFixed(1)}с` : ' · 👻 несутка готова')}{char === 'chuma' && (hud.chuma > 0 ? ` · 🦠 ещё ${hud.chuma.toFixed(1)}с` : hud.chumaCd > 0 ? ` · 🦠 ${hud.chumaCd.toFixed(1)}с` : ' · 🦠 облако готово')}{char === 'gidroxis' && (hud.xray > 0 ? ` · 🔍 ещё ${hud.xray.toFixed(1)}с` : hud.xrayCd > 0 ? ` · 🔍 ${hud.xrayCd.toFixed(1)}с` : ' · 🔍 рентген готов')}{char === 'sunstrike' && (hud.sunCd > 0 ? ` · ☀️ ${hud.sunCd.toFixed(1)}с` : ` · ☀️ заряд ${hud.sun}/15`)}{char === 'arbuz' && (hud.arbuz > 0 ? ` · 🌪️ ещё ${hud.arbuz.toFixed(1)}с` : hud.arbuzCd > 0 ? ` · 🌪️ ${hud.arbuzCd.toFixed(1)}с` : ' · 🌪️ воронка готова')}{char === 'jbl' && (hud.waveCd > 0 ? ` · 🔊 ${hud.waveCd.toFixed(1)}с` : ' · 🔊 волна готова')}{char === 'jbl' && (hud.charm > 0 ? ` · 🧠 ещё ${hud.charm.toFixed(1)}с` : hud.charmCd > 0 ? ` · 🧠 ${hud.charmCd.toFixed(1)}с` : ' · 🧠 подчинение готово')}</div>
         </div>
       )}
       {!menu && (
