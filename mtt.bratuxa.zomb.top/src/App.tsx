@@ -803,9 +803,12 @@ async function loadStats(): Promise<void> {
   const [devSpec, setDevSpecSt] = useState(false);
   const [devHit, setDevHitSt] = useState(false);
   const [devXray, setDevXraySt] = useState(false);
-  const [devUsers, setDevUsers] = useState<Array<{ login: string; created: number; blocked: boolean; ip: string; ipBlocked: boolean }> | null>(null);
+  const [devUsers, setDevUsers] = useState<Array<{ login: string; created: number; blocked: boolean; ip: string; ipBlocked: boolean; ipExpires: number }> | null>(null);
   const [devUsersBusy, setDevUsersBusy] = useState(false);
   const [devUserMenu, setDevUserMenu] = useState<string | null>(null);
+  const [devBanDays, setDevBanDays] = useState(0);
+  const [devBanHours, setDevBanHours] = useState(0);
+  const [devBanMins, setDevBanMins] = useState(0);
   const [devTopScores, setDevTopScores] = useState<Array<{ nick: string; best: number; login: string; games: number }> | null>(null);
   const [devTopBusy, setDevTopBusy] = useState(false);
   /** Живые координаты игрока для дев-панели (опрос движка, пока панель открыта). */
@@ -3130,15 +3133,36 @@ async function loadStats(): Promise<void> {
                       setDevUsers((u) => (u ?? []).map((y) => y.login === x.login ? { ...y, blocked: false } : y));
                       setDevUserMenu(null);
                     }}>✅ Разблокировать аккаунт</button>}
-                    {!x.ipBlocked && x.ip && <button className="wbtn" onClick={async () => {
-                      if (!window.confirm(`Заблокировать IP ${x.ip} (${x.login})? Игрок не сможет играть и регистрироваться.`)) return;
-                      await fetch('/api/dev/block-ip', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), login: x.login }) });
-                      setDevUsers((u) => (u ?? []).map((y) => y.login === x.login ? { ...y, ipBlocked: true } : y));
-                      setDevUserMenu(null);
-                    }}>🚫 Заблокировать по IP</button>}
+                    {!x.ipBlocked && x.ip && <>
+                      <div style={{ fontSize: 12, color: '#aaa', margin: '8px 0 4px' }}>Время бана по IP:</div>
+                      <div style={{ display: 'flex', gap: 6, marginBottom: 8, alignItems: 'center' }}>
+                        <label style={{ fontSize: 12, color: '#888' }}>
+                          <input type="number" min={0} max={365} value={devBanDays} onChange={(e) => setDevBanDays(+e.target.value)} style={{ width: 40, background: '#0a0806', border: '1px solid #5a4a22', color: '#fff', borderRadius: 4, padding: '4px 2px', fontFamily: 'inherit', fontSize: 12 }} /> д
+                        </label>
+                        <label style={{ fontSize: 12, color: '#888' }}>
+                          <input type="number" min={0} max={23} value={devBanHours} onChange={(e) => setDevBanHours(+e.target.value)} style={{ width: 40, background: '#0a0806', border: '1px solid #5a4a22', color: '#fff', borderRadius: 4, padding: '4px 2px', fontFamily: 'inherit', fontSize: 12 }} /> ч
+                        </label>
+                        <label style={{ fontSize: 12, color: '#888' }}>
+                          <input type="number" min={0} max={59} value={devBanMins} onChange={(e) => setDevBanMins(+e.target.value)} style={{ width: 40, background: '#0a0806', border: '1px solid #5a4a22', color: '#fff', borderRadius: 4, padding: '4px 2px', fontFamily: 'inherit', fontSize: 12 }} /> мин
+                        </label>
+                      </div>
+                      <button className="wbtn" onClick={async () => {
+                        const totalMin = devBanDays * 1440 + devBanHours * 60 + devBanMins;
+                        const label = totalMin > 0 ? `${devBanDays}д ${devBanHours}ч ${devBanMins}мин` : 'навсегда';
+                        if (!window.confirm(`Заблокировать IP ${x.ip} (${x.login}) на ${label}?\nИгрок не сможет играть и регистрироваться.`)) return;
+                        await fetch('/api/dev/block-ip', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), login: x.login, duration: totalMin }) });
+                        setDevUsers((u) => (u ?? []).map((y) => y.login === x.login ? { ...y, ipBlocked: true, ipExpires: totalMin > 0 ? Date.now() + totalMin * 60_000 : 0 } : y));
+                        setDevUserMenu(null);
+                      }}>🚫 Заблокировать по IP</button>
+                    </>}
+                    {x.ipBlocked && x.ip && <div style={{ fontSize: 12, color: '#aaa', marginBottom: 8 }}>
+                      {x.ipExpires > 0
+                        ? `🚫 IP заблокирован до ${new Date(x.ipExpires).toLocaleString()}`
+                        : '🚫 IP заблокирован навсегда'}
+                    </div>}
                     {x.ipBlocked && x.ip && <button className="wbtn" onClick={async () => {
                       await fetch('/api/dev/unblock-ip', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), ip: x.ip }) });
-                      setDevUsers((u) => (u ?? []).map((y) => y.login === x.login ? { ...y, ipBlocked: false } : y));
+                      setDevUsers((u) => (u ?? []).map((y) => y.login === x.login ? { ...y, ipBlocked: false, ipExpires: 0 } : y));
                       setDevUserMenu(null);
                     }}>✅ Разблокировать IP</button>}
                     <button className="wbtn devActionDanger" onClick={async () => {

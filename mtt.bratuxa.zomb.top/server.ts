@@ -116,12 +116,21 @@ function devOwner(): string {
 }
 
 // ---- IP-блокировка: чёрный список IP + лог последних IP по логину ----
-db.run(`CREATE TABLE IF NOT EXISTS ip_blocked (ip TEXT PRIMARY KEY, ts INTEGER NOT NULL)`);
+db.run(`CREATE TABLE IF NOT EXISTS ip_blocked (ip TEXT PRIMARY KEY, ts INTEGER NOT NULL, expires INTEGER NOT NULL DEFAULT 0)`);
 db.run(`CREATE TABLE IF NOT EXISTS ip_log (login TEXT NOT NULL, ip TEXT NOT NULL, ts INTEGER NOT NULL)`);
 try { db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_ip_log_unique ON ip_log (login, ip)'); } catch { /* уже есть */ }
+// миграция: добавить expires если старая таблица
+try { db.run('ALTER TABLE ip_blocked ADD COLUMN expires INTEGER NOT NULL DEFAULT 0'); } catch { /* уже есть */ }
+// автоочистка просроченных банов
+function cleanExpiredIps() {
+  try { db.run('DELETE FROM ip_blocked WHERE expires > 0 AND expires < ?', [Date.now()]); } catch { /* noop */ }
+}
+cleanExpiredIps();
+setInterval(cleanExpiredIps, 60_000);
 
 function isIpBlocked(ip: string): boolean {
   if (!ip) return false;
+  cleanExpiredIps();
   try { return !!db.query('SELECT ip FROM ip_blocked WHERE ip = ?').get(ip); } catch { return false; }
 }
 
@@ -482,12 +491,16 @@ async function roomsApi(req: Request): Promise<Response | null> {
       ok: true,
       users: users.map((x) => {
         const lastIp = db.query('SELECT ip FROM ip_log WHERE login = ? ORDER BY ts DESC LIMIT 1').get(x.login) as { ip: string } | null;
+        const ipRow = lastIp?.ip ? db.query('SELECT expires FROM ip_blocked WHERE ip = ?').get(lastIp.ip) as { expires: number } | null : null;
+        const ipBlocked = !!ipRow;
+        const ipExpires = ipRow?.expires ?? 0;
         return {
           login: x.login,
           created: x.created,
           blocked: isBlocked(x.login),
           ip: lastIp?.ip ?? '',
-          ipBlocked: lastIp?.ip ? isIpBlocked(lastIp.ip) : false,
+          ipBlocked,
+          ipExpires,
         };
       }),
     });
@@ -544,14 +557,16 @@ async function roomsApi(req: Request): Promise<Response | null> {
     // находим последний IP игрока
     const row = db.query('SELECT ip FROM ip_log WHERE login = ? ORDER BY ts DESC LIMIT 1').get(target) as { ip: string } | null;
     if (!row?.ip) return Response.json({ error: 'noip' }, { status: 400 });
-    db.run('INSERT OR IGNORE INTO ip_blocked (ip, ts) VALUES (?, ?)', [row.ip, Date.now()]);
+    const duration = Number(body.duration ?? 0); // минуты; 0 = навсегда
+    const expires = duration > 0 ? Date.now() + duration * 60_000 : 0;
+    db.run('INSERT OR REPLACE INTO ip_blocked (ip, ts, expires) VALUES (?, ?, ?)', [row.ip, Date.now(), expires]);
     // выкинуть из аккаунта
     db.run('DELETE FROM sessions WHERE login = ?', [target]);
     for (const r of rooms.values()) {
       for (const [k, m] of r.players) if (m.login === target) { r.players.delete(k); r.gone.delete(k); }
       for (const [k, m] of r.pending) if (m.login === target) r.pending.delete(k);
     }
-    return Response.json({ ok: true, login: target, ip: row.ip });
+    return Response.json({ ok: true, login: target, ip: row.ip, expires });
   }
   // DEV: разблокировать IP
   if (p === '/api/dev/unblock-ip' && req.method === 'POST') {
@@ -576,7 +591,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     // опционально: бан по IP одновременно
     if (body.banIp) {
       const row = db.query('SELECT ip FROM ip_log WHERE login = ? ORDER BY ts DESC LIMIT 1').get(target) as { ip: string } | null;
-      if (row?.ip) db.run('INSERT OR IGNORE INTO ip_blocked (ip, ts) VALUES (?, ?)', [row.ip, Date.now()]);
+      if (row?.ip) db.run('INSERT OR REPLACE INTO ip_blocked (ip, ts, expires) VALUES (?, ?, 0)', [row.ip, Date.now()]);
     }
     db.run('DELETE FROM scores WHERE login = ?', [target]);
     db.run('DELETE FROM sessions WHERE login = ?', [target]);
