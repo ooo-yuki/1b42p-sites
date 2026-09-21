@@ -507,7 +507,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
           created: x.created,
           blocked: !!blockRow,
           blockedExpires: blockRow?.expires ?? 0,
-          ip,
+          ip: lastIp?.ip ?? '',
           ipBlocked,
           ipExpires,
         };
