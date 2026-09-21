@@ -1410,8 +1410,8 @@ export class Game {
   }
 
   // ===== BLENDER: кастомная карта из .glb =====
-  // Коллизия генерируется автоматически из bounding box каждого меша.
-  // Flat-объекты (пол, дороги, вода) — без коллизии. Вертикальные (стены, деревья) — коллизия по footprint.
+  // Пол — из GLB (свои текстуры). Коллизия — автоматически: нижние 40% bbox каждого объекта.
+  // Flat-объекты (< 0.5м) — без коллизии (пол, дороги, вода).
   // Empty с именем Spawn = точка спавна.
   private buildBlender(): void {
     const scene = this.scene;
@@ -1430,6 +1430,20 @@ export class Game {
     sun.shadow.camera.far = 600;
     sun.shadow.bias = -0.0004;
     scene.add(sun);
+    // Запасной пол (трава) — если в GLB нет своего пола, будет виден этот
+    const grassTex = new THREE.TextureLoader().load(travaUrl);
+    grassTex.colorSpace = THREE.SRGBColorSpace;
+    grassTex.wrapS = grassTex.wrapT = THREE.MirroredRepeatWrapping;
+    grassTex.repeat.set(40, 40);
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(H * 2 + 40, H * 2 + 40),
+      new THREE.MeshStandardMaterial({ map: grassTex, roughness: 0.95, metalness: 0 }),
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.1;
+    ground.receiveShadow = true;
+    ground.name = '__fallback_ground__';
+    scene.add(ground);
     const loader = new GLTFLoader();
     loader.load(
       customMapUrl,
@@ -1437,9 +1451,8 @@ export class Game {
         const root = gltf.scene;
         let spawnX = 0, spawnZ = 0, spawnFound = false;
         let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-        // Обходим все меши и создаём коллизию
+        // Сначала ищем Spawn + считаем bbox карты
         root.traverse((obj) => {
-          // Spawn
           if (obj.type === 'Object3D' && obj.name === 'Spawn' && !('geometry' in obj)) {
             const wp = new THREE.Vector3();
             obj.getWorldPosition(wp);
@@ -1447,37 +1460,40 @@ export class Game {
             return;
           }
           if (!('geometry' in obj)) return;
-          // Пропускаем коллизии из старого скрипта (col_*)
           if (obj.name.startsWith('col_')) { (obj as THREE.Mesh).visible = false; return; }
           const m = obj as THREE.Mesh;
           m.updateMatrixWorld(true);
-          // Shadow casting
           m.castShadow = true;
           m.receiveShadow = true;
-          // Bounding box в мировых координатах
           const box = new THREE.Box3().setFromObject(m);
           const size = new THREE.Vector3();
-          const center = new THREE.Vector3();
           box.getSize(size);
+          const center = new THREE.Vector3();
           box.getCenter(center);
-          // Flat-объекты (< 0.5м высота) — это пол/дороги/вода, без коллизии
-          if (size.y < 0.5) return;
-          // Коллизия: footprint (XZ) с высотой объекта
-          this.solids.push({
-            x: center.x,
-            z: center.z,
-            hx: size.x / 2,
-            hz: size.z / 2,
-            h: size.y / 2 + center.y,
-          });
-          // Для bbox карты
+          // Для bbox карты (все объекты включая пол)
           if (box.min.x < minX) minX = box.min.x;
           if (box.max.x > maxX) maxX = box.max.x;
           if (box.min.z < minZ) minZ = box.min.z;
           if (box.max.z > maxZ) maxZ = box.max.z;
+          // Flat (< 0.5м) — без коллизии
+          if (size.y < 0.5) return;
+          // Коллизия: нижние 40% bbox, сжатый footprint на 20%
+          const colH = size.y * 0.4;
+          const shrink = 0.8;
+          this.solids.push({
+            x: center.x,
+            z: center.z,
+            hx: (size.x / 2) * shrink,
+            hz: (size.z / 2) * shrink,
+            h: box.min.y + colH,
+          });
         });
         if (minX < Infinity) {
           this.half = Math.max(maxX - minX, maxZ - minZ) / 2 + 15;
+          // Подвинуть запасной пол под размер карты
+          ground.scale.set(1, 1, 1);
+          ground.position.x = (minX + maxX) / 2;
+          ground.position.z = (minZ + maxZ) / 2;
         }
         scene.add(root);
         this.rebuildSolidGrid();
