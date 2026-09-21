@@ -102,11 +102,18 @@ function loginByToken(token: unknown): string {
 function isBlocked(login: string): boolean {
   if (!login) return false;
   try {
-    db.run('CREATE TABLE IF NOT EXISTS dev_blocked (login TEXT PRIMARY KEY, ts INTEGER NOT NULL)');
+    db.run('CREATE TABLE IF NOT EXISTS dev_blocked (login TEXT PRIMARY KEY, ts INTEGER NOT NULL, expires INTEGER NOT NULL DEFAULT 0)');
+    try { db.run('ALTER TABLE dev_blocked ADD COLUMN expires INTEGER NOT NULL DEFAULT 0'); } catch { /* уже есть */ }
+    cleanExpiredBlocks();
     const row = db.query('SELECT login FROM dev_blocked WHERE login = ?').get(login) as { login: string } | null;
     return !!row;
   } catch { return false; }
 }
+function cleanExpiredBlocks() {
+  try { db.run('DELETE FROM dev_blocked WHERE expires > 0 AND expires < ?', [Date.now()]); } catch { /* noop */ }
+}
+cleanExpiredBlocks();
+setInterval(cleanExpiredBlocks, 60_000);
 /** Кто забрал LXX42P2ILX — тот и владелец панели (один на весь сервер). */
 function devOwner(): string {
   try {
@@ -494,11 +501,13 @@ async function roomsApi(req: Request): Promise<Response | null> {
         const ipRow = lastIp?.ip ? db.query('SELECT expires FROM ip_blocked WHERE ip = ?').get(lastIp.ip) as { expires: number } | null : null;
         const ipBlocked = !!ipRow;
         const ipExpires = ipRow?.expires ?? 0;
+        const blockRow = db.query('SELECT expires FROM dev_blocked WHERE login = ?').get(x.login) as { expires: number } | null;
         return {
           login: x.login,
           created: x.created,
-          blocked: isBlocked(x.login),
-          ip: lastIp?.ip ?? '',
+          blocked: !!blockRow,
+          blockedExpires: blockRow?.expires ?? 0,
+          ip,
           ipBlocked,
           ipExpires,
         };
@@ -524,8 +533,10 @@ async function roomsApi(req: Request): Promise<Response | null> {
     const target = String(body.login ?? '').trim().slice(0, 16);
     if (!target) return Response.json({ error: 'bad' }, { status: 400 });
     if (target === login) return Response.json({ error: 'self' }, { status: 400 });
-    db.run('CREATE TABLE IF NOT EXISTS dev_blocked (login TEXT PRIMARY KEY, ts INTEGER NOT NULL)');
-    db.run('INSERT OR IGNORE INTO dev_blocked (login, ts) VALUES (?, ?)', [target, Date.now()]);
+    const duration = Number(body.duration ?? 0); // минуты; 0 = навсегда
+    const expires = duration > 0 ? Date.now() + duration * 60_000 : 0;
+    db.run('CREATE TABLE IF NOT EXISTS dev_blocked (login TEXT PRIMARY KEY, ts INTEGER NOT NULL, expires INTEGER NOT NULL DEFAULT 0)');
+    db.run('INSERT OR REPLACE INTO dev_blocked (login, ts, expires) VALUES (?, ?, ?)', [target, Date.now(), expires]);
     db.run('DELETE FROM sessions WHERE login = ?', [target]);
     // выкинуть из всех комнат сразу (пульс с мёртвым токеном его уже не вернёт)
     for (const r of rooms.values()) {
