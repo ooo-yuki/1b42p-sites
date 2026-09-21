@@ -3100,9 +3100,13 @@ async function loadStats(): Promise<void> {
               <div id="devUsers">
                 {devUsers.length === 0 && <div>Аккаунтов нет.</div>}
                 {devUsers.map((x) => (
-                  <div key={x.login} className="srow">
+                  <div key={x.login} className="srow" style={x.blocked || x.ipBlocked ? { background: 'rgba(255,50,50,.12)', borderRadius: 4, border: '1px solid rgba(255,50,50,.25)' } : undefined}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <span>{x.login}{x.blocked ? ' ⛔' : ''}{x.ipBlocked ? ' 🚫IP' : ''}</span>
+                      <span>
+                        {x.login}
+                        {x.blocked && ' 🚫'}
+                        {x.ipBlocked && !x.blocked && ' ⛔'}
+                      </span>
                       {x.ip && <span style={{ fontSize: 10, color: '#666', display: 'block' }}>IP: {x.ip}</span>}
                     </div>
                     {x.login !== authed && (
@@ -3120,7 +3124,7 @@ async function loadStats(): Promise<void> {
               return createPortal(
                 <div className="devModalOverlay" onClick={(e) => { if (e.target === e.currentTarget) setDevUserMenu(null); }}>
                   <div className="devModalBox">
-                    <h3>{x.login}{x.blocked ? ' ⛔' : ''}{x.ipBlocked ? ' 🚫IP' : ''}</h3>
+                    <h3>{x.login} {x.blocked ? '🚫' : ''}{x.ipBlocked ? '⛔' : ''}</h3>
                     {x.ip && <div style={{ fontSize: 11, color: '#888', marginBottom: 10 }}>IP: {x.ip}</div>}
                     {!x.blocked && <button className="wbtn" onClick={async () => {
                       if (!window.confirm(`Заблокировать аккаунт ${x.login}? Игрок не сможет войти.`)) return;

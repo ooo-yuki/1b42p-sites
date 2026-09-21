@@ -398,7 +398,8 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(-
 #devClose{background:transparent;border:1px solid #5a4a22;color:#9a8a5a;border-radius:8px;font-size:15px;padding:6px 12px;cursor:pointer}
 #devPanelBody{opacity:.8;font-size:14px}
 #devPanelBody .wbtn{width:100%;margin-bottom:8px}
-#devUsers .srow{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;font-size:14px}
+#devUsers .srow{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;font-size:14px;padding:4px 6px;border-radius:4px;transition:background .2s}
+#devUsers .srow:hover{background:rgba(255,255,255,.04)}
 #devUsers .srow .wbtn{width:auto;margin-bottom:0;padding:6px 10px;font-size:12px}
 .devModalOverlay{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6)}
 .devModalBox{background:#1a1408;border:2px solid #5a4a22;border-radius:10px;min-width:260px;max-width:90vw;padding:16px;box-shadow:0 8px 32px rgba(0,0,0,.8)}
