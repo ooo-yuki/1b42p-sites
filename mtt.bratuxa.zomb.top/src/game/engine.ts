@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import vrag1Url from '../assets/vrag1.png';
 import vrag2Url from '../assets/vrag2.png';
 import dom1Url from '../assets/dom1.png';
@@ -37,6 +38,7 @@ import szegedMesh from '../assets/szeged.mesh.json';
 import szegedAtlasUrl from '../assets/szeged-atlas.jpg';
 import szegedSolids from '../assets/szeged.solids.json';
 import szegedSpawn from '../../tools/szeged-spawn.json';
+import customMapUrl from '../assets/custom-map.glb';
 
 export interface UpgState { hp: number; dmg: number; spd: number; sup: number }
 export const UPG_MAX: UpgState = { hp: 5, dmg: 5, spd: 5, sup: 5 };
@@ -97,7 +99,7 @@ export function charSpec(id: string): CharDef {
 }
 
 export type Quality = 'low' | 'medium' | 'high';
-export type MapId = 'arena' | 'duel' | 'backrooms' | 'custom' | 'random' | 'pvp' | 'endless' | 'invasion' | 'szeged' | 'boss' | 'forest';
+export type MapId = 'arena' | 'duel' | 'backrooms' | 'custom' | 'random' | 'pvp' | 'endless' | 'invasion' | 'szeged' | 'boss' | 'forest' | 'blender';
 
 /** Карты для выбора в меню: id, название, описание. */
 export const MAPS: Array<{ id: MapId; name: string; desc: string }> = [
@@ -106,6 +108,7 @@ export const MAPS: Array<{ id: MapId; name: string; desc: string }> = [
   { id: 'duel', name: '⚔️ Дуэль', desc: 'Ночной двор 1×1 для разборок' },
   { id: 'szeged', name: '🇬🇧 London', desc: 'Приватная карта МТТ' },
   { id: 'forest', name: '🌲 Лес', desc: '300×300 — густой лес, болота, озёра. Карта админа' },
+  { id: 'blender', name: '🧊 Blender', desc: 'Кастомная карта из Blender (.glb)' },
   { id: 'backrooms', name: '🟨 Бэкрумс', desc: 'Случайный лабиринт — новый каждый раз' },
   { id: 'random', name: '🎲 Случайная', desc: 'Дикий ландшафт: холмы, скалы, озеро — новый каждый раз' },
 ];
@@ -860,7 +863,7 @@ export class Game {
     this.custom = opts.custom ?? null;
     this.mapSeed = (opts.seed ?? Math.floor(Math.random() * 2 ** 31)) >>> 0;
     // Бэкрумс большой: лабиринт ~120м. Размер задаёт сам строитель через halfOverride.
-    this.half = map === 'duel' ? 32 : map === 'boss' ? 45 : map === 'forest' ? 100 : HALF;
+    this.half = map === 'duel' ? 32 : map === 'boss' ? 45 : map === 'forest' ? 100 : map === 'blender' ? 80 : HALF;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
     // свет наблюдателя: день вместо жути — висят выключенными, зажигаются в specOn
     this.specLight = new THREE.AmbientLight(0xfff6e6, 1.15);
@@ -900,6 +903,16 @@ export class Game {
       skyTex.colorSpace = THREE.SRGBColorSpace;
       const sky = new THREE.Mesh(
         new THREE.SphereGeometry(300, 24, 16),
+        new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false }),
+      );
+      this.scene.add(sky);
+    } else if (map === 'blender') {
+      this.scene.background = new THREE.Color(0x87ceeb);
+      this.scene.fog = new THREE.Fog(0x87ceeb, 80, 250);
+      const skyTex = new THREE.TextureLoader().load(skyUrl);
+      skyTex.colorSpace = THREE.SRGBColorSpace;
+      const sky = new THREE.Mesh(
+        new THREE.SphereGeometry(350, 24, 16),
         new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false }),
       );
       this.scene.add(sky);
@@ -1394,6 +1407,99 @@ export class Game {
       tl.position.set(fx, 4.3, fz);
       scene.add(tl);
     }
+  }
+
+  // ===== BLENDER: кастомная карта из .glb =====
+  // Коллизия генерируется автоматически из bounding box каждого меша.
+  // Flat-объекты (пол, дороги, вода) — без коллизии. Вертикальные (стены, деревья) — коллизия по footprint.
+  // Empty с именем Spawn = точка спавна.
+  private buildBlender(): void {
+    const scene = this.scene;
+    scene.add(new THREE.HemisphereLight(0xbfd9ff, 0x8a7a66, 0.8));
+    const sun = new THREE.DirectionalLight(0xffe7c4, 1.4);
+    sun.position.set(120, 180, 60);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 1024;
+    sun.shadow.mapSize.height = 1024;
+    const H = this.half;
+    sun.shadow.camera.left = -H - 5;
+    sun.shadow.camera.right = H + 5;
+    sun.shadow.camera.top = H + 5;
+    sun.shadow.camera.bottom = -H - 5;
+    sun.shadow.camera.near = 10;
+    sun.shadow.camera.far = 600;
+    sun.shadow.bias = -0.0004;
+    scene.add(sun);
+    const loader = new GLTFLoader();
+    loader.load(
+      customMapUrl,
+      (gltf) => {
+        const root = gltf.scene;
+        let spawnX = 0, spawnZ = 0, spawnFound = false;
+        let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+        // Обходим все меши и создаём коллизию
+        root.traverse((obj) => {
+          // Spawn
+          if (obj.type === 'Object3D' && obj.name === 'Spawn' && !('geometry' in obj)) {
+            const wp = new THREE.Vector3();
+            obj.getWorldPosition(wp);
+            spawnX = wp.x; spawnZ = wp.z; spawnFound = true;
+            return;
+          }
+          if (!('geometry' in obj)) return;
+          // Пропускаем коллизии из старого скрипта (col_*)
+          if (obj.name.startsWith('col_')) { (obj as THREE.Mesh).visible = false; return; }
+          const m = obj as THREE.Mesh;
+          m.updateMatrixWorld(true);
+          // Shadow casting
+          m.castShadow = true;
+          m.receiveShadow = true;
+          // Bounding box в мировых координатах
+          const box = new THREE.Box3().setFromObject(m);
+          const size = new THREE.Vector3();
+          const center = new THREE.Vector3();
+          box.getSize(size);
+          box.getCenter(center);
+          // Flat-объекты (< 0.5м высота) — это пол/дороги/вода, без коллизии
+          if (size.y < 0.5) return;
+          // Коллизия: footprint (XZ) с высотой объекта
+          this.solids.push({
+            x: center.x,
+            z: center.z,
+            hx: size.x / 2,
+            hz: size.z / 2,
+            h: size.y / 2 + center.y,
+          });
+          // Для bbox карты
+          if (box.min.x < minX) minX = box.min.x;
+          if (box.max.x > maxX) maxX = box.max.x;
+          if (box.min.z < minZ) minZ = box.min.z;
+          if (box.max.z > maxZ) maxZ = box.max.z;
+        });
+        if (minX < Infinity) {
+          this.half = Math.max(maxX - minX, maxZ - minZ) / 2 + 15;
+        }
+        scene.add(root);
+        this.rebuildSolidGrid();
+        // Спавн
+        if (spawnFound) {
+          this.px = spawnX; this.pz = spawnZ;
+        } else {
+          for (let r = 2; r <= this.half; r += 2) {
+            for (let k = 0; k < 8; k++) {
+              const a = (k / 8) * Math.PI * 2;
+              const qx = Math.cos(a) * r, qz = Math.sin(a) * r;
+              if (!this.hitSolid(qx, qz, 1.5)) { this.px = qx; this.pz = qz; this.yaw = 0; break; }
+            }
+            if (this.px !== 0 || this.pz !== 0) break;
+          }
+        }
+      },
+      undefined,
+      (err) => {
+        console.warn('[Blender] GLB load error:', err);
+      },
+    );
   }
 
   // Сегед: приватная карта МТТ — запечённый индексный меш (формат szeged-mesh-3).
@@ -3127,6 +3233,7 @@ export class Game {
     if (this.map === 'random') { this.buildRandom(); return; }
     if (this.map === 'szeged') { this.buildSzeged(); return; }
     if (this.map === 'forest') { this.buildForest(); return; }
+    if (this.map === 'blender') { this.buildBlender(); return; }
     // arena, pvp, invasion — город
     this.buildCity(); return;
     const scene = this.scene;
