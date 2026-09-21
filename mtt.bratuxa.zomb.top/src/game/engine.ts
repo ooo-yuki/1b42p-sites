@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import vrag1Url from '../assets/vrag1.png';
 import vrag2Url from '../assets/vrag2.png';
 import dom1Url from '../assets/dom1.png';
@@ -38,7 +37,6 @@ import szegedMesh from '../assets/szeged.mesh.json';
 import szegedAtlasUrl from '../assets/szeged-atlas.jpg';
 import szegedSolids from '../assets/szeged.solids.json';
 import szegedSpawn from '../../tools/szeged-spawn.json';
-import customMapUrl from '../assets/custom-map.glb';
 
 export interface UpgState { hp: number; dmg: number; spd: number; sup: number }
 export const UPG_MAX: UpgState = { hp: 5, dmg: 5, spd: 5, sup: 5 };
@@ -1409,19 +1407,20 @@ export class Game {
     }
   }
 
-  // ===== BLENDER: кастомная карта из .glb =====
-  // Пол — из GLB (свои текстуры). Коллизия — автоматически: нижние 40% bbox каждого объекта.
-  // Flat-объекты (< 0.5м) — без коллизии (пол, дороги, вода).
-  // Empty с именем Spawn = точка спавна.
+  // ===== BLENDER: карта по макету из Blender (кодовая) =====
+  // Красная зона (лево), река (диагональ), 4 озера, серая дорога, фиолетовая зона,
+  // тёмно-зелёная зона, густые деревья, здания, стены периметра.
   private buildBlender(): void {
     const scene = this.scene;
-    scene.add(new THREE.HemisphereLight(0xbfd9ff, 0x8a7a66, 0.8));
+    const H = this.half; // 100
+    const S = H * 2;
+
+    scene.add(new THREE.HemisphereLight(0xbfd9ff, 0x8a7a66, 0.75));
     const sun = new THREE.DirectionalLight(0xffe7c4, 1.4);
-    sun.position.set(120, 180, 60);
+    sun.position.set(80, 150, 40);
     sun.castShadow = true;
     sun.shadow.mapSize.width = 1024;
     sun.shadow.mapSize.height = 1024;
-    const H = this.half;
     sun.shadow.camera.left = -H - 5;
     sun.shadow.camera.right = H + 5;
     sun.shadow.camera.top = H + 5;
@@ -1430,92 +1429,256 @@ export class Game {
     sun.shadow.camera.far = 600;
     sun.shadow.bias = -0.0004;
     scene.add(sun);
-    // Запасной пол (трава) — если в GLB нет своего пола, будет виден этот
-    const grassTex = new THREE.TextureLoader().load(travaUrl);
-    grassTex.colorSpace = THREE.SRGBColorSpace;
-    grassTex.wrapS = grassTex.wrapT = THREE.MirroredRepeatWrapping;
-    grassTex.repeat.set(40, 40);
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(H * 2 + 40, H * 2 + 40),
-      new THREE.MeshStandardMaterial({ map: grassTex, roughness: 0.95, metalness: 0 }),
-    );
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -0.1;
-    ground.receiveShadow = true;
-    ground.name = '__fallback_ground__';
-    scene.add(ground);
-    const loader = new GLTFLoader();
-    loader.load(
-      customMapUrl,
-      (gltf) => {
-        const root = gltf.scene;
-        let spawnX = 0, spawnZ = 0, spawnFound = false;
-        let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-        // Сначала ищем Spawn + считаем bbox карты
-        root.traverse((obj) => {
-          if (obj.type === 'Object3D' && obj.name === 'Spawn' && !('geometry' in obj)) {
-            const wp = new THREE.Vector3();
-            obj.getWorldPosition(wp);
-            spawnX = wp.x; spawnZ = wp.z; spawnFound = true;
-            return;
-          }
-          if (!('geometry' in obj)) return;
-          if (obj.name.startsWith('col_')) { (obj as THREE.Mesh).visible = false; return; }
-          const m = obj as THREE.Mesh;
-          m.updateMatrixWorld(true);
-          m.castShadow = true;
-          m.receiveShadow = true;
-          const box = new THREE.Box3().setFromObject(m);
-          const size = new THREE.Vector3();
-          box.getSize(size);
-          const center = new THREE.Vector3();
-          box.getCenter(center);
-          // Для bbox карты (все объекты включая пол)
-          if (box.min.x < minX) minX = box.min.x;
-          if (box.max.x > maxX) maxX = box.max.x;
-          if (box.min.z < minZ) minZ = box.min.z;
-          if (box.max.z > maxZ) maxZ = box.max.z;
-          // Flat (< 0.5м) — без коллизии
-          if (size.y < 0.5) return;
-          // Коллизия: нижние 40% bbox, сжатый footprint на 20%
-          const colH = size.y * 0.4;
-          const shrink = 0.8;
-          this.solids.push({
-            x: center.x,
-            z: center.z,
-            hx: (size.x / 2) * shrink,
-            hz: (size.z / 2) * shrink,
-            h: box.min.y + colH,
-          });
-        });
-        if (minX < Infinity) {
-          this.half = Math.max(maxX - minX, maxZ - minZ) / 2 + 15;
-          // Подвинуть запасной пол под размер карты
-          ground.scale.set(1, 1, 1);
-          ground.position.x = (minX + maxX) / 2;
-          ground.position.z = (minZ + maxZ) / 2;
-        }
-        scene.add(root);
-        this.rebuildSolidGrid();
-        // Спавн
-        if (spawnFound) {
-          this.px = spawnX; this.pz = spawnZ;
-        } else {
-          for (let r = 2; r <= this.half; r += 2) {
-            for (let k = 0; k < 8; k++) {
-              const a = (k / 8) * Math.PI * 2;
-              const qx = Math.cos(a) * r, qz = Math.sin(a) * r;
-              if (!this.hitSolid(qx, qz, 1.5)) { this.px = qx; this.pz = qz; this.yaw = 0; break; }
-            }
-            if (this.px !== 0 || this.pz !== 0) break;
-          }
-        }
-      },
-      undefined,
-      (err) => {
-        console.warn('[Blender] GLB load error:', err);
-      },
-    );
+
+    const rng = mulberry32(this.mapSeed);
+    const R = (a: number, b: number): number => a + rng() * (b - a);
+
+    // --- ЗОНЫ по макету (координаты от -100 до +100) ---
+    type Zone = 'red' | 'purple' | 'teal' | 'lake' | 'road' | 'river' | 'grass';
+    const zones: Array<{ cx: number; cz: number; r: number; z: Zone }> = [
+      // Озёра (4 штуки по макету)
+      { cx: -25, cz: -55, r: 12, z: 'lake' },   // верх-центр лево
+      { cx: 5,   cz: -38, r: 7,  z: 'lake' },    // маленькое центр
+      { cx: 58,  cz: -62, r: 14, z: 'lake' },    // верх-право (большое)
+      { cx: 52,  cz: 18,  r: 15, z: 'lake' },    // право-центр (большое)
+      // Красная зона: левая часть, треугольник
+      { cx: -55, cz: -25, r: 55, z: 'red' },
+      // Фиолетовая зона: низ-центр
+      { cx: -8,  cz: 65,  r: 38, z: 'purple' },
+      // Тёмно-зелёная/бирюзовая зона: право-центр
+      { cx: 65,  cz: -15, r: 22, z: 'teal' },
+    ];
+
+    // --- РЕКА (диагональ сверху-лево вниз-право, шириной ~14м) ---
+    const RIVER_W = 14;
+    const riverPts: Array<[number, number]> = [
+      [-95, -65], [-70, -50], [-45, -38], [-20, -22],
+      [5, -8], [25, 2], [45, 8], [65, 5], [85, -5],
+    ];
+
+    function distToRiver(x: number, z: number): number {
+      let minD = Infinity;
+      for (let i = 0; i < riverPts.length - 1; i++) {
+        const [ax, az] = riverPts[i]!, [bx, bz] = riverPts[i + 1]!;
+        const dx = bx - ax, dz = bz - az;
+        const len2 = dx * dx + dz * dz;
+        let t = ((x - ax) * dx + (z - az) * dz) / len2;
+        t = Math.max(0, Math.min(1, t));
+        const px = ax + t * dx, pz = az + t * dz;
+        const d = Math.hypot(x - px, z - pz);
+        if (d < minD) minD = d;
+      }
+      return minD;
+    }
+
+    // --- ДОРОГА (диагональ снизу-лево вверх-право, ~8м) ---
+    const ROAD_W = 8;
+    const roadX1 = -90, roadZ1 = 75, roadX2 = 85, roadZ2 = -75;
+
+    function distToRoad(x: number, z: number): number {
+      const dx = roadX2 - roadX1, dz = roadZ2 - roadZ1;
+      const len2 = dx * dx + dz * dz;
+      let t = ((x - roadX1) * dx + (z - roadZ1) * dz) / len2;
+      t = Math.max(0, Math.min(1, t));
+      const px = roadX1 + t * dx, pz = roadZ1 + t * dz;
+      return Math.hypot(x - px, z - pz);
+    }
+
+    function zoneAt(x: number, z: number): Zone {
+      const edge = 5;
+      if (x < -H + edge || x > H - edge || z < -H + edge || z > H - edge) return 'road';
+      if (distToRoad(x, z) < ROAD_W * 0.5) return 'road';
+      if (distToRiver(x, z) < RIVER_W * 0.5) return 'river';
+      for (const z2 of zones) {
+        if (z2.z === 'lake' && Math.hypot(x - z2.cx, z - z2.cz) < z2.r) return 'lake';
+      }
+      // Красная зона — только левая часть, не перекрывает озёра
+      if (x < -25 && z > -85 && z < 25 && Math.hypot(x - (-55), z - (-25)) < 55) return 'red';
+      // Фиолетовая зона — низ-центр
+      if (Math.hypot(x - (-8), z - 65) < 38) return 'purple';
+      // Бирюзовая зона — право
+      if (Math.hypot(x - 65, z - (-15)) < 22) return 'teal';
+      return 'grass';
+    }
+
+    // --- ПОЛ (vertex colors по зонам) ---
+    const GRAN = 3;
+    const cellsX = Math.ceil(S / GRAN), cellsZ = Math.ceil(S / GRAN);
+    const geo = new THREE.PlaneGeometry(S, S, cellsX, cellsZ);
+    geo.rotateX(-Math.PI / 2);
+    const posAttr = geo.getAttribute('position') as THREE.BufferAttribute;
+    const colors = new Float32Array(posAttr.count * 3);
+    const zoneColors: Record<Zone, [number, number, number]> = {
+      grass:  [0.18, 0.45, 0.14],
+      red:    [0.48, 0.12, 0.08],
+      purple: [0.30, 0.08, 0.42],
+      teal:   [0.08, 0.30, 0.28],
+      lake:   [0.05, 0.18, 0.55],
+      river:  [0.06, 0.20, 0.50],
+      road:   [0.48, 0.46, 0.42],
+    };
+    for (let i = 0; i < posAttr.count; i++) {
+      const x = posAttr.getX(i), z = posAttr.getZ(i);
+      const b = zoneAt(x, z);
+      const c = zoneColors[b];
+      const n = (rng() - 0.5) * 0.04;
+      colors[i * 3] = c[0] + n;
+      colors[i * 3 + 1] = c[1] + n;
+      colors[i * 3 + 2] = c[2] + n;
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.computeVertexNormals();
+    scene.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 })));
+
+    // --- СТЕНЫ ПЕРИМЕТРА ---
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x6a5a42, roughness: 0.9 });
+    const wallH = 6, wallT = 3;
+    const wallDefs: Array<[number, number, number, number]> = [
+      [0, -H - wallT / 2, S + wallT * 2, wallT],
+      [0, H + wallT / 2, S + wallT * 2, wallT],
+      [-H - wallT / 2, 0, wallT, S + wallT * 2],
+      [H + wallT / 2, 0, wallT, S + wallT * 2],
+    ];
+    for (const [wx, wz, ww, wd] of wallDefs) {
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(ww, wallH, wd), wallMat);
+      wall.position.set(wx, wallH / 2, wz);
+      scene.add(wall);
+      this.solids.push({ x: wx, z: wz, hx: ww / 2, hz: wd / 2, h: wallH });
+    }
+
+    // --- ОЗЁРА ---
+    const waterMat = new THREE.MeshStandardMaterial({ color: 0x0e4488, roughness: 0.1, transparent: true, opacity: 0.92 });
+    const shoreMat = new THREE.MeshStandardMaterial({ color: 0x3a3a28, roughness: 1 });
+    for (const z2 of zones) {
+      if (z2.z !== 'lake') continue;
+      const water = new THREE.Mesh(new THREE.CircleGeometry(z2.r, 28), waterMat);
+      water.rotation.x = -Math.PI / 2;
+      water.position.set(z2.cx, 0.04, z2.cz);
+      scene.add(water);
+      const shore = new THREE.Mesh(new THREE.RingGeometry(z2.r, z2.r + 1.8, 28), shoreMat);
+      shore.rotation.x = -Math.PI / 2;
+      shore.position.set(z2.cx, 0.05, z2.cz);
+      scene.add(shore);
+    }
+
+    // --- РЕКА (извилистая полоса воды) ---
+    for (let i = 0; i < riverPts.length - 1; i++) {
+      const [ax, az] = riverPts[i]!, [bx, bz] = riverPts[i + 1]!;
+      const dx = bx - ax, dz = bz - az;
+      const segLen = Math.hypot(dx, dz);
+      const steps = Math.ceil(segLen / 3);
+      for (let s = 0; s < steps; s++) {
+        const t1 = s / steps, t2 = (s + 1) / steps;
+        const x1 = ax + dx * t1, z1 = az + dz * t1;
+        const x2 = ax + dx * t2, z2 = az + dz * t2;
+        const cx = (x1 + x2) / 2, cz = (z1 + z2) / 2;
+        const angle = Math.atan2(bx - ax, bz - az);
+        const segW = RIVER_W * (0.85 + rng() * 0.3);
+        const rs = new THREE.Mesh(new THREE.PlaneGeometry(segW, 3.5), waterMat);
+        rs.rotation.x = -Math.PI / 2;
+        rs.rotation.z = -angle;
+        rs.position.set(cx, 0.04, cz);
+        scene.add(rs);
+        const sh = new THREE.Mesh(new THREE.PlaneGeometry(segW + 2, 4), shoreMat);
+        sh.rotation.x = -Math.PI / 2;
+        sh.rotation.z = -angle;
+        sh.position.set(cx, 0.03, cz);
+        scene.add(sh);
+      }
+    }
+
+    // --- ДЕРЕВЬЯ (InstancedMesh) ---
+    const trunkGeo = new THREE.CylinderGeometry(0.15, 0.28, 1, 5);
+    const crownGeo = new THREE.SphereGeometry(1, 6, 4);
+    interface TreeData { x: number; z: number; h: number; cr: number; color: number }
+    const trees: TreeData[] = [];
+    const treeStep = 4;
+    for (let tx = -H + 4; tx < H; tx += treeStep) {
+      for (let tz = -H + 4; tz < H; tz += treeStep) {
+        const jx = tx + (rng() - 0.5) * treeStep * 0.85;
+        const jz = tz + (rng() - 0.5) * treeStep * 0.85;
+        const b = zoneAt(jx, jz);
+        if (b === 'road' || b === 'lake' || b === 'river') continue;
+        // Плотность по зонам
+        let density = b === 'grass' ? 0.04 : b === 'purple' ? 0.035 : b === 'teal' ? 0.03 : b === 'red' ? 0.006 : 0;
+        if (rng() > density * treeStep * treeStep) continue;
+        // Не деревья у спавна
+        if (Math.hypot(jx - (-H + 10), jz - (H - 10)) < 6) continue;
+        if (Math.hypot(jx - (H - 10), jz - (-H + 10)) < 6) continue;
+        const treeH = R(6, 9);
+        const crownColor = b === 'purple' ? 0x6a1a8a : b === 'teal' ? 0x1a5a50 : b === 'red' ? 0x2a3a15 : 0x1e5a18;
+        trees.push({ x: jx, z: jz, h: treeH, cr: R(1.8, 3.0), color: crownColor });
+        this.solids.push({ x: jx, z: jz, r: 0.35, h: treeH });
+      }
+    }
+    const tmpMat = new THREE.Matrix4();
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3a2810, roughness: 1 });
+    const trunkInst = new THREE.InstancedMesh(trunkGeo, trunkMat, trees.length);
+    for (let i = 0; i < trees.length; i++) {
+      const t = trees[i]!;
+      const s = t.h * 0.45;
+      tmpMat.makeScale(1, s, 1);
+      tmpMat.setPosition(t.x, s / 2, t.z);
+      trunkInst.setMatrixAt(i, tmpMat);
+    }
+    trunkInst.instanceMatrix.needsUpdate = true;
+    scene.add(trunkInst);
+
+    const crownMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
+    const crownInst = new THREE.InstancedMesh(crownGeo, crownMat, trees.length * 2);
+    const c3 = new THREE.Color();
+    for (let i = 0; i < trees.length; i++) {
+      const t = trees[i]!;
+      c3.set(t.color);
+      const cy = t.h - t.cr * 0.3;
+      tmpMat.makeScale(t.cr, t.cr, t.cr);
+      tmpMat.setPosition(t.x, cy, t.z);
+      crownInst.setMatrixAt(i * 2, tmpMat);
+      crownInst.setColorAt(i * 2, c3);
+      const c2r = t.cr * 0.65;
+      tmpMat.makeScale(c2r, c2r, c2r);
+      tmpMat.setPosition(t.x + (rng() - 0.5) * 1.5, cy + t.cr * 0.4, t.z + (rng() - 0.5) * 1.5);
+      crownInst.setMatrixAt(i * 2 + 1, tmpMat);
+      crownInst.setColorAt(i * 2 + 1, c3);
+    }
+    crownInst.instanceMatrix.needsUpdate = true;
+    if (crownInst.instanceColor) crownInst.instanceColor.needsUpdate = true;
+    scene.add(crownInst);
+
+    // --- ЗДАНИЯ (серые кубы, разбросаны как на макете) ---
+    const bldgMat = new THREE.MeshStandardMaterial({ color: 0x7a7a70, roughness: 0.85 });
+    const bldgPositions: Array<[number, number, number, number, number]> = [
+      // В красной зоне (лево)
+      [-75, -55, 4, 4, 6], [-60, -30, 3, 3, 5], [-45, -65, 3.5, 3.5, 5.5],
+      [-80, 0, 3, 3, 5], [-55, 10, 4, 3, 6],
+      // Вдоль дороги
+      [-30, 30, 3, 3, 5], [0, -5, 3.5, 3.5, 5], [35, -30, 3, 3, 5],
+      // В зелёной зоне
+      [20, 50, 3, 3, 5], [-15, -15, 3, 3, 4.5], [40, 40, 3.5, 3, 5],
+      // Вблизи фиолетовой
+      [-25, 55, 3, 3, 5], [15, 55, 2.5, 2.5, 4],
+    ];
+    for (const [bx, bz, bw, bd, bh] of bldgPositions) {
+      if (zoneAt(bx, bz) === 'lake' || zoneAt(bx, bz) === 'river') continue;
+      const bldg = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), bldgMat);
+      bldg.position.set(bx, bh / 2, bz);
+      scene.add(bldg);
+      this.solids.push({ x: bx, z: bz, hx: bw / 2, hz: bd / 2, h: bh });
+    }
+
+    // --- ТОЧКИ СПАВНА (жёлтые кружки) ---
+    const spawnMat = new THREE.MeshBasicMaterial({ color: 0xffdd00 });
+    const spawnGeo2 = new THREE.CircleGeometry(2.5, 20);
+    const spawns: Array<[number, number]> = [[-H + 10, H - 10], [H - 10, -H + 10]];
+    for (const [sx, sz] of spawns) {
+      const sp = new THREE.Mesh(spawnGeo2, spawnMat);
+      sp.rotation.x = -Math.PI / 2;
+      sp.position.set(sx, 0.06, sz);
+      scene.add(sp);
+    }
+
+    // Спавн: нижний левый угол
+    this.px = -H + 10; this.pz = H - 10; this.yaw = 0;
   }
 
   // Сегед: приватная карта МТТ — запечённый индексный меш (формат szeged-mesh-3).
