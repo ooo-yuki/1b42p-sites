@@ -27,6 +27,7 @@ type M = {
   solids: () => Array<{ x: number; z: number; hx: number; hz: number; r: number; h: number }>;
   solidAt: (x: number, z: number, y: number) => boolean;
   foes: () => Array<{ dead: boolean }>;
+  fog: () => { built: boolean; cells: number; cam: number };
 };
 
 test('blender: хитбоксы загружены, спавн свободен', async ({ page }: { page: Page }) => {
@@ -186,4 +187,32 @@ test('blender CTF: подбор, штрафы, захват, дроп при с�
   expect(dropped.home, 'флаг вернулся домой вместо дропа').toBe(false);
   await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.revive());
   console.log('DIAG ctf team=' + st0.team + ' captures=' + st2.captures + ' dropped@' + dropped.x + ',' + dropped.z);
+});
+
+test('blender fog: маска построена, в фиолетовой зоне темно, снаружи светло', async ({ page }: { page: Page }) => {
+  test.setTimeout(300000);
+  await bootBlender(page);
+  await page.waitForFunction(
+    () => (window as unknown as { __mtt: M }).__mtt.fog().built,
+    null,
+    { timeout: 180000, polling: 2000 },
+  );
+  const info = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.fog());
+  console.log('DIAG fog ' + JSON.stringify(info));
+  expect(info.cells, 'маска тумана пустая').toBeGreaterThan(50);
+  type C2 = M & { teleport: (x: number, z: number) => unknown };
+  // центр фиолетовой зоны — туман почти полный
+  await page.evaluate(() => (window as unknown as { __mtt: C2 }).__mtt.teleport(-20, 52));
+  await page.waitForFunction(
+    () => (window as unknown as { __mtt: M }).__mtt.fog().cam > 0.4,
+    null,
+    { timeout: 30000, polling: 300 },
+  );
+  // угол карты вне зоны — тумана нет
+  await page.evaluate(() => (window as unknown as { __mtt: C2 }).__mtt.teleport(-90.6, 91.7));
+  await page.waitForFunction(
+    () => (window as unknown as { __mtt: M }).__mtt.fog().cam < 0.2,
+    null,
+    { timeout: 30000, polling: 300 },
+  );
 });

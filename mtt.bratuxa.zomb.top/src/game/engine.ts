@@ -443,6 +443,15 @@ export class Game {
   /** CTF: маленькие флаги над головой (красный/синий) — виден только несомый. */
   private carryRed: THREE.Group | null = null;
   private carryBlue: THREE.Group | null = null;
+  /** Туман фиолетовых зон (только Blender): маска по крашеным вертам + шейдер. */
+  private flagFog: {
+    tex: THREE.DataTexture;
+    grid: Uint8Array;
+    n: number;
+    minX: number; minZ: number; sizeX: number; sizeZ: number;
+    cells: number;
+    cam: { value: number };
+  } | null = null;
   private yaw = 0;
   private pitch = 0;
   private hp = 100;
@@ -1545,6 +1554,17 @@ export class Game {
           for (const w of walls) this.solids.push(w);
         }
         for (const b of colBoxes) this.solids.push(b);
+        // Туман фиолетовых зон: маска по bbox хитбоксов + патч всех материалов карты
+        if (bx0 < Infinity) {
+          this.buildFogMask(root, bx0, bz0, bx1, bz1);
+          root.traverse((obj) => {
+            if (!('geometry' in obj)) return;
+            const mm = (obj as THREE.Mesh).material as THREE.Material | THREE.Material[];
+            if (Array.isArray(mm)) mm.forEach((x) => this.patchFogMaterial(x));
+            else if (mm) this.patchFogMaterial(mm);
+          });
+          this.patchFogMaterial(ground.material as THREE.Material);
+        }
         scene.add(root);
         if (skippedSlabs > 0) console.log(`[Blender] skipped ${skippedSlabs} ground slab(s)`);
         this.rebuildSolidGrid();
@@ -1640,6 +1660,144 @@ export class Game {
     f.group.position.set(f.x, 0, f.z);
   }
 
+  /** Синхрон позиции меша флага с состоянием (несомый — скрыт, его показывает carry-меш). */
+  private syncFlagMesh(color: Team): void {
+    const f = color === 'red' ? this.flagRed : this.flagBlue;
+    if (!f || !f.group) return;
+    f.group.visible = this.carrying !== color;
+    f.group.position.set(f.x, 0, f.z);
+  }
+
+  // ===== Туман фиолетовых зон (только Blender) =====
+  // Маска 128×128 по фиолетовым вертам земли: порог 3 верта на клетку,
+  // эрозия на 1 клетку (строго внутри краёв) + блюр 3×3 (плавный край).
+  private buildFogMask(root: THREE.Object3D, minX: number, minZ: number, maxX: number, maxZ: number): void {
+    const N = 128;
+    const sizeX = Math.max(1, maxX - minX), sizeZ = Math.max(1, maxZ - minZ);
+    const mark = new Uint8Array(N * N);
+    const cnt = new Uint16Array(N * N);
+    root.traverse((obj) => {
+      if (!('geometry' in obj)) return;
+      const m = obj as THREE.Mesh;
+      if (m.name.startsWith('col_')) return;
+      if (/spawn/i.test(m.name)) return;
+      m.updateMatrixWorld(true);
+      const g = m.geometry;
+      const pos = g.getAttribute('position') as THREE.BufferAttribute | undefined;
+      const col = g.getAttribute('color') as THREE.BufferAttribute | undefined;
+      if (!pos || !col) return;
+      const e = m.matrixWorld.elements;
+      for (let i = 0; i < pos.count; i++) {
+        const lx = pos.getX(i), ly = pos.getY(i), lz = pos.getZ(i);
+        const wy = e[1] * lx + e[5] * ly + e[9] * lz + e[13];
+        if (wy > 0.4) continue;
+        const r = col.getX(i), gg = col.getY(i), b = col.getZ(i);
+        if (!(r > 0.2 && b > 0.25 && gg < 0.25)) continue;
+        const wx = e[0] * lx + e[4] * ly + e[8] * lz + e[12];
+        const wz = e[2] * lx + e[6] * ly + e[10] * lz + e[14];
+        const cx = Math.floor(((wx - minX) / sizeX) * N);
+        const cz = Math.floor(((wz - minZ) / sizeZ) * N);
+        if (cx < 0 || cx >= N || cz < 0 || cz >= N) continue;
+        cnt[cz * N + cx]++;
+      }
+    });
+    for (let i = 0; i < N * N; i++) mark[i] = cnt[i] >= 3 ? 1 : 0;
+    // эрозия: оставляем только клетки, у которых все 8 соседей тоже фиолетовые
+    const ero = new Uint8Array(N * N);
+    for (let z = 1; z < N - 1; z++) {
+      for (let x = 1; x < N - 1; x++) {
+        if (!mark[z * N + x]) continue;
+        let ok = true;
+        for (let dz = -1; dz <= 1 && ok; dz++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (!mark[(z + dz) * N + (x + dx)]) { ok = false; break; }
+          }
+        }
+        if (ok) ero[z * N + x] = 1;
+      }
+    }
+    // блюр 3×3 -> 0..255 (плавное растворение на краю)
+    const grid = new Uint8Array(N * N);
+    let cells = 0;
+    for (let z = 0; z < N; z++) {
+      for (let x = 0; x < N; x++) {
+        let s = 0;
+        for (let dz = -1; dz <= 1; dz++) {
+          const zz = Math.min(N - 1, Math.max(0, z + dz));
+          for (let dx = -1; dx <= 1; dx++) {
+            const xx = Math.min(N - 1, Math.max(0, x + dx));
+            s += ero[zz * N + xx];
+          }
+        }
+        const val = Math.round((s / 9) * 255);
+        grid[z * N + x] = val;
+        if (val > 0) cells++;
+      }
+    }
+    const tex = new THREE.DataTexture(grid, N, N, THREE.RedFormat, THREE.UnsignedByteType);
+    tex.magFilter = THREE.LinearFilter;
+    tex.minFilter = THREE.LinearFilter;
+    tex.wrapS = THREE.ClampToEdgeWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.generateMipmaps = false;
+    tex.needsUpdate = true;
+    tex.flipY = false;
+    this.flagFog = { tex, grid, n: N, minX, minZ, sizeX, sizeZ, cells, cam: { value: 0 } };
+    console.log(`[Blender] fog mask: ${cells} cells`);
+  }
+
+  /** Билинейный сэмпл маски (CPU, для fogCam + тестов). Возвращает 0..1. */
+  private fogSample(x: number, z: number): number {
+    const F = this.flagFog;
+    if (!F) return 0;
+    const fx = ((x - F.minX) / F.sizeX) * F.n - 0.5;
+    const fz = ((z - F.minZ) / F.sizeZ) * F.n - 0.5;
+    const x0 = Math.floor(fx), z0 = Math.floor(fz);
+    const tx = Math.min(1, Math.max(0, fx - x0)), tz = Math.min(1, Math.max(0, fz - z0));
+    const at = (ix: number, iz: number): number => {
+      if (ix < 0 || iz < 0 || ix >= F.n || iz >= F.n) return 0;
+      return F.grid[iz * F.n + ix] / 255;
+    };
+    const a = at(x0, z0), b = at(x0 + 1, z0), c = at(x0, z0 + 1), d = at(x0 + 1, z0 + 1);
+    return a * (1 - tx) * (1 - tz) + b * tx * (1 - tz) + c * (1 - tx) * tz + d * tx * tz;
+  }
+
+  /** Впрыск тумана в материал карты: маска по XZ мира + дальность 6м от камеры. */
+  private patchFogMaterial(mat: THREE.Material): void {
+    const F = this.flagFog;
+    if (!F) return;
+    const m = mat as THREE.MeshStandardMaterial;
+    const bounds = new THREE.Vector4(F.minX, F.minZ, F.sizeX, F.sizeZ);
+    const cam = F.cam;
+    m.onBeforeCompile = (sh) => {
+      sh.uniforms.fogMask = { value: F.tex };
+      sh.uniforms.fogBounds = { value: bounds };
+      sh.uniforms.fogColor = { value: new THREE.Color(0x16042e) };
+      sh.uniforms.fogCam = cam;
+      sh.vertexShader = 'varying vec3 vFlagWorld;\nvarying float vFlagDepth;\n' + sh.vertexShader
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFlagWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;')
+        .replace('#include <project_vertex>', '#include <project_vertex>\nvFlagDepth = -mvPosition.z;');
+      sh.fragmentShader = 'uniform sampler2D fogMask;\nuniform vec4 fogBounds;\nuniform vec3 fogColor;\nuniform float fogCam;\nvarying vec3 vFlagWorld;\nvarying float vFlagDepth;\n' + sh.fragmentShader
+        .replace('#include <fog_fragment>', `#include <fog_fragment>
+    {
+      vec2 fuv = (vFlagWorld.xz - fogBounds.xy) / fogBounds.zw;
+      float fmask = 0.0;
+      if (fuv.x > 0.0 && fuv.x < 1.0 && fuv.y > 0.0 && fuv.y < 1.0) fmask = texture2D(fogMask, fuv).r;
+      float ff = fmask * (0.2 + 0.8 * fogCam) * smoothstep(1.5, 6.0, vFlagDepth);
+      gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, clamp(ff, 0.0, 1.0));
+    }`);
+    };
+    (m as unknown as { customProgramCacheKey: () => string }).customProgramCacheKey = () => 'flagfog-v1';
+    m.needsUpdate = true;
+  }
+
+  /** Туман для тестов: построена ли маска, сколько клеток, значение под камерой. */
+  debugFog(): { built: boolean; cells: number; cam: number } {
+    const F = this.flagFog;
+    if (!F) return { built: false, cells: 0, cam: 0 };
+    return { built: true, cells: F.cells, cam: Math.round(this.fogSample(this.px, this.pz) * 100) / 100 };
+  }
+
   /** Бросить несомый флаг там, где стоим (смерть). */
   private dropFlag(): void {
     if (!this.carrying) return;
@@ -1655,6 +1813,8 @@ export class Game {
   /** Кадр CTF: анимация полотен, подбор/возврат/захват. Вызывается из цикла. */
   private updateFlags(): void {
     if (this.map !== 'blender' || !this.team || !this.flagRed || !this.flagBlue) return;
+    // туман: сила под камерой (0 — вне зоны, 1 — глубоко внутри)
+    if (this.flagFog) this.flagFog.cam.value = this.fogSample(this.px, this.pz);
     const t = performance.now() / 1000;
     for (const f of [this.flagRed, this.flagBlue]) {
       const cloth = f.group?.getObjectByName('cloth');
