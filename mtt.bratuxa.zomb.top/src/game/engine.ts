@@ -1511,13 +1511,13 @@ export class Game {
         if (s2) this.spawn2 = { x: s2.x, z: s2.z };
         // Спавн из Blender может стоять в стене — проверяем, иначе спираль от центра
         if (!s1 || this.hitSolid(this.px, this.pz, 1.5)) {
-          for (let r = 2; r <= this.half; r += 2) {
+          let placed = false;
+          for (let r = 2; r <= this.half && !placed; r += 2) {
             for (let k = 0; k < 8; k++) {
               const a = (k / 8) * Math.PI * 2;
               const qx = Math.cos(a) * r, qz = Math.sin(a) * r;
-              if (!this.hitSolid(qx, qz, 1.5)) { this.px = qx; this.pz = qz; this.yaw = 0; break; }
+              if (!this.hitSolid(qx, qz, 1.5)) { this.px = qx; this.pz = qz; this.yaw = 0; placed = true; break; }
             }
-            if (this.px !== 0 || this.pz !== 0) break;
           }
         }
       },
