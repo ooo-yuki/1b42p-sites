@@ -1,0 +1,10 @@
+import { Database } from 'bun:sqlite';
+const db = new Database('/tmp/mtt_check.db');
+const exact = db.query("SELECT login FROM users WHERE login = ?").all('Admin');
+console.log('Exact login "Admin":', exact.length, exact);
+const ci = db.query("SELECT login FROM users WHERE LOWER(login) = LOWER(?)").all('Admin');
+console.log('Case-insensitive "Admin":', ci.length, ci);
+const contains = db.query("SELECT login FROM users WHERE LOWER(login) LIKE LOWER(?)").all('%admin%');
+console.log('Login contains "admin":', contains.length, contains);
+const nicks = db.query("SELECT DISTINCT nick, login FROM scores WHERE LOWER(nick) LIKE LOWER(?)").all('%admin%');
+console.log('Nicks containing "admin":', nicks.length, nicks);
