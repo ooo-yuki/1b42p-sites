@@ -1509,7 +1509,8 @@ export class Game {
         if (s1) { this.px = s1.x; this.pz = s1.z; this.yaw = 0; }
         const s2 = spawns['spawn2'];
         if (s2) this.spawn2 = { x: s2.x, z: s2.z };
-        if (!s1) {
+        // Спавн из Blender может стоять в стене — проверяем, иначе спираль от центра
+        if (!s1 || this.hitSolid(this.px, this.pz, 1.5)) {
           for (let r = 2; r <= this.half; r += 2) {
             for (let k = 0; k < 8; k++) {
               const a = (k / 8) * Math.PI * 2;

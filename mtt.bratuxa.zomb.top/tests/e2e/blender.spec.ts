@@ -48,8 +48,10 @@ test('blender: все четверти карты проходимы, перим
   const res = await page.evaluate(() => {
     const m = (window as unknown as { __mtt: M }).__mtt;
     const solids = m.solids();
+    // bbox по обычным хитбоксам (периметр-стены исключаем — они огромные)
     let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
     for (const s of solids) {
+      if (Math.max(s.hx, s.hz) > 60) continue;
       const ex = Math.max(s.hx, s.hz);
       if (s.x - ex < x0) x0 = s.x - ex;
       if (s.x + ex > x1) x1 = s.x + ex;
@@ -71,12 +73,12 @@ test('blender: все четверти карты проходимы, перим
         }
       }
     }
-    // кольцо снаружи bbox: должно быть заблокировано стенами периметра
+    // полоса стен периметра: 0..6м снаружи края карты — точки в 3 и 5м заблокированы
     const out = [
-      m.solidAt((x0 + x1) / 2, z0 - 12, 0),
-      m.solidAt((x0 + x1) / 2, z1 + 12, 0),
-      m.solidAt(x0 - 12, (z0 + z1) / 2, 0),
-      m.solidAt(x1 + 12, (z0 + z1) / 2, 0),
+      m.solidAt((x0 + x1) / 2, z0 - 3, 0), m.solidAt((x0 + x1) / 2, z0 - 5, 0),
+      m.solidAt((x0 + x1) / 2, z1 + 3, 0), m.solidAt((x0 + x1) / 2, z1 + 5, 0),
+      m.solidAt(x0 - 3, (z0 + z1) / 2, 0), m.solidAt(x0 - 5, (z0 + z1) / 2, 0),
+      m.solidAt(x1 + 3, (z0 + z1) / 2, 0), m.solidAt(x1 + 5, (z0 + z1) / 2, 0),
     ];
     return { total, free, quad, out, bbox: [x0, z0, x1, z1] };
   });
@@ -86,5 +88,5 @@ test('blender: все четверти карты проходимы, перим
   for (let i = 0; i < 4; i++) {
     expect(res.quad[i], `четверть ${i} полностью заблокирована`).toBeGreaterThan(2);
   }
-  expect(res.out, 'периметр не держит: можно уйти за карту').toEqual([true, true, true, true]);
+  expect(res.out.every(Boolean), 'периметр не держит: можно уйти за карту').toBe(true);
 });

@@ -31,4 +31,7 @@ test('blender diag', async ({ page }) => {
     if (Number.isFinite(n) && n > 100) break;
   }
   console.log('DIAG console errors/warnings: ' + JSON.stringify(logs.slice(0, 20)));
+  await page.waitForTimeout(15000);
+  await page.screenshot({ path: 'test-results/blender-map.png' });
+  console.log('DIAG screenshot saved');
 });
