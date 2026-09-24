@@ -19,7 +19,7 @@ test('техперерыв: гость видит плашку + ТГК', async 
 
 test('техперерыв: с DEV-доступом плашки нет, кнопка-тоггл на месте', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('mtt_dev', '1'));
-  await page.route('**/api/maintenance', (r) => r.fulfill({ json: { ok: true, on: true } }));
+  await page.route('**/api/maintenance', (r) => r.fulfill({ json: { ok: true, on: false } }));
   await page.goto('/');
   await expect(page).toHaveTitle(/42 LIVE/);
   await expect(page.locator('#maintOverlay')).toHaveCount(0);
