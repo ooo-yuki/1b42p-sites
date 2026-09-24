@@ -1795,21 +1795,21 @@ export class Game {
     const bounds = new THREE.Vector4(F.minX, F.minZ, F.sizeX, F.sizeZ);
     const cam = F.cam;
     m.onBeforeCompile = (sh) => {
-      sh.uniforms.fogMask = { value: F.tex };
-      sh.uniforms.fogBounds = { value: bounds };
-      sh.uniforms.fogColor = { value: new THREE.Color(0x16042e) };
-      sh.uniforms.fogCam = cam;
+      sh.uniforms.flagFogMask = { value: F.tex };
+      sh.uniforms.flagFogBounds = { value: bounds };
+      sh.uniforms.flagFogColor = { value: new THREE.Color(0x16042e) };
+      sh.uniforms.flagFogCam = cam;
       sh.vertexShader = 'varying vec3 vFlagWorld;\nvarying float vFlagDepth;\n' + sh.vertexShader
         .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFlagWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;')
         .replace('#include <project_vertex>', '#include <project_vertex>\nvFlagDepth = -mvPosition.z;');
-      sh.fragmentShader = 'uniform sampler2D fogMask;\nuniform vec4 fogBounds;\nuniform vec3 fogColor;\nuniform float fogCam;\nvarying vec3 vFlagWorld;\nvarying float vFlagDepth;\n' + sh.fragmentShader
+      sh.fragmentShader = 'uniform sampler2D flagFogMask;\nuniform vec4 flagFogBounds;\nuniform vec3 flagFogColor;\nuniform float flagFogCam;\nvarying vec3 vFlagWorld;\nvarying float vFlagDepth;\n' + sh.fragmentShader
         .replace('#include <fog_fragment>', `#include <fog_fragment>
     {
-      vec2 fuv = (vFlagWorld.xz - fogBounds.xy) / fogBounds.zw;
+      vec2 fuv = (vFlagWorld.xz - flagFogBounds.xy) / flagFogBounds.zw;
       float fmask = 0.0;
-      if (fuv.x > 0.0 && fuv.x < 1.0 && fuv.y > 0.0 && fuv.y < 1.0) fmask = texture2D(fogMask, fuv).r;
-      float ff = fmask * (0.2 + 0.8 * fogCam) * smoothstep(1.5, 6.0, vFlagDepth);
-      gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, clamp(ff, 0.0, 1.0));
+      if (fuv.x > 0.0 && fuv.x < 1.0 && fuv.y > 0.0 && fuv.y < 1.0) fmask = texture2D(flagFogMask, fuv).r;
+      float ff = fmask * (0.2 + 0.8 * flagFogCam) * smoothstep(1.5, 6.0, vFlagDepth);
+      gl_FragColor.rgb = mix(gl_FragColor.rgb, flagFogColor, clamp(ff, 0.0, 1.0));
     }`);
     };
     const baseKey = THREE.Material.prototype.customProgramCacheKey.bind(m);
