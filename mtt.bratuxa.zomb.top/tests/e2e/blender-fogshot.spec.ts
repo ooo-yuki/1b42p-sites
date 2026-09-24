@@ -19,12 +19,12 @@ test('blender fog shot', async ({ page }) => {
   );
   await page.waitForTimeout(8000);
   type C = { teleport: (x: number, z: number) => unknown; look: (dx: number, dy: number) => void };
-  await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.teleport(-19, 66));
+  await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.teleport(-20, 52));
   await page.waitForTimeout(8000);
   type C2 = C & { ground: (x: number, z: number) => number; pos: () => { x: number; z: number; yaw: number; py: number; pitch: number } };
-  const gy = await page.evaluate(() => (window as unknown as { __mtt: C2 }).__mtt.ground(-19, 66));
-  console.log('DIAG ground@purple-center=' + gy);
-  await page.evaluate(() => (window as unknown as { __mtt: C2 }).__mtt.look(0, 300));
+  const gy = await page.evaluate(() => (window as unknown as { __mtt: C2 }).__mtt.ground(-20, 52));
+  console.log('DIAG ground@purple-edge=' + gy);
+  await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.look(0, 120));
   await page.waitForTimeout(2000);
   const st = await page.evaluate(() => (window as unknown as { __mtt: C2 }).__mtt.pos());
   console.log('DIAG camstate ' + JSON.stringify(st));
