@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixture';
 
 // RED: враги не спавнятся в стенках. Бэкрумс-лабиринт — худший случай:
 // плотная карта, цепочка spawnEnemy может не найти точку и уронить моба

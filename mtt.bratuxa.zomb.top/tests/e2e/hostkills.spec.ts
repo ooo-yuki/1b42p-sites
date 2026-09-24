@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixture';
 
 // Хост видит фраги гостей: гость добивает общего моба через mobhit —
 // локальная копия хоста должна погаснуть (без двойной награды), иначе

@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixture';
 
 async function boot(page: Page): Promise<void> {
   await page.goto('/');

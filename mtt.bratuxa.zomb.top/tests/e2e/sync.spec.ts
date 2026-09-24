@@ -1,4 +1,5 @@
-import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
+import { test, expect } from './fixture';
+import type { Page, APIRequestContext } from '@playwright/test';
 
 // Синхрон без второго рендера: один живой клиент + API-призрак на Node-пульсе
 // (два SwiftShader-рендера душат друг друга — таймеры фона встают, это стенд, не игра).

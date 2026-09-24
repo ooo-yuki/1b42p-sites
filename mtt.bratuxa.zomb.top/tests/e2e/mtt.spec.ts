@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixture';
 
 test.describe('МТТ VI — арена от 1-го лица', () => {
   let errors: string[] = [];

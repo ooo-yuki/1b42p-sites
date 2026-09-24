@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixture';
 
 // RED: маршрут должен быть ПРОХОДИМ телом (r=0.9) по каждому сегменту.
 // Диагонали BFS сквозь угловые щели дают сегменты, где моб клинит.

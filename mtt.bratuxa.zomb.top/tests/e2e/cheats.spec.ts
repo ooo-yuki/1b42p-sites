@@ -1,4 +1,5 @@
-import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
+import { test, expect } from './fixture';
+import type { Page, APIRequestContext } from '@playwright/test';
 
 const API = 'https://mtt.bratuxa.zomb.top';
 

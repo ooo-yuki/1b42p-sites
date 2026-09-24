@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixture';
 
 type M = {
   pos: () => { x: number; z: number; yaw: number };

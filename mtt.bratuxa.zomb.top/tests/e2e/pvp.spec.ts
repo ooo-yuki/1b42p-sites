@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixture';
 
 /** Вход на официальный PvP-сервер через вкладку Сервера; ждём табло. */
 async function joinOfficialPvp(page: import('@playwright/test').Page): Promise<void> {

@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixture';
 
 // Blender-карта (DEV): игрок может находиться во всех частях карты,
 // спавн свободен, за периметр не выйти.

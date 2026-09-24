@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixture';
 
 // Сетевые тесты: плавность, волны, общий урон. Пилоты идут через живой API,
 // призрак — через fetch из страницы (паттерн probe.spec.ts).
