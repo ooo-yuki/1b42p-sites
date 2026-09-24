@@ -124,7 +124,7 @@ test('blender CTF: подбор, штрафы, захват, дроп при с�
   };
   const st0 = await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.ctf());
   expect(st0.team === 'red' || st0.team === 'blue', 'нет команды').toBe(true);
-  expect(st0.red && st0.blue, 'нет обоих флагов').toBe(true);
+  expect(!!(st0.red && st0.blue), 'нет обоих флагов').toBe(true);
   const foe = st0.team === 'red' ? 'blue' : 'red';
   const foeFlag = (foe === 'red' ? st0.red : st0.blue)!;
   const myBase = (st0.team === 'red' ? st0.red : st0.blue)!;
