@@ -7,6 +7,7 @@ async function bootBlender(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page).toHaveTitle(/42 LIVE/);
   await page.click('#guestBtn');
+  await page.click('#nav-maps');
   // карта видна только с DEV-доступом
   await expect(page.locator('#map-blender')).toBeVisible({ timeout: 15000 });
   await page.evaluate(() => (document.querySelector('#map-blender') as HTMLButtonElement).click());
