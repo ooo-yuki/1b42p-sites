@@ -1674,13 +1674,33 @@ export class Game {
   }
 
   // ===== Туман фиолетовых зон (только Blender) =====
-  // Маска 128×128 по фиолетовым вертам земли: порог 3 верта на клетку,
+  // Маска 128×128 по фиолетовым вертам земли: земля = низ меша +0.6м
+  // (карта может стоять выше нуля), порог 3 верта на клетку,
   // эрозия на 1 клетку (строго внутри краёв) + блюр 3×3 (плавный край).
   private buildFogMask(root: THREE.Object3D, minX: number, minZ: number, maxX: number, maxZ: number): void {
     const N = 128;
     const sizeX = Math.max(1, maxX - minX), sizeZ = Math.max(1, maxZ - minZ);
     const mark = new Uint8Array(N * N);
     const cnt = new Uint16Array(N * N);
+    // проход 1: низ видимого меша = уровень земли
+    let groundY = Infinity;
+    root.traverse((obj) => {
+      if (!('geometry' in obj)) return;
+      const m = obj as THREE.Mesh;
+      if (m.name.startsWith('col_')) return;
+      if (/spawn/i.test(m.name)) return;
+      m.updateMatrixWorld(true);
+      const g = m.geometry;
+      const pos = g.getAttribute('position') as THREE.BufferAttribute | undefined;
+      if (!pos) return;
+      const e = m.matrixWorld.elements;
+      for (let i = 0; i < pos.count; i++) {
+        const wy = e[1] * pos.getX(i) + e[5] * pos.getY(i) + e[9] * pos.getZ(i) + e[13];
+        if (wy < groundY) groundY = wy;
+      }
+    });
+    if (groundY === Infinity) return;
+    const gy = groundY + 0.6;
     root.traverse((obj) => {
       if (!('geometry' in obj)) return;
       const m = obj as THREE.Mesh;
@@ -1695,7 +1715,7 @@ export class Game {
       for (let i = 0; i < pos.count; i++) {
         const lx = pos.getX(i), ly = pos.getY(i), lz = pos.getZ(i);
         const wy = e[1] * lx + e[5] * ly + e[9] * lz + e[13];
-        if (wy > 0.4) continue;
+        if (wy > gy) continue;
         const r = col.getX(i), gg = col.getY(i), b = col.getZ(i);
         if (!(r > 0.2 && b > 0.25 && gg < 0.25)) continue;
         const wx = e[0] * lx + e[4] * ly + e[8] * lz + e[12];
@@ -1748,7 +1768,7 @@ export class Game {
     tex.needsUpdate = true;
     tex.flipY = false;
     this.flagFog = { tex, grid, n: N, minX, minZ, sizeX, sizeZ, cells, cam: { value: 0 } };
-    console.log(`[Blender] fog mask: ${cells} cells`);
+    console.log(`[Blender] fog mask: ${cells} cells, groundY=${Math.round(groundY * 10) / 10}`);
   }
 
   /** Билинейный сэмпл маски (CPU, для fogCam + тестов). Возвращает 0..1. */
