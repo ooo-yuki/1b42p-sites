@@ -4175,10 +4175,12 @@ export class Game {
     for (let t = 0; t < 24 && !ok; t++) {
       const a = Math.random() * Math.PI * 2;
       // бэкрумс: спавн в 100м от игрока (100–115м кольцо), остальные как раньше (26–48м)
+      // кольцо — ВОКРУГ ИГРОКА: иначе на краю большой карты вся орда идёт
+      // через полкарты и каждый репас жрёт полный BFS (статтеры при стабильном FPS)
       const far = this.map === 'backrooms' || this.map === 'endless';
       const r = far ? 100 + Math.random() * 15 : 26 + Math.random() * 22;
-      const cx = clampArena(Math.cos(a) * r, this.half);
-      const cz = clampArena(Math.sin(a) * r, this.half);
+      const cx = clampArena(this.px + Math.cos(a) * r, this.half);
+      const cz = clampArena(this.pz + Math.sin(a) * r, this.half);
       if (this.hitSolid(cx, cz, 2)) continue;
       if (Math.hypot(cx - this.px, cz - this.pz) < keepAway) continue;
       sx = cx; sz = cz;
