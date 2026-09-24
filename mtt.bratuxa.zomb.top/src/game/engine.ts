@@ -1684,8 +1684,11 @@ export class Game {
     const mark = new Uint8Array(N * N);
     const cnt = new Uint16Array(N * N);
     let dbgMeshes = 0, dbgVerts = 0, dbgPurple = 0;
-    // проход 1: низ видимого меша = уровень земли
-    let groundY = Infinity;
+    // проход 1: уровень земли = нижний СИЛЬНЫЙ пик гистограммы высот
+    // (минимум врёт: ямы/дно озёр уходят глубоко, но их мало вершин)
+    const BIN = 0.5;
+    const hist = new Map<number, number>();
+    let totalV = 0;
     root.traverse((obj) => {
       if (!('geometry' in obj)) return;
       const m = obj as THREE.Mesh;
@@ -1698,11 +1701,18 @@ export class Game {
       const e = m.matrixWorld.elements;
       for (let i = 0; i < pos.count; i++) {
         const wy = e[1] * pos.getX(i) + e[5] * pos.getY(i) + e[9] * pos.getZ(i) + e[13];
-        if (wy < groundY) groundY = wy;
+        const b = Math.floor(wy / BIN);
+        hist.set(b, (hist.get(b) ?? 0) + 1);
+        totalV++;
       }
     });
+    let groundY = Infinity;
+    const need = Math.max(50, totalV * 0.02);
+    const bins = [...hist.keys()].sort((a, b) => a - b);
+    for (const b of bins) {
+      if ((hist.get(b) ?? 0) >= need) { groundY = b * BIN; break; }
+    }
     if (groundY === Infinity) return;
-    const gy = groundY + 0.6;
     root.traverse((obj) => {
       if (!('geometry' in obj)) return;
       const m = obj as THREE.Mesh;
@@ -1718,7 +1728,7 @@ export class Game {
       for (let i = 0; i < pos.count; i++) {
         const lx = pos.getX(i), ly = pos.getY(i), lz = pos.getZ(i);
         const wy = e[1] * lx + e[5] * ly + e[9] * lz + e[13];
-        if (wy > gy) continue;
+        if (wy < groundY - 1 || wy > groundY + 1) continue;
         const r = col.getX(i), gg = col.getY(i), b = col.getZ(i);
         dbgVerts++;
         if (!(r > 0.2 && b > 0.25 && gg < 0.25)) continue;
