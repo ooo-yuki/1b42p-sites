@@ -386,7 +386,7 @@ function duelSpawn(i: number): { x: number; z: number; yaw: number } {
 async function roomsApi(req: Request): Promise<Response | null> {
   const u = new URL(req.url);
   const p = u.pathname;
-  if (!p.startsWith('/api/rooms') && !p.startsWith('/api/register') && !p.startsWith('/api/login') && !p.startsWith('/api/me') && !p.startsWith('/api/profile') && !p.startsWith('/api/password') && !p.startsWith('/api/promo') && !p.startsWith('/api/admin') && !p.startsWith('/api/stats') && !p.startsWith('/api/dev')) return null;
+  if (!p.startsWith('/api/rooms') && !p.startsWith('/api/register') && !p.startsWith('/api/login') && !p.startsWith('/api/me') && !p.startsWith('/api/profile') && !p.startsWith('/api/password') && !p.startsWith('/api/promo') && !p.startsWith('/api/admin') && !p.startsWith('/api/stats') && !p.startsWith('/api/dev') && !p.startsWith('/api/maintenance')) return null;
   const parts = p.split('/').filter(Boolean); // ['api','rooms', id?, action?]
 
   // ---- аккаунты ----
