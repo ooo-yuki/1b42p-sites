@@ -451,6 +451,7 @@ export class Game {
     minX: number; minZ: number; sizeX: number; sizeZ: number;
     cells: number;
     cam: { value: number };
+    dbgMeshes: number; dbgVerts: number; dbgPurple: number; dbgGroundY: number;
   } | null = null;
   private yaw = 0;
   private pitch = 0;
@@ -1682,6 +1683,7 @@ export class Game {
     const sizeX = Math.max(1, maxX - minX), sizeZ = Math.max(1, maxZ - minZ);
     const mark = new Uint8Array(N * N);
     const cnt = new Uint16Array(N * N);
+    let dbgMeshes = 0, dbgVerts = 0, dbgPurple = 0;
     // проход 1: низ видимого меша = уровень земли
     let groundY = Infinity;
     root.traverse((obj) => {
@@ -1711,13 +1713,16 @@ export class Game {
       const pos = g.getAttribute('position') as THREE.BufferAttribute | undefined;
       const col = g.getAttribute('color') as THREE.BufferAttribute | undefined;
       if (!pos || !col) return;
+      dbgMeshes++;
       const e = m.matrixWorld.elements;
       for (let i = 0; i < pos.count; i++) {
         const lx = pos.getX(i), ly = pos.getY(i), lz = pos.getZ(i);
         const wy = e[1] * lx + e[5] * ly + e[9] * lz + e[13];
         if (wy > gy) continue;
         const r = col.getX(i), gg = col.getY(i), b = col.getZ(i);
+        dbgVerts++;
         if (!(r > 0.2 && b > 0.25 && gg < 0.25)) continue;
+        dbgPurple++;
         const wx = e[0] * lx + e[4] * ly + e[8] * lz + e[12];
         const wz = e[2] * lx + e[6] * ly + e[10] * lz + e[14];
         const cx = Math.floor(((wx - minX) / sizeX) * N);
@@ -1767,7 +1772,7 @@ export class Game {
     tex.generateMipmaps = false;
     tex.needsUpdate = true;
     tex.flipY = false;
-    this.flagFog = { tex, grid, n: N, minX, minZ, sizeX, sizeZ, cells, cam: { value: 0 } };
+    this.flagFog = { tex, grid, n: N, minX, minZ, sizeX, sizeZ, cells, cam: { value: 0 }, dbgMeshes, dbgVerts, dbgPurple, dbgGroundY: Math.round(groundY * 10) / 10 };
     console.log(`[Blender] fog mask: ${cells} cells, groundY=${Math.round(groundY * 10) / 10}`);
   }
 
@@ -1818,10 +1823,10 @@ export class Game {
 
   /** Туман для тестов: построена ли маска, сколько клеток, значение под камерой. */
   private fogError: string | null = null;
-  debugFlagFog(): { built: boolean; cells: number; cam: number; err: string | null } {
+  debugFlagFog(): { built: boolean; cells: number; cam: number; err: string | null; meshes: number; verts: number; purple: number; groundY: number } {
     const F = this.flagFog;
-    if (!F) return { built: false, cells: 0, cam: 0, err: this.fogError };
-    return { built: true, cells: F.cells, cam: Math.round(this.fogSample(this.px, this.pz) * 100) / 100, err: this.fogError };
+    if (!F) return { built: false, cells: 0, cam: 0, err: this.fogError, meshes: 0, verts: 0, purple: 0, groundY: 0 };
+    return { built: true, cells: F.cells, cam: Math.round(this.fogSample(this.px, this.pz) * 100) / 100, err: this.fogError, meshes: F.dbgMeshes, verts: F.dbgVerts, purple: F.dbgPurple, groundY: F.dbgGroundY };
   }
 
   /** Бросить несомый флаг там, где стоим (смерть). */
