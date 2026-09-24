@@ -7337,7 +7337,6 @@ export class Game {
       if (this.swingT > 0) this.swingT -= dt;
       if (this.shakeT > 0) this.shakeT -= dt;
       this.updateParts(dt);
-      this.updateFlags();
       // сокомнатники: рендерим прошлое (now-550мс) по буферу слепков —
       // непрерывно при любых рваных битах; удары вспышкой, прыжки высотой
       const rt = performance.now() / 600;
@@ -7358,6 +7357,8 @@ export class Game {
         this.drawMM();
       }
     }
+    // CTF — вне ворот !dead: бросить флаг надо и мёртвым
+    this.updateFlags();
     // камера от первого лица + покачивание ходьбы.
     // Наблюдатель: свободная камера (высота specY, осмотр мышью), покачивания нет.
     const shake = this.shakeT > 0 ? Math.sin(performance.now() / 20) * 0.03 : 0;
