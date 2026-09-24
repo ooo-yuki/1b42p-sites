@@ -52,6 +52,8 @@ test('blender diag', async ({ page }) => {
   });
   console.log('DIAG solids-stats ' + JSON.stringify(stats));
   await page.waitForTimeout(15000);
-  await page.screenshot({ path: 'test-results/blender-map.png' });
+  await page.setViewportSize({ width: 640, height: 360 });
+  await page.waitForTimeout(2000);
+  await page.screenshot({ path: 'test-results/blender-map.jpg', type: 'jpeg', quality: 35 });
   console.log('DIAG screenshot saved');
 });
