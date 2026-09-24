@@ -136,9 +136,13 @@ test('blender CTF: подбор, штрафы, захват, дроп при с�
     null,
     { timeout: 60000, polling: 500 },
   );
-  // телепорт к вражескому флагу — подбор
+  // телепорт к вражескому флагу — подбор (ждём кадр движка, не фиксированное время)
   await page.evaluate(([x, z]) => (window as unknown as { __mtt: C }).__mtt.teleport(x, z), [foeFlag.x, foeFlag.z]);
-  await page.waitForTimeout(1000);
+  await page.waitForFunction(
+    (foeColor) => (window as unknown as { __mtt: C }).__mtt.ctf().carrying === foeColor,
+    foe,
+    { timeout: 30000, polling: 300 },
+  );
   const st1 = await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.ctf());
   expect(st1.carrying, 'флаг не подобрался').toBe(foe);
   // штрафы носителя: атака не взводит кд, рывок запрещён
@@ -149,15 +153,27 @@ test('blender CTF: подбор, штрафы, захват, дроп при с�
   expect(dash, 'носитель смог рывануться').toBe(false);
   // доставка на свою базу — захват
   await page.evaluate(([x, z]) => (window as unknown as { __mtt: C }).__mtt.teleport(x, z), [myBase.x, myBase.z]);
-  await page.waitForTimeout(1000);
+  await page.waitForFunction(
+    () => (window as unknown as { __mtt: C }).__mtt.ctf().captures > 0,
+    null,
+    { timeout: 30000, polling: 300 },
+  );
   const st2 = await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.ctf());
   expect(st2.carrying, 'флаг не сброшен после захвата').toBe(null);
   expect(st2.captures, 'захват не засчитан').toBe(1);
   // снова взял — умер — флаг брошен там, где умер
   await page.evaluate(([x, z]) => (window as unknown as { __mtt: C }).__mtt.teleport(x, z), [foeFlag.x, foeFlag.z]);
-  await page.waitForTimeout(800);
+  await page.waitForFunction(
+    (foeColor) => (window as unknown as { __mtt: C }).__mtt.ctf().carrying === foeColor,
+    foe,
+    { timeout: 30000, polling: 300 },
+  );
   await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.hurt(99999));
-  await page.waitForTimeout(800);
+  await page.waitForFunction(
+    () => (window as unknown as { __mtt: C }).__mtt.ctf().carrying === null,
+    null,
+    { timeout: 30000, polling: 300 },
+  );
   const st3 = await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.ctf());
   expect(st3.carrying, 'флаг не выпал при смерти').toBe(null);
   const dropped = (foe === 'red' ? st3.red : st3.blue)!;
