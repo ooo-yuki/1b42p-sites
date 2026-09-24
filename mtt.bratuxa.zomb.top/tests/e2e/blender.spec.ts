@@ -132,6 +132,9 @@ test('blender CTF: подбор, штрафы, захват, дроп при с�
   const myBase = (st0.team === 'red' ? st0.red : st0.blue)!;
   // контроль: без флага атака взводит кд — ждём пока кд сойдёт (игровое время под SwiftShader идёт медленнее)
   await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.attack());
+  const cd0 = await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.atkcd());
+  console.log('DIAG control atkcd=' + cd0);
+  expect(cd0, 'контрольная атака не сработала (щит спавна не снят)').toBeGreaterThan(0);
   await page.waitForFunction(
     () => (window as unknown as { __mtt: C }).__mtt.atkcd() <= 0,
     null,
