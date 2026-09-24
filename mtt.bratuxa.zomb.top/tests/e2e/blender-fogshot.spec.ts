@@ -21,11 +21,14 @@ test('blender fog shot', async ({ page }) => {
   type C = { teleport: (x: number, z: number) => unknown; look: (dx: number, dy: number) => void };
   await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.teleport(-19, 66));
   await page.waitForTimeout(1500);
-  // addLook в единицах мыши: yaw -= dx*0.0042, pitch -= dy*0.0032 — смотрим чуть вниз
-  await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.look(-250, 150));
+  // addLook в единицах мыши c инверсией: dy<0 — взгляд вниз
+  await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.look(0, -150));
   await page.waitForTimeout(2000);
   await page.setViewportSize({ width: 640, height: 360 });
   await page.waitForTimeout(1500);
   await page.screenshot({ path: 'test-results/blender-fog.jpg', type: 'jpeg', quality: 45 });
-  console.log('DIAG fog shot saved');
+  await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.look(-400, 0));
+  await page.waitForTimeout(2000);
+  await page.screenshot({ path: 'test-results/blender-fog2.jpg', type: 'jpeg', quality: 45 });
+  console.log('DIAG fog shots saved');
 });
