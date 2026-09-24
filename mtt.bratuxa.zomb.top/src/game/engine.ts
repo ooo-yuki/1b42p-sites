@@ -1556,14 +1556,19 @@ export class Game {
         for (const b of colBoxes) this.solids.push(b);
         // Туман фиолетовых зон: маска по bbox хитбоксов + патч всех материалов карты
         if (bx0 < Infinity) {
-          this.buildFogMask(root, bx0, bz0, bx1, bz1);
-          root.traverse((obj) => {
-            if (!('geometry' in obj)) return;
-            const mm = (obj as THREE.Mesh).material as THREE.Material | THREE.Material[];
-            if (Array.isArray(mm)) mm.forEach((x) => this.patchFogMaterial(x));
-            else if (mm) this.patchFogMaterial(mm);
-          });
-          this.patchFogMaterial(ground.material as THREE.Material);
+          try {
+            this.buildFogMask(root, bx0, bz0, bx1, bz1);
+            root.traverse((obj) => {
+              if (!('geometry' in obj)) return;
+              const mm = (obj as THREE.Mesh).material as THREE.Material | THREE.Material[];
+              if (Array.isArray(mm)) mm.forEach((x) => this.patchFogMaterial(x));
+              else if (mm) this.patchFogMaterial(mm);
+            });
+            this.patchFogMaterial(ground.material as THREE.Material);
+          } catch (e) {
+            console.warn('[Blender] fog setup failed:', e);
+            this.fogError = String((e as Error)?.message ?? e);
+          }
         }
         scene.add(root);
         if (skippedSlabs > 0) console.log(`[Blender] skipped ${skippedSlabs} ground slab(s)`);
@@ -1792,10 +1797,11 @@ export class Game {
   }
 
   /** Туман для тестов: построена ли маска, сколько клеток, значение под камерой. */
-  debugFog(): { built: boolean; cells: number; cam: number } {
+  private fogError: string | null = null;
+  debugFog(): { built: boolean; cells: number; cam: number; err: string | null } {
     const F = this.flagFog;
-    if (!F) return { built: false, cells: 0, cam: 0 };
-    return { built: true, cells: F.cells, cam: Math.round(this.fogSample(this.px, this.pz) * 100) / 100 };
+    if (!F) return { built: false, cells: 0, cam: 0, err: this.fogError };
+    return { built: true, cells: F.cells, cam: Math.round(this.fogSample(this.px, this.pz) * 100) / 100, err: this.fogError };
   }
 
   /** Бросить несомый флаг там, где стоим (смерть). */
