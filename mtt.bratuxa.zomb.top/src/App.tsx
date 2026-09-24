@@ -1566,7 +1566,7 @@ async function loadStats(): Promise<void> {
     } catch { /* noop */ }
   }, [go]);
 
-  // пульс комнаты 5 раз в секунду (раз в 0.2с): шлём себя, забираем сокомнатников (без задержек) + дуэль
+  // пульс комнаты 10 раз в секунду (раз в 0.1с): шлём себя, забираем сокомнатников (без задержек) + дуэль
   useEffect(() => {
     const t = window.setInterval(async () => {
       const g = gameRef.current;
@@ -1578,7 +1578,7 @@ async function loadStats(): Promise<void> {
         const p = g.debugPos();
         const h = hudRef.current;
         const pr = g.presence();
-        // зависший запрос не должен клинить пульс навсегда: рвём через 3с (пульс быстрый, 0.2с)
+        // зависший запрос не должен клинить пульс навсегда: рвём через 3с (пульс быстрый, 0.1с)
         const ctl = new AbortController();
         const to = window.setTimeout(() => ctl.abort(), 3000);
         let r: Response;
@@ -1777,7 +1777,7 @@ async function loadStats(): Promise<void> {
           prevRound.current = 0;
         }
       } catch { /* noop */ } finally { beatBusy.current = false; }
-    }, 200);
+    }, 100);
     return () => window.clearInterval(t);
   }, []);
 
