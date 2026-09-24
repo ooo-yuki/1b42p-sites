@@ -3,6 +3,11 @@ import { test, expect } from './fixture';
 // Временный фотоотчёт тумана (удалить после проверки).
 test('blender fog shot', async ({ page }) => {
   test.setTimeout(240000);
+  const errs: string[] = [];
+  page.on('console', (m) => {
+    if (m.type() === 'error') errs.push(m.text().slice(0, 500));
+  });
+  page.on('pageerror', (e) => errs.push('pageerror: ' + String(e).slice(0, 500)));
   await page.addInitScript(() => localStorage.setItem('mtt_dev', '1'));
   await page.goto('/');
   await expect(page).toHaveTitle(/42 LIVE/);
@@ -37,4 +42,5 @@ test('blender fog shot', async ({ page }) => {
   await page.waitForTimeout(2000);
   await page.screenshot({ path: 'test-results/blender-fog2.jpg', type: 'jpeg', quality: 45 });
   console.log('DIAG fog shots saved');
+  console.log('DIAG console errors: ' + JSON.stringify(errs.slice(0, 8)));
 });
