@@ -15,6 +15,7 @@ test('blender diag', async ({ page }) => {
   await page.click('#nav-maps');
   console.log('DIAG btn visible: ' + (await page.locator('#map-blender').isVisible()));
   await page.evaluate(() => (document.querySelector('#map-blender') as HTMLButtonElement).click());
+  await page.click('#nav-play');
   await page.click('#goBtn');
   await expect(page.locator('#fps')).toBeVisible({ timeout: 30000 });
   for (let i = 0; i < 20; i++) {
