@@ -1675,20 +1675,15 @@ export class Game {
   }
 
   // ===== Туман фиолетовых зон (только Blender) =====
-  // Маска 128×128 по фиолетовым вертам земли: земля = низ меша +0.6м
-  // (карта может стоять выше нуля), порог 3 верта на клетку,
-  // эрозия на 1 клетку (строго внутри краёв) + блюр 3×3 (плавный край).
+  // Маска 128×128 по фиолетовым КРОНАМ (y>1.5): земля в зоне не фиолетовая,
+  // ориентир — сами фиолетовые деревья. Порог 2 верта на клетку (кроны редкие),
+  // без эрозии, блюр 5×5 + срез бахромы (плавный край, не вылезаем за зону).
   private buildFogMask(root: THREE.Object3D, minX: number, minZ: number, maxX: number, maxZ: number): void {
     const N = 128;
     const sizeX = Math.max(1, maxX - minX), sizeZ = Math.max(1, maxZ - minZ);
     const mark = new Uint8Array(N * N);
     const cnt = new Uint16Array(N * N);
     let dbgMeshes = 0, dbgVerts = 0, dbgPurple = 0;
-    // проход 1: уровень земли = нижний СИЛЬНЫЙ пик гистограммы высот
-    // (минимум врёт: ямы/дно озёр уходят глубоко, но их мало вершин)
-    const BIN = 0.5;
-    const hist = new Map<number, number>();
-    let totalV = 0;
     root.traverse((obj) => {
       if (!('geometry' in obj)) return;
       const m = obj as THREE.Mesh;
@@ -1697,22 +1692,26 @@ export class Game {
       m.updateMatrixWorld(true);
       const g = m.geometry;
       const pos = g.getAttribute('position') as THREE.BufferAttribute | undefined;
-      if (!pos) return;
+      const col = g.getAttribute('color') as THREE.BufferAttribute | undefined;
+      if (!pos || !col) return;
+      dbgMeshes++;
       const e = m.matrixWorld.elements;
       for (let i = 0; i < pos.count; i++) {
-        const wy = e[1] * pos.getX(i) + e[5] * pos.getY(i) + e[9] * pos.getZ(i) + e[13];
-        const b = Math.floor(wy / BIN);
-        hist.set(b, (hist.get(b) ?? 0) + 1);
-        totalV++;
+        const lx = pos.getX(i), ly = pos.getY(i), lz = pos.getZ(i);
+        const wx = e[0] * lx + e[4] * ly + e[8] * lz + e[12];
+        const wy = e[1] * lx + e[5] * ly + e[9] * lz + e[13];
+        const wz = e[2] * lx + e[6] * ly + e[10] * lz + e[14];
+        if (wy < 1.5) continue;
+        const r = col.getX(i), gg = col.getY(i), b = col.getZ(i);
+        dbgVerts++;
+        if (!(b > 0.25 && gg < 0.12 && r > 0.12)) continue;
+        dbgPurple++;
+        const cx = Math.floor(((wx - minX) / sizeX) * N);
+        const cz = Math.floor(((wz - minZ) / sizeZ) * N);
+        if (cx < 0 || cx >= N || cz < 0 || cz >= N) continue;
+        cnt[cz * N + cx]++;
       }
     });
-    let groundY = Infinity;
-    const need = Math.max(50, totalV * 0.02);
-    const bins = [...hist.keys()].sort((a, b) => a - b);
-    for (const b of bins) {
-      if ((hist.get(b) ?? 0) >= need) { groundY = b * BIN; break; }
-    }
-    if (groundY === Infinity) return;
     root.traverse((obj) => {
       if (!('geometry' in obj)) return;
       const m = obj as THREE.Mesh;
@@ -1728,10 +1727,10 @@ export class Game {
       for (let i = 0; i < pos.count; i++) {
         const lx = pos.getX(i), ly = pos.getY(i), lz = pos.getZ(i);
         const wy = e[1] * lx + e[5] * ly + e[9] * lz + e[13];
-        if (wy < groundY - 1 || wy > groundY + 1) continue;
+        if (wy < 1.5) continue;
         const r = col.getX(i), gg = col.getY(i), b = col.getZ(i);
         dbgVerts++;
-        if (!(r > 0.2 && b > 0.25 && gg < 0.25)) continue;
+        if (!(b > 0.25 && gg < 0.12 && r > 0.12)) continue;
         dbgPurple++;
         const wx = e[0] * lx + e[4] * ly + e[8] * lz + e[12];
         const wz = e[2] * lx + e[6] * ly + e[10] * lz + e[14];
@@ -1741,37 +1740,23 @@ export class Game {
         cnt[cz * N + cx]++;
       }
     });
-    for (let i = 0; i < N * N; i++) mark[i] = cnt[i] >= 3 ? 1 : 0;
-    // эрозия: оставляем только клетки, у которых все 8 соседей тоже фиолетовые
-    const ero = new Uint8Array(N * N);
-    for (let z = 1; z < N - 1; z++) {
-      for (let x = 1; x < N - 1; x++) {
-        if (!mark[z * N + x]) continue;
-        let ok = true;
-        for (let dz = -1; dz <= 1 && ok; dz++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            if (!mark[(z + dz) * N + (x + dx)]) { ok = false; break; }
-          }
-        }
-        if (ok) ero[z * N + x] = 1;
-      }
-    }
-    // блюр 3×3 -> 0..255 (плавное растворение на краю)
+    for (let i = 0; i < N * N; i++) mark[i] = cnt[i] >= 2 ? 1 : 0;
+    // без эрозии (кроны редкие) — блюр 5×5 + срез бахромы: плавный край, не вылезаем за зону
     const grid = new Uint8Array(N * N);
     let cells = 0;
     for (let z = 0; z < N; z++) {
       for (let x = 0; x < N; x++) {
         let s = 0;
-        for (let dz = -1; dz <= 1; dz++) {
+        for (let dz = -2; dz <= 2; dz++) {
           const zz = Math.min(N - 1, Math.max(0, z + dz));
-          for (let dx = -1; dx <= 1; dx++) {
+          for (let dx = -2; dx <= 2; dx++) {
             const xx = Math.min(N - 1, Math.max(0, x + dx));
-            s += ero[zz * N + xx];
+            s += mark[zz * N + xx];
           }
         }
-        const val = Math.round((s / 9) * 255);
-        grid[z * N + x] = val;
-        if (val > 0) cells++;
+        const val = Math.round((s / 25) * 255);
+        grid[z * N + x] = val < 31 ? 0 : val;
+        if (grid[z * N + x] > 0) cells++;
       }
     }
     const tex = new THREE.DataTexture(grid, N, N, THREE.RedFormat, THREE.UnsignedByteType);
@@ -1782,8 +1767,8 @@ export class Game {
     tex.generateMipmaps = false;
     tex.needsUpdate = true;
     tex.flipY = false;
-    this.flagFog = { tex, grid, n: N, minX, minZ, sizeX, sizeZ, cells, cam: { value: 0 }, dbgMeshes, dbgVerts, dbgPurple, dbgGroundY: Math.round(groundY * 10) / 10 };
-    console.log(`[Blender] fog mask: ${cells} cells, groundY=${Math.round(groundY * 10) / 10}`);
+    this.flagFog = { tex, grid, n: N, minX, minZ, sizeX, sizeZ, cells, cam: { value: 0 }, dbgMeshes, dbgVerts, dbgPurple, dbgGroundY: 0 };
+    console.log(`[Blender] fog mask: ${cells} cells, purple verts: ${dbgPurple}`);
   }
 
   /** Билинейный сэмпл маски (CPU, для fogCam + тестов). Возвращает 0..1. */

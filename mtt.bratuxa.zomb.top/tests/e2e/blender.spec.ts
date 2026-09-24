@@ -199,8 +199,8 @@ test('blender fog: маска построена, в фиолетовой зон
   expect(info.built, 'маска тумана не построена').toBe(true);
   expect(info.cells, 'маска тумана пустая').toBeGreaterThan(50);
   type C2 = M & { teleport: (x: number, z: number) => unknown };
-  // центр фиолетовой зоны — туман почти полный
-  await page.evaluate(() => (window as unknown as { __mtt: C2 }).__mtt.teleport(-20, 52));
+  // центр фиолетовых крон (замер по GLB) — туман почти полный
+  await page.evaluate(() => (window as unknown as { __mtt: C2 }).__mtt.teleport(-19, 66));
   await page.waitForFunction(
     () => (window as unknown as { __mtt: M }).__mtt.flagFog().cam > 0.4,
     null,
