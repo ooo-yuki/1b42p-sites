@@ -170,7 +170,7 @@ test('blender CTF: подбор, штрафы, захват, дроп при с�
   );
   await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.hurt(99999));
   const afterHurt = await page.evaluate(() => {
-    const m = window as unknown as { __mtt: C & { hp: () => number; pos: () => { x: number; z: number } } };
+    const m = (window as unknown as { __mtt: C & { hp: () => number; pos: () => { x: number; z: number } } }).__mtt;
     return { hp: m.hp(), pos: m.pos(), ctf: m.ctf() };
   });
   console.log('DIAG afterHurt ' + JSON.stringify(afterHurt));
