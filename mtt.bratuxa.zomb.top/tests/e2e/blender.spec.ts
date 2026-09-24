@@ -26,6 +26,7 @@ type M = {
   pos: () => { x: number; z: number };
   solids: () => Array<{ x: number; z: number; hx: number; hz: number; r: number; h: number }>;
   solidAt: (x: number, z: number, y: number) => boolean;
+  foes: () => Array<{ dead: boolean }>;
 };
 
 test('blender: хитбоксы загружены, спавн свободен', async ({ page }: { page: Page }) => {
@@ -92,4 +93,19 @@ test('blender: все четверти карты проходимы, перим
     expect(res.quad[i], `четверть ${i} полностью заблокирована`).toBeGreaterThan(2);
   }
   expect(res.out.every((d) => d > 0), `периметр не держит: лучи без стен ${JSON.stringify(res.out)}`).toBe(true);
+});
+
+test('blender: мирная карта — ноль мобов, нет волны в HUD', async ({ page }: { page: Page }) => {
+  test.setTimeout(300000);
+  await bootBlender(page);
+  // волны спавнятся в первые секунды — ждём, чтобы возможный пак успел появиться
+  await page.waitForTimeout(20000);
+  const live = await page.evaluate(
+    () => (window as unknown as { __mtt: M }).__mtt.foes().filter((f) => !f.dead).length,
+  );
+  expect(live, 'на blender-карте завелись мобы').toBe(0);
+  const hudRow = await page.locator('#hudRow').innerText();
+  expect(hudRow, 'в HUD висит волна').toContain('МИРНЫЙ РЕЖИМ');
+  expect(hudRow, 'в HUD висит волна').not.toContain('Волна');
+  expect(await page.locator('#waveBanner').count(), 'баннер волны на мирной карте').toBe(0);
 });

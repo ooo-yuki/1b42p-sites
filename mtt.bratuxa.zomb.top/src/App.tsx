@@ -2139,7 +2139,7 @@ async function loadStats(): Promise<void> {
             <span>❤️ {hud.hp}/{hud.maxhp}</span>
             <div id="hpBar"><div id="hpFill" style={{ width: `${hpFrac * 100}%` }} /></div>
           </div>
-          <div id="hudRow">{noEnemies ? '🕊️ МИРНЫЙ РЕЖИМ · ' : `🌊 Волна ${hud.wave} · 👹 ${hud.enemies} · `}💀 {hud.kills} · 🏆 {hud.score}</div>
+          <div id="hudRow">{(noEnemies || mapChoice === 'blender') ? '🕊️ МИРНЫЙ РЕЖИМ · ' : `🌊 Волна ${hud.wave} · 👹 ${hud.enemies} · `}💀 {hud.kills} · 🏆 {hud.score}</div>
           <div id="hudRow2">🎟️ {hud.fantiki} · 💊 {hud.med}/3 · ⭐ {hud.lvl} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}{char === 'krysa' && (hud.kick > 0 ? ` · 🌀 ${hud.kick.toFixed(1)}с` : ' · 🌀 вол-кик готов')}{char === 'shuba' && (hud.invis > 0 ? ` · 👻 ещё ${hud.invis.toFixed(1)}с` : hud.invisCd > 0 ? ` · 👻 ${hud.invisCd.toFixed(1)}с` : ' · 👻 несутка готова')}{char === 'chuma' && (hud.chuma > 0 ? ` · 🦠 ещё ${hud.chuma.toFixed(1)}с` : hud.chumaCd > 0 ? ` · 🦠 ${hud.chumaCd.toFixed(1)}с` : ' · 🦠 облако готово')}{char === 'gidroxis' && (hud.xray > 0 ? ` · 🔍 ещё ${hud.xray.toFixed(1)}с` : hud.xrayCd > 0 ? ` · 🔍 ${hud.xrayCd.toFixed(1)}с` : ' · 🔍 рентген готов')}{char === 'sunstrike' && (hud.sunCd > 0 ? ` · ☀️ ${hud.sunCd.toFixed(1)}с` : ` · ☀️ заряд ${hud.sun}/15`)}{char === 'arbuz' && (hud.arbuz > 0 ? ` · 🌪️ ещё ${hud.arbuz.toFixed(1)}с` : hud.arbuzCd > 0 ? ` · 🌪️ ${hud.arbuzCd.toFixed(1)}с` : ' · 🌪️ воронка готова')}{char === 'jbl' && (hud.waveCd > 0 ? ` · 🔊 ${hud.waveCd.toFixed(1)}с` : ' · 🔊 волна готова')}{char === 'jbl' && (hud.charm > 0 ? ` · 🧠 ещё ${hud.charm.toFixed(1)}с` : hud.charmCd > 0 ? ` · 🧠 ${hud.charmCd.toFixed(1)}с` : ' · 🧠 подчинение готово')}</div>
         </div>
       )}
@@ -2277,7 +2277,7 @@ async function loadStats(): Promise<void> {
           {!roomId && mapChoice === 'boss' && hud.wbWait > 0 && (
             <div id="wbBadge">👹 Босс повержен — новый через {fmtRestart(hud.wbWait)}</div>
           )}
-          {waveBanner > 0 && (
+          {waveBanner > 0 && mapChoice !== 'blender' && (
             <div id="waveBanner" key={`wave-${waveBanner}`}>🌊 ВОЛНА {waveBanner}</div>
           )}
           {bossBanner && (
@@ -2657,6 +2657,7 @@ async function loadStats(): Promise<void> {
           </div>
           </div>
           <div className={'mtab' + (menuTab === 'play' ? ' show' : '')}>
+          {mapChoice !== 'blender' && (
           <div className="board" id="foeSec">
             <h3><span className="stepN">2</span>👹 Враги</h3>
             <div className="srow">
@@ -2665,6 +2666,7 @@ async function loadStats(): Promise<void> {
               </button>
             </div>
           </div>
+          )}
           </div>
           <div className={'mtab' + (menuTab === 'editor' ? ' show' : '')}>
           <div className="board" id="editorSec">

@@ -861,7 +861,8 @@ export class Game {
     readonly map: MapId = 'arena',
     opts: GameOpts = {},
   ) {
-    this.enemiesOn = opts.enemies !== false;
+    // Blender-карта — мирная: мобов нет вообще (все spawnWave-гейты завязаны на enemiesOn)
+    this.enemiesOn = map === 'blender' ? false : opts.enemies !== false;
     this.custom = opts.custom ?? null;
     this.mapSeed = (opts.seed ?? Math.floor(Math.random() * 2 ** 31)) >>> 0;
     // Бэкрумс большой: лабиринт ~120м. Размер задаёт сам строитель через halfOverride.
