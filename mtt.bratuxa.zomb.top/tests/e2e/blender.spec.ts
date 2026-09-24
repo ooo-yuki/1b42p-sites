@@ -169,6 +169,12 @@ test('blender CTF: подбор, штрафы, захват, дроп при с�
     { timeout: 30000, polling: 300 },
   );
   await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.hurt(99999));
+  const afterHurt = await page.evaluate(() => {
+    const m = window as unknown as { __mtt: C & { hp: () => number; pos: () => { x: number; z: number } } };
+    return { hp: m.hp(), pos: m.pos(), ctf: m.ctf() };
+  });
+  console.log('DIAG afterHurt ' + JSON.stringify(afterHurt));
+  console.log('DIAG busted visible: ' + (await page.locator('#busted').isVisible()));
   await page.waitForFunction(
     () => (window as unknown as { __mtt: C }).__mtt.ctf().carrying === null,
     null,
