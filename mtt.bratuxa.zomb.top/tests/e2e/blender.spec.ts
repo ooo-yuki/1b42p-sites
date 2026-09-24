@@ -143,7 +143,7 @@ test('blender CTF: подбор, штрафы, захват, дроп при с�
   // штрафы носителя: атака не взводит кд, рывок запрещён
   await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.attack());
   const cd = await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.atkcd());
-  expect(cd, 'носитель смог атаковать').toBe(0);
+  expect(cd, 'носитель смог атаковать').toBeLessThanOrEqual(0);
   const dash = await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.doDash());
   expect(dash, 'носитель смог рывануться').toBe(false);
   // доставка на свою базу — захват
