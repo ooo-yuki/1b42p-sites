@@ -1812,7 +1812,9 @@ export class Game {
       gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, clamp(ff, 0.0, 1.0));
     }`);
     };
-    (m as unknown as { customProgramCacheKey: () => string }).customProgramCacheKey = () => 'flagfog-v1';
+    const baseKey = THREE.Material.prototype.customProgramCacheKey.bind(m);
+    (m as unknown as { customProgramCacheKey: () => string }).customProgramCacheKey =
+      () => baseKey() + '|flagfog-v1';
     m.needsUpdate = true;
   }
 
