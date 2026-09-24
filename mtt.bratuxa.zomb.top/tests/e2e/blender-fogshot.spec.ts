@@ -22,12 +22,14 @@ test('blender fog shots', async ({ page }) => {
   await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.teleport(-19, 66));
   await page.waitForTimeout(2000);
   await page.setViewportSize({ width: 640, height: 360 });
-  for (let i = 0; i < 4; i++) {
-    if (i > 0) {
-      await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.look(-800, 0));
-      await page.waitForTimeout(1500);
-    }
-    await page.screenshot({ path: `test-results/blender-fog-${i}.jpg`, type: 'jpeg', quality: 45 });
-  }
-  console.log('DIAG fog shots saved');
+  type C3 = C & { fogCam: (v: number | null) => void };
+  // кадр A: туман включён (авто, игрок внутри зоны)
+  await page.waitForTimeout(2000);
+  await page.screenshot({ path: 'test-results/blender-fogA.jpg', type: 'jpeg', quality: 45 });
+  // кадр B: та же точка, туман принудительно выключен
+  await page.evaluate(() => (window as unknown as { __mtt: C3 }).__mtt.fogCam(0));
+  await page.waitForTimeout(2000);
+  await page.screenshot({ path: 'test-results/blender-fogB.jpg', type: 'jpeg', quality: 45 });
+  await page.evaluate(() => (window as unknown as { __mtt: C3 }).__mtt.fogCam(null));
+  console.log('DIAG fog A/B shots saved');
 });

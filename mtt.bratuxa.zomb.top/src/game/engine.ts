@@ -1820,6 +1820,9 @@ export class Game {
 
   /** Туман для тестов: построена ли маска, сколько клеток, значение под камерой. */
   private fogError: string | null = null;
+  /** Тест-оверрайд силы тумана (null — авто по позиции). */
+  private fogCamOverride: number | null = null;
+  debugFogCam(v: number | null): void { this.fogCamOverride = v; }
   debugFlagFog(): { built: boolean; cells: number; cam: number; err: string | null; meshes: number; verts: number; purple: number; groundY: number } {
     const F = this.flagFog;
     if (!F) return { built: false, cells: 0, cam: 0, err: this.fogError, meshes: 0, verts: 0, purple: 0, groundY: 0 };
@@ -1842,7 +1845,7 @@ export class Game {
   private updateFlags(): void {
     if (this.map !== 'blender' || !this.team || !this.flagRed || !this.flagBlue) return;
     // туман: сила под камерой (0 — вне зоны, 1 — глубоко внутри)
-    if (this.flagFog) this.flagFog.cam.value = this.fogSample(this.px, this.pz);
+    if (this.flagFog) this.flagFog.cam.value = this.fogCamOverride ?? this.fogSample(this.px, this.pz);
     const t = performance.now() / 1000;
     for (const f of [this.flagRed, this.flagBlue]) {
       const cloth = f.group?.getObjectByName('cloth');

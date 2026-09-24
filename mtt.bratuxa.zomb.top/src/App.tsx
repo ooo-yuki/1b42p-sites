@@ -1158,6 +1158,7 @@ async function loadStats(): Promise<void> {
       kick: () => game.debugKick(),
       map: () => game.debugMap(),
       flagFog: () => game.debugFlagFog(),
+      fogCam: (v: number | null) => game.debugFogCam(v),
       ctf: () => game.debugCtf(),
       teleport: (x: number, z: number) => game.debugTeleport(x, z),
       duelHp: (hp: number) => game.setDuelHp(hp),
