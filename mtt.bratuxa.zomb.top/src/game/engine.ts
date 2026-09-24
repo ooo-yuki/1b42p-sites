@@ -1449,6 +1449,7 @@ export class Game {
         const root = gltf.scene;
         let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
         const spawns: Record<string, { x: number; z: number }> = {};
+        let skippedSlabs = 0;
         root.traverse((obj) => {
           const nm = (obj.name || '').toLowerCase();
           if ((nm === 'spawn1' || nm === 'spawn2') && !('geometry' in obj)) {
@@ -1467,12 +1468,14 @@ export class Game {
             const center = new THREE.Vector3();
             box.getSize(size);
             box.getCenter(center);
+            m.visible = false;
+            // Пластина на всю карту (пол-подложка из Blender) — не стена: пропускаем
+            if (size.x * size.z > 3000 && size.y < 5) { skippedSlabs++; return; }
             this.solids.push({
               x: center.x, z: center.z,
               hx: size.x / 2, hz: size.z / 2,
               h: box.max.y,
             });
-            m.visible = false;
             return;
           }
           m.castShadow = true;
@@ -1504,6 +1507,7 @@ export class Game {
           for (const w of walls) this.solids.push(w);
         }
         scene.add(root);
+        if (skippedSlabs > 0) console.log(`[Blender] skipped ${skippedSlabs} ground slab(s)`);
         this.rebuildSolidGrid();
         const s1 = spawns['spawn1'];
         if (s1) { this.px = s1.x; this.pz = s1.z; this.yaw = 0; }
