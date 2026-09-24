@@ -1485,8 +1485,23 @@ export class Game {
         });
         if (minX < Infinity) {
           this.half = Math.max(maxX - minX, maxZ - minZ) / 2 + 15;
-          ground.position.x = (minX + maxX) / 2;
-          ground.position.z = (minZ + maxZ) / 2;
+          // Трава ровно по размеру карты (+8м поля вокруг), по центру bbox
+          const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
+          const gw = (maxX - minX) + 16, gd = (maxZ - minZ) + 16;
+          ground.geometry.dispose();
+          ground.geometry = new THREE.PlaneGeometry(gw, gd);
+          grassTex.repeat.set(gw / 4, gd / 4);
+          ground.position.x = cx;
+          ground.position.z = cz;
+          // Невидимые стены по периметру карты — игрок не уходит за край
+          const M = 3, WH = 30;
+          const walls: Array<{ x: number; z: number; hx: number; hz: number; h: number }> = [
+            { x: cx, z: minZ - M, hx: (maxX - minX) / 2 + M, hz: M, h: WH },
+            { x: cx, z: maxZ + M, hx: (maxX - minX) / 2 + M, hz: M, h: WH },
+            { x: minX - M, z: cz, hx: M, hz: (maxZ - minZ) / 2 + M, h: WH },
+            { x: maxX + M, z: cz, hx: M, hz: (maxZ - minZ) / 2 + M, h: WH },
+          ];
+          for (const w of walls) this.solids.push(w);
         }
         scene.add(root);
         this.rebuildSolidGrid();
