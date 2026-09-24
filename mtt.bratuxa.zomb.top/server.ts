@@ -114,6 +114,8 @@ function cleanExpiredBlocks() {
 }
 cleanExpiredBlocks();
 setInterval(cleanExpiredBlocks, 60_000);
+/** Технический перерыв: общий флаг на весь сервер (память; рестарт = ВЫКЛ). */
+let maintenanceOn = false;
 /** Кто забрал LXX42P2ILX — тот и владелец панели (один на весь сервер). */
 function devOwner(): string {
   try {
@@ -616,6 +618,19 @@ async function roomsApi(req: Request): Promise<Response | null> {
       for (const [k, m] of r.pending) if (m.login === target) r.pending.delete(k);
     }
     return Response.json({ ok: true, login: target });
+  }
+  // Технический перерыв: публичный статус для всех
+  if (p === '/api/maintenance' && req.method === 'GET') {
+    return Response.json({ ok: true, on: maintenanceOn });
+  }
+  // Технический перерыв: тоггл (только владелец LXX42P2ILX)
+  if (p === '/api/dev/maintenance' && req.method === 'POST') {
+    let body: Record<string, unknown> = {};
+    try { body = await req.json() as Record<string, unknown>; } catch { return Response.json({ error: 'bad' }, { status: 400 }); }
+    const login = loginByToken(body.token);
+    if (!login || login !== devOwner()) return Response.json({ error: 'forbidden' }, { status: 403 });
+    maintenanceOn = body.on === undefined ? !maintenanceOn : !!body.on;
+    return Response.json({ ok: true, on: maintenanceOn });
   }
   // админ-статистика МТТ: онлайн по комнатам — кто где и что делает
   if (p === '/api/admin/stats' && req.method === 'GET') {

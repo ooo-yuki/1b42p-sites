@@ -827,6 +827,27 @@ async function loadStats(): Promise<void> {
     const id = window.setInterval(tick, 250);
     return () => window.clearInterval(id);
   }, [devUnlocked, devOpen]);
+  /** Технический перерыв: общий флаг с сервера, опрос раз в 15с. */
+  const [maintOn, setMaintOn] = useState(false);
+  const [maintBusy, setMaintBusy] = useState(false);
+  useEffect(() => {
+    let stop = false;
+    const poll = async (): Promise<void> => {
+      try {
+        const r = await fetch('/api/maintenance');
+        const d = await r.json() as { ok?: boolean; on?: boolean };
+        if (!stop && d.ok) setMaintOn(!!d.on);
+      } catch { /* нет связи */ }
+    };
+    poll();
+    const id = window.setInterval(poll, 15000);
+    return () => { stop = true; window.clearInterval(id); };
+  }, []);
+  /** Технический перерыв: мир frozen + плашка тем, у кого нет DEV-доступа. */
+  const maintBlocked = maintOn && !canSee(authed, devUnlocked);
+  useEffect(() => {
+    try { gameRef.current?.setMaintLock(maintBlocked); } catch { /* движок ещё не готов */ }
+  }, [maintBlocked]);
   const hudRef = useRef(hud);
   hudRef.current = hud;
   // ник в рефах: пульс и переподключение живут в []-эффекте и видят только протухшее замыкание
@@ -3089,6 +3110,21 @@ async function loadStats(): Promise<void> {
             }}>
               {devTopBusy ? '⏳…' : '🏆 ТОП + ЛОГИНЫ'}
             </button>
+            <button id="devMaintBtn" className="wbtn" disabled={maintBusy} onClick={async () => {
+              setMaintBusy(true);
+              try {
+                const r = await fetch('/api/dev/maintenance', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ token: token() }),
+                });
+                const d = await r.json() as { ok?: boolean; on?: boolean };
+                if (d.ok) setMaintOn(!!d.on);
+              } catch { /* нет связи */ }
+              setMaintBusy(false);
+            }}>
+              {maintBusy ? '⏳…' : maintOn ? '🛠️ ПЕРЕРЫВ: ВКЛ — выключить' : '🛠️ ТЕХНИЧЕСКИЙ ПЕРЕРЫВ: ВЫКЛ'}
+            </button>
             {devTopScores && (
               <div id="devUsers">
                 {devTopScores.length === 0 && <div>Нет записей.</div>}
@@ -3222,6 +3258,14 @@ async function loadStats(): Promise<void> {
               </>
             )}
           </div>
+        </div>
+      )}
+      {/* Технический перерыв: fullscreen-блок для всех без DEV-доступа, в любом месте сайта */}
+      {maintBlocked && (
+        <div id="maintOverlay">
+          <div id="maintTitle">🛠️ ТЕХНИЧЕСКИЙ ПЕРЕРЫВ</div>
+          <div id="maintText">Вскоре вы снова сможете продолжить играть уже с новым обновлением.</div>
+          <a id="maintTg" href="https://t.me/carstvoMTT" target="_blank" rel="noreferrer">ТГК РАЗРАБОТЧИКА</a>
         </div>
       )}
     </>

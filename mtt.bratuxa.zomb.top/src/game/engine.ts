@@ -428,6 +428,9 @@ export class Game {
   private pz = 22;
   /** Спавн второй команды (карта Blender: Spawn2). Командного режима пока нет — хранится на будущее. */
   private spawn2: { x: number; z: number } | null = null;
+  /** Технический перерыв: заморозка мира для тех, кто видит плашку. */
+  private maintLock = false;
+  setMaintLock(on: boolean): void { this.maintLock = !!on; }
   /** CTF (только Blender): моя команда — случайная при заходе. Вне Blender — null. */
   private team: Team | null = null;
   /** CTF: цвет несомого вражеского флага (null — без флага). */
@@ -1670,7 +1673,7 @@ export class Game {
       const c2 = this.carryBlue.group.getObjectByName('cloth');
       if (c2) c2.rotation.y = Math.sin(t * 6 + 1) * 0.4;
     }
-    if (!this.started || this.dead || this.specOn) {
+    if (!this.started || this.dead || this.specOn || this.maintLock) {
       if (this.dead && this.carrying) this.dropFlag();
       return;
     }
@@ -6538,7 +6541,8 @@ export class Game {
     // Бой и движение — живым; НАБЛЮДАТЕЛЬ (и мёртвый тоже) идёт здесь же:
     // в наблюдатели попадают именно мёртвыми, а полёт/камера/следование живут ниже.
     // Защита от трупных артефактов — внутри: attack/jump/абилки/урон проверяют specOn/dead сами.
-    if (this.started && (!this.dead || this.specOn)) {
+    // Технический перерыв — мир frozen: ни игрок, ни мобы не двигаются.
+    if (this.started && (!this.dead || this.specOn) && !this.maintLock) {
       const km = this.keyMap;
       // поворот стрелками
       if (this.input.ArrowLeft) this.yaw += 1.9 * dt;
