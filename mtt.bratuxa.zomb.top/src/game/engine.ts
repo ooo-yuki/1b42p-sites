@@ -1798,7 +1798,7 @@ export class Game {
 
   /** Туман для тестов: построена ли маска, сколько клеток, значение под камерой. */
   private fogError: string | null = null;
-  debugFog(): { built: boolean; cells: number; cam: number; err: string | null } {
+  debugFlagFog(): { built: boolean; cells: number; cam: number; err: string | null } {
     const F = this.flagFog;
     if (!F) return { built: false, cells: 0, cam: 0, err: this.fogError };
     return { built: true, cells: F.cells, cam: Math.round(this.fogSample(this.px, this.pz) * 100) / 100, err: this.fogError };

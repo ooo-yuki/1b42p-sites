@@ -27,7 +27,7 @@ type M = {
   solids: () => Array<{ x: number; z: number; hx: number; hz: number; r: number; h: number }>;
   solidAt: (x: number, z: number, y: number) => boolean;
   foes: () => Array<{ dead: boolean }>;
-  fog: () => { built: boolean; cells: number; cam: number; err: string | null };
+  flagFog: () => { built: boolean; cells: number; cam: number; err: string | null };
 };
 
 test('blender: хитбоксы загружены, спавн свободен', async ({ page }: { page: Page }) => {
@@ -193,7 +193,7 @@ test('blender fog: маска построена, в фиолетовой зон
   test.setTimeout(300000);
   await bootBlender(page);
   // солиды загружены => колбэк GLB отработал синхронно: вердикт по туману финальный
-  const info = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.fog());
+  const info = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.flagFog());
   console.log('DIAG fog ' + JSON.stringify(info));
   expect(info.err, 'fog setup error: ' + info.err).toBe(null);
   expect(info.built, 'маска тумана не построена').toBe(true);
@@ -202,14 +202,14 @@ test('blender fog: маска построена, в фиолетовой зон
   // центр фиолетовой зоны — туман почти полный
   await page.evaluate(() => (window as unknown as { __mtt: C2 }).__mtt.teleport(-20, 52));
   await page.waitForFunction(
-    () => (window as unknown as { __mtt: M }).__mtt.fog().cam > 0.4,
+    () => (window as unknown as { __mtt: M }).__mtt.flagFog().cam > 0.4,
     null,
     { timeout: 30000, polling: 300 },
   );
   // угол карты вне зоны — тумана нет
   await page.evaluate(() => (window as unknown as { __mtt: C2 }).__mtt.teleport(-90.6, 91.7));
   await page.waitForFunction(
-    () => (window as unknown as { __mtt: M }).__mtt.fog().cam < 0.2,
+    () => (window as unknown as { __mtt: M }).__mtt.flagFog().cam < 0.2,
     null,
     { timeout: 30000, polling: 300 },
   );
