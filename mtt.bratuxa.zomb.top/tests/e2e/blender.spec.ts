@@ -73,13 +73,16 @@ test('blender: все четверти карты проходимы, перим
         }
       }
     }
-    // полоса стен периметра: 0..6м снаружи края карты — точки в 3 и 5м заблокированы
-    const out = [
-      m.solidAt((x0 + x1) / 2, z0 - 3, 0), m.solidAt((x0 + x1) / 2, z0 - 5, 0),
-      m.solidAt((x0 + x1) / 2, z1 + 3, 0), m.solidAt((x0 + x1) / 2, z1 + 5, 0),
-      m.solidAt(x0 - 3, (z0 + z1) / 2, 0), m.solidAt(x0 - 5, (z0 + z1) / 2, 0),
-      m.solidAt(x1 + 3, (z0 + z1) / 2, 0), m.solidAt(x1 + 5, (z0 + z1) / 2, 0),
-    ];
+    // выход с карты: луч из спавна в 8 направлениях обязан упереться в стену
+    const p = m.pos();
+    const rays = [0, Math.PI / 2, Math.PI, -Math.PI / 2, Math.PI / 4, -Math.PI / 4, (3 * Math.PI) / 4, (-3 * Math.PI) / 4];
+    const out = rays.map((a) => {
+      const dx = Math.cos(a), dz = Math.sin(a);
+      for (let d = 1; d <= 300; d += 1) {
+        if (m.solidAt(p.x + dx * d, p.z + dz * d, 0)) return d;
+      }
+      return -1;
+    });
     return { total, free, quad, out, bbox: [x0, z0, x1, z1] };
   });
   console.log('DIAG blender grid ' + JSON.stringify(res));
@@ -88,5 +91,5 @@ test('blender: все четверти карты проходимы, перим
   for (let i = 0; i < 4; i++) {
     expect(res.quad[i], `четверть ${i} полностью заблокирована`).toBeGreaterThan(2);
   }
-  expect(res.out.every(Boolean), 'периметр не держит: можно уйти за карту').toBe(true);
+  expect(res.out.every((d) => d > 0), `периметр не держит: лучи без стен ${JSON.stringify(res.out)}`).toBe(true);
 });
