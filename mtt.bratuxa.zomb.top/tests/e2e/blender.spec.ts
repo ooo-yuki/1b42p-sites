@@ -128,9 +128,13 @@ test('blender CTF: подбор, штрафы, захват, дроп при с�
   const foe = st0.team === 'red' ? 'blue' : 'red';
   const foeFlag = (foe === 'red' ? st0.red : st0.blue)!;
   const myBase = (st0.team === 'red' ? st0.red : st0.blue)!;
-  // контроль: без флага атака взводит кд
+  // контроль: без флага атака взводит кд — ждём пока кд сойдёт (игровое время под SwiftShader идёт медленнее)
   await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.attack());
-  await page.waitForTimeout(700);
+  await page.waitForFunction(
+    () => (window as unknown as { __mtt: C }).__mtt.atkcd() <= 0,
+    null,
+    { timeout: 60000, polling: 500 },
+  );
   // телепорт к вражескому флагу — подбор
   await page.evaluate(([x, z]) => (window as unknown as { __mtt: C }).__mtt.teleport(x, z), [foeFlag.x, foeFlag.z]);
   await page.waitForTimeout(1000);
