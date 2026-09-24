@@ -20,14 +20,16 @@ test('blender fog shot', async ({ page }) => {
   await page.waitForTimeout(8000);
   type C = { teleport: (x: number, z: number) => unknown; look: (dx: number, dy: number) => void };
   await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.teleport(-19, 66));
-  await page.waitForTimeout(1500);
-  // addLook в единицах мыши c инверсией: dy<0 — взгляд вниз
-  await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.look(0, -150));
+  await page.waitForTimeout(8000);
+  type C2 = C & { ground: (x: number, z: number) => number };
+  const gy = await page.evaluate(() => (window as unknown as { __mtt: C2 }).__mtt.ground(-19, 66));
+  console.log('DIAG ground@purple-center=' + gy);
+  await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.look(0, 300));
   await page.waitForTimeout(2000);
   await page.setViewportSize({ width: 640, height: 360 });
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(1000);
   await page.screenshot({ path: 'test-results/blender-fog.jpg', type: 'jpeg', quality: 45 });
-  await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.look(-400, 0));
+  await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.look(0, -600));
   await page.waitForTimeout(2000);
   await page.screenshot({ path: 'test-results/blender-fog2.jpg', type: 'jpeg', quality: 45 });
   console.log('DIAG fog shots saved');
