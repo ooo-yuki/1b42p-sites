@@ -1450,6 +1450,7 @@ export class Game {
         let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
         const spawns: Record<string, { x: number; z: number }> = {};
         let skippedSlabs = 0;
+        const colBoxes: Array<{ x: number; z: number; hx: number; hz: number; h: number }> = [];
         root.traverse((obj) => {
           const nm = (obj.name || '').toLowerCase();
           if ((nm === 'spawn1' || nm === 'spawn2') && !('geometry' in obj)) {
@@ -1471,7 +1472,7 @@ export class Game {
             m.visible = false;
             // Пластина на всю карту (пол-подложка из Blender) — не стена: пропускаем
             if (size.x * size.z > 3000 && size.y < 5) { skippedSlabs++; return; }
-            this.solids.push({
+            colBoxes.push({
               x: center.x, z: center.z,
               hx: size.x / 2, hz: size.z / 2,
               h: box.max.y,
@@ -1486,11 +1487,23 @@ export class Game {
           if (box.min.z < minZ) minZ = box.min.z;
           if (box.max.z > maxZ) maxZ = box.max.z;
         });
-        if (minX < Infinity) {
-          this.half = Math.max(maxX - minX, maxZ - minZ) / 2 + 15;
+        // Границы карты — по хитбоксам (игровая площадь), видимый меш лишь фолбэк
+        let bx0 = Infinity, bx1 = -Infinity, bz0 = Infinity, bz1 = -Infinity;
+        if (colBoxes.length > 0) {
+          for (const b of colBoxes) {
+            if (b.x - b.hx < bx0) bx0 = b.x - b.hx;
+            if (b.x + b.hx > bx1) bx1 = b.x + b.hx;
+            if (b.z - b.hz < bz0) bz0 = b.z - b.hz;
+            if (b.z + b.hz > bz1) bz1 = b.z + b.hz;
+          }
+        } else if (minX < Infinity) {
+          bx0 = minX; bx1 = maxX; bz0 = minZ; bz1 = maxZ;
+        }
+        if (bx0 < Infinity) {
+          this.half = Math.max(bx1 - bx0, bz1 - bz0) / 2 + 15;
           // Трава ровно по размеру карты (+8м поля вокруг), по центру bbox
-          const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
-          const gw = (maxX - minX) + 16, gd = (maxZ - minZ) + 16;
+          const cx = (bx0 + bx1) / 2, cz = (bz0 + bz1) / 2;
+          const gw = (bx1 - bx0) + 16, gd = (bz1 - bz0) + 16;
           ground.geometry.dispose();
           ground.geometry = new THREE.PlaneGeometry(gw, gd);
           grassTex.repeat.set(gw / 4, gd / 4);
@@ -1499,13 +1512,14 @@ export class Game {
           // Невидимые стены по периметру карты — игрок не уходит за край
           const M = 3, WH = 30;
           const walls: Array<{ x: number; z: number; hx: number; hz: number; h: number }> = [
-            { x: cx, z: minZ - M, hx: (maxX - minX) / 2 + M, hz: M, h: WH },
-            { x: cx, z: maxZ + M, hx: (maxX - minX) / 2 + M, hz: M, h: WH },
-            { x: minX - M, z: cz, hx: M, hz: (maxZ - minZ) / 2 + M, h: WH },
-            { x: maxX + M, z: cz, hx: M, hz: (maxZ - minZ) / 2 + M, h: WH },
+            { x: cx, z: bz0 - M, hx: (bx1 - bx0) / 2 + M, hz: M, h: WH },
+            { x: cx, z: bz1 + M, hx: (bx1 - bx0) / 2 + M, hz: M, h: WH },
+            { x: bx0 - M, z: cz, hx: M, hz: (bz1 - bz0) / 2 + M, h: WH },
+            { x: bx1 + M, z: cz, hx: M, hz: (bz1 - bz0) / 2 + M, h: WH },
           ];
           for (const w of walls) this.solids.push(w);
         }
+        for (const b of colBoxes) this.solids.push(b);
         scene.add(root);
         if (skippedSlabs > 0) console.log(`[Blender] skipped ${skippedSlabs} ground slab(s)`);
         this.rebuildSolidGrid();
