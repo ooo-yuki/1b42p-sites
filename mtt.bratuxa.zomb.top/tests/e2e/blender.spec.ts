@@ -105,7 +105,58 @@ test('blender: мирная карта — ноль мобов, нет волн�
   );
   expect(live, 'на blender-карте завелись мобы').toBe(0);
   const hudRow = await page.locator('#hudRow').innerText();
-  expect(hudRow, 'в HUD висит волна').toContain('МИРНЫЙ РЕЖИМ');
+  expect(hudRow, 'нет бейджа команды').toMatch(/КРАСНЫЕ|СИНИЕ/);
   expect(hudRow, 'в HUD висит волна').not.toContain('Волна');
   expect(await page.locator('#waveBanner').count(), 'баннер волны на мирной карте').toBe(0);
+});
+
+test('blender CTF: подбор, штрафы, захват, дроп при смерти', async ({ page }: { page: Page }) => {
+  test.setTimeout(300000);
+  await bootBlender(page);
+  type C = M & {
+    ctf: () => { team: 'red' | 'blue' | null; carrying: 'red' | 'blue' | null; captures: number; red: { x: number; z: number; home: boolean } | null; blue: { x: number; z: number; home: boolean } | null };
+    teleport: (x: number, z: number) => { x: number; z: number };
+    attack: () => number;
+    atkcd: () => number;
+    doDash: () => boolean;
+    hurt: (n: number) => number;
+    revive: () => boolean;
+  };
+  const st0 = await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.ctf());
+  expect(st0.team === 'red' || st0.team === 'blue', 'нет команды').toBe(true);
+  expect(st0.red && st0.blue, 'нет обоих флагов').toBe(true);
+  const foe = st0.team === 'red' ? 'blue' : 'red';
+  const foeFlag = (foe === 'red' ? st0.red : st0.blue)!;
+  const myBase = (st0.team === 'red' ? st0.red : st0.blue)!;
+  // контроль: без флага атака взводит кд
+  await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.attack());
+  await page.waitForTimeout(700);
+  // телепорт к вражескому флагу — подбор
+  await page.evaluate(([x, z]) => (window as unknown as { __mtt: C }).__mtt.teleport(x, z), [foeFlag.x, foeFlag.z]);
+  await page.waitForTimeout(1000);
+  const st1 = await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.ctf());
+  expect(st1.carrying, 'флаг не подобрался').toBe(foe);
+  // штрафы носителя: атака не взводит кд, рывок запрещён
+  await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.attack());
+  const cd = await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.atkcd());
+  expect(cd, 'носитель смог атаковать').toBe(0);
+  const dash = await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.doDash());
+  expect(dash, 'носитель смог рывануться').toBe(false);
+  // доставка на свою базу — захват
+  await page.evaluate(([x, z]) => (window as unknown as { __mtt: C }).__mtt.teleport(x, z), [myBase.x, myBase.z]);
+  await page.waitForTimeout(1000);
+  const st2 = await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.ctf());
+  expect(st2.carrying, 'флаг не сброшен после захвата').toBe(null);
+  expect(st2.captures, 'захват не засчитан').toBe(1);
+  // снова взял — умер — флаг брошен там, где умер
+  await page.evaluate(([x, z]) => (window as unknown as { __mtt: C }).__mtt.teleport(x, z), [foeFlag.x, foeFlag.z]);
+  await page.waitForTimeout(800);
+  await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.hurt(99999));
+  await page.waitForTimeout(800);
+  const st3 = await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.ctf());
+  expect(st3.carrying, 'флаг не выпал при смерти').toBe(null);
+  const dropped = (foe === 'red' ? st3.red : st3.blue)!;
+  expect(dropped.home, 'флаг вернулся домой вместо дропа').toBe(false);
+  await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.revive());
+  console.log('DIAG ctf team=' + st0.team + ' captures=' + st2.captures + ' dropped@' + dropped.x + ',' + dropped.z);
 });

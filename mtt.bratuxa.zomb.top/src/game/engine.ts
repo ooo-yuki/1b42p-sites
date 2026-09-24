@@ -101,6 +101,9 @@ export function charSpec(id: string): CharDef {
 export type Quality = 'low' | 'medium' | 'high';
 export type MapId = 'arena' | 'duel' | 'backrooms' | 'custom' | 'random' | 'pvp' | 'endless' | 'invasion' | 'szeged' | 'boss' | 'forest' | 'blender';
 
+/** CTF-команда (карта Blender): синие — база Spawn1, красные — база Spawn2. */
+export type Team = 'red' | 'blue';
+
 /** Карты для выбора в меню: id, название, описание. */
 export const MAPS: Array<{ id: MapId; name: string; desc: string }> = [
   { id: 'arena', name: '🌍 Арена', desc: 'Новый город: витрины, переулки, Г/П-дома, площадь с фонтаном' },
@@ -187,6 +190,10 @@ export interface HudState {
   charmCd: number;
   med: number;
   lvl: number;
+  /** CTF (карта Blender): моя команда, несомый флаг, число захватов. */
+  team: Team | null;
+  carrying: Team | null;
+  captures: number;
   /** Живых боссов на карте — для баннера 👑. */
   boss: number;
   /** Секунд до респауна мирового босса в соло (0 — жив или не босс-карта). */
@@ -421,6 +428,18 @@ export class Game {
   private pz = 22;
   /** Спавн второй команды (карта Blender: Spawn2). Командного режима пока нет — хранится на будущее. */
   private spawn2: { x: number; z: number } | null = null;
+  /** CTF (только Blender): моя команда — случайная при заходе. Вне Blender — null. */
+  private team: Team | null = null;
+  /** CTF: цвет несомого вражеского флага (null — без флага). */
+  private carrying: Team | null = null;
+  /** CTF: число захватов (доставка вражеского флага на свою базу). */
+  private captures = 0;
+  /** CTF: состояние флага (дом/точка/меш). */
+  private flagRed: { homeX: number; homeZ: number; x: number; z: number; home: boolean; group: THREE.Group | null } | null = null;
+  private flagBlue: { homeX: number; homeZ: number; x: number; z: number; home: boolean; group: THREE.Group | null } | null = null;
+  /** CTF: маленькие флаги над головой (красный/синий) — виден только несомый. */
+  private carryRed: THREE.Group | null = null;
+  private carryBlue: THREE.Group | null = null;
   private yaw = 0;
   private pitch = 0;
   private hp = 100;
@@ -863,6 +882,8 @@ export class Game {
   ) {
     // Blender-карта — мирная: мобов нет вообще (все spawnWave-гейты завязаны на enemiesOn)
     this.enemiesOn = map === 'blender' ? false : opts.enemies !== false;
+    // CTF: случайная команда при заходе на Blender (вне Blender команд нет)
+    this.team = map === 'blender' ? (Math.random() < 0.5 ? 'red' : 'blue') : null;
     this.custom = opts.custom ?? null;
     this.mapSeed = (opts.seed ?? Math.floor(Math.random() * 2 ** 31)) >>> 0;
     // Бэкрумс большой: лабиринт ~120м. Размер задаёт сам строитель через halfOverride.
@@ -1524,12 +1545,33 @@ export class Game {
         scene.add(root);
         if (skippedSlabs > 0) console.log(`[Blender] skipped ${skippedSlabs} ground slab(s)`);
         this.rebuildSolidGrid();
+        // CTF: синяя база — Spawn1, красная — Spawn2 (нет Spawn2 — зеркалим от синей)
         const s1 = spawns['spawn1'];
-        if (s1) { this.px = s1.x; this.pz = s1.z; this.yaw = 0; }
         const s2 = spawns['spawn2'];
         if (s2) this.spawn2 = { x: s2.x, z: s2.z };
-        // Спавн из Blender может стоять в стене — проверяем, иначе спираль от центра
-        if (!s1 || this.hitSolid(this.px, this.pz, 1.5)) {
+        const blueBase: { x: number; z: number } = s1 ?? { x: this.px, z: this.pz };
+        let redBase: { x: number; z: number } | null = s2 ?? null;
+        if (!redBase) {
+          const mx = -blueBase.x, mz = -blueBase.z;
+          if (!this.hitSolid(mx, mz, 2)) redBase = { x: mx, z: mz };
+          else {
+            for (let r = 2; r <= this.half && !redBase; r += 2) {
+              for (let k = 0; k < 8; k++) {
+                const a = (k / 8) * Math.PI * 2;
+                const qx = clampArena(mx + Math.cos(a) * r, this.half);
+                const qz = clampArena(mz + Math.sin(a) * r, this.half);
+                if (!this.hitSolid(qx, qz, 2)) { redBase = { x: qx, z: qz }; break; }
+              }
+            }
+            if (!redBase) redBase = { x: blueBase.x, z: blueBase.z };
+          }
+          this.spawn2 = { ...redBase };
+        }
+        // Спавн игрока — на базе своей команды (точка в стене — спираль от центра)
+        const myBase = this.team === 'red' ? redBase : blueBase;
+        if (!this.hitSolid(myBase.x, myBase.z, 1.5)) {
+          this.px = myBase.x; this.pz = myBase.z; this.yaw = 0;
+        } else {
           let placed = false;
           for (let r = 2; r <= this.half && !placed; r += 2) {
             for (let k = 0; k < 8; k++) {
@@ -1539,10 +1581,141 @@ export class Game {
             }
           }
         }
+        // Флаги CTF: синий на синей базе, красный на красной
+        this.flagBlue = this.makeFlag('blue', blueBase.x, blueBase.z);
+        this.flagRed = this.makeFlag('red', redBase.x, redBase.z);
+        scene.add(this.flagBlue.group);
+        scene.add(this.flagRed.group);
+        // Маленькие флаги над головой (пока скрыты)
+        this.carryBlue = this.makeFlag('blue', 0, 0, 0.55);
+        this.carryRed = this.makeFlag('red', 0, 0, 0.55);
+        this.carryBlue.group.visible = false;
+        this.carryRed.group.visible = false;
+        scene.add(this.carryBlue.group);
+        scene.add(this.carryRed.group);
+        this.pushHud();
       },
       undefined,
       (err) => { console.warn('[Blender] GLB load error:', err); },
     );
+  }
+
+  // ===== CTF (карта Blender): флаги, подбор, захват =====
+  /** Модель флага: шест + полотнище + кольцо базы. scale — для версии над головой. */
+  private makeFlag(color: Team, x: number, z: number, scale = 1): { homeX: number; homeZ: number; x: number; z: number; home: boolean; group: THREE.Group } {
+    const col = color === 'red' ? 0xff2a2a : 0x2a7bff;
+    const group = new THREE.Group();
+    const pole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.07 * scale, 0.07 * scale, 3 * scale, 6),
+      new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.7 }),
+    );
+    pole.position.y = 1.5 * scale;
+    group.add(pole);
+    const cloth = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.3 * scale, 0.85 * scale),
+      new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide }),
+    );
+    cloth.position.set(0.68 * scale, 2.5 * scale, 0);
+    cloth.name = 'cloth';
+    group.add(cloth);
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(1.2 * scale, 1.6 * scale, 32),
+      new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.75, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.06;
+    group.add(ring);
+    group.position.set(x, 0, z);
+    return { homeX: x, homeZ: z, x, z, home: true, group };
+  }
+
+  /** Синхрон позиции меша флага с состоянием (несомый — скрыт, его показывает carry-меш). */
+  private syncFlagMesh(color: Team): void {
+    const f = color === 'red' ? this.flagRed : this.flagBlue;
+    if (!f || !f.group) return;
+    f.group.visible = this.carrying !== color;
+    f.group.position.set(f.x, 0, f.z);
+  }
+
+  /** Бросить несомый флаг там, где стоим (смерть). */
+  private dropFlag(): void {
+    if (!this.carrying) return;
+    const f = this.carrying === 'red' ? this.flagRed : this.flagBlue;
+    if (f) {
+      f.x = this.px; f.z = this.pz; f.home = false;
+      this.syncFlagMesh(this.carrying);
+    }
+    this.carrying = null;
+    this.pushHud();
+  }
+
+  /** Кадр CTF: анимация полотен, подбор/возврат/захват. Вызывается из цикла. */
+  private updateFlags(): void {
+    if (this.map !== 'blender' || !this.team || !this.flagRed || !this.flagBlue) return;
+    const t = performance.now() / 1000;
+    for (const f of [this.flagRed, this.flagBlue]) {
+      const cloth = f.group?.getObjectByName('cloth');
+      if (cloth) cloth.rotation.y = Math.sin(t * 4 + f.homeX) * 0.35;
+    }
+    // флаг над головой носителя
+    if (this.carryRed) {
+      this.carryRed.group.visible = this.carrying === 'red';
+      this.carryRed.group.position.set(this.px, Math.max(0, this.py) + 2.6, this.pz);
+      const c1 = this.carryRed.group.getObjectByName('cloth');
+      if (c1) c1.rotation.y = Math.sin(t * 6) * 0.4;
+    }
+    if (this.carryBlue) {
+      this.carryBlue.group.visible = this.carrying === 'blue';
+      this.carryBlue.group.position.set(this.px, Math.max(0, this.py) + 2.6, this.pz);
+      const c2 = this.carryBlue.group.getObjectByName('cloth');
+      if (c2) c2.rotation.y = Math.sin(t * 6 + 1) * 0.4;
+    }
+    if (!this.started || this.dead || this.specOn) {
+      if (this.dead && this.carrying) this.dropFlag();
+      return;
+    }
+    const me = this.team;
+    const foe: Team = me === 'red' ? 'blue' : 'red';
+    const ef = foe === 'red' ? this.flagRed : this.flagBlue;
+    const mf = me === 'red' ? this.flagRed : this.flagBlue;
+    // подбор вражеского флага (дома или брошенного)
+    if (!this.carrying && Math.hypot(this.px - ef.x, this.pz - ef.z) < 1.8) {
+      this.carrying = foe;
+      this.syncFlagMesh(foe);
+      this.burst(this.px, 1.5, this.pz, 10);
+      this.pushHud();
+    }
+    // возврат своего брошенного флага
+    if (!mf.home && Math.hypot(this.px - mf.x, this.pz - mf.z) < 1.8) {
+      mf.home = true; mf.x = mf.homeX; mf.z = mf.homeZ;
+      this.syncFlagMesh(me);
+      this.burst(mf.x, 1, mf.z, 8);
+      this.pushHud();
+    }
+    // захват: донёс вражеский до своей базы, свой флаг дома
+    if (this.carrying && mf.home && Math.hypot(this.px - mf.homeX, this.pz - mf.homeZ) < 2.5) {
+      this.captures++;
+      this.score += 1000;
+      this.carrying = null;
+      ef.home = true; ef.x = ef.homeX; ef.z = ef.homeZ;
+      this.syncFlagMesh(foe);
+      this.burst(this.px, 1.5, this.pz, 24);
+      this.pushHud();
+    }
+  }
+
+  /** CTF для тестов/миникарты: команды, флаги, носитель. */
+  debugCtf(): { team: Team | null; carrying: Team | null; captures: number; red: { x: number; z: number; home: boolean } | null; blue: { x: number; z: number; home: boolean } | null } {
+    const slim = (f: typeof this.flagRed): { x: number; z: number; home: boolean } | null =>
+      f ? { x: Math.round(f.x * 10) / 10, z: Math.round(f.z * 10) / 10, home: f.home } : null;
+    return { team: this.team, carrying: this.carrying, captures: this.captures, red: slim(this.flagRed), blue: slim(this.flagBlue) };
+  }
+  /** Телепорт для тестов. */
+  debugTeleport(x: number, z: number): { x: number; z: number } {
+    this.px = clampArena(Number(x) || 0, this.half);
+    this.pz = clampArena(Number(z) || 0, this.half);
+    this.py = 0; this.pvy = 0;
+    return { x: this.px, z: this.pz };
   }
 
   // Сегед: приватная карта МТТ — запечённый индексный меш (формат szeged-mesh-3).
@@ -4305,7 +4478,8 @@ export class Game {
   }
 
   attack(): number {
-    if (!this.started || this.dead || this.specOn) return 0;
+    // CTF: с флагом не стреляем
+    if (!this.started || this.dead || this.specOn || this.carrying) return 0;
     if (this.atkCd > 0) return 0;
     this.shieldT = 0;
     this.atk++;
@@ -4718,7 +4892,7 @@ export class Game {
   // рывок МТТ: строго в сторону взгляда, включая вверх/вниз (куда смотрит камера), кд 3с (качается до 1.7с).
   // Союзников (remotes) урон не трогает вовсе: attack() бьёт только enemies.
   dash(): boolean {
-    if (!this.started || this.dead || this.dashCd > 0 || this.charId !== 'mtt') return false;
+    if (!this.started || this.dead || this.carrying || this.dashCd > 0 || this.charId !== 'mtt') return false;
     const cp = Math.cos(this.pitch);
     this.dashDx = -Math.sin(this.yaw) * cp;
     this.dashDy = Math.sin(this.pitch);
@@ -4735,7 +4909,7 @@ export class Game {
 
   // несутка Ивангоя: 3с враги не видят и не преследуют, перезарядка 30с (качается до 20с).
   invis(): boolean {
-    if (!this.started || this.dead || this.invisCd > 0 || this.invisT > 0 || this.charId !== 'shuba') return false;
+    if (!this.started || this.dead || this.carrying || this.invisCd > 0 || this.invisT > 0 || this.charId !== 'shuba') return false;
     this.invisT = 3;
     this.invisCd = superCd('shuba', this.upg['shuba']?.sup ?? 0);
     this.burst(this.px, 0.4, this.pz, 12);
@@ -4750,7 +4924,7 @@ export class Game {
   // чумное облако Чумы: 5с враги в радиусе 9м травятся (9/с) и тормозятся на 45%,
   // перезарядка 30с (качается до 20с). Бессмертных сталкеров не убивает — только тормозит.
   chuma(): boolean {
-    if (!this.started || this.dead || this.chumaCd > 0 || this.chumaT > 0 || this.charId !== 'chuma') return false;
+    if (!this.started || this.dead || this.carrying || this.chumaCd > 0 || this.chumaT > 0 || this.charId !== 'chuma') return false;
     this.chumaT = 5;
     this.chumaCd = superCd('chuma', this.upg['chuma']?.sup ?? 0);
     this.burst(this.px, 0.8, this.pz, 16);
@@ -4770,7 +4944,7 @@ export class Game {
   // рентген Гидроксиса: 5с всех существ видно сквозь стены, перезарядка 20с
   // (качается до 15с). Работает и на мобов, и на сокомнатников.
   xray(): boolean {
-    if (!this.started || this.dead || this.xrayCd > 0 || this.xrayT > 0 || this.charId !== 'gidroxis') return false;
+    if (!this.started || this.dead || this.carrying || this.xrayCd > 0 || this.xrayT > 0 || this.charId !== 'gidroxis') return false;
     this.xrayT = 5;
     this.xrayCd = superCd('gidroxis', this.upg['gidroxis']?.sup ?? 0);
     this.burst(this.px, 1.2, this.pz, 12);
@@ -4785,7 +4959,7 @@ export class Game {
   // ЛУЧ Андрея Санстрайка: точка — где стоял враг под прицелом (слепок на касте),
   // удар через 0.5с. Заряд 0–15: урон 20→142, радиус 3→6.5м, каст сжигает заряд в 0. Кд 30с.
   sunstrike(): boolean {
-    if (!this.started || this.dead || this.sunCd > 0 || this.charId !== 'sunstrike') return false;
+    if (!this.started || this.dead || this.carrying || this.sunCd > 0 || this.charId !== 'sunstrike') return false;
     const tgt = this.aimEnemy(45);
     if (!tgt) return false;
     const q = Math.min(15, Math.max(0, this.sunCharge));
@@ -4821,7 +4995,7 @@ export class Game {
   // ВОРОНКА Арбузихи: прицел на враге — центр на нём, иначе точка поверхности
   // под прицелом. 4с крутит зелёную цветочную воронку (r=5м) — всех затягивает к центру. Кд 15с.
   arbuz(): boolean {
-    if (!this.started || this.dead || this.arbuzCd > 0 || this.arbuzT > 0 || this.charId !== 'arbuz') return false;
+    if (!this.started || this.dead || this.carrying || this.arbuzCd > 0 || this.arbuzT > 0 || this.charId !== 'arbuz') return false;
     const tgt = this.aimEnemy(45);
     const p = tgt ?? this.aimGround(45);
     this.arbuzX = p.x;
@@ -4841,7 +5015,7 @@ export class Game {
   // ===== JBLКА: Способность 1 — Звуковая волна =====
   // Создаёт волну в сторону взгляда, отталкивает врагов на 5м. Кд 25с.
   soundWave(): boolean {
-    if (!this.started || this.dead || this.waveCd > 0 || this.charId !== 'jbl') return false;
+    if (!this.started || this.dead || this.carrying || this.waveCd > 0 || this.charId !== 'jbl') return false;
     const cp = Math.cos(this.pitch);
     const dx = -Math.sin(this.yaw) * cp;
     const dz = -Math.cos(this.yaw) * cp;
@@ -4889,7 +5063,7 @@ export class Game {
   // ===== JBLКА: Способность 2 — Подчинение =====
   // В радиусе 4м подчиняет врагов на 5с: атакуют других врагов. Кд 35с.
   charm(): boolean {
-    if (!this.started || this.dead || this.charmCd > 0 || this.charmT > 0 || this.charId !== 'jbl') return false;
+    if (!this.started || this.dead || this.carrying || this.charmCd > 0 || this.charmT > 0 || this.charId !== 'jbl') return false;
     this.charmT = 10;
     this.charmCd = 35;
     // 3D-визуал: пульсирующая аура подчинения (4м)
@@ -5968,6 +6142,9 @@ export class Game {
       moving: this.moving,
       med: this.medkits,
       lvl: this.level(),
+      team: this.team,
+      carrying: this.carrying,
+      captures: this.captures,
       boss: bosses,
       wbWait: this.map === 'boss' && !this.wbExt && !this.worldBossAlive() ? Math.max(0, Math.ceil(this.wbSoloT)) : 0,
       dash: Math.round(this.dashCd * 10) / 10,
@@ -6020,6 +6197,16 @@ export class Game {
       if (e.dead) continue;
       const [ex, ez] = toMap(e.g.position.x, e.g.position.z);
       g.fillRect(ex - 2, ez - 2, 4, 4);
+    }
+    // CTF-флаги на миникарте: красный и синий квадраты (несомый — у игрока).
+    if (this.map === 'blender') {
+      const dot = (fx: number, fz: number, color: string): void => {
+        const [dx, dz] = toMap(fx, fz);
+        g.fillStyle = color;
+        g.fillRect(dx - 3, dz - 3, 6, 6);
+      };
+      if (this.flagRed && this.carrying !== 'red') dot(this.flagRed.x, this.flagRed.z, '#ff2a2a');
+      if (this.flagBlue && this.carrying !== 'blue') dot(this.flagBlue.x, this.flagBlue.z, '#2a7bff');
     }
   }
 
@@ -6365,14 +6552,16 @@ export class Game {
       // прыжок: с земли — вверх (с любой опоры: земля, крыша, мост).
       // Вол-кик Крысы — на C (способность), не на прыжке.
       // Наблюдатель не прыгает: камера висит на цели.
-      if (this.input[km.jump] && !this.specOn) {
+      // CTF: с флагом не прыгаем.
+      if (this.input[km.jump] && !this.specOn && !this.carrying) {
         if (this.py <= this.groundAt(this.px, this.pz) + 0.01) {
           this.pvy = this.jumpVel;
         }
       }
       // вол-кик Стейси Крысы на C: в полёте у стены — разворот с подбросом (кд 5с).
       // Кик швыряет ПРОТИВ движения; если стоишь — толчок от стены.
-      if (this.input[km.ability] && this.charId === 'krysa' && !this.specOn) {
+      // CTF: с флагом без способностей.
+      if (this.input[km.ability] && this.charId === 'krysa' && !this.specOn && !this.carrying) {
         this.input[km.ability] = false;
         if (this.wallT > 0 && this.wallKickCd <= 0 && this.py > 0.05) {
           let kf = (this.input[km.fwd] || this.input.ArrowUp ? 1 : 0) - (this.input[km.back] || this.input.ArrowDown ? 1 : 0) - this.joy.y;
@@ -6564,7 +6753,8 @@ export class Game {
       // бросок летит сам: кнопки на время полёта глушим
       if (this.blastT > 0) { f = 0; r = 0; }
       const run = this.input[km.run] || this.input.ShiftLeft || this.input.ShiftRight;
-      const sp = (run ? 8.2 : 5.6) * this.charSpd;
+      // CTF: с флагом скорость в 2 раза ниже
+      const sp = (run ? 8.2 : 5.6) * this.charSpd * (this.carrying ? 0.5 : 1);
       const len = Math.hypot(f, r);
       this.moving = len > 0.15;
       if (this.moving) {
@@ -7147,6 +7337,7 @@ export class Game {
       if (this.swingT > 0) this.swingT -= dt;
       if (this.shakeT > 0) this.shakeT -= dt;
       this.updateParts(dt);
+      this.updateFlags();
       // сокомнатники: рендерим прошлое (now-550мс) по буферу слепков —
       // непрерывно при любых рваных битах; удары вспышкой, прыжки высотой
       const rt = performance.now() / 600;

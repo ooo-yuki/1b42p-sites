@@ -442,7 +442,7 @@ export default function App() {
   const gameRef = useRef<Game | null>(null);
   const [menu, setMenu] = useState(true);
   const [loading, setLoading] = useState<{ show: boolean; pct: number }>({ show: false, pct: 0 });
-  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, invis: 0, invisCd: 0, chuma: 0, chumaCd: 0, xray: 0, xrayCd: 0, sun: 0, sunCd: 0, arbuz: 0, arbuzCd: 0, med: 0, lvl: 1, boss: 0, wbWait: 0, fps: 60, doorPulse: false });
+  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, invis: 0, invisCd: 0, chuma: 0, chumaCd: 0, xray: 0, xrayCd: 0, sun: 0, sunCd: 0, arbuz: 0, arbuzCd: 0,     med: 0, lvl: 1, team: null, carrying: null, captures: 0, boss: 0, wbWait: 0, fps: 60, doorPulse: false });
   const [scores, setScores] = useState<ScoreRow[]>([]);
   const [duelTop, setDuelTop] = useState<Array<{ login: string; wins: number }>>([]);
   const [gstats, setGstats] = useState<{ games: number; best: number; online: number } | null>(null);
@@ -1136,6 +1136,8 @@ async function loadStats(): Promise<void> {
       wall: () => game.debugWall(),
       kick: () => game.debugKick(),
       map: () => game.debugMap(),
+      ctf: () => game.debugCtf(),
+      teleport: (x: number, z: number) => game.debugTeleport(x, z),
       duelHp: (hp: number) => game.setDuelHp(hp),
       teleport: (x: number, z: number, yaw?: number) => game.debugTeleport(x, z, yaw),
       setpy: (n: number) => game.debugSetPy(n),
@@ -2139,7 +2141,7 @@ async function loadStats(): Promise<void> {
             <span>❤️ {hud.hp}/{hud.maxhp}</span>
             <div id="hpBar"><div id="hpFill" style={{ width: `${hpFrac * 100}%` }} /></div>
           </div>
-          <div id="hudRow">{(noEnemies || mapChoice === 'blender') ? '🕊️ МИРНЫЙ РЕЖИМ · ' : `🌊 Волна ${hud.wave} · 👹 ${hud.enemies} · `}💀 {hud.kills} · 🏆 {hud.score}</div>
+          <div id="hudRow">{mapChoice === 'blender' ? `${hud.team === 'red' ? '🔴 КРАСНЫЕ' : '🔵 СИНИЕ'}${hud.carrying ? (hud.carrying === 'red' ? ' · 🚩 НЕСУ КРАСНЫЙ' : ' · 🚩 НЕСУ СИНИЙ') : ''} · 🏁 ${hud.captures} · ` : noEnemies ? '🕊️ МИРНЫЙ РЕЖИМ · ' : `🌊 Волна ${hud.wave} · 👹 ${hud.enemies} · `}💀 {hud.kills} · 🏆 {hud.score}</div>
           <div id="hudRow2">🎟️ {hud.fantiki} · 💊 {hud.med}/3 · ⭐ {hud.lvl} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}{char === 'krysa' && (hud.kick > 0 ? ` · 🌀 ${hud.kick.toFixed(1)}с` : ' · 🌀 вол-кик готов')}{char === 'shuba' && (hud.invis > 0 ? ` · 👻 ещё ${hud.invis.toFixed(1)}с` : hud.invisCd > 0 ? ` · 👻 ${hud.invisCd.toFixed(1)}с` : ' · 👻 несутка готова')}{char === 'chuma' && (hud.chuma > 0 ? ` · 🦠 ещё ${hud.chuma.toFixed(1)}с` : hud.chumaCd > 0 ? ` · 🦠 ${hud.chumaCd.toFixed(1)}с` : ' · 🦠 облако готово')}{char === 'gidroxis' && (hud.xray > 0 ? ` · 🔍 ещё ${hud.xray.toFixed(1)}с` : hud.xrayCd > 0 ? ` · 🔍 ${hud.xrayCd.toFixed(1)}с` : ' · 🔍 рентген готов')}{char === 'sunstrike' && (hud.sunCd > 0 ? ` · ☀️ ${hud.sunCd.toFixed(1)}с` : ` · ☀️ заряд ${hud.sun}/15`)}{char === 'arbuz' && (hud.arbuz > 0 ? ` · 🌪️ ещё ${hud.arbuz.toFixed(1)}с` : hud.arbuzCd > 0 ? ` · 🌪️ ${hud.arbuzCd.toFixed(1)}с` : ' · 🌪️ воронка готова')}{char === 'jbl' && (hud.waveCd > 0 ? ` · 🔊 ${hud.waveCd.toFixed(1)}с` : ' · 🔊 волна готова')}{char === 'jbl' && (hud.charm > 0 ? ` · 🧠 ещё ${hud.charm.toFixed(1)}с` : hud.charmCd > 0 ? ` · 🧠 ${hud.charmCd.toFixed(1)}с` : ' · 🧠 подчинение готово')}</div>
         </div>
       )}
