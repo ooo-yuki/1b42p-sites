@@ -1505,6 +1505,10 @@ export class Game {
             const fc = new THREE.Vector3(), fs = new THREE.Vector3();
             fb.getCenter(fc); fb.getSize(fs);
             console.log(`[Blender] fogvol ${obj.name} c=(${fc.x.toFixed(1)},${fc.y.toFixed(1)},${fc.z.toFixed(1)}) s=(${fs.x.toFixed(1)},${fs.y.toFixed(1)},${fs.z.toFixed(1)}) vis=${m.visible}`);
+            let pp: THREE.Object3D | null = obj.parent;
+            const chain: string[] = [];
+            while (pp) { chain.push(pp.name + ':' + pp.visible); pp.visible = true; pp = pp.parent; }
+            console.log(`[Blender] fogvol parents ${obj.name}: ` + chain.join(' < '));
             return;
           }
           // Ручные хитбоксы: невидимые, коллизия по точному bbox
