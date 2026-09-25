@@ -27,7 +27,15 @@ test('blender fog photo', async ({ page }) => {
   const ov = await page.evaluate(() => {
     const el = document.getElementById('fogOverlay');
     if (!el) return { exists: false };
-    return { exists: true, inline: (el as HTMLElement).style.opacity, computed: getComputedStyle(el).opacity };
+    const r = el.getBoundingClientRect();
+    const cx = Math.floor(window.innerWidth / 2), by = Math.floor(window.innerHeight * 0.95);
+    const topAtBottom = document.elementFromPoint(cx, by);
+    return {
+      exists: true, inline: (el as HTMLElement).style.opacity, computed: getComputedStyle(el).opacity,
+      rect: { x: r.x, y: r.y, w: r.width, h: r.height },
+      topAtBottom: topAtBottom ? ((topAtBottom as HTMLElement).id || topAtBottom.tagName) : 'none',
+      bg: getComputedStyle(el).backgroundImage.slice(0, 80),
+    };
   });
   console.log('DIAG fogOverlay ' + JSON.stringify(ov));
 });
