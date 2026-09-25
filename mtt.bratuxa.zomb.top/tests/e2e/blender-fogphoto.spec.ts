@@ -24,6 +24,19 @@ test('blender fog photo', async ({ page }) => {
   await page.setViewportSize({ width: 640, height: 360 });
   await page.waitForTimeout(1500);
   await page.screenshot({ path: 'test-results/fog-dom.jpg', type: 'jpeg', quality: 45 });
+  const dom = await page.evaluate(() => {
+    const el = document.getElementById('fogOverlay') as HTMLElement | null;
+    if (!el) return { exists: false };
+    const kids: Array<{ bg: string; rect: string }> = [];
+    for (let i = 0; i < el.children.length; i++) {
+      const k = el.children[i] as HTMLElement;
+      const r = k.getBoundingClientRect();
+      const cs = getComputedStyle(k);
+      kids.push({ bg: cs.backgroundImage.slice(0, 50), rect: `${Math.round(r.width)}x${Math.round(r.height)}` });
+    }
+    return { exists: true, n: el.children.length, op: getComputedStyle(el).opacity, kids };
+  });
+  console.log('DIAG fogdom ' + JSON.stringify(dom));
   // градиент, набранный вручную в evaluate (проверка на битые символы в JSX-строке)
   const grad = await page.evaluate(() => {
     const el = document.getElementById('fogOverlay') as HTMLElement | null;
