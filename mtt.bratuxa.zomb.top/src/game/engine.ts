@@ -1476,6 +1476,11 @@ export class Game {
         const spawns: Record<string, { x: number; z: number }> = {};
         let skippedSlabs = 0;
         const colBoxes: Array<{ x: number; z: number; hx: number; hz: number; h: number }> = [];
+        // Материал тумана: форму объёмов даёт Blender (fog_*), вид задаёт игра
+        const fogMat = new THREE.MeshBasicMaterial({
+          color: 0x4d1480, transparent: true, opacity: 0.5,
+          side: THREE.DoubleSide, depthWrite: false, fog: false,
+        });
         root.traverse((obj) => {
           const nm = (obj.name || '').toLowerCase();
           if ((nm === 'spawn1' || nm === 'spawn2') && !('geometry' in obj)) {
@@ -1487,6 +1492,15 @@ export class Game {
           if (!('geometry' in obj)) return;
           const m = obj as THREE.Mesh;
           m.updateMatrixWorld(true);
+          // Объёмы тумана из Blender: полупрозрачный фиолет; без теней,
+          // без коллизии (сквозь туман ходят), вне границ карты
+          if (obj.name.startsWith('fog_')) {
+            m.castShadow = false;
+            m.receiveShadow = false;
+            m.material = fogMat;
+            m.renderOrder = 5;
+            return;
+          }
           // Ручные хитбоксы: невидимые, коллизия по точному bbox
           if (obj.name.startsWith('col_')) {
             const box = new THREE.Box3().setFromObject(m);
