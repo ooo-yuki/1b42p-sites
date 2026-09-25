@@ -1752,36 +1752,22 @@ export class Game {
       }
     });
     for (let i = 0; i < N * N; i++) mark[i] = cnt[i] >= 2 ? 1 : 0;
-    // морфозакрытие r=3: заделываем прогалы между кронами — снаружи сквозь зону
-    // не должно просвечивать. Затем блюр 5×5 + срез бахромы: плавный край.
+    // Дилатация r=6 (~9м): туман висит сплошным блоком с мягким ореолом —
+    // снаружи сквозь зону (включая редкие рощи) не просвечивает.
+    // Затем блюр 5×5 + срез бахромы: плавный край.
     const dil = new Uint8Array(N * N);
     for (let z = 0; z < N; z++) {
       for (let x = 0; x < N; x++) {
         if (!mark[z * N + x]) continue;
-        for (let dz = -3; dz <= 3; dz++) {
+        for (let dz = -6; dz <= 6; dz++) {
           const zz = z + dz;
           if (zz < 0 || zz >= N) continue;
-          for (let dx = -3; dx <= 3; dx++) {
+          for (let dx = -6; dx <= 6; dx++) {
             const xx = x + dx;
             if (xx < 0 || xx >= N) continue;
             dil[zz * N + xx] = 1;
           }
         }
-      }
-    }
-    const closed = new Uint8Array(N * N);
-    for (let z = 0; z < N; z++) {
-      for (let x = 0; x < N; x++) {
-        let all = 1;
-        for (let dz = -3; dz <= 3 && all; dz++) {
-          const zz = z + dz;
-          if (zz < 0 || zz >= N) { all = 0; break; }
-          for (let dx = -3; dx <= 3; dx++) {
-            const xx = x + dx;
-            if (xx < 0 || xx >= N || !dil[zz * N + xx]) { all = 0; break; }
-          }
-        }
-        closed[z * N + x] = all;
       }
     }
     const grid = new Uint8Array(N * N);
@@ -1793,7 +1779,7 @@ export class Game {
           const zz = Math.min(N - 1, Math.max(0, z + dz));
           for (let dx = -2; dx <= 2; dx++) {
             const xx = Math.min(N - 1, Math.max(0, x + dx));
-            s += closed[zz * N + xx];
+            s += dil[zz * N + xx];
           }
         }
         const val = Math.round((s / 25) * 255);
