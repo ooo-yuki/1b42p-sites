@@ -1759,7 +1759,16 @@ export class Game {
         if (grid[z * N + x] > 0) cells++;
       }
     }
-    const tex = new THREE.DataTexture(grid, N, N, THREE.RedFormat, THREE.UnsignedByteType);
+    // RGBA8 (не R8): на ряде драйверов R8+linear неполный формат —
+    // сэмплится в ноль через медленный путь (тумана нет + лаги)
+    const rgba = new Uint8Array(N * N * 4);
+    for (let i = 0; i < N * N; i++) {
+      rgba[i * 4] = grid[i];
+      rgba[i * 4 + 1] = 0;
+      rgba[i * 4 + 2] = 0;
+      rgba[i * 4 + 3] = 255;
+    }
+    const tex = new THREE.DataTexture(rgba, N, N, THREE.RGBAFormat, THREE.UnsignedByteType);
     tex.magFilter = THREE.LinearFilter;
     tex.minFilter = THREE.LinearFilter;
     tex.wrapS = THREE.ClampToEdgeWrapping;
@@ -1847,10 +1856,11 @@ export class Game {
     // туман: сила под камерой (0 — вне зоны, 1 — глубоко внутри)
     if (this.flagFog) this.flagFog.cam.value = this.fogCamOverride ?? this.fogSample(this.px, this.pz);
     const t = performance.now() / 1000;
-    for (const f of [this.flagRed, this.flagBlue]) {
-      const cloth = f.group?.getObjectByName('cloth');
-      if (cloth) cloth.rotation.y = Math.sin(t * 4 + f.homeX) * 0.35;
-    }
+    const fR = this.flagRed, fB = this.flagBlue;
+    const cR = fR?.group?.getObjectByName('cloth');
+    if (cR) cR.rotation.y = Math.sin(t * 4 + (fR?.homeX ?? 0)) * 0.35;
+    const cB = fB?.group?.getObjectByName('cloth');
+    if (cB) cB.rotation.y = Math.sin(t * 4 + (fB?.homeX ?? 0)) * 0.35;
     // флаг над головой носителя
     if (this.carryRed) {
       this.carryRed.group.visible = this.carrying === 'red';
