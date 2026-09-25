@@ -25,16 +25,19 @@ test('blender fog photo', async ({ page }) => {
   await page.waitForTimeout(1500);
   await page.screenshot({ path: 'test-results/fog-dom.jpg', type: 'jpeg', quality: 45 });
   const ov = await page.evaluate(() => {
-    const el = document.getElementById('fogOverlay');
+    const el = document.getElementById('fogOverlay') as HTMLElement | null;
     if (!el) return { exists: false };
     const r = el.getBoundingClientRect();
     const cx = Math.floor(window.innerWidth / 2), by = Math.floor(window.innerHeight * 0.95);
-    const topAtBottom = document.elementFromPoint(cx, by);
+    const before = document.elementFromPoint(cx, by);
+    el.style.pointerEvents = 'auto';
+    const after = document.elementFromPoint(cx, by);
+    el.style.pointerEvents = '';
+    const fmt = (e: Element | null): string => (!e ? 'none' : ((e as HTMLElement).id || e.tagName));
     return {
-      exists: true, inline: (el as HTMLElement).style.opacity, computed: getComputedStyle(el).opacity,
+      exists: true, inline: el.style.opacity, computed: getComputedStyle(el).opacity,
       rect: { x: r.x, y: r.y, w: r.width, h: r.height },
-      topAtBottom: topAtBottom ? ((topAtBottom as HTMLElement).id || topAtBottom.tagName) : 'none',
-      bg: getComputedStyle(el).backgroundImage.slice(0, 80),
+      topPassive: fmt(before), topActive: fmt(after),
     };
   });
   console.log('DIAG fogOverlay ' + JSON.stringify(ov));
