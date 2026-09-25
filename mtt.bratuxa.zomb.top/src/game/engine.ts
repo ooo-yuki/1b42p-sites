@@ -1477,9 +1477,12 @@ export class Game {
         let skippedSlabs = 0;
         const colBoxes: Array<{ x: number; z: number; hx: number; hz: number; h: number }> = [];
         // Материал тумана: форму объёмов даёт Blender (fog_*), вид задаёт игра.
-        // ДИАГНОСТИКА: сплошной фиолетовый (непрозрачный) — бинарный тест видимости.
-        const fogMatA = new THREE.MeshBasicMaterial({ color: 0x4d1480 });
-        const fogMatB = new THREE.MeshBasicMaterial({ color: 0x4d1480 });
+        // GLB-меши тумана не рисуются (битые на уровне импорта?) — строим чистый
+        // BoxGeometry по их bbox, оригинал прячем. Путь как у колец флагов.
+        const fogMat = new THREE.MeshBasicMaterial({
+          color: 0x4d1480, transparent: true, opacity: 0.55,
+          side: THREE.DoubleSide, depthWrite: false,
+        });
         let fogPatched = 0;
         root.traverse((obj) => {
           const nm = (obj.name || '').toLowerCase();
@@ -1497,9 +1500,16 @@ export class Game {
           if (obj.name.startsWith('fog_')) {
             m.castShadow = false;
             m.receiveShadow = false;
-            m.material = fogMatA;
-            m.frustumCulled = false;
-            m.renderOrder = 5;
+            const fb = new THREE.Box3().setFromObject(m);
+            const fsize = new THREE.Vector3(), fcenter = new THREE.Vector3();
+            fb.getSize(fsize); fb.getCenter(fcenter);
+            const vol = new THREE.Mesh(
+              new THREE.BoxGeometry(Math.max(0.1, fsize.x), Math.max(0.1, fsize.y), Math.max(0.1, fsize.z)),
+              fogMat,
+            );
+            vol.position.copy(fcenter);
+            scene.add(vol);
+            m.visible = false;
             fogPatched++;
             return;
           }
@@ -1666,29 +1676,6 @@ export class Game {
   }
 
   // (туман фиолетовых зон отменён)
-
-  /** Временный дамп сцены для диагностики тумана (удалить после проверки). */
-  debugFogDump(): unknown {
-    const out: unknown[] = [];
-    const ri = this.renderer.info.render;
-    out.push({ info: { calls: ri.calls, tris: ri.triangles } });
-    out.push({ kids: this.scene.children.map((c) => (c.name || '?') + ':' + c.type + ':' + c.visible) });
-    this.scene.traverse((o) => {
-      if (o.name && o.name.startsWith('fog_')) {
-        const m = o as THREE.Mesh;
-        const mat = m.material as THREE.Material & { opacity?: number; transparent?: boolean };
-        let col = '?';
-        try { col = String((mat as unknown as { color?: { getHexString?: () => string } }).color?.getHexString?.() ?? '?'); } catch { /* noop */ }
-        out.push({
-          name: o.name, vis: o.visible, otype: o.type,
-          parent: o.parent === this.scene ? 'scene-direct' : ((o.parent?.name ?? '?') + ':' + String(o.parent?.visible)),
-          mat: mat?.type, transp: !!mat?.transparent, op: mat?.opacity, col,
-          geo: (m.geometry as THREE.BufferGeometry)?.getAttribute?.('position')?.count ?? -1,
-        });
-      }
-    });
-    return out;
-  }
 
   /** Бросить несомый флаг там, где стоим (смерть). */
   private dropFlag(): void {
