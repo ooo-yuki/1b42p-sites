@@ -25,7 +25,22 @@ test('blender fog photo', async ({ page }) => {
   await page.waitForTimeout(1500);
   await page.screenshot({ path: 'test-results/fog-dom.jpg', type: 'jpeg', quality: 45 });
   // A/B на месте: оверлей ВКЛ против ВЫКЛ, та же точка — разница пикселей решает спор
-  await page.screenshot({ path: 'test-results/fog-on.jpg', type: 'jpeg', quality: 90 });
+  const tree = await page.evaluate(() => {
+    const el = document.getElementById('fogOverlay') as HTMLElement | null;
+    const cv = document.getElementById('c') as HTMLElement | null;
+    const chain = (n: HTMLElement | null): string[] => {
+      const out: string[] = [];
+      let e: HTMLElement | null = n;
+      while (e && out.length < 6) {
+        const cs = getComputedStyle(e);
+        out.push(`${e.tagName}#${e.id || '-'} z=${cs.zIndex} pos=${cs.position} tr=${cs.transform !== 'none' ? 'Y' : '-'} op=${cs.opacity}`);
+        e = e.parentElement;
+      }
+      return out;
+    };
+    return { ov: chain(el), cv: chain(cv) };
+  });
+  console.log('DIAG stacking ' + JSON.stringify(tree));
   await page.evaluate(() => {
     const el = document.getElementById('fogOverlay') as HTMLElement | null;
     if (el) el.style.display = 'none';
