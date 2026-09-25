@@ -38,6 +38,16 @@ test('blender fog boxshot', async ({ page }) => {
     };
   });
   console.log('DIAG fogstate ' + JSON.stringify(dbg));
+  // свип размера блюра: 20 / 60 / 150 — что красит?
+  for (const [tag, blur] of [['s20', 20], ['s60', 60], ['s150', 150]] as Array<[string, number]>) {
+    await page.evaluate((b) => {
+      const el = document.getElementById('fogOverlay') as HTMLElement | null;
+      if (el) (el as HTMLElement).style.boxShadow = `inset 0 0 ${b}px 40px rgba(22,4,46,0.96)`;
+    }, blur);
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `test-results/fog-sweep-${tag}.jpg`, type: 'jpeg', quality: 45 });
+  }
+  console.log('DIAG sweep done');
   await page.evaluate(() => {
     const el = document.getElementById('fogOverlay') as HTMLElement | null;
     if (el) el.style.display = 'none';
