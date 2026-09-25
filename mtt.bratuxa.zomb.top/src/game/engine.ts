@@ -1477,12 +1477,11 @@ export class Game {
         let skippedSlabs = 0;
         const colBoxes: Array<{ x: number; z: number; hx: number; hz: number; h: number }> = [];
         // Материал тумана: форму объёмов даёт Blender (fog_*), вид задаёт игра.
-        // ДИАГНОСТИКА: .001 — полупрозрачный фиолет, остальные — сплошной красный.
+        // Без fog:false — связка transparent+fog:false не рисуется (проверено).
         const fogMat = new THREE.MeshBasicMaterial({
           color: 0x4d1480, transparent: true, opacity: 0.5,
-          side: THREE.DoubleSide, depthWrite: false, fog: false,
+          side: THREE.DoubleSide, depthWrite: false,
         });
-        const fogMatSolid = new THREE.MeshBasicMaterial({ color: 0xff0000, fog: false });
         let fogPatched = 0;
         root.traverse((obj) => {
           const nm = (obj.name || '').toLowerCase();
@@ -1500,17 +1499,9 @@ export class Game {
           if (obj.name.startsWith('fog_')) {
             m.castShadow = false;
             m.receiveShadow = false;
-            m.material = obj.name.includes('001') ? fogMat : fogMatSolid;
+            m.material = fogMat;
             m.renderOrder = 5;
             fogPatched++;
-            const fb = new THREE.Box3().setFromObject(m);
-            const fc = new THREE.Vector3(), fs = new THREE.Vector3();
-            fb.getCenter(fc); fb.getSize(fs);
-            console.log(`[Blender] fogvol ${obj.name} c=(${fc.x.toFixed(1)},${fc.y.toFixed(1)},${fc.z.toFixed(1)}) s=(${fs.x.toFixed(1)},${fs.y.toFixed(1)},${fs.z.toFixed(1)}) vis=${m.visible}`);
-            let pp: THREE.Object3D | null = obj.parent;
-            const chain: string[] = [];
-            while (pp) { chain.push(pp.name + ':' + pp.visible); pp.visible = true; pp = pp.parent; }
-            console.log(`[Blender] fogvol parents ${obj.name}: ` + chain.join(' < '));
             return;
           }
           // Ручные хитбоксы: невидимые, коллизия по точному bbox
