@@ -24,14 +24,18 @@ test('blender fog photo', async ({ page }) => {
   await page.setViewportSize({ width: 640, height: 360 });
   await page.waitForTimeout(1500);
   await page.screenshot({ path: 'test-results/fog-dom.jpg', type: 'jpeg', quality: 45 });
-  const ov = await page.evaluate(() => {
+  // A/B на месте: оверлей ВКЛ против ВЫКЛ, та же точка — разница пикселей решает спор
+  await page.screenshot({ path: 'test-results/fog-on.jpg', type: 'jpeg', quality: 90 });
+  await page.evaluate(() => {
     const el = document.getElementById('fogOverlay') as HTMLElement | null;
-    if (!el) return { exists: false };
-    el.style.opacity = '1';
-    return { exists: true, forced: true };
+    if (el) el.style.display = 'none';
   });
   await page.waitForTimeout(800);
-  await page.screenshot({ path: 'test-results/fog-red.jpg', type: 'jpeg', quality: 45 });
-  console.log('DIAG fogOverlay ' + JSON.stringify(ov));
+  await page.screenshot({ path: 'test-results/fog-off.jpg', type: 'jpeg', quality: 90 });
+  const ov = await page.evaluate(() => {
+    const el = document.getElementById('fogOverlay') as HTMLElement | null;
+    return { exists: !!el, op: el ? getComputedStyle(el).opacity : 'n/a' };
+  });
+  console.log('DIAG fogAB ' + JSON.stringify(ov));
   console.log('DIAG fogOverlay ' + JSON.stringify(ov));
 });
