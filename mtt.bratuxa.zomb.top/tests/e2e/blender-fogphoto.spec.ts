@@ -24,6 +24,16 @@ test('blender fog photo', async ({ page }) => {
   await page.setViewportSize({ width: 640, height: 360 });
   await page.waitForTimeout(1500);
   await page.screenshot({ path: 'test-results/fog-dom.jpg', type: 'jpeg', quality: 45 });
+  // градиент, набранный вручную в evaluate (проверка на битые символы в JSX-строке)
+  const grad = await page.evaluate(() => {
+    const el = document.getElementById('fogOverlay') as HTMLElement | null;
+    if (!el) return { exists: false };
+    el.style.background = 'radial-gradient(ellipse at center, rgba(22,4,46,0) 16%, rgba(22,4,46,0.55) 42%, rgba(16,3,40,0.96) 72%)';
+    return { exists: true, computed: getComputedStyle(el).backgroundImage.slice(0, 60) };
+  });
+  console.log('DIAG retyped-gradient ' + JSON.stringify(grad));
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: 'test-results/fog-retyped.jpg', type: 'jpeg', quality: 45 });
   // A/B на месте: оверлей ВКЛ против ВЫКЛ, та же точка — разница пикселей решает спор
   const tree = await page.evaluate(() => {
     const el = document.getElementById('fogOverlay') as HTMLElement | null;
