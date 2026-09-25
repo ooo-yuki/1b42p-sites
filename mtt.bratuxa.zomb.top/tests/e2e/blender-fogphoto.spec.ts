@@ -27,9 +27,8 @@ test('blender fog photo', async ({ page }) => {
   const ov = await page.evaluate(() => {
     const el = document.getElementById('fogOverlay') as HTMLElement | null;
     if (!el) return { exists: false };
-    el.style.background = 'rgb(255,0,0)';
-    const r = el.getBoundingClientRect();
-    return { exists: true, forced: true, rect: { w: r.width, h: r.height } };
+    el.style.opacity = '1';
+    return { exists: true, forced: true };
   });
   await page.waitForTimeout(800);
   await page.screenshot({ path: 'test-results/fog-red.jpg', type: 'jpeg', quality: 45 });
