@@ -1817,7 +1817,7 @@ export class Game {
       vec2 fuv = (vFlagWorld.xz - flagFogBounds.xy) / flagFogBounds.zw;
       float fmask = 0.0;
       if (fuv.x > 0.0 && fuv.x < 1.0 && fuv.y > 0.0 && fuv.y < 1.0) fmask = texture2D(flagFogMask, fuv).r;
-      float ff = fmask * (0.2 + 0.8 * flagFogCam) * smoothstep(1.5, 6.0, vFlagDepth);
+      float ff = fmask * (0.5 + 0.5 * flagFogCam) * smoothstep(1.5, 6.0, vFlagDepth);
       gl_FragColor.rgb = mix(gl_FragColor.rgb, flagFogColor, clamp(ff, 0.0, 1.0));
     }`);
     };
