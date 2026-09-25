@@ -24,5 +24,11 @@ test('blender fog boxshot', async ({ page }) => {
   await page.setViewportSize({ width: 640, height: 360 });
   await page.waitForTimeout(1500);
   await page.screenshot({ path: 'test-results/fog-box.jpg', type: 'jpeg', quality: 45 });
-  console.log('DIAG fog box shot saved');
+  await page.evaluate(() => {
+    const el = document.getElementById('fogOverlay') as HTMLElement | null;
+    if (el) el.style.display = 'none';
+  });
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: 'test-results/fog-boxoff.jpg', type: 'jpeg', quality: 45 });
+  console.log('DIAG fog box shots saved');
 });
