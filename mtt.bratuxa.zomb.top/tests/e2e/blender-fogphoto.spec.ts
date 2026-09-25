@@ -27,18 +27,12 @@ test('blender fog photo', async ({ page }) => {
   const ov = await page.evaluate(() => {
     const el = document.getElementById('fogOverlay') as HTMLElement | null;
     if (!el) return { exists: false };
+    el.style.background = 'rgb(255,0,0)';
     const r = el.getBoundingClientRect();
-    const cx = Math.floor(window.innerWidth / 2), by = Math.floor(window.innerHeight * 0.95);
-    const before = document.elementFromPoint(cx, by);
-    el.style.pointerEvents = 'auto';
-    const after = document.elementFromPoint(cx, by);
-    el.style.pointerEvents = '';
-    const fmt = (e: Element | null): string => (!e ? 'none' : ((e as HTMLElement).id || e.tagName));
-    return {
-      exists: true, inline: el.style.opacity, computed: getComputedStyle(el).opacity,
-      rect: { x: r.x, y: r.y, w: r.width, h: r.height },
-      topPassive: fmt(before), topActive: fmt(after),
-    };
+    return { exists: true, forced: true, rect: { w: r.width, h: r.height } };
   });
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: 'test-results/fog-red.jpg', type: 'jpeg', quality: 45 });
+  console.log('DIAG fogOverlay ' + JSON.stringify(ov));
   console.log('DIAG fogOverlay ' + JSON.stringify(ov));
 });
