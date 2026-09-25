@@ -194,8 +194,6 @@ export interface HudState {
   team: Team | null;
   carrying: Team | null;
   captures: number;
-  /** Туман фиолетовых зон 0..1 (DOM-оверлей). Вне Blender всегда 0. */
-  fog: number;
   /** Живых боссов на карте — для баннера 👑. */
   boss: number;
   /** Секунд до респауна мирового босса в соло (0 — жив или не босс-карта). */
@@ -453,6 +451,7 @@ export class Game {
     minX: number; minZ: number; sizeX: number; sizeZ: number;
     cells: number;
     cam: { value: number };
+    time: { value: number };
     dbgMeshes: number; dbgVerts: number; dbgPurple: number; dbgGroundY: number;
   } | null = null;
   private yaw = 0;
@@ -1557,10 +1556,22 @@ export class Game {
           for (const w of walls) this.solids.push(w);
         }
         for (const b of colBoxes) this.solids.push(b);
-        // Маска тумана (эффект рисует DOM-оверлей, шейдер не трогаем)
+        // Маска тумана + патч материалов облаком (шейдер, col_ невидимы — не трогаем)
         if (bx0 < Infinity) {
           try {
             this.buildFogMask(root, bx0, bz0, bx1, bz1);
+            const seen = new Set<THREE.Material>();
+            root.traverse((obj) => {
+              if (!('geometry' in obj)) return;
+              if ((obj.name || '').startsWith('col_')) return;
+              const mm = (obj as THREE.Mesh).material as THREE.Material | THREE.Material[];
+              const list = Array.isArray(mm) ? mm : [mm];
+              for (const m of list) {
+                if (m && !seen.has(m)) { seen.add(m); this.patchFogMaterial(m); }
+              }
+            });
+            const gm = (ground.material as THREE.Material);
+            if (gm) this.patchFogMaterial(gm);
           } catch (e) {
             console.warn('[Blender] fog setup failed:', e);
             this.fogError = String((e as Error)?.message ?? e);
@@ -1771,7 +1782,7 @@ export class Game {
     tex.generateMipmaps = false;
     tex.needsUpdate = true;
     tex.flipY = false;
-    this.flagFog = { tex, grid, n: N, minX, minZ, sizeX, sizeZ, cells, cam: { value: 0 }, dbgMeshes, dbgVerts, dbgPurple, dbgGroundY: 0 };
+    this.flagFog = { tex, grid, n: N, minX, minZ, sizeX, sizeZ, cells, cam: { value: 0 }, time: { value: 0 }, dbgMeshes, dbgVerts, dbgPurple, dbgGroundY: 0 };
     console.log(`[Blender] fog mask: ${cells} cells, purple verts: ${dbgPurple}`);
   }
 
@@ -1791,26 +1802,63 @@ export class Game {
     return a * (1 - tx) * (1 - tz) + b * tx * (1 - tz) + c * (1 - tx) * tz + d * tx * tz;
   }
 
-  // (шейдерный вариант удалён: эффект даёт DOM-оверлей, см. HudState.fog)
-
   /** Туман для тестов: построена ли маска, сколько клеток, значение под камерой. */
   private fogError: string | null = null;
-  /** DOM-оверлей тумана: движок ставит стили сам (инлайн из React не всегда красит). */
-  private fogEl: HTMLElement | null | undefined = undefined;
-  private fogStyled = false;
-  private syncFogDom(strength: number): void {
-    if (typeof document === 'undefined') return;
-    if (this.fogEl === undefined) {
-      this.fogEl = document.getElementById('fogOverlay');
-      this.fogStyled = false;
-    }
-    const el = this.fogEl;
-    if (!el) return;
-    if (!this.fogStyled) {
-      el.style.background = 'radial-gradient(circle at center, rgba(10,2,26,0) 10%, rgba(16,3,40,0.6) 30%, rgba(10,2,26,0.97) 60%)';
-      this.fogStyled = true;
-    }
-    el.style.opacity = String(Math.max(0, Math.min(1, strength)));
+  // Плотное облако тумана в фиолетовых зонах (шейдер, не DOM):
+  // маска зоны + анимированный шум (облака) + сфера-пузырь вокруг камеры
+  // (ближе 2м чисто, дальше 6.5м непроглядно). Имена uniform с префиксом flag —
+  // НЕ пересекаются со встроенными (fogColor и т.п. ломают компиляцию шейдера).
+  private patchFogMaterial(mat: THREE.Material): void {
+    if (!this.flagFog) return;
+    if (!(mat instanceof THREE.MeshStandardMaterial)) return;
+    const F = this.flagFog;
+    const hasMap = !!(mat as THREE.MeshStandardMaterial).map;
+    const hasVert = !!(mat as unknown as { vertexColors?: boolean }).vertexColors;
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.flagFogMask = { value: F.tex };
+      sh.uniforms.flagFogBounds = { value: new THREE.Vector4(F.minX, F.minZ, F.sizeX, F.sizeZ) };
+      sh.uniforms.flagFogCam = F.cam;
+      sh.uniforms.flagFogTime = F.time;
+      sh.uniforms.flagFogColor = { value: new THREE.Color(0.23, 0.05, 0.38) };
+      sh.vertexShader = 'varying vec3 flagWPos;\nvarying float flagVDepth;\n' + sh.vertexShader.replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        vec4 flagWP4 = modelMatrix * vec4(transformed, 1.0);
+        flagWPos = flagWP4.xyz;
+        flagVDepth = -((viewMatrix * flagWP4).z);`,
+      );
+      sh.fragmentShader = `uniform sampler2D flagFogMask;
+uniform vec4 flagFogBounds;
+uniform float flagFogCam;
+uniform float flagFogTime;
+uniform vec3 flagFogColor;
+varying vec3 flagWPos;
+varying float flagVDepth;
+float flagHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+float flagNoise(vec2 p) {
+  vec2 i = floor(p); vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(flagHash(i), flagHash(i + vec2(1.0, 0.0)), u.x), mix(flagHash(i + vec2(0.0, 1.0)), flagHash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+` + sh.fragmentShader.replace(
+        '#include <fog_fragment>',
+        `#include <fog_fragment>
+{
+  vec2 flagFuv = (flagWPos.xz - flagFogBounds.xy) / flagFogBounds.zw;
+  float flagM = 0.0;
+  if (flagFuv.x > 0.0 && flagFuv.x < 1.0 && flagFuv.y > 0.0 && flagFuv.y < 1.0)
+    flagM = texture2D(flagFogMask, flagFuv).r;
+  float flagN = flagNoise(flagWPos.xz * 0.16 + flagFogTime * vec2(0.05, 0.037));
+  flagN = flagN * 0.6 + 0.4 * flagNoise(flagWPos.xz * 0.41 - flagFogTime * vec2(0.031, 0.043));
+  float flagD = smoothstep(2.0, 6.5, flagVDepth);
+  float flagF = flagM * flagD * (0.45 + 0.55 * flagN);
+  flagF *= 0.4 + 0.6 * flagFogCam;
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, flagFogColor, clamp(flagF, 0.0, 0.96));
+}`,
+      );
+    };
+    mat.customProgramCacheKey = () => 'flagfog1_' + (hasMap ? 'm' : 'x') + (hasVert ? 'v' : 'x');
+    mat.needsUpdate = true;
   }
   /** Тест-оверрайд силы тумана (null — авто по позиции). */
   private fogCamOverride: number | null = null;
@@ -1836,12 +1884,12 @@ export class Game {
   /** Кадр CTF: анимация полотен, подбор/возврат/захват. Вызывается из цикла. */
   private updateFlags(): void {
     if (this.map !== 'blender' || !this.team || !this.flagRed || !this.flagBlue) return;
-    // туман: сила под камерой (0 — вне зоны, 1 — глубоко внутри)
-    // туман: сила под камерой (0 — вне зоны, 1 — глубоко внутри); DOM красит движок
-    const fstr = this.fogCamOverride ?? (this.flagFog ? this.fogSample(this.px, this.pz) : 0);
-    if (this.flagFog) this.flagFog.cam.value = fstr;
-    this.syncFogDom(fstr);
+    // туман-облако: сила под камерой (0 — вне зоны, 1 — глубоко внутри) + время для анимации
     const t = performance.now() / 1000;
+    if (this.flagFog) {
+      this.flagFog.cam.value = this.fogCamOverride ?? this.fogSample(this.px, this.pz);
+      this.flagFog.time.value = t;
+    }
     const fR = this.flagRed, fB = this.flagBlue;
     const cR = fR?.group?.getObjectByName('cloth');
     if (cR) cR.rotation.y = Math.sin(t * 4 + (fR?.homeX ?? 0)) * 0.35;
@@ -6335,7 +6383,6 @@ export class Game {
       team: this.team,
       carrying: this.carrying,
       captures: this.captures,
-      fog: this.map === 'blender' && this.flagFog ? (() => { const m = this.fogSample(this.px, this.pz); return m <= 0.05 ? 0 : Math.min(1, (m - 0.05) / 0.45); })() : 0,
       boss: bosses,
       wbWait: this.map === 'boss' && !this.wbExt && !this.worldBossAlive() ? Math.max(0, Math.ceil(this.wbSoloT)) : 0,
       dash: Math.round(this.dashCd * 10) / 10,

@@ -442,7 +442,7 @@ export default function App() {
   const gameRef = useRef<Game | null>(null);
   const [menu, setMenu] = useState(true);
   const [loading, setLoading] = useState<{ show: boolean; pct: number }>({ show: false, pct: 0 });
-  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, invis: 0, invisCd: 0, chuma: 0, chumaCd: 0, xray: 0, xrayCd: 0, sun: 0, sunCd: 0, arbuz: 0, arbuzCd: 0,     med: 0, lvl: 1, team: null, carrying: null, captures: 0, fog: 0, boss: 0, wbWait: 0, fps: 60, doorPulse: false });
+  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, invis: 0, invisCd: 0, chuma: 0, chumaCd: 0, xray: 0, xrayCd: 0, sun: 0, sunCd: 0, arbuz: 0, arbuzCd: 0,     med: 0, lvl: 1, team: null, carrying: null, captures: 0, boss: 0, wbWait: 0, fps: 60, doorPulse: false });
   const [scores, setScores] = useState<ScoreRow[]>([]);
   const [duelTop, setDuelTop] = useState<Array<{ login: string; wins: number }>>([]);
   const [gstats, setGstats] = useState<{ games: number; best: number; online: number } | null>(null);
@@ -3262,9 +3262,6 @@ async function loadStats(): Promise<void> {
           </div>
         </div>
       )}
-      {/* Туман фиолетовых зон: 4 кромки линейными градиентами (radial/box-shadow не красят на части драйверов) */}
-      {/* Туман фиолетовых зон: структуру рисует React, все стили ставит движок (так точно красит) */}
-      <div id="fogOverlay"><div /><div /><div /><div /></div>
       {/* Технический перерыв: fullscreen-блок для всех без DEV-доступа, в любом месте сайта */}
       {maintBlocked && (
         <div id="maintOverlay">
