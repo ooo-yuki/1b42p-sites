@@ -3264,10 +3264,10 @@ async function loadStats(): Promise<void> {
       )}
       {/* Туман фиолетовых зон: 4 кромки линейными градиентами (radial/box-shadow не красят на части драйверов) */}
       <div id="fogOverlay" style={{ opacity: hud.fog }}>
-        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '38vh', background: 'linear-gradient(to bottom, rgba(14,2,34,0.97), rgba(14,2,34,0))' }} />
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '38vh', background: 'linear-gradient(to top, rgba(14,2,34,0.97), rgba(14,2,34,0))' }} />
-        <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: '34vw', background: 'linear-gradient(to right, rgba(14,2,34,0.97), rgba(14,2,34,0))' }} />
-        <div style={{ position: 'absolute', top: 0, bottom: 0, right: 0, width: '34vw', background: 'linear-gradient(to left, rgba(14,2,34,0.97), rgba(14,2,34,0))' }} />
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '45vh', background: 'linear-gradient(to bottom, rgba(10,2,28,0.98), rgba(10,2,28,0))' }} />
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '45vh', background: 'linear-gradient(to top, rgba(10,2,28,0.98), rgba(10,2,28,0))' }} />
+        <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: '42vw', background: 'linear-gradient(to right, rgba(10,2,28,0.98), rgba(10,2,28,0))' }} />
+        <div style={{ position: 'absolute', top: 0, bottom: 0, right: 0, width: '42vw', background: 'linear-gradient(to left, rgba(10,2,28,0.98), rgba(10,2,28,0))' }} />
       </div>
       {/* Технический перерыв: fullscreen-блок для всех без DEV-доступа, в любом месте сайта */}
       {maintBlocked && (
