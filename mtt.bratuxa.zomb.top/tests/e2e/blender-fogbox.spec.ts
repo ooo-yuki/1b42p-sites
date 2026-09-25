@@ -34,20 +34,22 @@ test('blender fog boxshot', async ({ page }) => {
   });
   console.log('DIAG pre-shot ' + JSON.stringify(pre));
   await page.screenshot({ path: 'test-results/fog-box.jpg', type: 'jpeg', quality: 45 });
-  const dbg = await page.evaluate(() => {
-    const el = document.getElementById('fogOverlay') as HTMLElement | null;
-    const m = window as unknown as { __mtt: {
-      flagFog: () => { built: boolean; cells: number; cam: number };
-      pos: () => { x: number; z: number };
-    } };
-    return {
-      op: el ? getComputedStyle(el).opacity : 'n/a',
-      sh: el ? getComputedStyle(el).boxShadow.slice(0, 60) : 'n/a',
-      fog: m.__mtt.flagFog(),
-      px: m.__mtt.pos(),
-    };
-  });
-  console.log('DIAG fogstate ' + JSON.stringify(dbg));
+  const probe = async (tag: string, fn: string): Promise<void> => {
+    await page.evaluate((code: string) => {
+      const t = document.querySelector('#fogOverlay .fogT') as HTMLElement | null;
+      if (!t) return 'no-fogT';
+      if (code === 'solid') t.style.background = 'rgb(180,0,180)';
+      else if (code === 'linear') t.style.background = 'linear-gradient(to bottom, rgb(180,0,180), rgba(180,0,180,0))';
+      else if (code === 'radial') t.style.background = 'radial-gradient(ellipse at center, rgb(180,0,180), rgba(180,0,180,0))';
+      return 'set-' + code;
+    }, fn);
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `test-results/fog-probe-${tag}.jpg`, type: 'jpeg', quality: 45 });
+  };
+  await probe('solid', 'solid');
+  await probe('linear', 'linear');
+  await probe('radial', 'radial');
+  console.log('DIAG probes done');
   // свип размера блюра: 20 / 60 / 150 — что красит?
   for (const [tag, blur] of [['s20', 20], ['s60', 60], ['s150', 150]] as Array<[string, number]>) {
     await page.evaluate((b) => {
