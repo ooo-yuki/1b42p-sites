@@ -1715,7 +1715,7 @@ export class Game {
         if (wy < 1.5) continue;
         const r = col.getX(i), gg = col.getY(i), b = col.getZ(i);
         dbgVerts++;
-        if (!(b > 0.25 && gg < 0.12 && r > 0.12)) continue;
+        if (!(b > 0.18 && gg < 0.18 && r > 0.08)) continue;
         dbgPurple++;
         const cx = Math.floor(((wx - minX) / sizeX) * N);
         const cz = Math.floor(((wz - minZ) / sizeZ) * N);
@@ -1741,7 +1741,7 @@ export class Game {
         if (wy < 1.5) continue;
         const r = col.getX(i), gg = col.getY(i), b = col.getZ(i);
         dbgVerts++;
-        if (!(b > 0.25 && gg < 0.12 && r > 0.12)) continue;
+        if (!(b > 0.18 && gg < 0.18 && r > 0.08)) continue;
         dbgPurple++;
         const wx = e[0] * lx + e[4] * ly + e[8] * lz + e[12];
         const wz = e[2] * lx + e[6] * ly + e[10] * lz + e[14];
@@ -1752,7 +1752,38 @@ export class Game {
       }
     });
     for (let i = 0; i < N * N; i++) mark[i] = cnt[i] >= 2 ? 1 : 0;
-    // без эрозии (кроны редкие) — блюр 5×5 + срез бахромы: плавный край, не вылезаем за зону
+    // морфозакрытие r=3: заделываем прогалы между кронами — снаружи сквозь зону
+    // не должно просвечивать. Затем блюр 5×5 + срез бахромы: плавный край.
+    const dil = new Uint8Array(N * N);
+    for (let z = 0; z < N; z++) {
+      for (let x = 0; x < N; x++) {
+        if (!mark[z * N + x]) continue;
+        for (let dz = -3; dz <= 3; dz++) {
+          const zz = z + dz;
+          if (zz < 0 || zz >= N) continue;
+          for (let dx = -3; dx <= 3; dx++) {
+            const xx = x + dx;
+            if (xx < 0 || xx >= N) continue;
+            dil[zz * N + xx] = 1;
+          }
+        }
+      }
+    }
+    const closed = new Uint8Array(N * N);
+    for (let z = 0; z < N; z++) {
+      for (let x = 0; x < N; x++) {
+        let all = 1;
+        for (let dz = -3; dz <= 3 && all; dz++) {
+          const zz = z + dz;
+          if (zz < 0 || zz >= N) { all = 0; break; }
+          for (let dx = -3; dx <= 3; dx++) {
+            const xx = x + dx;
+            if (xx < 0 || xx >= N || !dil[zz * N + xx]) { all = 0; break; }
+          }
+        }
+        closed[z * N + x] = all;
+      }
+    }
     const grid = new Uint8Array(N * N);
     let cells = 0;
     for (let z = 0; z < N; z++) {
@@ -1762,7 +1793,7 @@ export class Game {
           const zz = Math.min(N - 1, Math.max(0, z + dz));
           for (let dx = -2; dx <= 2; dx++) {
             const xx = Math.min(N - 1, Math.max(0, x + dx));
-            s += mark[zz * N + xx];
+            s += closed[zz * N + xx];
           }
         }
         const val = Math.round((s / 25) * 255);
@@ -1811,7 +1842,7 @@ export class Game {
   private fogError: string | null = null;
   // Плотное облако тумана в фиолетовых зонах (шейдер, не DOM):
   // маска зоны + анимированный шум (облака) + сфера-пузырь вокруг камеры
-  // (ближе 0.5м чисто — руки/оружие, дальше 2м стена). Имена uniform с префиксом flag —
+  // (ближе 1м чисто — руки/оружие, дальше 6м стена). Имена uniform с префиксом flag —
   // НЕ пересекаются со встроенными (fogColor и т.п. ломают компиляцию шейдера).
   private patchFogMaterial(mat: THREE.Material): void {
     if (!this.flagFog) return;
@@ -1857,10 +1888,10 @@ float flagNoise(vec2 p) {
   float flagN = flagNoise(flagWPos.xz * 0.16 + flagFogTime * vec2(0.05, 0.037));
   flagN = flagN * 0.6 + 0.4 * flagNoise(flagWPos.xz * 0.41 - flagFogTime * vec2(0.031, 0.043));
   // НЕПРОГЛЯДНАЯ СТЕНА: кто внутри облака (cam) — туман везде, не только на кронах;
-  // снаружи — только на кронах. Пузырь только для рук/оружия: чисто <0.5м, стена с 2м.
-  // Шум — лишь фактура цвета, в прозрачность не играет: сквозь туман не видно ничего.
+  // снаружи — сплошным блоком по заделанной маске. Радиус зрения 6м: чисто <1м,
+  // дальше 6м стена. Шум — лишь фактура цвета, в прозрачность не играет.
   float flagZone = max(flagM, smoothstep(0.35, 0.7, flagFogCam));
-  float flagD = smoothstep(0.5, 2.0, flagVDepth);
+  float flagD = smoothstep(1.0, 6.0, flagVDepth);
   float flagF = flagZone * flagD;
   vec3 flagCol = flagFogColor + (flagN - 0.5) * 0.16;
   gl_FragColor.rgb = mix(gl_FragColor.rgb, flagCol, clamp(flagF, 0.0, 0.995));
