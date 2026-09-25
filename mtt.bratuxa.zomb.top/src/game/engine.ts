@@ -454,6 +454,8 @@ export class Game {
     time: { value: number };
     dbgMeshes: number; dbgVerts: number; dbgPurple: number; dbgGroundY: number;
   } | null = null;
+  /** Небо Blender-карты: внутри зоны его тоже затягивает туманом (иначе синие просветы). */
+  private skyMat: THREE.Material | null = null;
   private yaw = 0;
   private pitch = 0;
   private hp = 100;
@@ -953,6 +955,7 @@ export class Game {
         new THREE.SphereGeometry(350, 24, 16),
         new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false }),
       );
+      this.skyMat = sky.material as THREE.Material;
       this.scene.add(sky);
     } else {
       this.scene.background = new THREE.Color(0x9ecdf0);
@@ -1572,6 +1575,8 @@ export class Game {
             });
             const gm = (ground.material as THREE.Material);
             if (gm) this.patchFogMaterial(gm);
+            // небо тоже затягивает (иначе синие просветы сквозь кроны)
+            if (this.skyMat) this.patchFogMaterial(this.skyMat);
           } catch (e) {
             console.warn('[Blender] fog setup failed:', e);
             this.fogError = String((e as Error)?.message ?? e);
@@ -1806,11 +1811,12 @@ export class Game {
   private fogError: string | null = null;
   // Плотное облако тумана в фиолетовых зонах (шейдер, не DOM):
   // маска зоны + анимированный шум (облака) + сфера-пузырь вокруг камеры
-  // (ближе 1.5м чисто, дальше 4м стена). Имена uniform с префиксом flag —
+  // (ближе 0.5м чисто — руки/оружие, дальше 2м стена). Имена uniform с префиксом flag —
   // НЕ пересекаются со встроенными (fogColor и т.п. ломают компиляцию шейдера).
   private patchFogMaterial(mat: THREE.Material): void {
     if (!this.flagFog) return;
-    if (!(mat instanceof THREE.MeshStandardMaterial)) return;
+    // Standard (карта/земля) + Basic (небо; флаги CTF сюда не попадают — их патчим отдельно никогда)
+    if (!(mat instanceof THREE.MeshStandardMaterial) && !(mat instanceof THREE.MeshBasicMaterial)) return;
     const F = this.flagFog;
     const hasMap = !!(mat as THREE.MeshStandardMaterial).map;
     const hasVert = !!(mat as unknown as { vertexColors?: boolean }).vertexColors;
@@ -1819,7 +1825,7 @@ export class Game {
       sh.uniforms.flagFogBounds = { value: new THREE.Vector4(F.minX, F.minZ, F.sizeX, F.sizeZ) };
       sh.uniforms.flagFogCam = F.cam;
       sh.uniforms.flagFogTime = F.time;
-      sh.uniforms.flagFogColor = { value: new THREE.Color(0.23, 0.05, 0.38) };
+      sh.uniforms.flagFogColor = { value: new THREE.Color(0.30, 0.08, 0.50) };
       sh.vertexShader = 'varying vec3 flagWPos;\nvarying float flagVDepth;\n' + sh.vertexShader.replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
@@ -1851,12 +1857,12 @@ float flagNoise(vec2 p) {
   float flagN = flagNoise(flagWPos.xz * 0.16 + flagFogTime * vec2(0.05, 0.037));
   flagN = flagN * 0.6 + 0.4 * flagNoise(flagWPos.xz * 0.41 - flagFogTime * vec2(0.031, 0.043));
   // НЕПРОГЛЯДНАЯ СТЕНА: кто внутри облака (cam) — туман везде, не только на кронах;
-  // снаружи — только на кронах. Пузырь: чисто <1.5м, стена с 4м. Шум — лишь фактура
-  // цвета (±5%), в прозрачность не играет: сквозь туман не видно ничего.
+  // снаружи — только на кронах. Пузырь только для рук/оружия: чисто <0.5м, стена с 2м.
+  // Шум — лишь фактура цвета, в прозрачность не играет: сквозь туман не видно ничего.
   float flagZone = max(flagM, smoothstep(0.35, 0.7, flagFogCam));
-  float flagD = smoothstep(1.5, 4.0, flagVDepth);
+  float flagD = smoothstep(0.5, 2.0, flagVDepth);
   float flagF = flagZone * flagD;
-  vec3 flagCol = flagFogColor + (flagN - 0.5) * 0.10;
+  vec3 flagCol = flagFogColor + (flagN - 0.5) * 0.16;
   gl_FragColor.rgb = mix(gl_FragColor.rgb, flagCol, clamp(flagF, 0.0, 0.995));
 }`,
       );
