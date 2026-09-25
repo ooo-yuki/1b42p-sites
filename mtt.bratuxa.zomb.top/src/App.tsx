@@ -3262,8 +3262,13 @@ async function loadStats(): Promise<void> {
           </div>
         </div>
       )}
-      {/* Туман фиолетовых зон: завеса поверх мира, под HUD (box-shadow вместо radial-gradient: radial не красит на части драйверов) */}
-      <div id="fogOverlay" style={{ opacity: hud.fog, background: 'none', boxShadow: 'inset 0 0 16vmin 9vmin rgba(22,4,46,0.75), inset 0 0 60vmin 38vmin rgba(12,2,30,0.99)' }} />
+      {/* Туман фиолетовых зон: 4 кромки линейными градиентами (radial/box-shadow не красят на части драйверов) */}
+      <div id="fogOverlay" style={{ opacity: hud.fog }}>
+        <div className="fogT" />
+        <div className="fogB" />
+        <div className="fogL" />
+        <div className="fogR" />
+      </div>
       {/* Технический перерыв: fullscreen-блок для всех без DEV-доступа, в любом месте сайта */}
       {maintBlocked && (
         <div id="maintOverlay">
