@@ -1477,16 +1477,9 @@ export class Game {
         let skippedSlabs = 0;
         const colBoxes: Array<{ x: number; z: number; hx: number; hz: number; h: number }> = [];
         // Материал тумана: форму объёмов даёт Blender (fog_*), вид задаёт игра.
-        // ДИАГНОСТИКА: Cube — клон колец (opacity .75, без renderOrder),
-        // Cube.001 — как было (opacity .5, renderOrder 5).
-        const fogMatA = new THREE.MeshBasicMaterial({
-          color: 0x4d1480, transparent: true, opacity: 0.75,
-          side: THREE.DoubleSide, depthWrite: false,
-        });
-        const fogMatB = new THREE.MeshBasicMaterial({
-          color: 0x4d1480, transparent: true, opacity: 0.5,
-          side: THREE.DoubleSide, depthWrite: false,
-        });
+        // ДИАГНОСТИКА: сплошной фиолетовый (непрозрачный) — бинарный тест видимости.
+        const fogMatA = new THREE.MeshBasicMaterial({ color: 0x4d1480 });
+        const fogMatB = new THREE.MeshBasicMaterial({ color: 0x4d1480 });
         let fogPatched = 0;
         root.traverse((obj) => {
           const nm = (obj.name || '').toLowerCase();
@@ -1504,7 +1497,7 @@ export class Game {
           if (obj.name.startsWith('fog_')) {
             m.castShadow = false;
             m.receiveShadow = false;
-            if (obj.name.includes('001')) { m.material = fogMatB; m.renderOrder = 5; }
+            if (obj.name.includes('001')) { m.material = fogMatB; }
             else { m.material = fogMatA; }
             m.renderOrder = 5;
             fogPatched++;
