@@ -1437,6 +1437,8 @@ export class Game {
   }
 
   // ===== BLENDER: карта из .glb (ручные хитбоксы col_*, спавны Spawn1/Spawn2) =====
+  /** Материалы тумана (fog_* объёмы): нужно тикать uTime. */
+  private fogMats: THREE.ShaderMaterial[] = [];
   private buildBlender(): void {
     const scene = this.scene;
     scene.add(new THREE.HemisphereLight(0xbfd9ff, 0x8a7a66, 0.8));
@@ -1477,12 +1479,64 @@ export class Game {
         let skippedSlabs = 0;
         const colBoxes: Array<{ x: number; z: number; hx: number; hz: number; h: number }> = [];
         // Материал тумана: форму объёмов даёт Blender (fog_*), вид задаёт игра.
-        // GLB-меши тумана не рисуются (битые на уровне импорта?) — строим чистый
-        // BoxGeometry по их bbox, оригинал прячем. Путь как у колец флагов.
-        const fogMat = new THREE.MeshBasicMaterial({
-          color: 0x4d1480, transparent: true, opacity: 0.55,
-          side: THREE.DoubleSide, depthWrite: false,
-        });
+        // Мягкое облако: сферическое затухание к граням бокса (никаких квадратов),
+        // анимированный шум, fade в упор к камере. GLB-меши тумана не рисуются
+        // (битые на уровне импорта?) — строим чистый BoxGeometry по их bbox.
+        const makeFogMat = (size: THREE.Vector3): THREE.ShaderMaterial => {
+          const mt = new THREE.ShaderMaterial({
+            transparent: true,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+            uniforms: {
+              uColor: { value: new THREE.Color(0x4d1480) },
+              uOpacity: { value: 0.7 },
+              uTime: { value: 0 },
+              uBoxSize: { value: new THREE.Vector3(size.x, size.y, size.z) },
+            },
+            vertexShader: `
+varying vec3 vLocal;
+varying vec3 vWorld;
+varying float vDepth;
+void main() {
+  vLocal = position;
+  vec4 wp = modelMatrix * vec4(position, 1.0);
+  vWorld = wp.xyz;
+  vec4 mv = viewMatrix * wp;
+  vDepth = -mv.z;
+  gl_Position = projectionMatrix * mv;
+}`,
+            fragmentShader: `
+uniform vec3 uColor;
+uniform float uOpacity;
+uniform float uTime;
+uniform vec3 uBoxSize;
+varying vec3 vLocal;
+varying vec3 vWorld;
+varying float vDepth;
+float fHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+float fNoise(vec2 p) {
+  vec2 i = floor(p); vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(fHash(i), fHash(i + vec2(1.0, 0.0)), u.x), mix(fHash(i + vec2(0.0, 1.0)), fHash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+void main() {
+  vec3 q = vLocal / (uBoxSize * 0.5);
+  float r = length(q * vec3(1.0, 1.25, 1.0));
+  float body = 1.0 - smoothstep(0.45, 1.0, r);
+  if (body <= 0.001) discard;
+  float nse = fNoise(vWorld.xz * 0.13 + uTime * vec2(0.045, 0.032)) * 0.62
+            + fNoise(vWorld.xz * 0.37 - uTime * vec2(0.028, 0.039)) * 0.38;
+  float a = uOpacity * body * (0.5 + 0.5 * nse);
+  a *= smoothstep(0.2, 1.2, vDepth);
+  if (a <= 0.003) discard;
+  gl_FragColor = vec4(uColor * (0.8 + 0.4 * nse), a);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}`,
+          });
+          this.fogMats.push(mt);
+          return mt;
+        };
         let fogPatched = 0;
         root.traverse((obj) => {
           const nm = (obj.name || '').toLowerCase();
@@ -1505,7 +1559,7 @@ export class Game {
             fb.getSize(fsize); fb.getCenter(fcenter);
             const vol = new THREE.Mesh(
               new THREE.BoxGeometry(Math.max(0.1, fsize.x), Math.max(0.1, fsize.y), Math.max(0.1, fsize.z)),
-              fogMat,
+              makeFogMat(fsize),
             );
             vol.position.copy(fcenter);
             scene.add(vol);
@@ -1693,6 +1747,7 @@ export class Game {
   private updateFlags(): void {
     if (this.map !== 'blender' || !this.team || !this.flagRed || !this.flagBlue) return;
     const t = performance.now() / 1000;
+    for (const fm of this.fogMats) fm.uniforms.uTime.value = t;
     const fR = this.flagRed, fB = this.flagBlue;
     const cR = fR?.group?.getObjectByName('cloth');
     if (cR) cR.rotation.y = Math.sin(t * 4 + (fR?.homeX ?? 0)) * 0.35;
