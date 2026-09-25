@@ -1806,18 +1806,8 @@ export class Game {
     }
     const el = this.fogEl;
     if (!el) return;
-    if (!this.fogStyled && el.children.length >= 4) {
-      const geos: Array<Record<string, string>> = [
-        { position: 'absolute', top: '0', left: '0', right: '0', height: '45vh', background: 'linear-gradient(to bottom, rgba(10,2,28,0.98), rgba(10,2,28,0))' },
-        { position: 'absolute', bottom: '0', left: '0', right: '0', height: '45vh', background: 'linear-gradient(to top, rgba(10,2,28,0.98), rgba(10,2,28,0))' },
-        { position: 'absolute', top: '0', bottom: '0', left: '0', width: '42vw', background: 'linear-gradient(to right, rgba(10,2,28,0.98), rgba(10,2,28,0))' },
-        { position: 'absolute', top: '0', bottom: '0', right: '0', width: '42vw', background: 'linear-gradient(to left, rgba(10,2,28,0.98), rgba(10,2,28,0))' },
-      ];
-      for (let i = 0; i < 4; i++) {
-        const k = el.children[i] as HTMLElement;
-        const g = geos[i]!;
-        for (const key of Object.keys(g)) (k.style as unknown as Record<string, string>)[key] = g[key]!;
-      }
+    if (!this.fogStyled) {
+      el.style.background = 'radial-gradient(circle at center, rgba(10,2,26,0) 10%, rgba(16,3,40,0.6) 30%, rgba(10,2,26,0.97) 60%)';
       this.fogStyled = true;
     }
     el.style.opacity = String(Math.max(0, Math.min(1, strength)));
