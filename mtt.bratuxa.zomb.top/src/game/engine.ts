@@ -1530,7 +1530,10 @@ void main() {
   if (f <= 0.002) discard;
   float nse = fNoise(vWorld.xz * 0.13 + uTime * vec2(0.045, 0.032)) * 0.62
             + fNoise(vWorld.xz * 0.37 - uTime * vec2(0.028, 0.039)) * 0.38;
+  vec3 q = vLocal / (uBoxSize * 0.5);
   float a = uOpacity * f * (0.45 + 0.55 * nse);
+  a *= smoothstep(1.0, 0.65, abs(q.y)); // растворение к крышке/дну — без линий
+  a *= 0.3 + 0.7 * smoothstep(-0.5, 2.5, vWorld.y); // мягкий подъём от земли
   a *= smoothstep(0.2, 1.2, vDepth);
   a *= 0.75 + 0.25 * clamp(1.0 - vWorld.y / 8.0, 0.0, 1.0);
   if (a <= 0.003) discard;
