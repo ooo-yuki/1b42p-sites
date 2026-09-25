@@ -28,13 +28,13 @@ test('blender fog boxshot', async ({ page }) => {
     const el = document.getElementById('fogOverlay') as HTMLElement | null;
     const m = window as unknown as { __mtt: {
       flagFog: () => { built: boolean; cells: number; cam: number };
-      debugPos: () => { x: number; z: number };
+      pos: () => { x: number; z: number };
     } };
     return {
       op: el ? getComputedStyle(el).opacity : 'n/a',
       sh: el ? getComputedStyle(el).boxShadow.slice(0, 60) : 'n/a',
       fog: m.__mtt.flagFog(),
-      px: m.__mtt.debugPos(),
+      px: m.__mtt.pos(),
     };
   });
   console.log('DIAG fogstate ' + JSON.stringify(dbg));
