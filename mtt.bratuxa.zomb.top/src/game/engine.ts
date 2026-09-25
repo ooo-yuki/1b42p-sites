@@ -1496,6 +1496,7 @@ export class Game {
             vertexShader: `
 varying vec3 vLocal;
 varying vec3 vWorld;
+varying vec3 vNormal;
 varying float vDepth;
 void main() {
   vLocal = position;
@@ -1503,6 +1504,7 @@ void main() {
   vWorld = wp.xyz;
   vec4 mv = viewMatrix * wp;
   vDepth = -mv.z;
+  vNormal = normalMatrix * normal;
   gl_Position = projectionMatrix * mv;
 }`,
             fragmentShader: `
@@ -1512,6 +1514,7 @@ uniform float uTime;
 uniform vec3 uBoxSize;
 varying vec3 vLocal;
 varying vec3 vWorld;
+varying vec3 vNormal;
 varying float vDepth;
 float fHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
 float fNoise(vec2 p) {
@@ -1520,14 +1523,16 @@ float fNoise(vec2 p) {
   return mix(mix(fHash(i), fHash(i + vec2(1.0, 0.0)), u.x), mix(fHash(i + vec2(0.0, 1.0)), fHash(i + vec2(1.0, 1.0)), u.x), u.y);
 }
 void main() {
-  vec3 q = vLocal / (uBoxSize * 0.5);
-  float r = length(q * vec3(1.0, 1.25, 1.0));
-  float body = 1.0 - smoothstep(0.45, 1.0, r);
-  if (body <= 0.001) discard;
+  // Френель: грань в лоб — плотно, силуэт/ребро — тает. Квадратов нет.
+  vec3 N = normalize(vNormal);
+  float facing = abs(dot(N, vec3(0.0, 0.0, 1.0)));
+  float f = pow(facing, 1.6);
+  if (f <= 0.002) discard;
   float nse = fNoise(vWorld.xz * 0.13 + uTime * vec2(0.045, 0.032)) * 0.62
             + fNoise(vWorld.xz * 0.37 - uTime * vec2(0.028, 0.039)) * 0.38;
-  float a = uOpacity * body * (0.5 + 0.5 * nse);
+  float a = uOpacity * f * (0.45 + 0.55 * nse);
   a *= smoothstep(0.2, 1.2, vDepth);
+  a *= 0.75 + 0.25 * clamp(1.0 - vWorld.y / 8.0, 0.0, 1.0);
   if (a <= 0.003) discard;
   gl_FragColor = vec4(uColor * (0.8 + 0.4 * nse), a);
   #include <tonemapping_fragment>
