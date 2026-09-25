@@ -1481,6 +1481,7 @@ export class Game {
           color: 0x4d1480, transparent: true, opacity: 0.5,
           side: THREE.DoubleSide, depthWrite: false, fog: false,
         });
+        let fogPatched = 0;
         root.traverse((obj) => {
           const nm = (obj.name || '').toLowerCase();
           if ((nm === 'spawn1' || nm === 'spawn2') && !('geometry' in obj)) {
@@ -1499,6 +1500,7 @@ export class Game {
             m.receiveShadow = false;
             m.material = fogMat;
             m.renderOrder = 5;
+            fogPatched++;
             return;
           }
           // Ручные хитбоксы: невидимые, коллизия по точному bbox
@@ -1559,6 +1561,7 @@ export class Game {
           for (const w of walls) this.solids.push(w);
         }
         for (const b of colBoxes) this.solids.push(b);
+        console.log(`[Blender] fog volumes patched: ${fogPatched}`);
         scene.add(root);
         if (skippedSlabs > 0) console.log(`[Blender] skipped ${skippedSlabs} ground slab(s)`);
         this.rebuildSolidGrid();
