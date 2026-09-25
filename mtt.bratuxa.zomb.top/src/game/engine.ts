@@ -1497,8 +1497,8 @@ export class Game {
           if (obj.name.startsWith('fog_')) {
             m.castShadow = false;
             m.receiveShadow = false;
-            if (obj.name.includes('001')) { m.material = fogMatB; }
-            else { m.material = fogMatA; }
+            m.material = fogMatA;
+            m.frustumCulled = false;
             m.renderOrder = 5;
             fogPatched++;
             return;
@@ -1670,6 +1670,8 @@ export class Game {
   /** Временный дамп сцены для диагностики тумана (удалить после проверки). */
   debugFogDump(): unknown {
     const out: unknown[] = [];
+    const ri = this.renderer.info.render;
+    out.push({ info: { calls: ri.calls, tris: ri.triangles } });
     out.push({ kids: this.scene.children.map((c) => (c.name || '?') + ':' + c.type + ':' + c.visible) });
     this.scene.traverse((o) => {
       if (o.name && o.name.startsWith('fog_')) {
