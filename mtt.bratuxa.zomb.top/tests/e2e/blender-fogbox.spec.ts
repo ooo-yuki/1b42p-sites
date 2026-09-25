@@ -23,6 +23,16 @@ test('blender fog boxshot', async ({ page }) => {
   await page.waitForTimeout(3000);
   await page.setViewportSize({ width: 640, height: 360 });
   await page.waitForTimeout(1500);
+  const pre = await page.evaluate(() => {
+    const el = document.getElementById('fogOverlay') as HTMLElement | null;
+    const m = window as unknown as { __mtt: {
+      flagFog: () => { built: boolean; cells: number; cam: number };
+      pos: () => { x: number; z: number };
+    } };
+    const p = m.__mtt.pos();
+    return { op: el ? getComputedStyle(el).opacity : 'n/a', cam: m.__mtt.flagFog(), x: Math.round(p.x * 10) / 10, z: Math.round(p.z * 10) / 10 };
+  });
+  console.log('DIAG pre-shot ' + JSON.stringify(pre));
   await page.screenshot({ path: 'test-results/fog-box.jpg', type: 'jpeg', quality: 45 });
   const dbg = await page.evaluate(() => {
     const el = document.getElementById('fogOverlay') as HTMLElement | null;
