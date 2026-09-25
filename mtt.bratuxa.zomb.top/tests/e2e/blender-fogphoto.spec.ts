@@ -51,16 +51,19 @@ test('blender fog photo', async ({ page }) => {
     return { ov: chain(el), cv: chain(cv) };
   });
   console.log('DIAG stacking ' + JSON.stringify(tree));
+  // проба 1: линейный градиент красит?
   await page.evaluate(() => {
     const el = document.getElementById('fogOverlay') as HTMLElement | null;
-    if (el) el.style.display = 'none';
+    if (el) el.style.background = 'linear-gradient(red, blue)';
   });
   await page.waitForTimeout(800);
-  await page.screenshot({ path: 'test-results/fog-off.jpg', type: 'jpeg', quality: 90 });
-  const ov = await page.evaluate(() => {
+  await page.screenshot({ path: 'test-results/fog-linear.jpg', type: 'jpeg', quality: 45 });
+  // проба 2: inset box-shadow красит?
+  await page.evaluate(() => {
     const el = document.getElementById('fogOverlay') as HTMLElement | null;
-    return { exists: !!el, op: el ? getComputedStyle(el).opacity : 'n/a' };
+    if (el) { el.style.background = 'none'; (el as HTMLElement).style.boxShadow = 'inset 0 0 180px 120px rgba(22,4,46,0.96)'; }
   });
-  console.log('DIAG fogAB ' + JSON.stringify(ov));
-  console.log('DIAG fogOverlay ' + JSON.stringify(ov));
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: 'test-results/fog-shadow.jpg', type: 'jpeg', quality: 45 });
+  console.log('DIAG probes done');
 });
