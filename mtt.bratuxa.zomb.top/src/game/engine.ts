@@ -1674,6 +1674,27 @@ export class Game {
 
   // (туман фиолетовых зон отменён)
 
+  /** Временный дамп сцены для диагностики тумана (удалить после проверки). */
+  debugFogDump(): unknown {
+    const out: unknown[] = [];
+    out.push({ kids: this.scene.children.map((c) => (c.name || '?') + ':' + c.type + ':' + c.visible) });
+    this.scene.traverse((o) => {
+      if (o.name && o.name.startsWith('fog_')) {
+        const m = o as THREE.Mesh;
+        const mat = m.material as THREE.Material & { opacity?: number; transparent?: boolean };
+        let col = '?';
+        try { col = String((mat as unknown as { color?: { getHexString?: () => string } }).color?.getHexString?.() ?? '?'); } catch { /* noop */ }
+        out.push({
+          name: o.name, vis: o.visible, otype: o.type,
+          parent: o.parent === this.scene ? 'scene-direct' : ((o.parent?.name ?? '?') + ':' + String(o.parent?.visible)),
+          mat: mat?.type, transp: !!mat?.transparent, op: mat?.opacity, col,
+          geo: (m.geometry as THREE.BufferGeometry)?.getAttribute?.('position')?.count ?? -1,
+        });
+      }
+    });
+    return out;
+  }
+
   /** Бросить несомый флаг там, где стоим (смерть). */
   private dropFlag(): void {
     if (!this.carrying) return;
