@@ -443,19 +443,6 @@ export class Game {
   /** CTF: маленькие флаги над головой (красный/синий) — виден только несомый. */
   private carryRed: THREE.Group | null = null;
   private carryBlue: THREE.Group | null = null;
-  /** Туман фиолетовых зон (только Blender): маска по крашеным вертам + шейдер. */
-  private flagFog: {
-    tex: THREE.DataTexture;
-    grid: Uint8Array;
-    n: number;
-    minX: number; minZ: number; sizeX: number; sizeZ: number;
-    cells: number;
-    cam: { value: number };
-    time: { value: number };
-    dbgMeshes: number; dbgVerts: number; dbgPurple: number; dbgGroundY: number;
-  } | null = null;
-  /** Небо Blender-карты: внутри зоны его тоже затягивает туманом (иначе синие просветы). */
-  private skyMat: THREE.Material | null = null;
   private yaw = 0;
   private pitch = 0;
   private hp = 100;
@@ -955,7 +942,6 @@ export class Game {
         new THREE.SphereGeometry(350, 24, 16),
         new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false }),
       );
-      this.skyMat = sky.material as THREE.Material;
       this.scene.add(sky);
     } else {
       this.scene.background = new THREE.Color(0x9ecdf0);
@@ -1559,28 +1545,6 @@ export class Game {
           for (const w of walls) this.solids.push(w);
         }
         for (const b of colBoxes) this.solids.push(b);
-        // Маска тумана + патч материалов облаком (шейдер, col_ невидимы — не трогаем)
-        if (bx0 < Infinity) {
-          try {
-            this.buildFogMask(root, bx0, bz0, bx1, bz1);
-            root.traverse((obj) => {
-              if (!('geometry' in obj)) return;
-              if ((obj.name || '').startsWith('col_')) return;
-              const mm = (obj as THREE.Mesh).material as THREE.Material | THREE.Material[];
-              const list = Array.isArray(mm) ? mm : [mm];
-              for (const m of list) {
-                if (m) this.patchFogMaterial(m);
-              }
-            });
-            const gm = (ground.material as THREE.Material);
-            if (gm) this.patchFogMaterial(gm);
-            // небо тоже затягивает (иначе синие просветы сквозь кроны)
-            if (this.skyMat) this.patchFogMaterial(this.skyMat, true);
-          } catch (e) {
-            console.warn('[Blender] fog setup failed:', e);
-            this.fogError = String((e as Error)?.message ?? e);
-          }
-        }
         scene.add(root);
         if (skippedSlabs > 0) console.log(`[Blender] skipped ${skippedSlabs} ground slab(s)`);
         this.rebuildSolidGrid();
@@ -1684,237 +1648,7 @@ export class Game {
     f.group.position.set(f.x, 0, f.z);
   }
 
-  // ===== Туман фиолетовых зон (только Blender) =====
-  // Маска 128×128 по фиолетовым КРОНАМ (y>1.5): земля в зоне не фиолетовая,
-  // ориентир — сами фиолетовые деревья. Порог 2 верта на клетку (кроны редкие),
-  // без эрозии, блюр 5×5 + срез бахромы (плавный край, не вылезаем за зону).
-  private buildFogMask(root: THREE.Object3D, minX: number, minZ: number, maxX: number, maxZ: number): void {
-    const N = 128;
-    const sizeX = Math.max(1, maxX - minX), sizeZ = Math.max(1, maxZ - minZ);
-    const mark = new Uint8Array(N * N);
-    const cnt = new Uint16Array(N * N);
-    let dbgMeshes = 0, dbgVerts = 0, dbgPurple = 0;
-    root.traverse((obj) => {
-      if (!('geometry' in obj)) return;
-      const m = obj as THREE.Mesh;
-      if (m.name.startsWith('col_')) return;
-      if (/spawn/i.test(m.name)) return;
-      m.updateMatrixWorld(true);
-      const g = m.geometry;
-      const pos = g.getAttribute('position') as THREE.BufferAttribute | undefined;
-      const col = g.getAttribute('color') as THREE.BufferAttribute | undefined;
-      if (!pos || !col) return;
-      dbgMeshes++;
-      const e = m.matrixWorld.elements;
-      for (let i = 0; i < pos.count; i++) {
-        const lx = pos.getX(i), ly = pos.getY(i), lz = pos.getZ(i);
-        const wx = e[0] * lx + e[4] * ly + e[8] * lz + e[12];
-        const wy = e[1] * lx + e[5] * ly + e[9] * lz + e[13];
-        const wz = e[2] * lx + e[6] * ly + e[10] * lz + e[14];
-        if (wy < 1.5) continue;
-        const r = col.getX(i), gg = col.getY(i), b = col.getZ(i);
-        dbgVerts++;
-        if (!(b > r && b > gg && b > 0.15)) continue;
-        dbgPurple++;
-        const cx = Math.floor(((wx - minX) / sizeX) * N);
-        const cz = Math.floor(((wz - minZ) / sizeZ) * N);
-        if (cx < 0 || cx >= N || cz < 0 || cz >= N) continue;
-        cnt[cz * N + cx]++;
-      }
-    });
-    root.traverse((obj) => {
-      if (!('geometry' in obj)) return;
-      const m = obj as THREE.Mesh;
-      if (m.name.startsWith('col_')) return;
-      if (/spawn/i.test(m.name)) return;
-      m.updateMatrixWorld(true);
-      const g = m.geometry;
-      const pos = g.getAttribute('position') as THREE.BufferAttribute | undefined;
-      const col = g.getAttribute('color') as THREE.BufferAttribute | undefined;
-      if (!pos || !col) return;
-      dbgMeshes++;
-      const e = m.matrixWorld.elements;
-      for (let i = 0; i < pos.count; i++) {
-        const lx = pos.getX(i), ly = pos.getY(i), lz = pos.getZ(i);
-        const wy = e[1] * lx + e[5] * ly + e[9] * lz + e[13];
-        if (wy < 1.5) continue;
-        const r = col.getX(i), gg = col.getY(i), b = col.getZ(i);
-        dbgVerts++;
-        if (!(b > r && b > gg && b > 0.15)) continue;
-        dbgPurple++;
-        const wx = e[0] * lx + e[4] * ly + e[8] * lz + e[12];
-        const wz = e[2] * lx + e[6] * ly + e[10] * lz + e[14];
-        const cx = Math.floor(((wx - minX) / sizeX) * N);
-        const cz = Math.floor(((wz - minZ) / sizeZ) * N);
-        if (cx < 0 || cx >= N || cz < 0 || cz >= N) continue;
-        cnt[cz * N + cx]++;
-      }
-    });
-    for (let i = 0; i < N * N; i++) mark[i] = cnt[i] >= 2 ? 1 : 0;
-    // Морфозакрытие r=3: заделываем прогалы МЕЖДУ кронами, внешний край зоны
-    // не расползается (эрозия возвращает границу). Никакого ореола за область.
-    // Затем блюр 5×5 + срез бахромы: плавный край.
-    const dil = new Uint8Array(N * N);
-    for (let z = 0; z < N; z++) {
-      for (let x = 0; x < N; x++) {
-        if (!mark[z * N + x]) continue;
-        for (let dz = -3; dz <= 3; dz++) {
-          const zz = z + dz;
-          if (zz < 0 || zz >= N) continue;
-          for (let dx = -3; dx <= 3; dx++) {
-            const xx = x + dx;
-            if (xx < 0 || xx >= N) continue;
-            dil[zz * N + xx] = 1;
-          }
-        }
-      }
-    }
-    const closed = new Uint8Array(N * N);
-    for (let z = 0; z < N; z++) {
-      for (let x = 0; x < N; x++) {
-        let all = 1;
-        for (let dz = -3; dz <= 3 && all; dz++) {
-          const zz = z + dz;
-          if (zz < 0 || zz >= N) { all = 0; break; }
-          for (let dx = -3; dx <= 3; dx++) {
-            const xx = x + dx;
-            if (xx < 0 || xx >= N || !dil[zz * N + xx]) { all = 0; break; }
-          }
-        }
-        closed[z * N + x] = all;
-      }
-    }
-    const grid = new Uint8Array(N * N);
-    let cells = 0;
-    for (let z = 0; z < N; z++) {
-      for (let x = 0; x < N; x++) {
-        let s = 0;
-        for (let dz = -2; dz <= 2; dz++) {
-          const zz = Math.min(N - 1, Math.max(0, z + dz));
-          for (let dx = -2; dx <= 2; dx++) {
-            const xx = Math.min(N - 1, Math.max(0, x + dx));
-            s += closed[zz * N + xx];
-          }
-        }
-        const val = Math.round((s / 25) * 255);
-        grid[z * N + x] = val < 31 ? 0 : val;
-        if (grid[z * N + x] > 0) cells++;
-      }
-    }
-    // RGBA8 (не R8): на ряде драйверов R8+linear неполный формат —
-    // сэмплится в ноль через медленный путь (тумана нет + лаги)
-    const rgba = new Uint8Array(N * N * 4);
-    for (let i = 0; i < N * N; i++) {
-      rgba[i * 4] = grid[i];
-      rgba[i * 4 + 1] = 0;
-      rgba[i * 4 + 2] = 0;
-      rgba[i * 4 + 3] = 255;
-    }
-    const tex = new THREE.DataTexture(rgba, N, N, THREE.RGBAFormat, THREE.UnsignedByteType);
-    tex.magFilter = THREE.LinearFilter;
-    tex.minFilter = THREE.LinearFilter;
-    tex.wrapS = THREE.ClampToEdgeWrapping;
-    tex.wrapT = THREE.ClampToEdgeWrapping;
-    tex.generateMipmaps = false;
-    tex.needsUpdate = true;
-    tex.flipY = false;
-    this.flagFog = { tex, grid, n: N, minX, minZ, sizeX, sizeZ, cells, cam: { value: 0 }, time: { value: 0 }, dbgMeshes, dbgVerts, dbgPurple, dbgGroundY: 0 };
-    console.log(`[Blender] fog mask: ${cells} cells, purple verts: ${dbgPurple}`);
-  }
-
-  /** Билинейный сэмпл маски (CPU, для fogCam + тестов). Возвращает 0..1. */
-  private fogSample(x: number, z: number): number {
-    const F = this.flagFog;
-    if (!F) return 0;
-    const fx = ((x - F.minX) / F.sizeX) * F.n - 0.5;
-    const fz = ((z - F.minZ) / F.sizeZ) * F.n - 0.5;
-    const x0 = Math.floor(fx), z0 = Math.floor(fz);
-    const tx = Math.min(1, Math.max(0, fx - x0)), tz = Math.min(1, Math.max(0, fz - z0));
-    const at = (ix: number, iz: number): number => {
-      if (ix < 0 || iz < 0 || ix >= F.n || iz >= F.n) return 0;
-      return F.grid[iz * F.n + ix] / 255;
-    };
-    const a = at(x0, z0), b = at(x0 + 1, z0), c = at(x0, z0 + 1), d = at(x0 + 1, z0 + 1);
-    return a * (1 - tx) * (1 - tz) + b * tx * (1 - tz) + c * (1 - tx) * tz + d * tx * tz;
-  }
-
-  /** Туман для тестов: построена ли маска, сколько клеток, значение под камерой. */
-  private fogError: string | null = null;
-  // Плотное облако тумана в фиолетовых зонах (шейдер, не DOM):
-  // маска зоны + анимированный шум (облака) + ЛИЧНЫЙ КУПОЛ 6м: кто внутри —
-  // дальше 6м не видит НИЧЕГО (шейдер клиентский — купол видит только он).
-  // Снаружи — стена по маске. Имена uniform с префиксом flag —
-  // НЕ пересекаются со встроенными (fogColor и т.п. ломают компиляцию шейдера).
-  private fogPatched = new Set<THREE.Material>();
-  private fogSweepT = 0;
-  private patchFogMaterial(mat: THREE.Material, allowBasic = false): void {
-    if (!this.flagFog) return;
-    if (this.fogPatched.has(mat)) return;
-    // Standard — всё (карта, земля, тела игроков, подбор); Basic — только небо
-    // (тряпки/кольца флагов — маркеры, их туман не трогает)
-    if (!(mat instanceof THREE.MeshStandardMaterial) && !(allowBasic && mat instanceof THREE.MeshBasicMaterial)) return;
-    this.fogPatched.add(mat);
-    const F = this.flagFog;
-    const hasMap = !!(mat as THREE.MeshStandardMaterial).map;
-    const hasVert = !!(mat as unknown as { vertexColors?: boolean }).vertexColors;
-    mat.onBeforeCompile = (sh) => {
-      sh.uniforms.flagFogMask = { value: F.tex };
-      sh.uniforms.flagFogBounds = { value: new THREE.Vector4(F.minX, F.minZ, F.sizeX, F.sizeZ) };
-      sh.uniforms.flagFogCam = F.cam;
-      sh.uniforms.flagFogTime = F.time;
-      sh.uniforms.flagFogColor = { value: new THREE.Color(0.30, 0.08, 0.50) };
-      sh.vertexShader = 'varying vec3 flagWPos;\nvarying float flagVDepth;\n' + sh.vertexShader.replace(
-        '#include <begin_vertex>',
-        `#include <begin_vertex>
-        vec4 flagWP4 = modelMatrix * vec4(transformed, 1.0);
-        flagWPos = flagWP4.xyz;
-        flagVDepth = -((viewMatrix * flagWP4).z);`,
-      );
-      sh.fragmentShader = `uniform sampler2D flagFogMask;
-uniform vec4 flagFogBounds;
-uniform float flagFogCam;
-uniform float flagFogTime;
-uniform vec3 flagFogColor;
-varying vec3 flagWPos;
-varying float flagVDepth;
-float flagHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
-float flagNoise(vec2 p) {
-  vec2 i = floor(p); vec2 f = fract(p);
-  vec2 u = f * f * (3.0 - 2.0 * f);
-  return mix(mix(flagHash(i), flagHash(i + vec2(1.0, 0.0)), u.x), mix(flagHash(i + vec2(0.0, 1.0)), flagHash(i + vec2(1.0, 1.0)), u.x), u.y);
-}
-` + sh.fragmentShader.replace(
-        '#include <fog_fragment>',
-        `#include <fog_fragment>
-{
-  vec2 flagFuv = (flagWPos.xz - flagFogBounds.xy) / flagFogBounds.zw;
-  float flagM = 0.0;
-  if (flagFuv.x > 0.0 && flagFuv.x < 1.0 && flagFuv.y > 0.0 && flagFuv.y < 1.0)
-    flagM = texture2D(flagFogMask, flagFuv).r;
-  float flagN = flagNoise(flagWPos.xz * 0.16 + flagFogTime * vec2(0.05, 0.037));
-  flagN = flagN * 0.6 + 0.4 * flagNoise(flagWPos.xz * 0.41 - flagFogTime * vec2(0.031, 0.043));
-  // НЕПРОГЛЯДНАЯ СТЕНА + ЛИЧНЫЙ КУПОЛ 6м: кто внутри облака (cam) — дальше 6м
-  // не видит НИЧЕГО (все материалы, не только кроны: просветы невозможны);
-  // снаружи — стена по маске. Шум — лишь фактура цвета, в прозрачность не играет.
-  float flagInside = smoothstep(0.35, 0.7, flagFogCam);
-  float flagDome = smoothstep(1.0, 6.0, flagVDepth);
-  float flagF = max(flagM * flagDome, flagInside * flagDome);
-  vec3 flagCol = flagFogColor + (flagN - 0.5) * 0.16;
-  gl_FragColor.rgb = mix(gl_FragColor.rgb, flagCol, clamp(flagF, 0.0, 0.995));
-}`,
-      );
-    };
-    mat.customProgramCacheKey = () => 'flagfog1_' + (hasMap ? 'm' : 'x') + (hasVert ? 'v' : 'x');
-    mat.needsUpdate = true;
-  }
-  /** Тест-оверрайд силы тумана (null — авто по позиции). */
-  private fogCamOverride: number | null = null;
-  debugFogCam(v: number | null): void { this.fogCamOverride = v; }
-  debugFlagFog(): { built: boolean; cells: number; cam: number; err: string | null; meshes: number; verts: number; purple: number; groundY: number } {
-    const F = this.flagFog;
-    if (!F) return { built: false, cells: 0, cam: 0, err: this.fogError, meshes: 0, verts: 0, purple: 0, groundY: 0 };
-    return { built: true, cells: F.cells, cam: Math.round(this.fogSample(this.px, this.pz) * 100) / 100, err: this.fogError, meshes: F.dbgMeshes, verts: F.dbgVerts, purple: F.dbgPurple, groundY: F.dbgGroundY };
-  }
+  // (туман фиолетовых зон отменён)
 
   /** Бросить несомый флаг там, где стоим (смерть). */
   private dropFlag(): void {
@@ -1931,25 +1665,7 @@ float flagNoise(vec2 p) {
   /** Кадр CTF: анимация полотен, подбор/возврат/захват. Вызывается из цикла. */
   private updateFlags(): void {
     if (this.map !== 'blender' || !this.team || !this.flagRed || !this.flagBlue) return;
-    // туман-облако: сила под камерой (0 — вне зоны, 1 — глубоко внутри) + время для анимации
     const t = performance.now() / 1000;
-    if (this.flagFog) {
-      this.flagFog.cam.value = this.fogCamOverride ?? this.fogSample(this.px, this.pz);
-      this.flagFog.time.value = t;
-      // добор поздних материалов (тела зашедших игроков, респауны): раз в 2с
-      if (t - this.fogSweepT > 2) {
-        this.fogSweepT = t;
-        this.scene.traverse((obj) => {
-          if (!('geometry' in obj)) return;
-          const mm = (obj as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
-          if (!mm) return;
-          const list = Array.isArray(mm) ? mm : [mm];
-          for (const m of list) {
-            if (m) this.patchFogMaterial(m);
-          }
-        });
-      }
-    }
     const fR = this.flagRed, fB = this.flagBlue;
     const cR = fR?.group?.getObjectByName('cloth');
     if (cR) cR.rotation.y = Math.sin(t * 4 + (fR?.homeX ?? 0)) * 0.35;
