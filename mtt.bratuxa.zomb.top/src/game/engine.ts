@@ -1806,7 +1806,7 @@ export class Game {
   private fogError: string | null = null;
   // Плотное облако тумана в фиолетовых зонах (шейдер, не DOM):
   // маска зоны + анимированный шум (облака) + сфера-пузырь вокруг камеры
-  // (ближе 2м чисто, дальше 6.5м непроглядно). Имена uniform с префиксом flag —
+  // (ближе 1.5м чисто, дальше 4м стена). Имена uniform с префиксом flag —
   // НЕ пересекаются со встроенными (fogColor и т.п. ломают компиляцию шейдера).
   private patchFogMaterial(mat: THREE.Material): void {
     if (!this.flagFog) return;
@@ -1850,10 +1850,14 @@ float flagNoise(vec2 p) {
     flagM = texture2D(flagFogMask, flagFuv).r;
   float flagN = flagNoise(flagWPos.xz * 0.16 + flagFogTime * vec2(0.05, 0.037));
   flagN = flagN * 0.6 + 0.4 * flagNoise(flagWPos.xz * 0.41 - flagFogTime * vec2(0.031, 0.043));
-  float flagD = smoothstep(2.0, 6.5, flagVDepth);
-  float flagF = flagM * flagD * (0.45 + 0.55 * flagN);
-  flagF *= 0.4 + 0.6 * flagFogCam;
-  gl_FragColor.rgb = mix(gl_FragColor.rgb, flagFogColor, clamp(flagF, 0.0, 0.96));
+  // НЕПРОГЛЯДНАЯ СТЕНА: кто внутри облака (cam) — туман везде, не только на кронах;
+  // снаружи — только на кронах. Пузырь: чисто <1.5м, стена с 4м. Шум — лишь фактура
+  // цвета (±5%), в прозрачность не играет: сквозь туман не видно ничего.
+  float flagZone = max(flagM, smoothstep(0.35, 0.7, flagFogCam));
+  float flagD = smoothstep(1.5, 4.0, flagVDepth);
+  float flagF = flagZone * flagD;
+  vec3 flagCol = flagFogColor + (flagN - 0.5) * 0.10;
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, flagCol, clamp(flagF, 0.0, 0.995));
 }`,
       );
     };
