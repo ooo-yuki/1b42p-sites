@@ -6345,7 +6345,7 @@ export class Game {
       team: this.team,
       carrying: this.carrying,
       captures: this.captures,
-      fog: this.map === 'blender' && this.flagFog ? Math.round(this.fogSample(this.px, this.pz) * 100) / 100 : 0,
+      fog: this.map === 'blender' && this.flagFog ? (() => { const m = this.fogSample(this.px, this.pz); return m <= 0.05 ? 0 : Math.min(1, (m - 0.05) / 0.45); })() : 0,
       boss: bosses,
       wbWait: this.map === 'boss' && !this.wbExt && !this.worldBossAlive() ? Math.max(0, Math.ceil(this.wbSoloT)) : 0,
       dash: Math.round(this.dashCd * 10) / 10,
