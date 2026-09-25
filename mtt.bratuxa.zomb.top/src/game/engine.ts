@@ -1563,20 +1563,19 @@ export class Game {
         if (bx0 < Infinity) {
           try {
             this.buildFogMask(root, bx0, bz0, bx1, bz1);
-            const seen = new Set<THREE.Material>();
             root.traverse((obj) => {
               if (!('geometry' in obj)) return;
               if ((obj.name || '').startsWith('col_')) return;
               const mm = (obj as THREE.Mesh).material as THREE.Material | THREE.Material[];
               const list = Array.isArray(mm) ? mm : [mm];
               for (const m of list) {
-                if (m && !seen.has(m)) { seen.add(m); this.patchFogMaterial(m); }
+                if (m) this.patchFogMaterial(m);
               }
             });
             const gm = (ground.material as THREE.Material);
             if (gm) this.patchFogMaterial(gm);
             // небо тоже затягивает (иначе синие просветы сквозь кроны)
-            if (this.skyMat) this.patchFogMaterial(this.skyMat);
+            if (this.skyMat) this.patchFogMaterial(this.skyMat, true);
           } catch (e) {
             console.warn('[Blender] fog setup failed:', e);
             this.fogError = String((e as Error)?.message ?? e);
@@ -1715,7 +1714,7 @@ export class Game {
         if (wy < 1.5) continue;
         const r = col.getX(i), gg = col.getY(i), b = col.getZ(i);
         dbgVerts++;
-        if (!(b > 0.18 && gg < 0.18 && r > 0.08)) continue;
+        if (!(b > r && b > gg && b > 0.15)) continue;
         dbgPurple++;
         const cx = Math.floor(((wx - minX) / sizeX) * N);
         const cz = Math.floor(((wz - minZ) / sizeZ) * N);
@@ -1741,7 +1740,7 @@ export class Game {
         if (wy < 1.5) continue;
         const r = col.getX(i), gg = col.getY(i), b = col.getZ(i);
         dbgVerts++;
-        if (!(b > 0.18 && gg < 0.18 && r > 0.08)) continue;
+        if (!(b > r && b > gg && b > 0.15)) continue;
         dbgPurple++;
         const wx = e[0] * lx + e[4] * ly + e[8] * lz + e[12];
         const wz = e[2] * lx + e[6] * ly + e[10] * lz + e[14];
@@ -1827,13 +1826,19 @@ export class Game {
   /** Туман для тестов: построена ли маска, сколько клеток, значение под камерой. */
   private fogError: string | null = null;
   // Плотное облако тумана в фиолетовых зонах (шейдер, не DOM):
-  // маска зоны + анимированный шум (облака) + сфера-пузырь вокруг камеры
-  // (ближе 1м чисто — руки/оружие, дальше 6м стена). Имена uniform с префиксом flag —
+  // маска зоны + анимированный шум (облака) + ЛИЧНЫЙ КУПОЛ 6м: кто внутри —
+  // дальше 6м не видит НИЧЕГО (шейдер клиентский — купол видит только он).
+  // Снаружи — стена по маске. Имена uniform с префиксом flag —
   // НЕ пересекаются со встроенными (fogColor и т.п. ломают компиляцию шейдера).
-  private patchFogMaterial(mat: THREE.Material): void {
+  private fogPatched = new Set<THREE.Material>();
+  private fogSweepT = 0;
+  private patchFogMaterial(mat: THREE.Material, allowBasic = false): void {
     if (!this.flagFog) return;
-    // Standard (карта/земля) + Basic (небо; флаги CTF сюда не попадают — их патчим отдельно никогда)
-    if (!(mat instanceof THREE.MeshStandardMaterial) && !(mat instanceof THREE.MeshBasicMaterial)) return;
+    if (this.fogPatched.has(mat)) return;
+    // Standard — всё (карта, земля, тела игроков, подбор); Basic — только небо
+    // (тряпки/кольца флагов — маркеры, их туман не трогает)
+    if (!(mat instanceof THREE.MeshStandardMaterial) && !(allowBasic && mat instanceof THREE.MeshBasicMaterial)) return;
+    this.fogPatched.add(mat);
     const F = this.flagFog;
     const hasMap = !!(mat as THREE.MeshStandardMaterial).map;
     const hasVert = !!(mat as unknown as { vertexColors?: boolean }).vertexColors;
@@ -1873,12 +1878,12 @@ float flagNoise(vec2 p) {
     flagM = texture2D(flagFogMask, flagFuv).r;
   float flagN = flagNoise(flagWPos.xz * 0.16 + flagFogTime * vec2(0.05, 0.037));
   flagN = flagN * 0.6 + 0.4 * flagNoise(flagWPos.xz * 0.41 - flagFogTime * vec2(0.031, 0.043));
-  // НЕПРОГЛЯДНАЯ СТЕНА: кто внутри облака (cam) — туман везде, не только на кронах;
-  // снаружи — сплошным блоком по заделанной маске. Радиус зрения 6м: чисто <1м,
-  // дальше 6м стена. Шум — лишь фактура цвета, в прозрачность не играет.
-  float flagZone = max(flagM, smoothstep(0.35, 0.7, flagFogCam));
-  float flagD = smoothstep(1.0, 6.0, flagVDepth);
-  float flagF = flagZone * flagD;
+  // НЕПРОГЛЯДНАЯ СТЕНА + ЛИЧНЫЙ КУПОЛ 6м: кто внутри облака (cam) — дальше 6м
+  // не видит НИЧЕГО (все материалы, не только кроны: просветы невозможны);
+  // снаружи — стена по маске. Шум — лишь фактура цвета, в прозрачность не играет.
+  float flagInside = smoothstep(0.35, 0.7, flagFogCam);
+  float flagDome = smoothstep(1.0, 6.0, flagVDepth);
+  float flagF = max(flagM * flagDome, flagInside * flagDome);
   vec3 flagCol = flagFogColor + (flagN - 0.5) * 0.16;
   gl_FragColor.rgb = mix(gl_FragColor.rgb, flagCol, clamp(flagF, 0.0, 0.995));
 }`,
@@ -1916,6 +1921,19 @@ float flagNoise(vec2 p) {
     if (this.flagFog) {
       this.flagFog.cam.value = this.fogCamOverride ?? this.fogSample(this.px, this.pz);
       this.flagFog.time.value = t;
+      // добор поздних материалов (тела зашедших игроков, респауны): раз в 2с
+      if (t - this.fogSweepT > 2) {
+        this.fogSweepT = t;
+        this.scene.traverse((obj) => {
+          if (!('geometry' in obj)) return;
+          const mm = (obj as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+          if (!mm) return;
+          const list = Array.isArray(mm) ? mm : [mm];
+          for (const m of list) {
+            if (m) this.patchFogMaterial(m);
+          }
+        });
+      }
     }
     const fR = this.flagRed, fB = this.flagBlue;
     const cR = fR?.group?.getObjectByName('cloth');
