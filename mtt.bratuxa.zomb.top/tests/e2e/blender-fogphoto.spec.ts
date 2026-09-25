@@ -24,5 +24,10 @@ test('blender fog photo', async ({ page }) => {
   await page.setViewportSize({ width: 640, height: 360 });
   await page.waitForTimeout(1500);
   await page.screenshot({ path: 'test-results/fog-dom.jpg', type: 'jpeg', quality: 45 });
-  console.log('DIAG fog DOM shot saved');
+  const ov = await page.evaluate(() => {
+    const el = document.getElementById('fogOverlay');
+    if (!el) return { exists: false };
+    return { exists: true, inline: (el as HTMLElement).style.opacity, computed: getComputedStyle(el).opacity };
+  });
+  console.log('DIAG fogOverlay ' + JSON.stringify(ov));
 });
