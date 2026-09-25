@@ -29,6 +29,30 @@ test('blender fog boxshot', async ({ page }) => {
       flagFog: () => { built: boolean; cells: number; cam: number };
       pos: () => { x: number; z: number };
     } };
+    const kids: Array<{ bg: string; rect: string }> = [];
+    if (el) {
+      for (let i = 0; i < el.children.length; i++) {
+        const k = el.children[i] as HTMLElement;
+        const r = k.getBoundingClientRect();
+        const cs = getComputedStyle(k);
+        kids.push({ bg: cs.backgroundImage.slice(0, 60), rect: `${Math.round(r.width)}x${Math.round(r.height)}` });
+      }
+    }
+    const p = m.__mtt.pos();
+    return {
+      n: el ? el.children.length : -1,
+      op: el ? getComputedStyle(el).opacity : 'n/a',
+      kids, fog: m.__mtt.flagFog(),
+      x: Math.round(p.x * 10) / 10, z: Math.round(p.z * 10) / 10,
+    };
+  });
+  console.log('DIAG full ' + JSON.stringify(pre));
+  const pre = await page.evaluate(() => {
+    const el = document.getElementById('fogOverlay') as HTMLElement | null;
+    const m = window as unknown as { __mtt: {
+      flagFog: () => { built: boolean; cells: number; cam: number };
+      pos: () => { x: number; z: number };
+    } };
     const p = m.__mtt.pos();
     return { op: el ? getComputedStyle(el).opacity : 'n/a', cam: m.__mtt.flagFog(), x: Math.round(p.x * 10) / 10, z: Math.round(p.z * 10) / 10 };
   });
