@@ -194,6 +194,8 @@ export interface HudState {
   team: Team | null;
   carrying: Team | null;
   captures: number;
+  /** Туман фиолетовых зон 0..1 (DOM-оверлей). Вне Blender всегда 0. */
+  fog: number;
   /** Живых боссов на карте — для баннера 👑. */
   boss: number;
   /** Секунд до респауна мирового босса в соло (0 — жив или не босс-карта). */
@@ -1555,17 +1557,10 @@ export class Game {
           for (const w of walls) this.solids.push(w);
         }
         for (const b of colBoxes) this.solids.push(b);
-        // Туман фиолетовых зон: маска по bbox хитбоксов + патч всех материалов карты
+        // Маска тумана (эффект рисует DOM-оверлей, шейдер не трогаем)
         if (bx0 < Infinity) {
           try {
             this.buildFogMask(root, bx0, bz0, bx1, bz1);
-            root.traverse((obj) => {
-              if (!('geometry' in obj)) return;
-              const mm = (obj as THREE.Mesh).material as THREE.Material | THREE.Material[];
-              if (Array.isArray(mm)) mm.forEach((x) => this.patchFogMaterial(x));
-              else if (mm) this.patchFogMaterial(mm);
-            });
-            this.patchFogMaterial(ground.material as THREE.Material);
           } catch (e) {
             console.warn('[Blender] fog setup failed:', e);
             this.fogError = String((e as Error)?.message ?? e);
@@ -1796,36 +1791,7 @@ export class Game {
     return a * (1 - tx) * (1 - tz) + b * tx * (1 - tz) + c * (1 - tx) * tz + d * tx * tz;
   }
 
-  /** Впрыск тумана в материал карты: маска по XZ мира + дальность 6м от камеры. */
-  private patchFogMaterial(mat: THREE.Material): void {
-    const F = this.flagFog;
-    if (!F) return;
-    const m = mat as THREE.MeshStandardMaterial;
-    const bounds = new THREE.Vector4(F.minX, F.minZ, F.sizeX, F.sizeZ);
-    const cam = F.cam;
-    m.onBeforeCompile = (sh) => {
-      sh.uniforms.flagFogMask = { value: F.tex };
-      sh.uniforms.flagFogBounds = { value: bounds };
-      sh.uniforms.flagFogColor = { value: new THREE.Color(0x16042e) };
-      sh.uniforms.flagFogCam = cam;
-      sh.vertexShader = 'varying vec3 vFlagWorld;\nvarying float vFlagDepth;\n' + sh.vertexShader
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFlagWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;')
-        .replace('#include <project_vertex>', '#include <project_vertex>\nvFlagDepth = -mvPosition.z;');
-      sh.fragmentShader = 'uniform sampler2D flagFogMask;\nuniform vec4 flagFogBounds;\nuniform vec3 flagFogColor;\nuniform float flagFogCam;\nvarying vec3 vFlagWorld;\nvarying float vFlagDepth;\n' + sh.fragmentShader
-        .replace('#include <fog_fragment>', `#include <fog_fragment>
-    {
-      vec2 fuv = (vFlagWorld.xz - flagFogBounds.xy) / flagFogBounds.zw;
-      float fmask = 0.0;
-      if (fuv.x > 0.0 && fuv.x < 1.0 && fuv.y > 0.0 && fuv.y < 1.0) fmask = texture2D(flagFogMask, fuv).r;
-      float ff = fmask * (0.5 + 0.5 * flagFogCam) * smoothstep(1.5, 6.0, vFlagDepth);
-      gl_FragColor.rgb = mix(gl_FragColor.rgb, flagFogColor, clamp(ff, 0.0, 1.0));
-    }`);
-    };
-    const baseKey = THREE.Material.prototype.customProgramCacheKey.bind(m);
-    (m as unknown as { customProgramCacheKey: () => string }).customProgramCacheKey =
-      () => baseKey() + '|flagfog-v1';
-    m.needsUpdate = true;
-  }
+  // (шейдерный вариант удалён: эффект даёт DOM-оверлей, см. HudState.fog)
 
   /** Туман для тестов: построена ли маска, сколько клеток, значение под камерой. */
   private fogError: string | null = null;
@@ -6349,6 +6315,7 @@ export class Game {
       team: this.team,
       carrying: this.carrying,
       captures: this.captures,
+      fog: this.map === 'blender' && this.flagFog ? Math.round(this.fogSample(this.px, this.pz) * 100) / 100 : 0,
       boss: bosses,
       wbWait: this.map === 'boss' && !this.wbExt && !this.worldBossAlive() ? Math.max(0, Math.ceil(this.wbSoloT)) : 0,
       dash: Math.round(this.dashCd * 10) / 10,
