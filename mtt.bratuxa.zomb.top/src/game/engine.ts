@@ -1948,10 +1948,11 @@ float flagNoise(vec2 p) {
       f ? { x: Math.round(f.x * 10) / 10, z: Math.round(f.z * 10) / 10, home: f.home } : null;
     return { team: this.team, carrying: this.carrying, captures: this.captures, red: slim(this.flagRed), blue: slim(this.flagBlue) };
   }
-  /** Телепорт для тестов. */
-  debugTeleport(x: number, z: number): { x: number; z: number } {
+  /** Телепорт для тестов. yaw — опционально (куда смотрит камера). */
+  debugTeleport(x: number, z: number, yaw?: number): { x: number; z: number } {
     this.px = clampArena(Number(x) || 0, this.half);
     this.pz = clampArena(Number(z) || 0, this.half);
+    if (typeof yaw === 'number' && isFinite(yaw)) this.yaw = yaw;
     this.py = 0; this.pvy = 0;
     return { x: this.px, z: this.pz };
   }
