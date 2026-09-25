@@ -1476,11 +1476,13 @@ export class Game {
         const spawns: Record<string, { x: number; z: number }> = {};
         let skippedSlabs = 0;
         const colBoxes: Array<{ x: number; z: number; hx: number; hz: number; h: number }> = [];
-        // Материал тумана: форму объёмов даёт Blender (fog_*), вид задаёт игра
+        // Материал тумана: форму объёмов даёт Blender (fog_*), вид задаёт игра.
+        // ДИАГНОСТИКА: .001 — полупрозрачный фиолет, остальные — сплошной красный.
         const fogMat = new THREE.MeshBasicMaterial({
           color: 0x4d1480, transparent: true, opacity: 0.5,
           side: THREE.DoubleSide, depthWrite: false, fog: false,
         });
+        const fogMatSolid = new THREE.MeshBasicMaterial({ color: 0xff0000, fog: false });
         let fogPatched = 0;
         root.traverse((obj) => {
           const nm = (obj.name || '').toLowerCase();
@@ -1498,7 +1500,7 @@ export class Game {
           if (obj.name.startsWith('fog_')) {
             m.castShadow = false;
             m.receiveShadow = false;
-            m.material = fogMat;
+            m.material = obj.name.includes('001') ? fogMat : fogMatSolid;
             m.renderOrder = 5;
             fogPatched++;
             const fb = new THREE.Box3().setFromObject(m);
