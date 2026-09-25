@@ -1795,6 +1795,33 @@ export class Game {
 
   /** Туман для тестов: построена ли маска, сколько клеток, значение под камерой. */
   private fogError: string | null = null;
+  /** DOM-оверлей тумана: движок ставит стили сам (инлайн из React не всегда красит). */
+  private fogEl: HTMLElement | null | undefined = undefined;
+  private fogStyled = false;
+  private syncFogDom(strength: number): void {
+    if (typeof document === 'undefined') return;
+    if (this.fogEl === undefined) {
+      this.fogEl = document.getElementById('fogOverlay');
+      this.fogStyled = false;
+    }
+    const el = this.fogEl;
+    if (!el) return;
+    if (!this.fogStyled && el.children.length >= 4) {
+      const geos: Array<Record<string, string>> = [
+        { position: 'absolute', top: '0', left: '0', right: '0', height: '45vh', background: 'linear-gradient(to bottom, rgba(10,2,28,0.98), rgba(10,2,28,0))' },
+        { position: 'absolute', bottom: '0', left: '0', right: '0', height: '45vh', background: 'linear-gradient(to top, rgba(10,2,28,0.98), rgba(10,2,28,0))' },
+        { position: 'absolute', top: '0', bottom: '0', left: '0', width: '42vw', background: 'linear-gradient(to right, rgba(10,2,28,0.98), rgba(10,2,28,0))' },
+        { position: 'absolute', top: '0', bottom: '0', right: '0', width: '42vw', background: 'linear-gradient(to left, rgba(10,2,28,0.98), rgba(10,2,28,0))' },
+      ];
+      for (let i = 0; i < 4; i++) {
+        const k = el.children[i] as HTMLElement;
+        const g = geos[i]!;
+        for (const key of Object.keys(g)) (k.style as unknown as Record<string, string>)[key] = g[key]!;
+      }
+      this.fogStyled = true;
+    }
+    el.style.opacity = String(Math.max(0, Math.min(1, strength)));
+  }
   /** Тест-оверрайд силы тумана (null — авто по позиции). */
   private fogCamOverride: number | null = null;
   debugFogCam(v: number | null): void { this.fogCamOverride = v; }
@@ -1820,7 +1847,10 @@ export class Game {
   private updateFlags(): void {
     if (this.map !== 'blender' || !this.team || !this.flagRed || !this.flagBlue) return;
     // туман: сила под камерой (0 — вне зоны, 1 — глубоко внутри)
-    if (this.flagFog) this.flagFog.cam.value = this.fogCamOverride ?? this.fogSample(this.px, this.pz);
+    // туман: сила под камерой (0 — вне зоны, 1 — глубоко внутри); DOM красит движок
+    const fstr = this.fogCamOverride ?? (this.flagFog ? this.fogSample(this.px, this.pz) : 0);
+    if (this.flagFog) this.flagFog.cam.value = fstr;
+    this.syncFogDom(fstr);
     const t = performance.now() / 1000;
     const fR = this.flagRed, fB = this.flagBlue;
     const cR = fR?.group?.getObjectByName('cloth');
