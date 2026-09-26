@@ -1437,8 +1437,6 @@ export class Game {
   }
 
   // ===== BLENDER: карта из .glb (ручные хитбоксы col_*, спавны Spawn1/Spawn2) =====
-  /** Материалы тумана (fog_* объёмы): нужно тикать uTime. */
-  private fogMats: THREE.ShaderMaterial[] = [];
   private buildBlender(): void {
     const scene = this.scene;
     scene.add(new THREE.HemisphereLight(0xbfd9ff, 0x8a7a66, 0.8));
@@ -1478,74 +1476,6 @@ export class Game {
         const spawns: Record<string, { x: number; z: number }> = {};
         let skippedSlabs = 0;
         const colBoxes: Array<{ x: number; z: number; hx: number; hz: number; h: number }> = [];
-        // Материал тумана: форму объёмов даёт Blender (fog_*), вид задаёт игра.
-        // Мягкое облако: сферическое затухание к граням бокса (никаких квадратов),
-        // анимированный шум, fade в упор к камере. GLB-меши тумана не рисуются
-        // (битые на уровне импорта?) — строим чистый BoxGeometry по их bbox.
-        const makeFogMat = (size: THREE.Vector3): THREE.ShaderMaterial => {
-          const mt = new THREE.ShaderMaterial({
-            transparent: true,
-            depthWrite: false,
-            side: THREE.DoubleSide,
-            uniforms: {
-              uColor: { value: new THREE.Color(0x4d1480) },
-              uOpacity: { value: 0.7 },
-              uTime: { value: 0 },
-              uBoxSize: { value: new THREE.Vector3(size.x, size.y, size.z) },
-            },
-            vertexShader: `
-varying vec3 vLocal;
-varying vec3 vWorld;
-varying vec3 vNormal;
-varying float vDepth;
-void main() {
-  vLocal = position;
-  vec4 wp = modelMatrix * vec4(position, 1.0);
-  vWorld = wp.xyz;
-  vec4 mv = viewMatrix * wp;
-  vDepth = -mv.z;
-  vNormal = normalMatrix * normal;
-  gl_Position = projectionMatrix * mv;
-}`,
-            fragmentShader: `
-uniform vec3 uColor;
-uniform float uOpacity;
-uniform float uTime;
-uniform vec3 uBoxSize;
-varying vec3 vLocal;
-varying vec3 vWorld;
-varying vec3 vNormal;
-varying float vDepth;
-float fHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
-float fNoise(vec2 p) {
-  vec2 i = floor(p); vec2 f = fract(p);
-  vec2 u = f * f * (3.0 - 2.0 * f);
-  return mix(mix(fHash(i), fHash(i + vec2(1.0, 0.0)), u.x), mix(fHash(i + vec2(0.0, 1.0)), fHash(i + vec2(1.0, 1.0)), u.x), u.y);
-}
-void main() {
-  // Френель: грань в лоб — плотно, силуэт/ребро — тает. Квадратов нет.
-  vec3 N = normalize(vNormal);
-  float facing = abs(dot(N, vec3(0.0, 0.0, 1.0)));
-  float f = pow(facing, 1.6);
-  if (f <= 0.002) discard;
-  float nse = fNoise(vWorld.xz * 0.13 + uTime * vec2(0.045, 0.032)) * 0.62
-            + fNoise(vWorld.xz * 0.37 - uTime * vec2(0.028, 0.039)) * 0.38;
-  vec3 q = vLocal / (uBoxSize * 0.5);
-  float a = uOpacity * f * (0.45 + 0.55 * nse);
-  a *= smoothstep(1.0, 0.65, abs(q.y)); // растворение к крышке/дну — без линий
-  a *= 0.3 + 0.7 * smoothstep(-0.5, 2.5, vWorld.y); // мягкий подъём от земли
-  a *= smoothstep(0.2, 1.2, vDepth);
-  a *= 0.75 + 0.25 * clamp(1.0 - vWorld.y / 8.0, 0.0, 1.0);
-  if (a <= 0.003) discard;
-  gl_FragColor = vec4(uColor * (0.8 + 0.4 * nse), a);
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
-}`,
-          });
-          this.fogMats.push(mt);
-          return mt;
-        };
-        let fogPatched = 0;
         root.traverse((obj) => {
           const nm = (obj.name || '').toLowerCase();
           if ((nm === 'spawn1' || nm === 'spawn2') && !('geometry' in obj)) {
@@ -1557,22 +1487,9 @@ void main() {
           if (!('geometry' in obj)) return;
           const m = obj as THREE.Mesh;
           m.updateMatrixWorld(true);
-          // Объёмы тумана из Blender: полупрозрачный фиолет; без теней,
-          // без коллизии (сквозь туман ходят), вне границ карты
+          // Туман из Blender (fog_*): скрыт (отменён); без коллизии, вне границ
           if (obj.name.startsWith('fog_')) {
-            m.castShadow = false;
-            m.receiveShadow = false;
-            const fb = new THREE.Box3().setFromObject(m);
-            const fsize = new THREE.Vector3(), fcenter = new THREE.Vector3();
-            fb.getSize(fsize); fb.getCenter(fcenter);
-            const vol = new THREE.Mesh(
-              new THREE.BoxGeometry(Math.max(0.1, fsize.x), Math.max(0.1, fsize.y), Math.max(0.1, fsize.z)),
-              makeFogMat(fsize),
-            );
-            vol.position.copy(fcenter);
-            scene.add(vol);
             m.visible = false;
-            fogPatched++;
             return;
           }
           // Ручные хитбоксы: невидимые, коллизия по точному bbox
@@ -1633,7 +1550,6 @@ void main() {
           for (const w of walls) this.solids.push(w);
         }
         for (const b of colBoxes) this.solids.push(b);
-        console.log(`[Blender] fog volumes patched: ${fogPatched}`);
         scene.add(root);
         if (skippedSlabs > 0) console.log(`[Blender] skipped ${skippedSlabs} ground slab(s)`);
         this.rebuildSolidGrid();
@@ -1755,7 +1671,6 @@ void main() {
   private updateFlags(): void {
     if (this.map !== 'blender' || !this.team || !this.flagRed || !this.flagBlue) return;
     const t = performance.now() / 1000;
-    for (const fm of this.fogMats) fm.uniforms.uTime.value = t;
     const fR = this.flagRed, fB = this.flagBlue;
     const cR = fR?.group?.getObjectByName('cloth');
     if (cR) cR.rotation.y = Math.sin(t * 4 + (fR?.homeX ?? 0)) * 0.35;
