@@ -102,7 +102,10 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
           for (let s = 1; s < steps; s++) {
             if (m.solidAt(p.x + ((f.x - p.x) * s) / steps, p.z + ((f.z - p.z) * s) / steps, 0)) { blocked = true; break; }
           }
-          if (blocked) return f.id;
+          if (!blocked) continue;
+          // путь реально существует (не карман): иначе моб стоит на месте и тест врёт
+          if (m.path(f.x, f.z, p.x, p.z).length === 0) continue;
+          return f.id;
         }
         return -1;
       });
@@ -164,6 +167,8 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test('тач-панель: на десктопе скрыта, на тач-экране видна', async ({ page, browser }) => {
+    // два полных бута игры в одном тесте — дефолтных 90с впритык
+    test.setTimeout(240000);
     await page.click('#guestBtn');
     await page.click('#goBtn');
     await expect(page.locator('#joy')).toBeHidden();
@@ -726,6 +731,16 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.waitForTimeout(1500);
     const map = await page.evaluate(() => (window as unknown as { __mtt: { map: () => string } }).__mtt.map());
     expect(map).toBe('duel');
+    // спавн от сервера прилетает с задержкой (телепорт после загрузки) — ждём точку
+    await page.waitForFunction(
+      () => {
+        const m = (window as unknown as { __mtt: { pos: () => { x: number; z: number } } }).__mtt;
+        const q = m.pos();
+        return Math.abs(q.x) < 2 && Math.abs(q.z - 20) < 2;
+      },
+      null,
+      { timeout: 30000, polling: 500 },
+    );
     const p = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { x: number; z: number } } }).__mtt.pos());
     expect(Math.abs(p.x)).toBeLessThan(2);
     expect(Math.abs(p.z - 20)).toBeLessThan(2);
