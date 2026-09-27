@@ -6257,10 +6257,10 @@ export class Game {
     const last = snaps[n - 1];
     const prev = snaps[n - 2];
     // слепки кончились (пропуск пульса): тянемся дальше с той же скоростью, не стоим.
-    // Прогноз max 0.5с — дальше замираем на последнем слепке, а не улетаем в мусор.
+    // Прогноз max 1.2с — дальше замираем на последнем слепке, а не улетаем в мусор.
     if (prev && last.t > prev.t) {
       const dt = last.t - prev.t;
-      const extra = Math.min(rt - last.t, 500) / dt;
+      const extra = Math.min(rt - last.t, 1200) / dt;
       return { x: last.x + (last.x - prev.x) * extra, z: last.z + (last.z - prev.z) * extra };
     }
     return { x: last.x, z: last.z };
@@ -6995,7 +6995,7 @@ export class Game {
           // кукла: прошлое по буферу хоста (без «догнал—стою» при рваных битах).
           // Слепки хоста стен не знают — ведём куклу со скольжением вдоль стен,
           // иначе на экране гостя мобы идут СКВОЗЬ стены. Высота летуна своя.
-          const mp = this.snapAt(e.snaps, performance.now() - 550, e.tx, e.tz);
+          const mp = this.snapAt(e.snaps, performance.now() - 350, e.tx, e.tz);
           const eyH = e.kind === 'fly' ? 3.2 : e.ey;
           const dcx = clampArena(mp.x, this.half);
           const dcz = clampArena(mp.z, this.half);
@@ -7344,11 +7344,11 @@ export class Game {
       if (this.swingT > 0) this.swingT -= dt;
       if (this.shakeT > 0) this.shakeT -= dt;
       this.updateParts(dt);
-      // сокомнатники: рендерим прошлое (now-550мс) по буферу слепков —
+      // сокомнатники: рендерим прошлое (now-350мс) по буферу слепков —
       // непрерывно при любых рваных битах; удары вспышкой, прыжки высотой
       const rt = performance.now() / 600;
       const nowMs = performance.now();
-      const renderT = nowMs - 550;
+      const renderT = nowMs - 350;
       for (const r of this.remotes) {
         const sp = this.snapAt(r.snaps, renderT, r.tx, r.tz);
         r.x = sp.x; r.z = sp.z;
