@@ -15,7 +15,9 @@ async function boot(page: Page): Promise<void> {
 }
 
 async function createAndGo(page: Page, name: string, mode: string): Promise<void> {
-  await page.evaluate(([n, m]) => (window as unknown as { __mtt: M }).__mtt.mkroom(n, m), [name, mode] as [string, string]);
+  // уникальное имя: комнаты живут в памяти API между прогонами, чужое наследие отравляет счётчики
+  const uname = name + Date.now().toString().slice(-5);
+  await page.evaluate(([n, m]) => (window as unknown as { __mtt: M }).__mtt.mkroom(n, m), [uname, mode] as [string, string]);
   await page.click('#nav-play');
   await page.click('#goBtn');
   await page.waitForTimeout(2500);
@@ -31,6 +33,8 @@ test('шаги: игрок топает при беге, орда — рядом
     null,
     { timeout: 60000, polling: 500 },
   );
+  // бессмертие: иначе мобы валят бегуна раньше 10с и топот встаёт
+  await page.evaluate(() => (window as unknown as { __mtt: { devgod: (on: boolean) => void } }).__mtt.devgod(true));
   await page.keyboard.down('w');
   await page.waitForTimeout(10000);
   await page.keyboard.up('w');
