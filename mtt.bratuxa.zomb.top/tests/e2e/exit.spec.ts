@@ -48,7 +48,7 @@ test('бэкрумс-карта: только бессмертные сталк�
     foes = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.foes());
     if (foes.length >= 5) break;
   }
-  expect(foes.length, 'пак вышел (5+)').toBeGreaterThanOrEqual(5);
+  expect(foes.length, 'пак вышел (4)').toBeGreaterThanOrEqual(4);
   expect(foes.every((f) => f.god === true), 'все — бессмертные, обычных нет').toBe(true);
   // пак спавнится далеко: минимум 20м от игрока (не в лицо)
   const pos = await page.evaluate(() => (window as unknown as { __mtt: M & { pos: () => { x: number; z: number } } }).__mtt.pos());

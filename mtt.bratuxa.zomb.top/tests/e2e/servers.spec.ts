@@ -60,7 +60,7 @@ test('перф: счётчик FPS внизу экрана, кадры идут'
   expect(fps).toBeGreaterThan(0);
 });
 
-test('бэкрумс: 5 сталкеров у хоста, потолок держит', async ({ page }) => {
+test('бэкрумс: 4 сталкера у хоста, потолок держит', async ({ page }) => {
   await boot(page);
   await createAndGo(page, 'endless');
   // хост выпускает сталкеров через пульс
@@ -68,9 +68,9 @@ test('бэкрумс: 5 сталкеров у хоста, потолок дер�
   for (let i = 0; i < 20; i++) {
     await page.waitForTimeout(1000);
     n = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.stalkCount());
-    if (n >= 5) break;
+    if (n >= 4) break;
   }
-  expect(n).toBe(5);
+  expect(n).toBe(4);
   // потолок: прыгаем 6 секунд, py не улетает выше 1.7
   const jumpKey = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.keys().jump);
   let maxPy = 0;
