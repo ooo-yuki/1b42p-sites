@@ -17,7 +17,8 @@ test('сеть: фраг гостя гаснет у хоста (общий мо�
   await page.click('#guestBtn');
   const room = 'FRAG' + Date.now().toString().slice(-5);
   await page.fill('#nick', 'ХостУрон');
-  await page.click('#nav-rooms');
+  // прямой клик: на узком вьюпорте меню скроллится и автоклик не доводит
+  await page.evaluate(() => (document.querySelector('#nav-rooms') as HTMLButtonElement).click());
   await page.fill('#roomDraft', room);
   await page.click('#roomCreate');
   await expect(page.locator('#roomStart')).toBeVisible({ timeout: 15000 });

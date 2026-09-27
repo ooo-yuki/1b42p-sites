@@ -13,7 +13,8 @@ test('сеть: сокомнатник скользит без останово�
   await page.click('#guestBtn');
   const room = 'GLIDE' + Date.now().toString().slice(-5);
   await page.fill('#nick', 'Хост');
-  await page.click('#nav-rooms');
+  // прямой клик: на узком вьюпорте меню скроллится и автоклик не доводит
+  await page.evaluate(() => (document.querySelector('#nav-rooms') as HTMLButtonElement).click());
   await page.fill('#roomDraft', room);
   await page.click('#roomCreate');
   await expect(page.locator('#roomStart')).toBeVisible({ timeout: 15000 });
@@ -132,7 +133,8 @@ test('сеть: тихий вылет — клиент возвращается 
   await expect(page).toHaveTitle(/42 LIVE/);
   await page.click('#guestBtn');
   await page.fill('#nick', 'Гость');
-  await page.click('#nav-rooms');
+  // прямой клик: на узком вьюпорте меню скроллится и автоклик не доводит
+  await page.evaluate(() => (document.querySelector('#nav-rooms') as HTMLButtonElement).click());
   await page.click('button:has-text("ОБНОВИТЬ")');
   await expect(page.locator(`#join-${id}`)).toBeVisible({ timeout: 15000 });
   await page.click(`#join-${id}`);
