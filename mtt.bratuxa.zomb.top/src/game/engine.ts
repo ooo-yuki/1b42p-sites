@@ -4088,10 +4088,9 @@ export class Game {
     if (this.stalkersOn) return this.enemies.filter((e) => !e.dead && e.god).length;
     this.stalkersOn = true;
     const taken: Array<[number, number]> = [];
-    // пак — 5 сталкеров (тесты exit/servers ждут 5)
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 4; i++) {
       const before = this.enemies.length;
-      const spot = this.farSpotAt(100, (i / 5) * Math.PI * 2, taken);
+      const spot = this.farSpotAt(100, (i / 4) * Math.PI * 2, taken);
       this.spawnEnemy('walk', 100, spot);
       if (this.enemies.length > before) {
         if (spot) taken.push(spot);

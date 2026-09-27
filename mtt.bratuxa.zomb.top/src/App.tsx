@@ -1682,7 +1682,7 @@ async function loadStats(): Promise<void> {
         const mobMap = roomRef.current.mode === 'arena' || roomRef.current.mode === 'backrooms' || roomRef.current.mode === 'endless' || roomRef.current.mode === 'invasion';
         const amOwner = d.owner === true || d.mobHost === true;
         const inGame = (() => { try { return g.debugPlaying(); } catch { return false; } })();
-        // хост Бэкрумса выпускает 5 сталкеров (движок — один раз за бой, гостям — куклы)
+        // хост endless выпускает 4 сталкеров (движок — один раз за бой, гостям — куклы)
         if (roomRef.current.mode === 'endless' && inGame && amOwner) {
           try { g.spawnStalkers(); } catch { /* noop */ }
         }
