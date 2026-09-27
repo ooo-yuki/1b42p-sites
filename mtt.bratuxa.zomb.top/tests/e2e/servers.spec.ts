@@ -21,8 +21,9 @@ async function boot(page: Page): Promise<void> {
 }
 
 async function createAndGo(page: Page, mode: string): Promise<void> {
-  // официальные режимы создаются только кодом (из вкладки комнат кнопки убраны)
-  await page.evaluate((m) => (window as unknown as { __mtt: { mkroom: (name: string, mode: string) => Promise<void> } }).__mtt.mkroom('Тест', m), mode);
+  // уникальное имя: комнаты живут в памяти API между прогонами
+  const uname = 'Тест' + Date.now().toString().slice(-5);
+  await page.evaluate(([n, m]) => (window as unknown as { __mtt: { mkroom: (name: string, mode: string) => Promise<void> } }).__mtt.mkroom(n, m), [uname, mode] as [string, string]);
   await page.click('#nav-play');
   await page.click('#goBtn');
   await page.waitForTimeout(2500);
