@@ -26,6 +26,11 @@ test('шаги: игрок топает при беге, орда — рядом
   await boot(page);
   await page.click('#goBtn');
   await expect(page.locator('#fps')).toBeVisible({ timeout: 30000 });
+  await page.waitForFunction(
+    () => (window as unknown as { __mtt: { playing: () => boolean } }).__mtt.playing(),
+    null,
+    { timeout: 60000, polling: 500 },
+  );
   await page.keyboard.down('w');
   await page.waitForTimeout(10000);
   await page.keyboard.up('w');

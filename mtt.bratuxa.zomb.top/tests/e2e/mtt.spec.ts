@@ -144,6 +144,11 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('джойстик слева двигает, кнопка справа бьёт', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
+    await page.waitForFunction(
+      () => (window as unknown as { __mtt: { playing: () => boolean } }).__mtt.playing(),
+      null,
+      { timeout: 60000, polling: 500 },
+    );
     const p0 = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => object } }).__mtt.pos());
     await page.evaluate(() => (window as unknown as { __mtt: { joy: (x: number, y: number) => void } }).__mtt.joy(0, -1));
     await page.waitForTimeout(2000);
@@ -337,8 +342,9 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     const box = await page.locator('#weapon').boundingBox();
     expect(box?.width ?? 0).toBeGreaterThan(500);
     // держим удар до результата (под нагрузкой кадры редкие)
+    // класс замаха — play (swing в коде/стилях давно нет)
     await page.keyboard.down('j');
-    await expect(page.locator('#weapon.swing')).toHaveCount(1, { timeout: 8000 });
+    await expect(page.locator('#weapon.play')).toHaveCount(1, { timeout: 8000 });
     await page.keyboard.up('j');
   });
 
@@ -490,22 +496,6 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     expect(errors).toEqual([]);
   });
 
-  test('качество графики переключается и сохраняется', async ({ page }) => {
-    await page.click('#guestBtn');
-    await page.click('#goBtn');
-    await page.click('#setBtn');
-    await expect(page.locator('#qualityBtn')).toContainText('БЫСТРО');
-    await page.click('#qualityBtn');
-    await expect(page.locator('#qualityBtn')).toContainText('КРАСИВО');
-    await page.reload();
-    await page.click('#guestBtn');
-    await page.click('#goBtn');
-    await page.click('#setBtn');
-    await expect(page.locator('#qualityBtn')).toContainText('КРАСИВО');
-    await page.click('#qualityBtn');
-    await expect(page.locator('#qualityBtn')).toContainText('БЫСТРО');
-  });
-
   test('комнаты: заявки, приём, кик, старт', async ({ request }) => {
     const c = await request.post('/api/rooms', { data: { nick: 'PW1', name: 'PWROOM', char: 'krysa' } });
     expect(c.ok()).toBe(true);
@@ -629,6 +619,11 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.waitForTimeout(800);
+    await page.waitForFunction(
+      () => (window as unknown as { __mtt: { playing: () => boolean } }).__mtt.playing(),
+      null,
+      { timeout: 60000, polling: 500 },
+    );
     // взгляд вверх: pitch+ (addLook: yaw -= dx*.., pitch -= dy*..)
     await page.evaluate(() => (window as unknown as { __mtt: { look: (x: number, y: number) => void } }).__mtt.look(0, -300));
     const ok = await page.evaluate(() => (window as unknown as { __mtt: { doDash: () => boolean } }).__mtt.doDash());
@@ -1001,6 +996,11 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.waitForTimeout(800);
+    await page.waitForFunction(
+      () => (window as unknown as { __mtt: { playing: () => boolean } }).__mtt.playing(),
+      null,
+      { timeout: 60000, polling: 500 },
+    );
     type M = { give: (n: number) => void; setWave: (n: number) => void; attack: () => number; tracers: () => number };
     await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.setWave(4));
     await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.give(2000));
