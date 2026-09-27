@@ -20,6 +20,12 @@ test('pvp: табло и таймер рестарта на официально
 
 test('pvp: удар по игроку уходит на сервер с fid', async ({ page }) => {
   await joinOfficialPvp(page);
+  // атака вхолостую до старта — ждём playing, иначе /pvphit не уйдёт
+  await page.waitForFunction(
+    () => (window as unknown as { __mtt: { playing: () => boolean } }).__mtt.playing(),
+    null,
+    { timeout: 60000, polling: 500 },
+  );
   const hitReq = page.waitForRequest(
     (r) => r.url().includes('/pvphit') && r.method() === 'POST',
     { timeout: 15000 },

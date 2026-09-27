@@ -6,6 +6,12 @@ async function boot(page: Page): Promise<void> {
   await page.click('#guestBtn');
   await page.click('#goBtn');
   await expect(page.locator('#fps')).toBeVisible({ timeout: 30000 });
+  // действия (рывок/атака) вхолостую до старта — ждём playing
+  await page.waitForFunction(
+    () => (window as unknown as { __mtt: { playing: () => boolean } }).__mtt.playing(),
+    null,
+    { timeout: 60000, polling: 500 },
+  );
 }
 
 test('оружейка: фантики тратятся, аптечка покупается', async ({ page }: { page: Page }) => {
