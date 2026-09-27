@@ -144,8 +144,12 @@ function isIpBlocked(ip: string): boolean {
 }
 
 function extractIp(req: Request): string {
+  // берём ПОСЛЕДНИЙ XFF — его дописал Caddy; первый клиент может подделать и обойти IP-бан
   const xf = req.headers.get('x-forwarded-for');
-  if (xf) return xf.split(',')[0].trim();
+  if (xf) {
+    const parts = xf.split(',').map((s) => s.trim()).filter(Boolean);
+    if (parts.length) return parts[parts.length - 1];
+  }
   const xr = req.headers.get('x-real-ip');
   if (xr) return xr.trim();
   return '';
