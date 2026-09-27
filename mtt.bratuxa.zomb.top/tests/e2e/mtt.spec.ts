@@ -239,6 +239,12 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.waitForTimeout(800);
     // щит спавна гасит урон — снимаем атакой (синхронно, без таймингов кадров)
     await expect(page.locator('#hudRow2')).toBeVisible({ timeout: 60000 });
+    // игра реально стартовала (а не висит на прелоаде): иначе attack/hurt уходят вхолостую
+    await page.waitForFunction(
+      () => (window as unknown as { __mtt: { playing: () => boolean } }).__mtt.playing(),
+      null,
+      { timeout: 60000, polling: 500 },
+    );
     await page.evaluate(() => (window as unknown as { __mtt: { attack: () => number } }).__mtt.attack());
     await page.evaluate(() => (window as unknown as { __mtt: { hurt: (n: number) => number } }).__mtt.hurt(500));
     await expect(page.locator('#reviveBtn')).toBeVisible();
@@ -341,7 +347,9 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     // Стейси по умолчанию закрыта — открываем через дебаг-выдачу (как из кейса)
     await page.evaluate(() => (window as unknown as { __mtt: { unlock: (id: string) => boolean } }).__mtt.unlock('krysa'));
     await page.click('#charBtn');
-    await expect(page.locator('#charSec .charCard')).toHaveCount(2);
+    // ростер растёт — число карточек не фиксируем, проверяем наличие и выбор Стейси
+    await expect(page.locator('#charSec .charCard').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#pick-krysa')).toHaveCount(1);
     await page.click('#pick-krysa');
     await expect(page.locator('#char-krysa.sel')).toHaveCount(1);
     expect(await page.evaluate(() => (window as unknown as { __mtt: { chara: () => string } }).__mtt.chara())).toBe('krysa');
@@ -1144,7 +1152,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     const m1 = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.maze());
     const map = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.map());
     expect(map).toBe('backrooms');
-    expect(m1.half).toBe(63);
+    expect(m1.half).toBe(150);
     expect(m1.segs).toBeGreaterThan(300);
     // второй заход — новый лабиринт (стен столько же по числу, но расклад другой — проверяем через перезаход)
     await page.click('#menuBtn');

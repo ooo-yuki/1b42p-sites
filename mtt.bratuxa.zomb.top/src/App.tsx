@@ -270,9 +270,10 @@ function sid(): string {
 
 function beacon(): void {
   try {
+    // no-cors: маяк fire-and-forget — падения хаба не должны сыпать ошибки в консоль
     fetch('https://hub.bratuxa.zomb.top/api/track', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ site: 'mtt', sid: sid() }),
       keepalive: true,
     }).catch(() => undefined);
@@ -442,7 +443,7 @@ export default function App() {
   const gameRef = useRef<Game | null>(null);
   const [menu, setMenu] = useState(true);
   const [loading, setLoading] = useState<{ show: boolean; pct: number }>({ show: false, pct: 0 });
-  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, invis: 0, invisCd: 0, chuma: 0, chumaCd: 0, xray: 0, xrayCd: 0, sun: 0, sunCd: 0, arbuz: 0, arbuzCd: 0,     med: 0, lvl: 1, team: null, carrying: null, captures: 0, boss: 0, wbWait: 0, fps: 60, doorPulse: false });
+  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, invis: 0, invisCd: 0, chuma: 0, chumaCd: 0, xray: 0, xrayCd: 0, sun: 0, sunCd: 0, arbuz: 0, arbuzCd: 0,     med: 0, lvl: 1, team: null, carrying: null, captures: 0, boss: 0, wbWait: 0, fps: 60, doorPulse: false, waveCd: 0, charm: 0, charmCd: 0 });
   const [scores, setScores] = useState<ScoreRow[]>([]);
   const [duelTop, setDuelTop] = useState<Array<{ login: string; wins: number }>>([]);
   const [gstats, setGstats] = useState<{ games: number; best: number; online: number } | null>(null);
@@ -1158,7 +1159,6 @@ async function loadStats(): Promise<void> {
       kick: () => game.debugKick(),
       map: () => game.debugMap(),
       ctf: () => game.debugCtf(),
-      teleport: (x: number, z: number) => game.debugTeleport(x, z),
       duelHp: (hp: number) => game.setDuelHp(hp),
       teleport: (x: number, z: number, yaw?: number) => game.debugTeleport(x, z, yaw),
       setpy: (n: number) => game.debugSetPy(n),
@@ -3091,7 +3091,7 @@ async function loadStats(): Promise<void> {
               setDevUsersBusy(true);
               try {
                 const r = await fetch(`/api/dev/users?token=${encodeURIComponent(token())}`);
-                const d = await r.json() as { ok?: boolean; users?: Array<{ login: string; created: number; blocked: boolean }> };
+                const d = await r.json() as { ok?: boolean; users?: Array<{ login: string; created: number; blocked: boolean; blockedExpires: number; ip: string; ipBlocked: boolean; ipExpires: number }> };
                 if (d.ok && d.users) setDevUsers(d.users);
               } catch { /* нет связи */ }
               setDevUsersBusy(false);
@@ -3237,7 +3237,7 @@ async function loadStats(): Promise<void> {
                       await fetch('/api/dev/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token(), login: x.login, banIp: alsoBanIp }) });
                       setDevUsers((u) => (u ?? []).filter((y) => y.login !== x.login));
                       setDevUserMenu(null);
-                    }}>🗑️ Удалить аккаунт</button>}
+                    }}>🗑️ Удалить аккаунт</button>
                     <button className="wbtn devModalCancel" onClick={() => setDevUserMenu(null)}>Отмена</button>
                   </div>
                 </div>,

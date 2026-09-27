@@ -4,6 +4,8 @@ export default defineConfig({
   testDir: './tests/e2e',
   timeout: 90000,
   retries: 0,
+  // мало ядер на CI-коробке — больше двух воркеров душат друг друга и плодят флаки
+  workers: 2,
   reporter: 'line',
   use: {
     baseURL: 'https://mtt.bratuxa.zomb.top',

@@ -438,11 +438,11 @@ export class Game {
   /** CTF: число захватов (доставка вражеского флага на свою базу). */
   private captures = 0;
   /** CTF: состояние флага (дом/точка/меш). */
-  private flagRed: { homeX: number; homeZ: number; x: number; z: number; home: boolean; group: THREE.Group | null } | null = null;
-  private flagBlue: { homeX: number; homeZ: number; x: number; z: number; home: boolean; group: THREE.Group | null } | null = null;
+  private flagRed: { homeX: number; homeZ: number; x: number; z: number; home: boolean; group: THREE.Group } | null = null;
+  private flagBlue: { homeX: number; homeZ: number; x: number; z: number; home: boolean; group: THREE.Group } | null = null;
   /** CTF: маленькие флаги над головой (красный/синий) — виден только несомый. */
-  private carryRed: THREE.Group | null = null;
-  private carryBlue: THREE.Group | null = null;
+  private carryRed: { homeX: number; homeZ: number; x: number; z: number; home: boolean; group: THREE.Group } | null = null;
+  private carryBlue: { homeX: number; homeZ: number; x: number; z: number; home: boolean; group: THREE.Group } | null = null;
   private yaw = 0;
   private pitch = 0;
   private hp = 100;
@@ -577,8 +577,8 @@ export class Game {
         spd: Math.max(0, Math.min(UPG_MAX.spd, Math.floor(p?.spd ?? 0))),
         sup: Math.max(0, Math.min(UPG_MAX.sup, Math.floor(p?.sup ?? 0))),
       });
-      return { mtt: clean(d.mtt), krysa: clean(d.krysa), shuba: clean(d.shuba), chuma: clean(d.chuma), gidroxis: clean(d.gidroxis), sunstrike: clean(d.sunstrike), arbuz: clean(d.arbuz) };
-    } catch { return { mtt: blank(), krysa: blank(), shuba: blank(), chuma: blank(), gidroxis: blank(), sunstrike: blank(), arbuz: blank() }; }
+      return { mtt: clean(d.mtt), krysa: clean(d.krysa), shuba: clean(d.shuba), chuma: clean(d.chuma), gidroxis: clean(d.gidroxis), sunstrike: clean(d.sunstrike), arbuz: clean(d.arbuz), jbl: clean(d.jbl) };
+    } catch { return { mtt: blank(), krysa: blank(), shuba: blank(), chuma: blank(), gidroxis: blank(), sunstrike: blank(), arbuz: blank(), jbl: blank() }; }
   })();
   private saveUpg(): void {
     try { localStorage.setItem('mtt_upg_v1', JSON.stringify(this.upg)); } catch { /* noop */ }
@@ -586,8 +586,8 @@ export class Game {
   private xp: Record<string, number> = (() => {
     try {
       const d = JSON.parse(localStorage.getItem('mtt_xp_v1') ?? '{}') as Record<string, number>;
-      return { mtt: Math.max(0, Math.floor(d.mtt ?? 0)), krysa: Math.max(0, Math.floor(d.krysa ?? 0)), shuba: Math.max(0, Math.floor(d.shuba ?? 0)), chuma: Math.max(0, Math.floor(d.chuma ?? 0)), gidroxis: Math.max(0, Math.floor(d.gidroxis ?? 0)), sunstrike: Math.max(0, Math.floor(d.sunstrike ?? 0)), arbuz: Math.max(0, Math.floor(d.arbuz ?? 0)) };
-    } catch { return { mtt: 0, krysa: 0, shuba: 0, chuma: 0, gidroxis: 0, sunstrike: 0, arbuz: 0 }; }
+      return { mtt: Math.max(0, Math.floor(d.mtt ?? 0)), krysa: Math.max(0, Math.floor(d.krysa ?? 0)), shuba: Math.max(0, Math.floor(d.shuba ?? 0)), chuma: Math.max(0, Math.floor(d.chuma ?? 0)), gidroxis: Math.max(0, Math.floor(d.gidroxis ?? 0)), sunstrike: Math.max(0, Math.floor(d.sunstrike ?? 0)), arbuz: Math.max(0, Math.floor(d.arbuz ?? 0)), jbl: Math.max(0, Math.floor(d.jbl ?? 0)) };
+    } catch { return { mtt: 0, krysa: 0, shuba: 0, chuma: 0, gidroxis: 0, sunstrike: 0, arbuz: 0, jbl: 0 }; }
   })();
   private soundOn = true;
   /** Общая громкость 0..1 (слайдер в настройках). Множит все звуки. */
@@ -889,7 +889,7 @@ export class Game {
     this.team = map === 'blender' ? (Math.random() < 0.5 ? 'red' : 'blue') : null;
     this.custom = opts.custom ?? null;
     this.mapSeed = (opts.seed ?? Math.floor(Math.random() * 2 ** 31)) >>> 0;
-    // Бэкрумс большой: лабиринт ~120м. Размер задаёт сам строитель через halfOverride.
+    // Бэкрумс большой: лабиринт ~300м (N=50, CELL=6).
     this.half = map === 'duel' ? 32 : map === 'boss' ? 45 : map === 'forest' ? 100 : map === 'blender' ? 80 : HALF;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
     // свет наблюдателя: день вместо жути — висят выключенными, зажигаются в specOn
@@ -1592,15 +1592,15 @@ export class Game {
         // Флаги CTF: синий на синей базе, красный на красной
         this.flagBlue = this.makeFlag('blue', blueBase.x, blueBase.z);
         this.flagRed = this.makeFlag('red', redBase.x, redBase.z);
-        scene.add(this.flagBlue.group);
-        scene.add(this.flagRed.group);
+        scene.add(this.flagBlue!.group);
+        scene.add(this.flagRed!.group);
         // Маленькие флаги над головой (пока скрыты)
         this.carryBlue = this.makeFlag('blue', 0, 0, 0.55);
         this.carryRed = this.makeFlag('red', 0, 0, 0.55);
-        this.carryBlue.group.visible = false;
-        this.carryRed.group.visible = false;
-        scene.add(this.carryBlue.group);
-        scene.add(this.carryRed.group);
+        this.carryBlue!.group.visible = false;
+        this.carryRed!.group.visible = false;
+        scene.add(this.carryBlue!.group);
+        scene.add(this.carryRed!.group);
         this.pushHud();
       },
       undefined,
@@ -1635,14 +1635,6 @@ export class Game {
     group.add(ring);
     group.position.set(x, 0, z);
     return { homeX: x, homeZ: z, x, z, home: true, group };
-  }
-
-  /** Синхрон позиции меша флага с состоянием (несомый — скрыт, его показывает carry-меш). */
-  private syncFlagMesh(color: Team): void {
-    const f = color === 'red' ? this.flagRed : this.flagBlue;
-    if (!f || !f.group) return;
-    f.group.visible = this.carrying !== color;
-    f.group.position.set(f.x, 0, f.z);
   }
 
   /** Синхрон позиции меша флага с состоянием (несомый — скрыт, его показывает carry-меш). */
@@ -1729,15 +1721,6 @@ export class Game {
       f ? { x: Math.round(f.x * 10) / 10, z: Math.round(f.z * 10) / 10, home: f.home } : null;
     return { team: this.team, carrying: this.carrying, captures: this.captures, red: slim(this.flagRed), blue: slim(this.flagBlue) };
   }
-  /** Телепорт для тестов. yaw — опционально (куда смотрит камера). */
-  debugTeleport(x: number, z: number, yaw?: number): { x: number; z: number } {
-    this.px = clampArena(Number(x) || 0, this.half);
-    this.pz = clampArena(Number(z) || 0, this.half);
-    if (typeof yaw === 'number' && isFinite(yaw)) this.yaw = yaw;
-    this.py = 0; this.pvy = 0;
-    return { x: this.px, z: this.pz };
-  }
-
   // Сегед: приватная карта МТТ — запечённый индексный меш (формат szeged-mesh-3).
   // Экспанд угла c треугольника t: P=positions[3*pos_index[c]], N=normals[3*nor_index[c]], C=colors[3*col_index[t]], UV=uv[2*c:2*c+2].
   private buildSzeged(): void {
@@ -4252,8 +4235,11 @@ export class Game {
       this.camera.far = 600;
       this.camera.updateProjectionMatrix();
     } else if (this.fogSave) {
+      const fog = this.scene.fog as THREE.Fog | null;
+      if (fog) { fog.near = this.fogSave.near; fog.far = this.fogSave.far; }
       this.fogSave = null;
-      this.applyDrawDist();
+      this.camera.far = 500;
+      this.camera.updateProjectionMatrix();
     }
   }
 
@@ -5146,7 +5132,7 @@ export class Game {
       m.position.set(this.arbuzX, 0, this.arbuzZ);
       m.rotation.y += 0.12;
       const fade = Math.min(1, this.arbuzT / 0.6);
-      for (const c of m.children) (c.material as THREE.MeshBasicMaterial).opacity = (c.geometry instanceof THREE.ConeGeometry ? 0.28 : 0.7) * fade;
+      for (const c of m.children) { const cm = c as THREE.Mesh; (cm.material as THREE.MeshBasicMaterial).opacity = (cm.geometry instanceof THREE.ConeGeometry ? 0.28 : 0.7) * fade; }
     }
   }
   /** JBLка: анимация волны и ауры подчинения (каждый кадр). */
