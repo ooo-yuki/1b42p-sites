@@ -992,7 +992,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.ground(-8, 31))).toBe(12.4);
   });
 
-  test('выстрел оставляет трассер', async ({ page }) => {
+  test('выстрел оставляет пулю', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
     await page.waitForTimeout(800);
@@ -1001,7 +1001,8 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
       null,
       { timeout: 60000, polling: 500 },
     );
-    type M = { give: (n: number) => void; setWave: (n: number) => void; attack: () => number; tracers: () => number };
+    // трассеры рисует только чужим выстрелам (сеть), свой выстрел — пуля
+    type M = { give: (n: number) => void; setWave: (n: number) => void; attack: () => number; bullets: () => number };
     await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.setWave(4));
     await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.give(2000));
     await page.click('#shopBtn');
@@ -1009,7 +1010,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('button:has-text("ЗАКРЫТЬ")');
     await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.attack());
     await page.waitForTimeout(150);
-    const n = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.tracers());
+    const n = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.bullets());
     expect(n).toBeGreaterThan(0);
   });
 
