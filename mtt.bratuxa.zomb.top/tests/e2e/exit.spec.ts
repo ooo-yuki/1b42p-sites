@@ -81,7 +81,7 @@ test('в меню: вылет с сервера + фантики целы', asyn
   // набили карманы — +500 фантиков
   await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.give(500));
   let rooms = (await (await request.get(`${API}/api/rooms`)).json()) as Array<{ id: string; name: string }>;
-  expect(rooms.some((r) => r.name === 'ТестВыход'), 'комната живёт').toBe(true);
+  expect(rooms.some((r) => r.name.startsWith('ТестВыход')), 'комната живёт').toBe(true);
   // жмём В МЕНЮ как на фото
   await page.click('#menuBtn');
   await expect(page.locator('#scoreboard')).toHaveCount(0);
@@ -90,5 +90,5 @@ test('в меню: вылет с сервера + фантики целы', asyn
   // сервер нас выкинул: комната-призрак не висит
   await page.waitForTimeout(3000);
   rooms = (await (await request.get(`${API}/api/rooms`)).json()) as Array<{ id: string; name: string }>;
-  expect(rooms.some((r) => r.name === 'ТестВыход'), 'комната снесена').toBe(false);
+  expect(rooms.some((r) => r.name.startsWith('ТестВыход')), 'комната снесена').toBe(false);
 });
