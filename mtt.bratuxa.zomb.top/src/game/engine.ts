@@ -337,7 +337,7 @@ interface Enemy {
   hpCv: HTMLCanvasElement;
   hpTex: THREE.CanvasTexture;
   hpSpr: THREE.Sprite;
-  kind: 'walk' | 'fly' | 'boss';
+  kind: 'walk' | 'fly' | 'boss' | 'gun';
   hp: number;
   maxhp: number;
   speed: number;
@@ -382,6 +382,8 @@ interface Enemy {
   /** кд зональной атаки / прыжковой */
   watkT?: number;
   wjumpT?: number;
+  /** стрелок-бандит: кд выстрела (тикает в цикле мобов) */
+  shotCd?: number;
   /** фаза прыжка: 0 погоня, 1 взлёт, 2 наведение 1.5с, 3 удар */
   wmode?: number;
   wt?: number;
@@ -678,7 +680,7 @@ export class Game {
   private tracers: Array<{ l: THREE.Line; life: number }> = [];
   // живые пули: летят сами с гравитацией, у каждой свой хитбокс-шар r.
   // Вид — светящийся болт (видно хорошо) + белый еле видный след, хитбокс от вида не зависит.
-  private bullets: Array<{ m: THREE.Mesh; glow: THREE.Sprite; trail: THREE.Line; hist: Array<[number, number, number]>; x: number; y: number; z: number; vx: number; vy: number; vz: number; g: number; dmg: number; range: number; flown: number; r: number; fallPow: number; knock: number }> = [];
+  private bullets: Array<{ m: THREE.Mesh; glow: THREE.Sprite; trail: THREE.Line; hist: Array<[number, number, number]>; x: number; y: number; z: number; vx: number; vy: number; vz: number; g: number; dmg: number; range: number; flown: number; r: number; fallPow: number; knock: number; foe: boolean; from: Enemy | null }> = [];
   private bulletGeoBolt: THREE.BoxGeometry | null = null;
   private bulletMatY: THREE.MeshBasicMaterial | null = null;
   private bulletMatO: THREE.MeshBasicMaterial | null = null;
@@ -3910,6 +3912,8 @@ export class Game {
         if (kind === 'fly') this.spawnEnemy('fly');
         else this.spawnClimber('walk');
       }
+      // пара бандитов-стрелков в орду
+      for (let g = 0; g < 2; g++) this.spawnEnemy('gun');
       return;
     }
     const n = Math.min(4 + this.wave, 10);
@@ -3920,9 +3924,14 @@ export class Game {
       for (let i = 0; i < n - 2; i++) this.spawnEnemy(i < flyers ? 'fly' : 'walk');
       return;
     }
-    // со 2-й волны 30% орды — летуны
+    // со 2-й волны 30% орды — летуны; с 3-й — один бандит-стрелок (макс. 2 живых)
     const flyers = this.wave >= 2 ? Math.floor(n * 0.3) : 0;
-    for (let i = 0; i < n; i++) this.spawnEnemy(i < flyers ? 'fly' : 'walk');
+    const guns = this.wave >= 3 && this.enemies.filter((e) => !e.dead && e.kind === 'gun').length < 2 ? 1 : 0;
+    let gunsLeft = guns;
+    for (let i = 0; i < n; i++) {
+      if (gunsLeft > 0 && i >= flyers) { this.spawnEnemy('gun'); gunsLeft--; continue; }
+      this.spawnEnemy(i < flyers ? 'fly' : 'walk');
+    }
   }
 
   private foeTexture(): THREE.Texture {
@@ -3934,6 +3943,17 @@ export class Game {
       }
     }
     return this.foeTexCache[Math.floor(Math.random() * this.foeTexCache.length)] as THREE.Texture;
+  }
+
+  /** Бандит-стрелок: фото-спрайт. ЗАГЛУШКА на vrag1 — заменить на bandit.png, когда прилетит файл. */
+  private banditTex: THREE.Texture | null = null;
+  private banditTexture(): THREE.Texture {
+    if (!this.banditTex) {
+      const t = new THREE.TextureLoader().load(vrag1Url);
+      t.colorSpace = THREE.SRGBColorSpace;
+      this.banditTex = t;
+    }
+    return this.banditTex;
   }
 
   private flyTexCache: THREE.Texture | null = null;
@@ -3970,7 +3990,7 @@ export class Game {
     return this.wbTexCache;
   }
 
-  debugSpawn(kind: 'walk' | 'fly' | 'boss'): number {
+  debugSpawn(kind: 'walk' | 'fly' | 'boss' | 'gun'): number {
     this.spawnEnemy(kind);
     return this.debugFlyers();
   }
@@ -4308,15 +4328,16 @@ export class Game {
   }
 
   /** Туша моба: спрайт тела + красный рентген-контур + полоска HP (общее для локальных и сетевых кукол). */
-  private makeEnemyVisuals(kind: 'walk' | 'fly' | 'boss'): { g: THREE.Group; body: THREE.Sprite; ol: THREE.Sprite; hpCv: HTMLCanvasElement; hpTex: THREE.CanvasTexture; hpSpr: THREE.Sprite } {
+  private makeEnemyVisuals(kind: 'walk' | 'fly' | 'boss' | 'gun'): { g: THREE.Group; body: THREE.Sprite; ol: THREE.Sprite; hpCv: HTMLCanvasElement; hpTex: THREE.CanvasTexture; hpSpr: THREE.Sprite } {
     // в Бэкрумс потолок 3м — летуны бы скребли макушкой, только пешие (босс проходит: он земной)
     const fly = kind === 'fly' && this.map !== 'backrooms';
     const boss = kind === 'boss';
-    const tex = boss ? this.bossTexture() : fly ? this.foeTextureTinted() : this.foeTexture();
+    const gun = kind === 'gun';
+    const tex = boss ? this.bossTexture() : fly ? this.foeTextureTinted() : gun ? this.banditTexture() : this.foeTexture();
     const g = new THREE.Group();
     const body = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, color: fly ? 0xdd99ff : 0xffffff }));
-    body.scale.set(boss ? 2.8 : fly ? 1.2 : 1.4, boss ? 3.6 : fly ? 1.6 : 2.0, 1);
-    body.position.set(0, boss ? 1.8 : fly ? 3.2 : 1.0, 0);
+    body.scale.set(boss ? 2.8 : gun ? 1.6 : fly ? 1.2 : 1.4, boss ? 3.6 : gun ? 1.8 : fly ? 1.6 : 2.0, 1);
+    body.position.set(0, boss ? 1.8 : gun ? 0.9 : fly ? 3.2 : 1.0, 0);
     g.add(body);
     // контур рентгена: та же текстура в красном, чуть больше тела, рисуется РАНЬШЕ
     // тела (renderOrder -1) и сквозь стены (depthTest false). Тело накрывает середину,
@@ -4333,12 +4354,12 @@ export class Game {
     const hpTex = new THREE.CanvasTexture(hpCv);
     const hpSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: hpTex, depthTest: true, transparent: true }));
     hpSpr.scale.set(boss ? 3.4 : 1.7, boss ? 0.84 : 0.42, 1);
-    hpSpr.position.set(0, boss ? 4.1 : fly ? 4.6 : 2.35, 0);
+    hpSpr.position.set(0, boss ? 4.1 : gun ? 2.0 : fly ? 4.6 : 2.35, 0);
     g.add(hpSpr);
     return { g, body, ol, hpCv, hpTex, hpSpr };
   }
 
-  private spawnEnemy(kind: 'walk' | 'fly' | 'boss', minDist = 0, at: [number, number] | null = null): void {
+  private spawnEnemy(kind: 'walk' | 'fly' | 'boss' | 'gun', minDist = 0, at: [number, number] | null = null): void {
     if (this.netSync) return;
     const boss = kind === 'boss';
     const fly = kind === 'fly' && this.map !== 'backrooms';
@@ -4406,8 +4427,8 @@ export class Game {
     this.scene.add(g);
     const foe: Enemy = {
       g, body, ol, hpCv, hpTex, hpSpr, kind,
-      hp: boss ? 500 + this.wave * 50 : fly ? 70 : 100,
-      maxhp: boss ? 500 + this.wave * 50 : fly ? 70 : 100,
+      hp: boss ? 500 + this.wave * 50 : kind === 'gun' ? 110 : fly ? 70 : 100,
+      maxhp: boss ? 500 + this.wave * 50 : kind === 'gun' ? 110 : fly ? 70 : 100,
       speed: boss ? 1.5 : 1.7 + Math.random() * 1.1 + this.wave * 0.12 + (fly ? 0.6 : 0),
       hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, ey: 0, evy: 0, hopCd: 1 + Math.random() * 2, dead: false,
       mobId: this.mobIdSeq++, net: false, tx: sx, tz: sz, snaps: [], ewave: this.wave,
@@ -4778,7 +4799,7 @@ export class Game {
 
   // выпустить живую пулю: летит сама, падает от гравитации g, хитбокс — шар r.
   // Рисуется светящимся болтом (видно издалека), хитбокс тот же шар.
-  private spawnBullet(x: number, y: number, z: number, dx: number, dy: number, dz: number, speed: number, dmg: number, range: number, r: number, g: number, fallPow: number, knock: number, orange: boolean): void {
+  private spawnBullet(x: number, y: number, z: number, dx: number, dy: number, dz: number, speed: number, dmg: number, range: number, r: number, g: number, fallPow: number, knock: number, orange: boolean, foe = false, from: Enemy | null = null): void {
     if (!this.bulletGeoBolt) {
       this.bulletGeoBolt = new THREE.BoxGeometry(0.2, 0.2, 3.0);
       this.bulletMatY = new THREE.MeshBasicMaterial({ color: 0xffe066 });
@@ -4809,7 +4830,7 @@ export class Game {
     glow.scale.set(0.9, 0.9, 1);
     glow.position.set(x, y, z);
     this.scene.add(glow);
-    this.bullets.push({ m, glow, trail, hist: [[x, y, z], [x, y, z], [x, y, z], [x, y, z], [x, y, z], [x, y, z]], x, y, z, vx: dx * speed, vy: dy * speed, vz: dz * speed, g, dmg, range, flown: 0, r, fallPow, knock });
+    this.bullets.push({ m, glow, trail, hist: [[x, y, z], [x, y, z], [x, y, z], [x, y, z], [x, y, z], [x, y, z]], x, y, z, vx: dx * speed, vy: dy * speed, vz: dz * speed, g, dmg, range, flown: 0, r, fallPow, knock, foe, from });
     if (this.bullets.length > 48) {
       const old = this.bullets.shift();
       if (old) { this.scene.remove(old.m); this.scene.remove(old.glow); this.scene.remove(old.trail); old.trail.geometry.dispose(); }
@@ -4852,6 +4873,7 @@ export class Game {
         // мобы: отрезок полёта за подшаг встречает тушу R~0.9 (не проскочить на скорости)
         for (const e of this.enemies) {
           if (e.dead) continue;
+          if (b.from && e === b.from) continue;
           const ty = e.kind === 'fly' ? 3.2 : 1.0 + e.ey;
           const rr = 0.9 + b.r;
           if (!this.segHitsBall(x0, y0, z0, b.x, b.y, b.z, e.g.position.x, ty, e.g.position.z, rr)) continue;
@@ -4865,6 +4887,24 @@ export class Game {
           dead = true; break;
         }
         if (dead) break;
+        // пули бандита встречают меня (свои — никогда: их выпускает только бандит)
+        if (b.foe && !this.dead && !this.specOn && this.invisT <= 0 && this.shieldT <= 0 && !this.devGod) {
+          if (this.segHitsBall(x0, y0, z0, b.x, b.y, b.z, this.px, 1.0 + this.py, this.pz, 0.9 + b.r)) {
+            this.hp -= b.dmg * fall + Math.random() * 3;
+            this.sunCharge = 0;
+            this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
+            this.shakeT = 0.25;
+            this.sfx(hitUrl, 0.8);
+            if (this.hp <= 0) {
+              this.hp = 0;
+              this.dead = true;
+              this.pushHud();
+              this.ev.onBusted({ score: this.score, coins: 0 });
+            }
+            this.pushHud();
+            dead = true; break;
+          }
+        }
         // PvP: пули встречают игроков (тем же отрезком)
         if (pvpMode) {
           for (const r of this.remotes) {
@@ -5750,7 +5790,7 @@ export class Game {
       const id = Math.floor(Number(m.id));
       if (!Number.isFinite(id)) continue;
       seen.add(id);
-      const kind = m.kind === 'fly' || m.kind === 'boss' ? m.kind : 'walk';
+      const kind = m.kind === 'fly' || m.kind === 'boss' || m.kind === 'gun' ? m.kind : 'walk';
       let e = this.enemies.find((q) => q.net && q.mobId === id);
       if (m.dead === true) {
         if (e && !e.dead) {
@@ -6991,6 +7031,31 @@ export class Game {
         const dx = txp - e.g.position.x;
         const dz = tzp - e.g.position.z;
         const d = Math.hypot(dx, dz) || 1;
+        // бандит-стрелок: пистолет раз в ~3с. Свои и куклы палят локально
+        // (урон считает клиент жертвы — как мили), сервер не трогаем.
+        if (e.kind === 'gun') {
+          if (e.shotCd === undefined) e.shotCd = 1.5 + Math.random() * 2;
+          else if (e.shotCd > 0) e.shotCd -= dt;
+          if (this.started && !this.specOn && e.shotCd <= 0 && d > 2.5 && d < 32) {
+            // прямая видимость как у погони: сквозь стены не палим
+            let blocked = false;
+            const far = Math.min(d, 30);
+            const checks = Math.min(15, Math.max(1, Math.ceil(far / 2)));
+            for (let s = 1; s <= checks; s++) {
+              const t = (far * s) / (checks + 1);
+              if (this.hitSolid(e.g.position.x + (dx / d) * t, e.g.position.z + (dz / d) * t, 0.5, 1.4)) { blocked = true; break; }
+            }
+            if (!blocked) {
+              const sp = 0.05 + (Math.random() - 0.5) * 0.09;
+              const ca = Math.cos(sp), sa = Math.sin(sp);
+              const ux = dx / d, uz = dz / d;
+              const fdx = ux * ca - uz * sa, fdz = ux * sa + uz * ca;
+              this.spawnBullet(e.g.position.x, 1.4 + e.ey, e.g.position.z, fdx, 0, fdz, 100, 10, 32, 0.3, 12, 1, 0, true, true, e);
+              this.sfx(shotUrl, 0.5);
+              e.shotCd = 2.5 + Math.random() * 1.5;
+            }
+          }
+        }
         if (e.net) {
           // кукла: прошлое по буферу хоста (без «догнал—стою» при рваных битах).
           // Слепки хоста стен не знают — ведём куклу со скольжением вдоль стен,
@@ -7154,6 +7219,14 @@ export class Game {
             e.lz = e.g.position.z;
           }
           let mdx = ddx / dd, mdz = ddz / dd;
+          // бандит: ближе 8м — пятится, в полосе 8–18м — стрейфует по орбите
+          if (e.kind === 'gun' && !e.net) {
+            if (d < 8) { mdx = -(dx / d); mdz = -(dz / d); }
+            else if (d < 18) {
+              const side = Math.sin(performance.now() / 1000 * 0.7 + e.phase) > 0 ? 1 : -1;
+              mdx = -(dz / d) * side; mdz = (dx / d) * side;
+            }
+          }
           if (e.slideT > 0) {
             e.slideT -= dt;
             mdx = (mdx * 0.35 + e.slideX * 0.95);
