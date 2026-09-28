@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import vrag1Url from '../assets/vrag1.png';
+import banditUrl from '../assets/bandit.png';
 import vrag2Url from '../assets/vrag2.png';
 import dom1Url from '../assets/dom1.png';
 import travaUrl from '../assets/trava.jpg';
@@ -1251,7 +1252,7 @@ export class Game {
   /** Предзагрузка текстур перед боем: только нужное под карту + общие (бойцы, враги).
       Шуба ужата до 512px, грузим пачками параллельно — экран загрузки пролетает. */
   async preload(onPct: (p: number) => void): Promise<void> {
-    const core = [vrag1Url, vrag2Url, bossUrl, bossPhotoUrl, stalkerUrl, charMttUrl, charKrysaUrl, charShubaUrl, charChumaUrl, charGidroxisUrl, charSunstrikeUrl, skyUrl];
+    const core = [vrag1Url, vrag2Url, banditUrl, bossUrl, bossPhotoUrl, stalkerUrl, charMttUrl, charKrysaUrl, charShubaUrl, charChumaUrl, charGidroxisUrl, charSunstrikeUrl, skyUrl];
     const byMap: Record<string, string[]> = {
       arena: [dom1Url, travaUrl, facadeUrl, panelUrl, shopUrl, roofUrl, roadUrl, walkUrl, plazaUrl, fenceUrl, edgeUrl, house2Url, brickUrl],
       duel: [travaUrl, brickUrl, edgeUrl],
@@ -3945,11 +3946,11 @@ export class Game {
     return this.foeTexCache[Math.floor(Math.random() * this.foeTexCache.length)] as THREE.Texture;
   }
 
-  /** Бандит-стрелок: фото-спрайт. ЗАГЛУШКА на vrag1 — заменить на bandit.png, когда прилетит файл. */
+  /** Бандит-стрелок: фото-спрайт с прозрачным фоном. */
   private banditTex: THREE.Texture | null = null;
   private banditTexture(): THREE.Texture {
     if (!this.banditTex) {
-      const t = new THREE.TextureLoader().load(vrag1Url);
+      const t = new THREE.TextureLoader().load(banditUrl);
       t.colorSpace = THREE.SRGBColorSpace;
       this.banditTex = t;
     }
