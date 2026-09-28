@@ -983,7 +983,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
       const id = Math.floor(Number(raw.id));
       if (!Number.isFinite(id) || id < 0 || id > 1000000 || seen.has(id)) continue;
       seen.add(id);
-      const kind = raw.kind === 'fly' || raw.kind === 'boss' ? String(raw.kind) : 'walk';
+      const kind = raw.kind === 'fly' || raw.kind === 'boss' || raw.kind === 'gun' ? String(raw.kind) : 'walk';
       const wave = Math.round(num(raw.wave, 1, 100, 1));
       const cur = room.mobs.get(id);
       // труп не воскресает в той же волне (фраг уже раздали через mobhit)
