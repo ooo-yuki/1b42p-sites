@@ -4472,8 +4472,8 @@ export class Game {
     this.scene.add(g);
     const foe: Enemy = {
       g, body, ol, hpCv, hpTex, hpSpr, kind,
-      hp: boss ? 500 + this.wave * 50 : kind === 'gun' ? 110 : kind === 'school' ? 120 : fly ? 70 : 100,
-      maxhp: boss ? 500 + this.wave * 50 : kind === 'gun' ? 110 : kind === 'school' ? 120 : fly ? 70 : 100,
+      hp: boss ? 500 + this.wave * 50 : kind === 'gun' ? 110 : kind === 'school' ? 40 : fly ? 70 : 100,
+      maxhp: boss ? 500 + this.wave * 50 : kind === 'gun' ? 110 : kind === 'school' ? 40 : fly ? 70 : 100,
       speed: kind === 'school' ? SCHOOL_SPD_MIN : boss ? 1.5 : 1.7 + Math.random() * 1.1 + this.wave * 0.12 + (fly ? 0.6 : 0),
       hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, ey: 0, evy: 0, hopCd: 1 + Math.random() * 2, dead: false,
       mobId: this.mobIdSeq++, net: false, tx: sx, tz: sz, snaps: [], ewave: this.wave,
