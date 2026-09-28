@@ -5793,6 +5793,19 @@ export class Game {
     return this.enemies.filter((e) => !e.dead).map((e) => ({ id: e.mobId, kind: e.kind, x: e.g.position.x, z: e.g.position.z, hp: Math.round(e.hp), dead: e.dead, ey: Math.round(e.ey * 100) / 100, climb: e.climb, god: e.god, spd: Math.round(e.speed * 100) / 100, rush: Math.round((e.rushT ?? 0) * 100) / 100 }));
   }
 
+  /** Тест: ускорить разгон школьников на N игровых секунд (иначе на слабом FPS ждать минутами). */
+  debugRush(sec: number): number {
+    const n = Math.max(0, Number(sec) || 0);
+    let hit = 0;
+    for (const e of this.enemies) {
+      if (e.kind !== 'school') continue;
+      e.rushT = (e.rushT ?? 0) + n;
+      e.speed = schoolSpeed(e.rushT);
+      hit++;
+    }
+    return hit;
+  }
+
   /** Гость общей комнаты: локальную симуляцию гасим, мобы едут со сервера. */
   setNetSync(on: boolean): void {
     if (this.netSync === on) return;
