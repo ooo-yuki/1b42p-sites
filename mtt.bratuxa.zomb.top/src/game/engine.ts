@@ -4522,7 +4522,7 @@ export class Game {
       g, body, ol, hpCv, hpTex, hpSpr, kind,
       hp: boss ? 500 + this.wave * 50 : kind === 'gun' ? 110 : kind === 'school' ? 40 : kind === 'throw' ? 140 : fly ? 70 : 100,
       maxhp: boss ? 500 + this.wave * 50 : kind === 'gun' ? 110 : kind === 'school' ? 40 : kind === 'throw' ? 140 : fly ? 70 : 100,
-      speed: kind === 'school' ? SCHOOL_SPD_MIN : kind === 'throw' ? 0.85 : boss ? 1.5 : 1.7 + Math.random() * 1.1 + this.wave * 0.12 + (fly ? 0.6 : 0),
+      speed: kind === 'school' ? SCHOOL_SPD_MIN : kind === 'throw' ? 1.4 : boss ? 1.5 : 1.7 + Math.random() * 1.1 + this.wave * 0.12 + (fly ? 0.6 : 0),
       hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, ey: 0, evy: 0, hopCd: 1 + Math.random() * 2, dead: false,
       mobId: this.mobIdSeq++, net: false, tx: sx, tz: sz, snaps: [], ewave: this.wave,
       path: [], repathT: 0.1 + Math.random() * 0.2, god: false, climb: false,
