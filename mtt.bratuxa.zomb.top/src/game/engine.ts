@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import vrag1Url from '../assets/vrag1.png';
 import banditUrl from '../assets/bandit.png';
 import schoolboyUrl from '../assets/schoolboy.png';
+import throwerUrl from '../assets/thrower.png';
 import bottleUrl from '../assets/bottle.png';
 import vrag2Url from '../assets/vrag2.png';
 import dom1Url from '../assets/dom1.png';
@@ -1311,7 +1312,7 @@ export class Game {
   /** Предзагрузка текстур перед боем: только нужное под карту + общие (бойцы, враги).
       Шуба ужата до 512px, грузим пачками параллельно — экран загрузки пролетает. */
   async preload(onPct: (p: number) => void): Promise<void> {
-    const core = [vrag1Url, vrag2Url, banditUrl, schoolboyUrl, bottleUrl, bossUrl, bossPhotoUrl, stalkerUrl, charMttUrl, charKrysaUrl, charShubaUrl, charChumaUrl, charGidroxisUrl, charSunstrikeUrl, skyUrl];
+    const core = [vrag1Url, vrag2Url, banditUrl, schoolboyUrl, throwerUrl, bottleUrl, bossUrl, bossPhotoUrl, stalkerUrl, charMttUrl, charKrysaUrl, charShubaUrl, charChumaUrl, charGidroxisUrl, charSunstrikeUrl, skyUrl];
     const byMap: Record<string, string[]> = {
       arena: [dom1Url, travaUrl, facadeUrl, panelUrl, shopUrl, roofUrl, roadUrl, walkUrl, plazaUrl, fenceUrl, edgeUrl, house2Url, brickUrl],
       duel: [travaUrl, brickUrl, edgeUrl],
@@ -4035,6 +4036,17 @@ export class Game {
     return this.schoolTex;
   }
 
+  /** Метатель: фото-спрайт с прозрачным фоном. */
+  private throwerTex: THREE.Texture | null = null;
+  private throwerTexture(): THREE.Texture {
+    if (!this.throwerTex) {
+      const t = new THREE.TextureLoader().load(throwerUrl);
+      t.colorSpace = THREE.SRGBColorSpace;
+      this.throwerTex = t;
+    }
+    return this.throwerTex;
+  }
+
   private flyTexCache: THREE.Texture | null = null;
 
   private foeTextureTinted(): THREE.Texture {
@@ -4414,11 +4426,11 @@ export class Game {
     const gun = kind === 'gun';
     const school = kind === 'school';
     const thr = kind === 'throw';
-    const tex = boss ? this.bossTexture() : fly ? this.foeTextureTinted() : gun ? this.banditTexture() : (school || thr) ? this.schoolTexture() : this.foeTexture();
+    const tex = boss ? this.bossTexture() : fly ? this.foeTextureTinted() : gun ? this.banditTexture() : school ? this.schoolTexture() : thr ? this.throwerTexture() : this.foeTexture();
     const g = new THREE.Group();
     const body = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, color: fly ? 0xdd99ff : 0xffffff }));
-    body.scale.set(boss ? 2.8 : gun ? 1.6 : school ? 1.5 : thr ? 1.45 : fly ? 1.2 : 1.4, boss ? 3.6 : gun ? 1.8 : school ? 1.9 : thr ? 1.8 : fly ? 1.6 : 2.0, 1);
-    body.position.set(0, boss ? 1.8 : gun ? 0.9 : school ? 0.95 : thr ? 0.9 : fly ? 3.2 : 1.0, 0);
+    body.scale.set(boss ? 2.8 : gun ? 1.6 : school ? 1.5 : thr ? 1.45 : fly ? 1.2 : 1.4, boss ? 3.6 : gun ? 1.8 : school ? 1.9 : thr ? 1.71 : fly ? 1.6 : 2.0, 1);
+    body.position.set(0, boss ? 1.8 : gun ? 0.9 : school ? 0.95 : thr ? 0.86 : fly ? 3.2 : 1.0, 0);
     g.add(body);
     // контур рентгена: та же текстура в красном, чуть больше тела, рисуется РАНЬШЕ
     // тела (renderOrder -1) и сквозь стены (depthTest false). Тело накрывает середину,
@@ -4435,7 +4447,7 @@ export class Game {
     const hpTex = new THREE.CanvasTexture(hpCv);
     const hpSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: hpTex, depthTest: true, transparent: true }));
     hpSpr.scale.set(boss ? 3.4 : 1.7, boss ? 0.84 : 0.42, 1);
-    hpSpr.position.set(0, boss ? 4.1 : gun ? 2.0 : school ? 2.2 : thr ? 2.1 : fly ? 4.6 : 2.35, 0);
+    hpSpr.position.set(0, boss ? 4.1 : gun ? 2.0 : school ? 2.2 : thr ? 1.95 : fly ? 4.6 : 2.35, 0);
     g.add(hpSpr);
     return { g, body, ol, hpCv, hpTex, hpSpr };
   }
