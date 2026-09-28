@@ -7036,12 +7036,6 @@ export class Game {
         if (e.kind === 'gun') {
           if (e.shotCd === undefined) e.shotCd = 1.5 + Math.random() * 2;
           else if (e.shotCd > 0) e.shotCd -= dt;
-          const gl = (e as unknown as { gunLog?: number }).gunLog ?? -99;
-          const nowS = performance.now() / 1000;
-          if (nowS - gl > 3) {
-            (e as unknown as { gunLog?: number }).gunLog = nowS;
-            console.log(`[Gunman] d=${d.toFixed(1)} cd=${e.shotCd} started=${this.started} net=${e.net} dead=${e.dead}`);
-          }
           if (this.started && !this.specOn && e.shotCd <= 0 && d > 2.5 && d < 32) {
             // прямая видимость как у погони: сквозь стены не палим
             let blocked = false;
