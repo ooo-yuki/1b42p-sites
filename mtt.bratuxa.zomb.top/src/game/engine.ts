@@ -4954,7 +4954,7 @@ export class Game {
     // дальше 10м не бросает: цель подрезается по направлению
     d = Math.min(d, 10);
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.bottleTex, transparent: true }));
-    s.scale.set(0.62, 1.24, 1);
+    s.scale.set(0.32, 0.8, 1);
     s.position.set(x, y, z);
     this.scene.add(s);
     const T = Math.max(0.35, d / BOTTLE_HSPD);
