@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import vrag1Url from '../assets/vrag1.png';
 import banditUrl from '../assets/bandit.png';
 import schoolboyUrl from '../assets/schoolboy.png';
+import bottleUrl from '../assets/bottle.png';
 import vrag2Url from '../assets/vrag2.png';
 import dom1Url from '../assets/dom1.png';
 import travaUrl from '../assets/trava.jpg';
@@ -339,7 +340,7 @@ interface Enemy {
   hpCv: HTMLCanvasElement;
   hpTex: THREE.CanvasTexture;
   hpSpr: THREE.Sprite;
-  kind: 'walk' | 'fly' | 'boss' | 'gun' | 'school';
+  kind: 'walk' | 'fly' | 'boss' | 'gun' | 'school' | 'throw';
   hp: number;
   maxhp: number;
   speed: number;
@@ -443,6 +444,19 @@ function schoolRamDmg(speed: number): number {
   const k = Math.min(1, Math.max(0, (speed - SCHOOL_SPD_MIN) / (SCHOOL_SPD_MAX - SCHOOL_SPD_MIN)));
   return Math.min(SCHOOL_DMG_MAX, Math.round(SCHOOL_DMG_MIN + (SCHOOL_DMG_MAX - SCHOOL_DMG_MIN) * k));
 }
+
+/** МЕТАТЕЛЬ: зелёная лужа после падения бутылки. */
+/** радиус лужи (м) */
+const POOL_R = 3;
+/** сколько живёт лужа (с) */
+const POOL_LIFE = 8;
+/** отрава: сколько секунд длится дебафф с момента касания лужи */
+const POOL_DOT_T = 6;
+/** отрава: урон в секунду, идёт весь POOL_DOT_T даже вне лужи */
+const POOL_DOT = 5;
+/** горизонтальная скорость бутылки (м/с): полёт на 10м ~1.4с — не быстро */
+const BOTTLE_HSPD = 7;
+const BOTTLE_G = 12;
 
 export class Game {
   input: Record<string, boolean> = {};
@@ -710,6 +724,14 @@ export class Game {
   // живые пули: летят сами с гравитацией, у каждой свой хитбокс-шар r.
   // Вид — светящийся болт (видно хорошо) + белый еле видный след, хитбокс от вида не зависит.
   private bullets: Array<{ m: THREE.Mesh; glow: THREE.Sprite; trail: THREE.Line; hist: Array<[number, number, number]>; x: number; y: number; z: number; vx: number; vy: number; vz: number; g: number; dmg: number; range: number; flown: number; r: number; fallPow: number; knock: number; foe: boolean; from: Enemy | null }> = [];
+  /** Бутылки метателя: полёт по дуге, на приземлении — зелёная лужа */
+  private bottles: Array<{ s: THREE.Sprite; x: number; y: number; z: number; vx: number; vy: number; vz: number; g: number; t: number }> = [];
+  /** Зелёные лужи яда на земле */
+  private pools: Array<{ m: THREE.Mesh; x: number; z: number; r: number; t: number }> = [];
+  /** Отрава: сколько секунд игрок ещё получает урон от лужи (даже выйдя из неё) */
+  private poolT = 0;
+  private poolHpPush = -1;
+  private bottleTex: THREE.Texture | null = null;
   private bulletGeoBolt: THREE.BoxGeometry | null = null;
   private bulletMatY: THREE.MeshBasicMaterial | null = null;
   private bulletMatO: THREE.MeshBasicMaterial | null = null;
@@ -1257,6 +1279,15 @@ export class Game {
     this.deathPlayed = false;
     this.hp = this.maxhp;
     this.score = Math.max(0, this.score - 100);
+    // отрава метателя: с респауном снимаем дебафф и гасим лужи
+    this.poolT = 0;
+    this.poolHpPush = -1;
+    for (const p of this.pools) {
+      this.scene.remove(p.m);
+      p.m.geometry.dispose();
+      (p.m.material as THREE.Material).dispose();
+    }
+    this.pools = [];
     for (const e of this.enemies) {
       if (e.dead) continue;
       const dx = e.g.position.x - this.px, dz = e.g.position.z - this.pz;
@@ -1280,7 +1311,7 @@ export class Game {
   /** Предзагрузка текстур перед боем: только нужное под карту + общие (бойцы, враги).
       Шуба ужата до 512px, грузим пачками параллельно — экран загрузки пролетает. */
   async preload(onPct: (p: number) => void): Promise<void> {
-    const core = [vrag1Url, vrag2Url, banditUrl, schoolboyUrl, bossUrl, bossPhotoUrl, stalkerUrl, charMttUrl, charKrysaUrl, charShubaUrl, charChumaUrl, charGidroxisUrl, charSunstrikeUrl, skyUrl];
+    const core = [vrag1Url, vrag2Url, banditUrl, schoolboyUrl, bottleUrl, bossUrl, bossPhotoUrl, stalkerUrl, charMttUrl, charKrysaUrl, charShubaUrl, charChumaUrl, charGidroxisUrl, charSunstrikeUrl, skyUrl];
     const byMap: Record<string, string[]> = {
       arena: [dom1Url, travaUrl, facadeUrl, panelUrl, shopUrl, roofUrl, roadUrl, walkUrl, plazaUrl, fenceUrl, edgeUrl, house2Url, brickUrl],
       duel: [travaUrl, brickUrl, edgeUrl],
@@ -3943,8 +3974,11 @@ export class Game {
       }
       // пара бандитов-стрелков в орду
       for (let g = 0; g < 2; g++) this.spawnEnemy('gun');
-      // школьник-таран с 2-й волны (макс. 2 живых)
-      if (this.wave >= 2 && this.enemies.filter((e) => !e.dead && e.kind === 'school').length < 2) this.spawnEnemy('school');
+      // школьник-таран с 2-й волны (макс. 2 живых) и метатель с 4-й (макс. 1)
+    if (this.wave >= 2 && this.enemies.filter((e) => !e.dead && e.kind === 'school').length < 2) this.spawnEnemy('school');
+    // метатель с 4-й волны (макс. 1 живой)
+    if (this.wave >= 4 && this.enemies.filter((e) => !e.dead && e.kind === 'throw').length < 1) this.spawnEnemy('throw');
+      if (this.wave >= 4 && this.enemies.filter((e) => !e.dead && e.kind === 'throw').length < 1) this.spawnEnemy('throw');
       return;
     }
     const n = Math.min(4 + this.wave, 10);
@@ -4034,7 +4068,7 @@ export class Game {
     return this.wbTexCache;
   }
 
-  debugSpawn(kind: 'walk' | 'fly' | 'boss' | 'gun' | 'school'): number {
+  debugSpawn(kind: 'walk' | 'fly' | 'boss' | 'gun' | 'school' | 'throw'): number {
     this.spawnEnemy(kind);
     return this.debugFlyers();
   }
@@ -4372,17 +4406,18 @@ export class Game {
   }
 
   /** Туша моба: спрайт тела + красный рентген-контур + полоска HP (общее для локальных и сетевых кукол). */
-  private makeEnemyVisuals(kind: 'walk' | 'fly' | 'boss' | 'gun' | 'school'): { g: THREE.Group; body: THREE.Sprite; ol: THREE.Sprite; hpCv: HTMLCanvasElement; hpTex: THREE.CanvasTexture; hpSpr: THREE.Sprite } {
+  private makeEnemyVisuals(kind: 'walk' | 'fly' | 'boss' | 'gun' | 'school' | 'throw'): { g: THREE.Group; body: THREE.Sprite; ol: THREE.Sprite; hpCv: HTMLCanvasElement; hpTex: THREE.CanvasTexture; hpSpr: THREE.Sprite } {
     // в Бэкрумс потолок 3м — летуны бы скребли макушкой, только пешие (босс проходит: он земной)
     const fly = kind === 'fly' && this.map !== 'backrooms';
     const boss = kind === 'boss';
     const gun = kind === 'gun';
     const school = kind === 'school';
-    const tex = boss ? this.bossTexture() : fly ? this.foeTextureTinted() : gun ? this.banditTexture() : school ? this.schoolTexture() : this.foeTexture();
+    const thr = kind === 'throw';
+    const tex = boss ? this.bossTexture() : fly ? this.foeTextureTinted() : gun ? this.banditTexture() : (school || thr) ? this.schoolTexture() : this.foeTexture();
     const g = new THREE.Group();
     const body = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, color: fly ? 0xdd99ff : 0xffffff }));
-    body.scale.set(boss ? 2.8 : gun ? 1.6 : school ? 1.5 : fly ? 1.2 : 1.4, boss ? 3.6 : gun ? 1.8 : school ? 1.9 : fly ? 1.6 : 2.0, 1);
-    body.position.set(0, boss ? 1.8 : gun ? 0.9 : school ? 0.95 : fly ? 3.2 : 1.0, 0);
+    body.scale.set(boss ? 2.8 : gun ? 1.6 : school ? 1.5 : thr ? 1.45 : fly ? 1.2 : 1.4, boss ? 3.6 : gun ? 1.8 : school ? 1.9 : thr ? 1.8 : fly ? 1.6 : 2.0, 1);
+    body.position.set(0, boss ? 1.8 : gun ? 0.9 : school ? 0.95 : thr ? 0.9 : fly ? 3.2 : 1.0, 0);
     g.add(body);
     // контур рентгена: та же текстура в красном, чуть больше тела, рисуется РАНЬШЕ
     // тела (renderOrder -1) и сквозь стены (depthTest false). Тело накрывает середину,
@@ -4399,12 +4434,12 @@ export class Game {
     const hpTex = new THREE.CanvasTexture(hpCv);
     const hpSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: hpTex, depthTest: true, transparent: true }));
     hpSpr.scale.set(boss ? 3.4 : 1.7, boss ? 0.84 : 0.42, 1);
-    hpSpr.position.set(0, boss ? 4.1 : gun ? 2.0 : school ? 2.2 : fly ? 4.6 : 2.35, 0);
+    hpSpr.position.set(0, boss ? 4.1 : gun ? 2.0 : school ? 2.2 : thr ? 2.1 : fly ? 4.6 : 2.35, 0);
     g.add(hpSpr);
     return { g, body, ol, hpCv, hpTex, hpSpr };
   }
 
-  private spawnEnemy(kind: 'walk' | 'fly' | 'boss' | 'gun' | 'school', minDist = 0, at: [number, number] | null = null): void {
+  private spawnEnemy(kind: 'walk' | 'fly' | 'boss' | 'gun' | 'school' | 'throw', minDist = 0, at: [number, number] | null = null): void {
     if (this.netSync) return;
     const boss = kind === 'boss';
     const fly = kind === 'fly' && this.map !== 'backrooms';
@@ -4472,9 +4507,9 @@ export class Game {
     this.scene.add(g);
     const foe: Enemy = {
       g, body, ol, hpCv, hpTex, hpSpr, kind,
-      hp: boss ? 500 + this.wave * 50 : kind === 'gun' ? 110 : kind === 'school' ? 40 : fly ? 70 : 100,
-      maxhp: boss ? 500 + this.wave * 50 : kind === 'gun' ? 110 : kind === 'school' ? 40 : fly ? 70 : 100,
-      speed: kind === 'school' ? SCHOOL_SPD_MIN : boss ? 1.5 : 1.7 + Math.random() * 1.1 + this.wave * 0.12 + (fly ? 0.6 : 0),
+      hp: boss ? 500 + this.wave * 50 : kind === 'gun' ? 110 : kind === 'school' ? 40 : kind === 'throw' ? 140 : fly ? 70 : 100,
+      maxhp: boss ? 500 + this.wave * 50 : kind === 'gun' ? 110 : kind === 'school' ? 40 : kind === 'throw' ? 140 : fly ? 70 : 100,
+      speed: kind === 'school' ? SCHOOL_SPD_MIN : kind === 'throw' ? 0.85 : boss ? 1.5 : 1.7 + Math.random() * 1.1 + this.wave * 0.12 + (fly ? 0.6 : 0),
       hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, ey: 0, evy: 0, hopCd: 1 + Math.random() * 2, dead: false,
       mobId: this.mobIdSeq++, net: false, tx: sx, tz: sz, snaps: [], ewave: this.wave,
       path: [], repathT: 0.1 + Math.random() * 0.2, god: false, climb: false,
@@ -4891,6 +4926,97 @@ export class Game {
     t = Math.max(0, Math.min(1, t));
     const dx = x0 + abx * t - cx, dy = y0 + aby * t - cy, dz = z0 + abz * t - cz;
     return dx * dx + dy * dy + dz * dz <= r * r;
+  }
+
+  /** Метатель: бутылка летит по дуге к точке (горизонталь зажата на 10м). */
+  private spawnBottle(x: number, y: number, z: number, tx: number, tz: number): void {
+    if (!this.bottleTex) {
+      const t = new THREE.TextureLoader().load(bottleUrl);
+      t.colorSpace = THREE.SRGBColorSpace;
+      this.bottleTex = t;
+    }
+    const dx = tx - x, dz = tz - z;
+    let d = Math.hypot(dx, dz);
+    const ux = d > 0.01 ? dx / d : 0, uz = d > 0.01 ? dz / d : 0;
+    // дальше 10м не бросает: цель подрезается по направлению
+    d = Math.min(d, 10);
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.bottleTex, transparent: true }));
+    s.scale.set(0.62, 1.24, 1);
+    s.position.set(x, y, z);
+    this.scene.add(s);
+    const T = Math.max(0.35, d / BOTTLE_HSPD);
+    const gy = this.groundAt(x + ux * d, z + uz * d);
+    const vy = ((gy - y) + 0.5 * BOTTLE_G * T * T) / T;
+    this.bottles.push({ s, x, y, z, vx: ux * BOTTLE_HSPD, vy, vz: uz * BOTTLE_HSPD, g: BOTTLE_G, t: 0 });
+  }
+
+  private tickBottles(dt: number): void {
+    for (let i = this.bottles.length - 1; i >= 0; i--) {
+      const b = this.bottles[i];
+      b.t += dt;
+      b.vy -= b.g * dt;
+      b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
+      b.s.position.set(b.x, b.y, b.z);
+      const gy = this.groundAt(b.x, b.z);
+      const wall = this.hitSolid(b.x, b.z, 0.35, b.y);
+      if (b.y <= gy + 0.12 || wall || b.t > 4) {
+        this.scene.remove(b.s);
+        this.bottles.splice(i, 1);
+        this.spawnPool(b.x, b.z);
+      }
+    }
+  }
+
+  /** Зелёная лужа на земле: живёт POOL_LIFE секунд, касание включает отраву. */
+  private spawnPool(x: number, z: number): void {
+    const gy = this.groundAt(x, z);
+    const geo = new THREE.CircleGeometry(POOL_R, 28);
+    const mat = new THREE.MeshBasicMaterial({ color: 0x33dd55, transparent: true, opacity: 0.45, depthWrite: false });
+    const m = new THREE.Mesh(geo, mat);
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(x, gy + 0.06, z);
+    m.renderOrder = 2;
+    this.scene.add(m);
+    this.pools.push({ m, x, z, r: POOL_R, t: POOL_LIFE });
+  }
+
+  private tickPools(dt: number): void {
+    for (let i = this.pools.length - 1; i >= 0; i--) {
+      const p = this.pools[i];
+      p.t -= dt;
+      const mat = p.m.material as THREE.MeshBasicMaterial;
+      mat.opacity = 0.45 * Math.min(1, p.t / 2);
+      if (p.t <= 0) {
+        this.scene.remove(p.m);
+        p.m.geometry.dispose();
+        mat.dispose();
+        this.pools.splice(i, 1);
+        continue;
+      }
+      // коснулся лужи — отрава на POOL_DOT_T секунд, перезапускается при каждом касании
+      if (!this.dead && !this.specOn && !this.devGod && Math.hypot(this.px - p.x, this.pz - p.z) <= p.r) {
+        this.poolT = POOL_DOT_T;
+      }
+    }
+    if (this.poolT > 0) {
+      this.poolT = Math.max(0, this.poolT - dt);
+      if (!this.dead && !this.specOn && !this.devGod) {
+        this.hp -= POOL_DOT * dt;
+        const cur = Math.floor(this.hp);
+        if (cur !== this.poolHpPush) { this.poolHpPush = cur; this.pushHud(); }
+        if (this.hp <= 0) {
+          this.hp = 0;
+          this.poolT = 0;
+          this.dead = true;
+          this.playDeathOnce();
+          this.pushHud();
+          this.ev.onBusted({ score: this.score, coins: 0 });
+        }
+      }
+    } else if (this.poolHpPush >= 0) {
+      this.poolHpPush = -1;
+      this.pushHud();
+    }
   }
 
   // физика пуль: гравитация тянет вниз, шар-хитбокс встречает мобов/игроков/стены/землю
@@ -5849,7 +5975,7 @@ export class Game {
       const id = Math.floor(Number(m.id));
       if (!Number.isFinite(id)) continue;
       seen.add(id);
-      const kind = m.kind === 'fly' || m.kind === 'boss' || m.kind === 'gun' || m.kind === 'school' ? m.kind : 'walk';
+      const kind = m.kind === 'fly' || m.kind === 'boss' || m.kind === 'gun' || m.kind === 'school' || m.kind === 'throw' ? m.kind : 'walk';
       let e = this.enemies.find((q) => q.net && q.mobId === id);
       if (m.dead === true) {
         if (e && !e.dead) {
@@ -6503,6 +6629,14 @@ export class Game {
   /** Сколько линий пуль сейчас висит в кадре (для тестов). */
   debugTracers(): number { return this.tracers.length; }
   debugBullets(): number { return this.bullets.length; }
+  /** Метатель: сколько бутылок сейчас в полёте. */
+  debugBottles(): number { return this.bottles.length; }
+  /** Метатель: зелёные лужи на земле. */
+  debugPools(): Array<{ x: number; z: number; r: number; t: number }> {
+    return this.pools.map((p) => ({ x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100, r: p.r, t: Math.round(p.t * 100) / 100 }));
+  }
+  /** Метатель: сколько секунд отравы осталось игроку (0 = не отравлен). */
+  debugPool(): number { return Math.round(this.poolT * 100) / 100; }
   debugBpos(): Array<{ x: number; y: number; z: number; hist: number }> {
     return this.bullets.map((b) => ({ x: Math.round(b.x * 10) / 10, y: Math.round(b.y * 10) / 10, z: Math.round(b.z * 10) / 10, hist: b.hist.length }));
   }
@@ -6719,6 +6853,9 @@ export class Game {
       }
       // живые пули тикают тут же: полёт + гравитация + свои хитбоксы
       this.tickBullets(dt);
+      // бутылки метателя и зелёные лужи (отрава идёт даже вне лужи)
+      this.tickBottles(dt);
+      this.tickPools(dt);
       if (this.wallKickCd > 0) {
         this.wallKickCd -= dt;
         if (Math.floor(this.wallKickCd * 5) !== Math.floor((this.wallKickCd + dt) * 5)) this.pushHud();
@@ -7120,6 +7257,25 @@ export class Game {
               this.sfx(shotUrl, 0.5);
               e.shotCd = 2.5 + Math.random() * 1.5;
             }
+          }
+        }
+        // метатель: бутылка по дуге в сторону игрока, максимум на 10м.
+        // Кидает и локальный моб, и кукла — лужа с отравой живут у жертвы.
+        if (e.kind === 'throw') {
+          if (e.shotCd === undefined) e.shotCd = 2 + Math.random() * 2;
+          else if (e.shotCd > 0) e.shotCd -= dt;
+          if (this.started && !this.specOn && e.shotCd <= 0 && d > 1.5 && d <= 10) {
+            // не кидает сквозь стену
+            let blocked = false;
+            const checks = Math.min(8, Math.max(1, Math.ceil(d / 1.5)));
+            for (let s = 1; s <= checks; s++) {
+              const t = (d * s) / (checks + 1);
+              if (this.hitSolid(e.g.position.x + (dx / d) * t, e.g.position.z + (dz / d) * t, 0.5, 1.4)) { blocked = true; break; }
+            }
+            if (!blocked) {
+              this.spawnBottle(e.g.position.x, 1.35 + e.ey, e.g.position.z, txp, tzp);
+              e.shotCd = 4 + Math.random() * 2;
+            } else e.shotCd = 1.2;
           }
         }
         if (e.net) {
