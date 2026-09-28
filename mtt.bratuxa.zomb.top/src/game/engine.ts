@@ -6631,6 +6631,10 @@ export class Game {
   debugBullets(): number { return this.bullets.length; }
   /** Метатель: сколько бутылок сейчас в полёте. */
   debugBottles(): number { return this.bottles.length; }
+  /** Метатель: где сейчас бутылки (диагностика полёта). */
+  debugBottlePos(): Array<{ x: number; y: number; z: number; t: number }> {
+    return this.bottles.map((b) => ({ x: Math.round(b.x * 10) / 10, y: Math.round(b.y * 10) / 10, z: Math.round(b.z * 10) / 10, t: Math.round(b.t * 100) / 100 }));
+  }
   /** Метатель: зелёные лужи на земле. */
   debugPools(): Array<{ x: number; z: number; r: number; t: number }> {
     return this.pools.map((p) => ({ x: Math.round(p.x * 100) / 100, z: Math.round(p.z * 100) / 100, r: p.r, t: Math.round(p.t * 100) / 100 }));

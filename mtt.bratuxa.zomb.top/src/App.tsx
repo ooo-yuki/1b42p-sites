@@ -1198,6 +1198,7 @@ async function loadStats(): Promise<void> {
       opencase: () => game.openCase(),
       spawnKind: (kind: 'walk' | 'fly' | 'boss' | 'gun' | 'school' | 'throw') => game.debugSpawn(kind),
       bottles: () => game.debugBottles(),
+      btl: () => game.debugBottlePos(),
       pools: () => game.debugPools(),
       pool: () => game.debugPool(),
       rush: (sec: number) => game.debugRush(sec),
