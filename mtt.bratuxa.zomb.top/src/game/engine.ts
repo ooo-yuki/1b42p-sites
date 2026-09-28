@@ -7472,6 +7472,13 @@ export class Game {
               mdx = -(dz / d) * side; mdz = (dx / d) * side;
             }
           }
+          // метатель держит дистанцию: ближе 5м в лоб не идёт — стоит и кидает,
+          // иначе при скорости 1.4 просто подходит вплотную и бьёт кулаками
+          if (e.kind === 'throw' && !e.net && d < 5) {
+            mdx = 0; mdz = 0;
+            e.stuckT = 0;
+            e.slideT = 0;
+          }
           if (e.slideT > 0) {
             e.slideT -= dt;
             mdx = (mdx * 0.35 + e.slideX * 0.95);
