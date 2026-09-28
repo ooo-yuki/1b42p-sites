@@ -3974,14 +3974,15 @@ export class Game {
       }
       // пара бандитов-стрелков в орду
       for (let g = 0; g < 2; g++) this.spawnEnemy('gun');
-      // школьник-таран с 2-й волны (макс. 2 живых) и метатель с 4-й (макс. 1)
-    if (this.wave >= 2 && this.enemies.filter((e) => !e.dead && e.kind === 'school').length < 2) this.spawnEnemy('school');
-    // метатель с 4-й волны (макс. 1 живой)
-    if (this.wave >= 4 && this.enemies.filter((e) => !e.dead && e.kind === 'throw').length < 1) this.spawnEnemy('throw');
-      if (this.wave >= 4 && this.enemies.filter((e) => !e.dead && e.kind === 'throw').length < 1) this.spawnEnemy('throw');
+      // школьник-таран со 2-й волны (макс. 2 живых)
+      if (this.wave >= 2 && this.enemies.filter((e) => !e.dead && e.kind === 'school').length < 2) this.spawnEnemy('school');
+      // метатель — в нашествии с ПЕРВОЙ волны (макс. 1 живой)
+      if (this.enemies.filter((e) => !e.dead && e.kind === 'throw').length < 1) this.spawnEnemy('throw');
       return;
     }
     const n = Math.min(4 + this.wave, 10);
+    // метатель с 4-й волны (макс. 1 живой) — включая босс-волны
+    if (this.wave >= 4 && this.enemies.filter((e) => !e.dead && e.kind === 'throw').length < 1) this.spawnEnemy('throw');
     // каждая 5-я волна — БОСС-гопник + свита поменьше
     if (this.wave % 5 === 0) {
       this.spawnEnemy('boss');
@@ -6699,6 +6700,11 @@ export class Game {
     this.wave = Math.max(1, Math.min(10, Math.floor(n)));
     this.pushHud();
     return this.wave;
+  }
+  /** Дебаг: принудительно заспавнить текущую волну (проверка состава в тестах). */
+  debugSpawnWave(): number {
+    this.spawnWave();
+    return this.enemies.length;
   }
   debugSpots(): Array<{ x: number; z: number }> {
     return this.enemies.filter((e) => !e.dead).map((e) => ({ x: e.g.position.x, z: e.g.position.z }));

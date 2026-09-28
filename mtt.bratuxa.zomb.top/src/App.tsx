@@ -1124,6 +1124,7 @@ async function loadStats(): Promise<void> {
       hurt: (n: number) => game.debugHurt(n),
       revive: () => game.debugRevive(),
       setWave: (n: number) => game.debugSetWave(n),
+      waveSpawn: () => game.debugSpawnWave(),
       joy: (x: number, y: number) => game.setJoy(x, y),
       look: (dx: number, dy: number) => game.addLook(dx, dy),
       remotes: () => game.debugRemotes(),
