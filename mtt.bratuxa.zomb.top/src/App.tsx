@@ -1196,7 +1196,7 @@ async function loadStats(): Promise<void> {
       unlock: (id: string) => game.unlockChar(id),
       haschar: (id: string) => game.hasChar(id),
       opencase: () => game.openCase(),
-      spawnKind: (kind: 'walk' | 'fly' | 'boss' | 'gun') => game.debugSpawn(kind),
+      spawnKind: (kind: 'walk' | 'fly' | 'boss' | 'gun' | 'school') => game.debugSpawn(kind),
       foes: () => game.debugFoes(),
       flyers: () => game.debugFlyers(),
       boss: () => game.debugBoss(),

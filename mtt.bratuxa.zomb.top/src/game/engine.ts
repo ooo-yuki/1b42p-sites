@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import vrag1Url from '../assets/vrag1.png';
 import banditUrl from '../assets/bandit.png';
+import schoolboyUrl from '../assets/schoolboy.png';
 import vrag2Url from '../assets/vrag2.png';
 import dom1Url from '../assets/dom1.png';
 import travaUrl from '../assets/trava.jpg';
@@ -338,7 +339,7 @@ interface Enemy {
   hpCv: HTMLCanvasElement;
   hpTex: THREE.CanvasTexture;
   hpSpr: THREE.Sprite;
-  kind: 'walk' | 'fly' | 'boss' | 'gun';
+  kind: 'walk' | 'fly' | 'boss' | 'gun' | 'school';
   hp: number;
   maxhp: number;
   speed: number;
@@ -385,6 +386,11 @@ interface Enemy {
   wjumpT?: number;
   /** стрелок-бандит: кд выстрела (тикает в цикле мобов) */
   shotCd?: number;
+  /** школьник-таран: сколько секунд разгонялся (скорость и урон растут со временем) */
+  rushT?: number;
+  /** школьник: вектор скорости — инерция поворота (чем быстрее, тем менее поворотлив) */
+  mvx?: number;
+  mvz?: number;
   /** фаза прыжка: 0 погоня, 1 взлёт, 2 наведение 1.5с, 3 удар */
   wmode?: number;
   wt?: number;
@@ -414,6 +420,28 @@ const HALF = ARENA / 2;
 
 function clampArena(v: number, half: number = HALF): number {
   return Math.max(-half + 3, Math.min(half - 3, v));
+}
+
+/** ШКОЛЬНИК-ТАРАН: старт медленный, разгон ~18с до предела. */
+const SCHOOL_SPD_MIN = 1.6;
+const SCHOOL_SPD_MAX = 9;
+const SCHOOL_ACC = 0.42;
+/** Урон от тарана: 10 на старте, ровно 80 на пределе скорости (потолок). */
+const SCHOOL_DMG_MIN = 10;
+const SCHOOL_DMG_MAX = 80;
+/** Разгон полный за (SPD_MAX-SPD_MIN)/ACC секунд. */
+function schoolSpeed(rushT: number): number {
+  return Math.min(SCHOOL_SPD_MAX, SCHOOL_SPD_MIN + rushT * SCHOOL_ACC);
+}
+/** Чем быстрее — тем менее поворотлив: 3.2 рад/с на старте, 1.0 рад/с на пределе. */
+function schoolTurn(rushT: number): number {
+  const k = Math.min(1, Math.max(0, (rushT * SCHOOL_ACC) / (SCHOOL_SPD_MAX - SCHOOL_SPD_MIN)));
+  return 3.2 - 2.2 * k;
+}
+/** Урон тарана растёт вместе со скоростью и упирается в потолок 80. */
+function schoolRamDmg(speed: number): number {
+  const k = Math.min(1, Math.max(0, (speed - SCHOOL_SPD_MIN) / (SCHOOL_SPD_MAX - SCHOOL_SPD_MIN)));
+  return Math.min(SCHOOL_DMG_MAX, Math.round(SCHOOL_DMG_MIN + (SCHOOL_DMG_MAX - SCHOOL_DMG_MIN) * k));
 }
 
 export class Game {
@@ -1252,7 +1280,7 @@ export class Game {
   /** Предзагрузка текстур перед боем: только нужное под карту + общие (бойцы, враги).
       Шуба ужата до 512px, грузим пачками параллельно — экран загрузки пролетает. */
   async preload(onPct: (p: number) => void): Promise<void> {
-    const core = [vrag1Url, vrag2Url, banditUrl, bossUrl, bossPhotoUrl, stalkerUrl, charMttUrl, charKrysaUrl, charShubaUrl, charChumaUrl, charGidroxisUrl, charSunstrikeUrl, skyUrl];
+    const core = [vrag1Url, vrag2Url, banditUrl, schoolboyUrl, bossUrl, bossPhotoUrl, stalkerUrl, charMttUrl, charKrysaUrl, charShubaUrl, charChumaUrl, charGidroxisUrl, charSunstrikeUrl, skyUrl];
     const byMap: Record<string, string[]> = {
       arena: [dom1Url, travaUrl, facadeUrl, panelUrl, shopUrl, roofUrl, roadUrl, walkUrl, plazaUrl, fenceUrl, edgeUrl, house2Url, brickUrl],
       duel: [travaUrl, brickUrl, edgeUrl],
@@ -3915,6 +3943,8 @@ export class Game {
       }
       // пара бандитов-стрелков в орду
       for (let g = 0; g < 2; g++) this.spawnEnemy('gun');
+      // школьник-таран с 2-й волны (макс. 2 живых)
+      if (this.wave >= 2 && this.enemies.filter((e) => !e.dead && e.kind === 'school').length < 2) this.spawnEnemy('school');
       return;
     }
     const n = Math.min(4 + this.wave, 10);
@@ -3925,9 +3955,11 @@ export class Game {
       for (let i = 0; i < n - 2; i++) this.spawnEnemy(i < flyers ? 'fly' : 'walk');
       return;
     }
-    // со 2-й волны 30% орды — летуны; с 3-й — один бандит-стрелок (макс. 2 живых)
+    // со 2-й волны 30% орды — летуны; с 3-й — один бандит-стрелок (макс. 2 живых);
+    // со 2-й волны — школьник-таран (макс. 2 живых)
     const flyers = this.wave >= 2 ? Math.floor(n * 0.3) : 0;
     const guns = this.wave >= 3 && this.enemies.filter((e) => !e.dead && e.kind === 'gun').length < 2 ? 1 : 0;
+    if (this.wave >= 2 && this.enemies.filter((e) => !e.dead && e.kind === 'school').length < 2) this.spawnEnemy('school');
     let gunsLeft = guns;
     for (let i = 0; i < n; i++) {
       if (gunsLeft > 0 && i >= flyers) { this.spawnEnemy('gun'); gunsLeft--; continue; }
@@ -3955,6 +3987,17 @@ export class Game {
       this.banditTex = t;
     }
     return this.banditTex;
+  }
+
+  /** Школьник-таран: фото-спрайт с прозрачным фоном. */
+  private schoolTex: THREE.Texture | null = null;
+  private schoolTexture(): THREE.Texture {
+    if (!this.schoolTex) {
+      const t = new THREE.TextureLoader().load(schoolboyUrl);
+      t.colorSpace = THREE.SRGBColorSpace;
+      this.schoolTex = t;
+    }
+    return this.schoolTex;
   }
 
   private flyTexCache: THREE.Texture | null = null;
@@ -3991,7 +4034,7 @@ export class Game {
     return this.wbTexCache;
   }
 
-  debugSpawn(kind: 'walk' | 'fly' | 'boss' | 'gun'): number {
+  debugSpawn(kind: 'walk' | 'fly' | 'boss' | 'gun' | 'school'): number {
     this.spawnEnemy(kind);
     return this.debugFlyers();
   }
@@ -4329,16 +4372,17 @@ export class Game {
   }
 
   /** Туша моба: спрайт тела + красный рентген-контур + полоска HP (общее для локальных и сетевых кукол). */
-  private makeEnemyVisuals(kind: 'walk' | 'fly' | 'boss' | 'gun'): { g: THREE.Group; body: THREE.Sprite; ol: THREE.Sprite; hpCv: HTMLCanvasElement; hpTex: THREE.CanvasTexture; hpSpr: THREE.Sprite } {
+  private makeEnemyVisuals(kind: 'walk' | 'fly' | 'boss' | 'gun' | 'school'): { g: THREE.Group; body: THREE.Sprite; ol: THREE.Sprite; hpCv: HTMLCanvasElement; hpTex: THREE.CanvasTexture; hpSpr: THREE.Sprite } {
     // в Бэкрумс потолок 3м — летуны бы скребли макушкой, только пешие (босс проходит: он земной)
     const fly = kind === 'fly' && this.map !== 'backrooms';
     const boss = kind === 'boss';
     const gun = kind === 'gun';
-    const tex = boss ? this.bossTexture() : fly ? this.foeTextureTinted() : gun ? this.banditTexture() : this.foeTexture();
+    const school = kind === 'school';
+    const tex = boss ? this.bossTexture() : fly ? this.foeTextureTinted() : gun ? this.banditTexture() : school ? this.schoolTexture() : this.foeTexture();
     const g = new THREE.Group();
     const body = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, color: fly ? 0xdd99ff : 0xffffff }));
-    body.scale.set(boss ? 2.8 : gun ? 1.6 : fly ? 1.2 : 1.4, boss ? 3.6 : gun ? 1.8 : fly ? 1.6 : 2.0, 1);
-    body.position.set(0, boss ? 1.8 : gun ? 0.9 : fly ? 3.2 : 1.0, 0);
+    body.scale.set(boss ? 2.8 : gun ? 1.6 : school ? 1.5 : fly ? 1.2 : 1.4, boss ? 3.6 : gun ? 1.8 : school ? 1.9 : fly ? 1.6 : 2.0, 1);
+    body.position.set(0, boss ? 1.8 : gun ? 0.9 : school ? 0.95 : fly ? 3.2 : 1.0, 0);
     g.add(body);
     // контур рентгена: та же текстура в красном, чуть больше тела, рисуется РАНЬШЕ
     // тела (renderOrder -1) и сквозь стены (depthTest false). Тело накрывает середину,
@@ -4355,12 +4399,12 @@ export class Game {
     const hpTex = new THREE.CanvasTexture(hpCv);
     const hpSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: hpTex, depthTest: true, transparent: true }));
     hpSpr.scale.set(boss ? 3.4 : 1.7, boss ? 0.84 : 0.42, 1);
-    hpSpr.position.set(0, boss ? 4.1 : gun ? 2.0 : fly ? 4.6 : 2.35, 0);
+    hpSpr.position.set(0, boss ? 4.1 : gun ? 2.0 : school ? 2.2 : fly ? 4.6 : 2.35, 0);
     g.add(hpSpr);
     return { g, body, ol, hpCv, hpTex, hpSpr };
   }
 
-  private spawnEnemy(kind: 'walk' | 'fly' | 'boss' | 'gun', minDist = 0, at: [number, number] | null = null): void {
+  private spawnEnemy(kind: 'walk' | 'fly' | 'boss' | 'gun' | 'school', minDist = 0, at: [number, number] | null = null): void {
     if (this.netSync) return;
     const boss = kind === 'boss';
     const fly = kind === 'fly' && this.map !== 'backrooms';
@@ -4428,14 +4472,15 @@ export class Game {
     this.scene.add(g);
     const foe: Enemy = {
       g, body, ol, hpCv, hpTex, hpSpr, kind,
-      hp: boss ? 500 + this.wave * 50 : kind === 'gun' ? 110 : fly ? 70 : 100,
-      maxhp: boss ? 500 + this.wave * 50 : kind === 'gun' ? 110 : fly ? 70 : 100,
-      speed: boss ? 1.5 : 1.7 + Math.random() * 1.1 + this.wave * 0.12 + (fly ? 0.6 : 0),
+      hp: boss ? 500 + this.wave * 50 : kind === 'gun' ? 110 : kind === 'school' ? 120 : fly ? 70 : 100,
+      maxhp: boss ? 500 + this.wave * 50 : kind === 'gun' ? 110 : kind === 'school' ? 120 : fly ? 70 : 100,
+      speed: kind === 'school' ? SCHOOL_SPD_MIN : boss ? 1.5 : 1.7 + Math.random() * 1.1 + this.wave * 0.12 + (fly ? 0.6 : 0),
       hitCd: 0, hurtT: 0, phase: Math.random() * 6.28, ey: 0, evy: 0, hopCd: 1 + Math.random() * 2, dead: false,
       mobId: this.mobIdSeq++, net: false, tx: sx, tz: sz, snaps: [], ewave: this.wave,
       path: [], repathT: 0.1 + Math.random() * 0.2, god: false, climb: false,
       ptx: sx, ptz: sz, lx: sx, lz: sz, stuckT: 0, slideT: 0, slideX: 0, slideZ: 0, slideDir: 0,
       stepT: Math.random() * 0.4,
+      rushT: 0, mvx: 0, mvz: 0,
     };
     this.updateHpBar(foe);
     this.enemies.push(foe);
@@ -4873,7 +4918,14 @@ export class Game {
         if (b.y <= gy + 0.05) { this.burst(b.x, gy + 0.15, b.z, 6); dead = true; break; }
         // мобы: отрезок полёта за подшаг встречает тушу R~0.9 (не проскочить на скорости)
         for (const e of this.enemies) {
-          if (e.dead) continue;
+        if (e.dead) continue;
+        // ШКОЛЬНИК-ТАРАН: разгон со старта (медленный) до предела — скорость
+        // ведёт урон от столкновения и поворачиваемость (кукла тоже разгоняется
+        // локально: в бите скорости нет, важен только масштаб урона).
+        if (e.kind === 'school') {
+          e.rushT = (e.rushT ?? 0) + dt;
+          e.speed = schoolSpeed(e.rushT);
+        }
           if (b.from && e === b.from) continue;
           const ty = e.kind === 'fly' ? 3.2 : 1.0 + e.ey;
           const rr = 0.9 + b.r;
@@ -5744,8 +5796,8 @@ export class Game {
     return this.remotes.map((m) => ({ nick: m.nick, char: m.char, x: m.x, z: m.z, yaw: m.yaw, hp: m.hp, weapon: m.weapon, py: m.py, atk: m.atk, dead: m.dead, fid: m.fid }));
   }
   /** Отладка для тестов: живые враги с координатами (навести прицел точно). */
-  debugFoes(): Array<{ id: number; x: number; z: number; hp: number; dead: boolean; ey: number; climb: boolean; god: boolean }> {
-    return this.enemies.filter((e) => !e.dead).map((e) => ({ id: e.mobId, x: e.g.position.x, z: e.g.position.z, hp: Math.round(e.hp), dead: e.dead, ey: Math.round(e.ey * 100) / 100, climb: e.climb, god: e.god }));
+  debugFoes(): Array<{ id: number; kind: string; x: number; z: number; hp: number; dead: boolean; ey: number; climb: boolean; god: boolean; spd: number; rush: number }> {
+    return this.enemies.filter((e) => !e.dead).map((e) => ({ id: e.mobId, kind: e.kind, x: e.g.position.x, z: e.g.position.z, hp: Math.round(e.hp), dead: e.dead, ey: Math.round(e.ey * 100) / 100, climb: e.climb, god: e.god, spd: Math.round(e.speed * 100) / 100, rush: Math.round((e.rushT ?? 0) * 100) / 100 }));
   }
 
   /** Гость общей комнаты: локальную симуляцию гасим, мобы едут со сервера. */
@@ -5791,7 +5843,7 @@ export class Game {
       const id = Math.floor(Number(m.id));
       if (!Number.isFinite(id)) continue;
       seen.add(id);
-      const kind = m.kind === 'fly' || m.kind === 'boss' || m.kind === 'gun' ? m.kind : 'walk';
+      const kind = m.kind === 'fly' || m.kind === 'boss' || m.kind === 'gun' || m.kind === 'school' ? m.kind : 'walk';
       let e = this.enemies.find((q) => q.net && q.mobId === id);
       if (m.dead === true) {
         if (e && !e.dead) {
@@ -7104,8 +7156,9 @@ export class Game {
             const pd = Math.hypot(this.px - e.g.position.x, this.pz - e.g.position.z);
             // бьём только свою плоскость: гость на крыше, кукла на земле — мимо
             if (pd <= 2.3 && Math.abs(e.ey - this.py) <= (e.kind === 'boss' ? 2.8 : 2.2) && e.hitCd <= 0 && this.shieldT <= 0 && !this.devGod) {
-              e.hitCd = e.kind === 'boss' ? 1.2 : 0.95;
-              this.hp -= e.kind === 'boss' ? 18 + Math.random() * 10 : 6 + Math.random() * 5;
+              e.hitCd = e.kind === 'boss' ? 1.2 : e.kind === 'school' ? 1.4 : 0.95;
+              // школьник-таран у куклы: урон от её скорости, потолок 80
+              this.hp -= e.kind === 'boss' ? 18 + Math.random() * 10 : e.kind === 'school' ? schoolRamDmg(e.speed) : 6 + Math.random() * 5;
               this.sunCharge = 0;
               this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
               this.shakeT = 0.25;
@@ -7235,6 +7288,21 @@ export class Game {
             const ml = Math.hypot(mdx, mdz) || 1;
             mdx /= ml; mdz /= ml;
           }
+          // ШКОЛЬНИК: инерция руля — направление не разворачивается мгновенно.
+          // Предел поворота падает вместе со скоростью: разогнавшись, он проходит
+          // мимо цели широкой дугой, на старте — отзывчивый.
+          if (e.kind === 'school' && !e.net) {
+            const vx = e.mvx ?? 0, vz = e.mvz ?? 0;
+            let a = Math.hypot(vx, vz) > 0.05 ? Math.atan2(vz, vx) : Math.atan2(mdz, mdx);
+            const want = Math.atan2(mdz, mdx);
+            let da = want - a;
+            while (da > Math.PI) da -= Math.PI * 2;
+            while (da < -Math.PI) da += Math.PI * 2;
+            const maxTurn = schoolTurn(e.rushT ?? 0) * dt;
+            a += Math.max(-maxTurn, Math.min(maxTurn, da));
+            mdx = Math.cos(a); mdz = Math.sin(a);
+            e.mvx = mdx; e.mvz = mdz;
+          }
           // чумное облако Чумы: в радиусе 9м враг травится (9/с) и ползёт на 55% скорости.
           // Бессмертного сталкера не убивает (HP 9999), но тормозит — можно убежать.
           const inCloud = this.chumaT > 0 && d < 9 && !e.dead;
@@ -7357,9 +7425,9 @@ export class Game {
               if (e.hp <= 0) this.strikeEnemy(e, 1, pdx, pdz, 1, 0);
             }
           }
-          e.hitCd = e.kind === 'boss' ? 1.2 : 0.95;
-          // босс бьёт втрое злее
-          this.hp -= e.kind === 'boss' ? 18 + Math.random() * 10 : 6 + Math.random() * 5;
+          e.hitCd = e.kind === 'boss' ? 1.2 : e.kind === 'school' ? 1.4 : 0.95;
+          // босс бьёт втрое злее; школьник — таран: урон растёт со скоростью, потолок 80
+          this.hp -= e.kind === 'boss' ? 18 + Math.random() * 10 : e.kind === 'school' ? schoolRamDmg(e.speed) : 6 + Math.random() * 5;
           this.sunCharge = 0;
           this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
           this.shakeT = 0.25;
