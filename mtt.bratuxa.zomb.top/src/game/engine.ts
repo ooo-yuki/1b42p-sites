@@ -33,6 +33,7 @@ import charChumaUrl from '../assets/char-chuma.png';
 import charGidroxisUrl from '../assets/char-gidroxis.png';
 import charSunstrikeUrl from '../assets/char-sunstrike.png';
 import charArbuzUrl from '../assets/char-arbuziha.png';
+import charUtugUrl from '../assets/char-utug.png';
 import stalkerUrl from '../assets/stalker.png';
 import shotUrl from '../assets/shot.mp3';
 import hitUrl from '../assets/hit.mp3';
@@ -51,10 +52,11 @@ export function upgCost(key: keyof UpgState, lvl: number): number {
   const base = key === 'sup' ? 150 : 100;
   return Math.round(base * Math.pow(3.5, lvl));
 }
-/** Кд суперспособности с учётом прокачки: МТТ/рывок мин 1.7с, Крыса мин 1.7с, Ивангой-несутка и Чума-облако 30с мин 20с, Гидроксис-рентген 20с мин 15с, Санстрайк-луч 30с, Арбузиха-воронка 15с. */
+/** Кд суперспособности с учётом прокачки: МТТ/рывок мин 1.7с, Крыса мин 1.7с, Ивангой-несутка и Чума-облако 30с мин 20с, Гидроксис-рентген 20с мин 15с, Санстрайк-луч 30с, Арбузиха-воронка 15с, УтюгКрипер-взрыв 35с. */
 export function superCd(id: string, sup: number): number {
   if (id === 'sunstrike') return 30;
   if (id === 'arbuz') return 15;
+  if (id === 'utug') return 35;
   if (id === 'jbl') return 25;
   if (id === 'shuba' || id === 'chuma') return Math.max(20, Math.round((30 - sup * 2) * 10) / 10);
   if (id === 'gidroxis') return Math.max(15, Math.round((20 - sup) * 10) / 10);
@@ -85,6 +87,7 @@ export const CHARS: CharDef[] = [
   { id: 'gidroxis', name: '🧪 Гидроксис', desc: 'Сканер в жёлтом · супер — рентген существ 5с', hp: 95, spd: 1.1, rarity: 'Легендарный' },
   { id: 'sunstrike', name: '☀️ Андрей Санстрайк', desc: 'Мифический в фиолете · супер — луч света с неба по прицелу (заряд от убийств)', hp: 100, spd: 1.05, rarity: 'Мифический' },
   { id: 'arbuz', name: '🍉 Арбузиха', desc: 'Сверхредкая в короне · супер — цветочная воронка стягивает всех в центр 4с', hp: 100, spd: 1.05, rarity: 'Сверхредкий' },
+  { id: 'utug', name: '🟩 УтюгКрипер', desc: 'Сверхредкий крипер · супер — взрыв вокруг себя (3 морга, радиус 6м)', hp: 105, spd: 1.05, rarity: 'Сверхредкий' },
   { id: 'jbl', name: '🔊 JBLка', desc: 'Легендарный колонка · звуковая волна + подчинение врагов', hp: 110, spd: 1.08, rarity: 'Легендарный' },
 ];
 
@@ -186,6 +189,12 @@ export interface HudState {
   arbuz: number;
   /** Перезарядка воронки Арбузихи: осталось секунд (0 — готова). */
   arbuzCd: number;
+  /** Зарядка взрыва УтюгКрипера: идёт моргание, секунд до взрыва (0 — нет). */
+  utugT: number;
+  /** Перезарядка взрыва УтюгКрипера: осталось секунд (0 — готова). */
+  utugCd: number;
+  /** Белая вспышка экрана прямо сейчас (одно из трёх морганий перед взрывом). */
+  utugBlink: boolean;
   /** Звуковая волна JBLка: перезарядка (0 — готова). */
   waveCd: number;
   /** Подчинение JBLка: висит секунд (0 — нет). */
@@ -551,7 +560,7 @@ export class Game {
       pool = ['shuba', 'chuma'];
       rarityName = 'Редкий';
     } else if (rarityRoll < 0.80) {
-      pool = ['arbuz'];
+      pool = ['arbuz', 'utug'];
       rarityName = 'Сверхредкий';
     } else if (rarityRoll < 0.90) {
       pool = ['sunstrike'];
@@ -572,7 +581,7 @@ export class Game {
       const labels: Record<string, string> = {
         shuba: '🥷 ИВАНГОЙ', chuma: '🐦‍⬛ ЧУМА', krysa: '🐀 СТЕЙСИ КРЫСА',
         gidroxis: '🧪 ГИДРОКСИС', jbl: '🔊 JBLКА', sunstrike: '☀️ АНДРЕЙ САНСТРАЙК',
-        arbuz: '🍉 АРБУЗИХА',
+        arbuz: '🍉 АРБУЗИХА', utug: '🟩 УТЮГКРИПЕР',
       };
       return { ok: true, kind: 'char', char: pick, text: `${labels[pick] ?? pick} · ${rarityName} — твоя!` };
     }
@@ -623,8 +632,8 @@ export class Game {
         spd: Math.max(0, Math.min(UPG_MAX.spd, Math.floor(p?.spd ?? 0))),
         sup: Math.max(0, Math.min(UPG_MAX.sup, Math.floor(p?.sup ?? 0))),
       });
-      return { mtt: clean(d.mtt), krysa: clean(d.krysa), shuba: clean(d.shuba), chuma: clean(d.chuma), gidroxis: clean(d.gidroxis), sunstrike: clean(d.sunstrike), arbuz: clean(d.arbuz), jbl: clean(d.jbl) };
-    } catch { return { mtt: blank(), krysa: blank(), shuba: blank(), chuma: blank(), gidroxis: blank(), sunstrike: blank(), arbuz: blank(), jbl: blank() }; }
+      return { mtt: clean(d.mtt), krysa: clean(d.krysa), shuba: clean(d.shuba), chuma: clean(d.chuma), gidroxis: clean(d.gidroxis), sunstrike: clean(d.sunstrike), arbuz: clean(d.arbuz), utug: clean(d.utug), jbl: clean(d.jbl) };
+    } catch { return { mtt: blank(), krysa: blank(), shuba: blank(), chuma: blank(), gidroxis: blank(), sunstrike: blank(), arbuz: blank(), utug: blank(), jbl: blank() }; }
   })();
   private saveUpg(): void {
     try { localStorage.setItem('mtt_upg_v1', JSON.stringify(this.upg)); } catch { /* noop */ }
@@ -632,8 +641,8 @@ export class Game {
   private xp: Record<string, number> = (() => {
     try {
       const d = JSON.parse(localStorage.getItem('mtt_xp_v1') ?? '{}') as Record<string, number>;
-      return { mtt: Math.max(0, Math.floor(d.mtt ?? 0)), krysa: Math.max(0, Math.floor(d.krysa ?? 0)), shuba: Math.max(0, Math.floor(d.shuba ?? 0)), chuma: Math.max(0, Math.floor(d.chuma ?? 0)), gidroxis: Math.max(0, Math.floor(d.gidroxis ?? 0)), sunstrike: Math.max(0, Math.floor(d.sunstrike ?? 0)), arbuz: Math.max(0, Math.floor(d.arbuz ?? 0)), jbl: Math.max(0, Math.floor(d.jbl ?? 0)) };
-    } catch { return { mtt: 0, krysa: 0, shuba: 0, chuma: 0, gidroxis: 0, sunstrike: 0, arbuz: 0, jbl: 0 }; }
+      return { mtt: Math.max(0, Math.floor(d.mtt ?? 0)), krysa: Math.max(0, Math.floor(d.krysa ?? 0)), shuba: Math.max(0, Math.floor(d.shuba ?? 0)), chuma: Math.max(0, Math.floor(d.chuma ?? 0)), gidroxis: Math.max(0, Math.floor(d.gidroxis ?? 0)), sunstrike: Math.max(0, Math.floor(d.sunstrike ?? 0)), arbuz: Math.max(0, Math.floor(d.arbuz ?? 0)), utug: Math.max(0, Math.floor(d.utug ?? 0)), jbl: Math.max(0, Math.floor(d.jbl ?? 0)) };
+    } catch { return { mtt: 0, krysa: 0, shuba: 0, chuma: 0, gidroxis: 0, sunstrike: 0, arbuz: 0, utug: 0, jbl: 0 }; }
   })();
   private soundOn = true;
   /** Общая громкость 0..1 (слайдер в настройках). Множит все звуки. */
@@ -778,6 +787,15 @@ export class Game {
   private arbuzFxT = 0;
   /** Зелёная цветочная воронка: конус + кольца. Одна на игру. */
   private arbuzMesh: THREE.Group | null = null;
+  /** Взрыв УтюгКрипера: utugT — зарядка морганием (0.9с = 3 белых морга,
+      потом взрыв r=6м вокруг себя), utugCd — перезарядка 35с. */
+  private utugT = 0;
+  private utugCd = 0;
+  /** Сколько белых морганий уже было в текущей зарядке (1 = первое, идёт). */
+  private utugBlinkN = 0;
+  /** Визуал: расширяющееся белое кольцо взрыва УтюгКрипера. */
+  private utugRing: THREE.Mesh | null = null;
+  private utugRingT = 0;
   private sunBeam: THREE.Mesh | null = null;
   private sunFlashT = 0;
   /** Флаг «бьёт луч»: фраги от способности в заряд не идут. */
@@ -1230,6 +1248,8 @@ export class Game {
     this.waveCd = 0;
     this.charmT = 0;
     this.charmCd = 0;
+    this.utugT = 0;
+    this.utugCd = 0;
     this.pushHud();
     return this.charId;
   }
@@ -1283,6 +1303,8 @@ export class Game {
     // отрава метателя: с респауном снимаем дебафф и гасим лужи
     this.poolT = 0;
     this.poolHpPush = -1;
+    // недокастованный взрыв УтюгКрипера на респауне отменяем (кд остаётся)
+    this.utugT = 0;
     for (const p of this.pools) {
       this.scene.remove(p.m);
       p.m.geometry.dispose();
@@ -1312,7 +1334,7 @@ export class Game {
   /** Предзагрузка текстур перед боем: только нужное под карту + общие (бойцы, враги).
       Шуба ужата до 512px, грузим пачками параллельно — экран загрузки пролетает. */
   async preload(onPct: (p: number) => void): Promise<void> {
-    const core = [vrag1Url, vrag2Url, banditUrl, schoolboyUrl, throwerUrl, bottleUrl, bossUrl, bossPhotoUrl, stalkerUrl, charMttUrl, charKrysaUrl, charShubaUrl, charChumaUrl, charGidroxisUrl, charSunstrikeUrl, skyUrl];
+    const core = [vrag1Url, vrag2Url, banditUrl, schoolboyUrl, throwerUrl, bottleUrl, bossUrl, bossPhotoUrl, stalkerUrl, charMttUrl, charKrysaUrl, charShubaUrl, charChumaUrl, charGidroxisUrl, charSunstrikeUrl, charUtugUrl, skyUrl];
     const byMap: Record<string, string[]> = {
       arena: [dom1Url, travaUrl, facadeUrl, panelUrl, shopUrl, roofUrl, roadUrl, walkUrl, plazaUrl, fenceUrl, edgeUrl, house2Url, brickUrl],
       duel: [travaUrl, brickUrl, edgeUrl],
@@ -4595,6 +4617,7 @@ export class Game {
     this.canvas.removeEventListener('mousedown', this.onMouseDown);
     this.renderer.dispose();
     if (this.waveRing) { this.scene.remove(this.waveRing); this.waveRing.geometry.dispose(); (this.waveRing.material as THREE.Material).dispose(); }
+    if (this.utugRing) { this.scene.remove(this.utugRing); this.utugRing.geometry.dispose(); (this.utugRing.material as THREE.Material).dispose(); }
     if (this.charmAura) { this.scene.remove(this.charmAura); this.charmAura.geometry.dispose(); (this.charmAura.material as THREE.Material).dispose(); }
   }
 
@@ -5241,6 +5264,60 @@ export class Game {
 
   debugArbuz(): { t: number; cd: number; x: number; z: number } {
     return { t: Math.round(this.arbuzT * 10) / 10, cd: Math.round(this.arbuzCd * 10) / 10, x: this.arbuzX, z: this.arbuzZ };
+  }
+
+  // ===== УТЮГКРИПЕР: Супер — ВЗРЫВ =====
+  // На C экран трижды моргает белым (0.9с), затем взрыв радиусом 6м вокруг
+  // себя: урон падает с дистанцией (в центре ~150, у края ~20), врагов
+  // отбрасывает на 5м. Перезарядка 35с (качается hp/dmg/spd, кд фикс).
+  utugBlast(): boolean {
+    if (!this.started || this.dead || this.carrying || this.utugCd > 0 || this.utugT > 0 || this.charId !== 'utug') return false;
+    this.utugT = 0.9;
+    this.utugBlinkN = 1;
+    this.utugCd = superCd('utug', this.upg['utug']?.sup ?? 0);
+    this.pushHud();
+    return true;
+  }
+
+  /** Сейчас одно из трёх белых морганий (HUD-вспышка и тесты). */
+  private utugBlinkNow(): boolean {
+    if (this.utugT <= 0) return false;
+    return Math.floor((0.9 - this.utugT) / 0.15) % 2 === 0;
+  }
+
+  debugBlast(): { t: number; cd: number; blink: boolean; n: number } {
+    return { t: Math.round(this.utugT * 100) / 100, cd: Math.round(this.utugCd * 10) / 10, blink: this.utugBlinkNow(), n: this.utugBlinkN };
+  }
+
+  /** Взрыв: урон тем больше, чем ближе (центр 150 → край 20), отброс 5м. */
+  private utugExplode(): void {
+    const R = 6;
+    this.burst(this.px, 1, this.pz, 34);
+    this.sfx(hitUrl);
+    if (!this.utugRing) {
+      this.utugRing = new THREE.Mesh(
+        new THREE.RingGeometry(0.8, 1, 48),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }),
+      );
+      this.utugRing.rotation.x = -Math.PI / 2;
+      this.utugRing.renderOrder = 9;
+    }
+    this.utugRing.position.set(this.px, this.groundAt(this.px, this.pz) + 0.1, this.pz);
+    this.utugRing.scale.set(0.2, 0.2, 1);
+    (this.utugRing.material as THREE.MeshBasicMaterial).opacity = 0.95;
+    this.utugRing.visible = true;
+    if (!this.utugRing.parent) this.scene.add(this.utugRing);
+    this.utugRingT = 0.45;
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      const dx = e.g.position.x - this.px, dz = e.g.position.z - this.pz;
+      const d = Math.hypot(dx, dz);
+      if (d > R + 0.5) continue;
+      const dmg = Math.max(20, Math.round(20 + 130 * (1 - Math.min(1, d / R))));
+      this.strikeEnemy(e, dmg, dx, dz, d || 1, 5);
+    }
+    this.pushHud();
+    this.waveClearCheck();
   }
 
   // ===== JBLКА: Способность 1 — Звуковая волна =====
@@ -6403,6 +6480,9 @@ export class Game {
       sunCd: Math.round(this.sunCd * 10) / 10,
       arbuz: Math.round(this.arbuzT * 10) / 10,
       arbuzCd: Math.round(this.arbuzCd * 10) / 10,
+      utugT: Math.round(this.utugT * 10) / 10,
+      utugCd: Math.round(this.utugCd * 10) / 10,
+      utugBlink: this.utugBlinkNow(),
       waveCd: Math.round(this.waveCd * 10) / 10,
       charm: Math.round(this.charmT * 10) / 10,
       charmCd: Math.round(this.charmCd * 10) / 10,
@@ -6457,10 +6537,10 @@ export class Game {
   private charTexCache: Record<string, THREE.Texture> = {};
 
   private charTexture(id: string): THREE.Texture {
-    const key = id === 'krysa' ? 'krysa' : id === 'shuba' ? 'shuba' : id === 'chuma' ? 'chuma' : id === 'gidroxis' ? 'gidroxis' : id === 'sunstrike' ? 'sunstrike' : id === 'arbuz' ? 'arbuz' : 'mtt';
+    const key = id === 'krysa' ? 'krysa' : id === 'shuba' ? 'shuba' : id === 'chuma' ? 'chuma' : id === 'gidroxis' ? 'gidroxis' : id === 'sunstrike' ? 'sunstrike' : id === 'arbuz' ? 'arbuz' : id === 'utug' ? 'utug' : 'mtt';
     let t = this.charTexCache[key];
     if (!t) {
-      t = new THREE.TextureLoader().load(key === 'krysa' ? charKrysaUrl : key === 'shuba' ? charShubaUrl : key === 'chuma' ? charChumaUrl : key === 'gidroxis' ? charGidroxisUrl : key === 'sunstrike' ? charSunstrikeUrl : key === 'arbuz' ? charArbuzUrl : charMttUrl);
+      t = new THREE.TextureLoader().load(key === 'krysa' ? charKrysaUrl : key === 'shuba' ? charShubaUrl : key === 'chuma' ? charChumaUrl : key === 'gidroxis' ? charGidroxisUrl : key === 'sunstrike' ? charSunstrikeUrl : key === 'arbuz' ? charArbuzUrl : key === 'utug' ? charUtugUrl : charMttUrl);
       t.colorSpace = THREE.SRGBColorSpace;
       this.charTexCache[key] = t;
     }
@@ -6894,7 +6974,7 @@ export class Game {
       // Наблюдатель способностей не жмёт.
       if (this.input[km.ability] && this.charId !== 'krysa' && !this.specOn) {
         this.input[km.ability] = false;
-        if (this.charId === 'shuba') this.invis(); else if (this.charId === 'chuma') this.chuma(); else if (this.charId === 'gidroxis') this.xray(); else if (this.charId === 'sunstrike') this.sunstrike(); else if (this.charId === 'arbuz') this.arbuz(); else if (this.charId === 'jbl') this.soundWave(); else this.dash();
+        if (this.charId === 'shuba') this.invis(); else if (this.charId === 'chuma') this.chuma(); else if (this.charId === 'gidroxis') this.xray(); else if (this.charId === 'sunstrike') this.sunstrike(); else if (this.charId === 'arbuz') this.arbuz(); else if (this.charId === 'utug') this.utugBlast(); else if (this.charId === 'jbl') this.soundWave(); else this.dash();
       }
       // способность 2 на V: JBLка — подчинение
       if (this.input[km.ability2] && !this.specOn) {
@@ -6917,6 +6997,7 @@ export class Game {
         if (this.xrayCd > 0) this.xrayCd = 0;
         if (this.sunCd > 0) this.sunCd = 0;
         if (this.arbuzCd > 0) this.arbuzCd = 0;
+        if (this.utugCd > 0) this.utugCd = 0;
         if (this.charmCd > 0) this.charmCd = 0;
       }
       // несутка тикает: кончилась — сбрасываем HUD (враги снова видят)
@@ -6965,6 +7046,33 @@ export class Game {
         if (this.arbuzCd <= 0) { this.arbuzCd = 0; this.pushHud(); }
         else if (Math.floor(this.arbuzCd * 5) !== Math.floor((this.arbuzCd + dt) * 5)) this.pushHud();
       }
+      // взрыв УтюгКрипера: зарядка морганием (0.9с) — на конце взрыв, кд тикает
+      if (this.utugT > 0) {
+        const was = this.utugBlinkNow();
+        this.utugT -= dt;
+        if (this.utugT <= 0) { this.utugT = 0; this.utugExplode(); }
+        else {
+          if (!was && this.utugBlinkNow()) this.utugBlinkN++;
+          if (was !== this.utugBlinkNow()) this.pushHud();
+        }
+      }
+      if (this.utugCd > 0) {
+        this.utugCd -= dt;
+        if (this.utugCd <= 0) { this.utugCd = 0; this.pushHud(); }
+        else if (Math.floor(this.utugCd * 5) !== Math.floor((this.utugCd + dt) * 5)) this.pushHud();
+      }
+      // белое кольцо взрыва: растёт до 6м и тает за 0.45с
+      if (this.utugRingT > 0) {
+        this.utugRingT -= dt;
+        if (this.utugRing) {
+          const p = 1 - Math.max(0, this.utugRingT / 0.45);
+          const s = 0.2 + p * 5.8;
+          this.utugRing.scale.set(s, s, 1);
+          (this.utugRing.material as THREE.MeshBasicMaterial).opacity = 0.95 * (1 - p);
+          this.utugRing.visible = true;
+          if (!this.utugRing.parent) this.scene.add(this.utugRing);
+        }
+      } else if (this.utugRing && this.utugRing.visible) this.utugRing.visible = false;
       // подчинение JBLка тикает: кончилось — сбрасываем HUD
       if (this.charmT > 0) {
         this.charmT -= dt;
