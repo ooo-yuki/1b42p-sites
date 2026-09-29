@@ -16,7 +16,7 @@ import roadUrl from '../assets/city-road.jpg';
 import walkUrl from '../assets/city-walk.jpg';
 import plazaUrl from '../assets/city-plaza.jpg';
 import fenceUrl from '../assets/fence.jpg';
-import skyUrl from '../assets/sky.jpg';
+import skyBoxUrl from '../assets/skybox.jpg';
 import edgeUrl from '../assets/edge.png';
 import house2Url from '../assets/house2.png';
 import brickUrl from '../assets/brick.jpg';
@@ -1001,34 +1001,15 @@ export class Game {
     } else if (map === 'forest') {
       this.scene.background = new THREE.Color(0x1a2a10);
       this.scene.fog = new THREE.Fog(0x1a2a10, 30, 120);
-      const skyTex = new THREE.TextureLoader().load(skyUrl);
-      skyTex.colorSpace = THREE.SRGBColorSpace;
-      const sky = new THREE.Mesh(
-        new THREE.SphereGeometry(300, 24, 16),
-        new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false }),
-      );
-      this.scene.add(sky);
+      this.applySky();
     } else if (map === 'blender' || map === 'gorod1') {
       this.scene.background = new THREE.Color(0x87ceeb);
       this.scene.fog = new THREE.Fog(0x87ceeb, 80, 250);
-      const skyTex = new THREE.TextureLoader().load(skyUrl);
-      skyTex.colorSpace = THREE.SRGBColorSpace;
-      const sky = new THREE.Mesh(
-        new THREE.SphereGeometry(350, 24, 16),
-        new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false }),
-      );
-      this.scene.add(sky);
+      this.applySky();
     } else {
       this.scene.background = new THREE.Color(0x9ecdf0);
       this.scene.fog = new THREE.Fog(0x9ecdf0, 60, 200);
-      // небо с фото МТТ: огромная сфера, туман её не трогает
-      const skyTex = new THREE.TextureLoader().load(skyUrl);
-      skyTex.colorSpace = THREE.SRGBColorSpace;
-      const sky = new THREE.Mesh(
-        new THREE.SphereGeometry(420, 24, 16),
-        new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false }),
-      );
-      this.scene.add(sky);
+      this.applySky();
     }
     this.loadShop();
     this.loadKeys();
@@ -1337,7 +1318,7 @@ export class Game {
   /** Предзагрузка текстур перед боем: только нужное под карту + общие (бойцы, враги).
       Шуба ужата до 512px, грузим пачками параллельно — экран загрузки пролетает. */
   async preload(onPct: (p: number) => void): Promise<void> {
-    const core = [vrag1Url, vrag2Url, banditUrl, schoolboyUrl, throwerUrl, bottleUrl, bossUrl, bossPhotoUrl, stalkerUrl, charMttUrl, charKrysaUrl, charShubaUrl, charChumaUrl, charGidroxisUrl, charSunstrikeUrl, charUtugUrl, skyUrl];
+    const core = [vrag1Url, vrag2Url, banditUrl, schoolboyUrl, throwerUrl, bottleUrl, bossUrl, bossPhotoUrl, stalkerUrl, charMttUrl, charKrysaUrl, charShubaUrl, charChumaUrl, charGidroxisUrl, charSunstrikeUrl, charUtugUrl, skyBoxUrl];
     const byMap: Record<string, string[]> = {
       arena: [dom1Url, travaUrl, facadeUrl, panelUrl, shopUrl, roofUrl, roadUrl, walkUrl, plazaUrl, fenceUrl, edgeUrl, house2Url, brickUrl],
       duel: [travaUrl, brickUrl, edgeUrl],
@@ -1522,6 +1503,14 @@ export class Game {
       tl.position.set(fx, 4.3, fz);
       scene.add(tl);
     }
+  }
+
+  // ===== ОБЩЕЕ НЕБО: equirect-скайбокс (развёртка из кросса, туман не трогает фон) =====
+  private applySky(): void {
+    const tex = new THREE.TextureLoader().load(skyBoxUrl);
+    tex.mapping = THREE.EquirectangularReflectionMapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    this.scene.background = tex;
   }
 
   // ===== BLENDER: карта из .glb (ручные хитбоксы col_*, спавны Spawn1/Spawn2) =====
