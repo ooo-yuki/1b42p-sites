@@ -1402,7 +1402,8 @@ async function loadStats(): Promise<void> {
   }, [menuTab, refreshRooms]);
 
   const createRoom = useCallback(async (nameOverride?: string, modeOverride?: MapId) => {
-    if ((modeOverride ?? draftMode) === 'szeged' && !canSee(authed, devUnlocked)) return;
+    const m0 = modeOverride ?? draftMode;
+    if ((m0 === 'szeged' || m0 === 'gorod1') && !canSee(authed, devUnlocked)) return;
     try {
       const r = await fetch('/api/rooms', {
         method: 'POST',
@@ -1434,7 +1435,8 @@ async function loadStats(): Promise<void> {
   }, [nick, roomDraft, draftMode, authed, devUnlocked, refreshRooms]);
 
   const joinRoom = useCallback(async (id: string) => {
-    if (roomsList.find((r) => r.id === id)?.mode === 'szeged' && !canSee(authed, devUnlocked)) return;
+    const md = roomsList.find((r) => r.id === id)?.mode;
+    if ((md === 'szeged' || md === 'gorod1') && !canSee(authed, devUnlocked)) return;
     try {
       const r = await fetch(`/api/rooms/${id}/join`, {
         method: 'POST',
@@ -1443,7 +1445,7 @@ async function loadStats(): Promise<void> {
       });
       if (!r.ok) return;
       const d = (await r.json()) as { sid: string; name: string; mode: MapId; seed?: number; pending?: boolean };
-      if (d.mode === 'szeged' && !canSee(authed, devUnlocked)) return;
+      if ((d.mode === 'szeged' || d.mode === 'gorod1') && !canSee(authed, devUnlocked)) return;
       roomRef.current = { id, sid: d.sid, mode: d.mode };
       if ((d as { escaped?: boolean }).escaped === true) escapedJoinRef.current = true;
       setRoomId(id);
