@@ -7350,6 +7350,8 @@ export class Game {
               e.hitCd = e.kind === 'boss' ? 1.2 : e.kind === 'school' ? 1.4 : 0.95;
               // школьник-таран у куклы: урон от её скорости, потолок 80
               this.hp -= e.kind === 'boss' ? 18 + Math.random() * 10 : e.kind === 'school' ? schoolRamDmg(e.speed) : 6 + Math.random() * 5;
+              // таран врезался — разгон сбрасывается, едет заново с минимума
+              if (e.kind === 'school') { e.rushT = 0; e.speed = SCHOOL_SPD_MIN; e.mvx = 0; e.mvz = 0; }
               this.sunCharge = 0;
               this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
               this.shakeT = 0.25;
@@ -7540,6 +7542,14 @@ export class Game {
           }
           if (!blockedX) e.g.position.x = cx;
           if (!blockedZ) e.g.position.z = cz;
+          // школьник врезался в стену (хотя бы по одной оси, на разгоне) —
+          // скорость сбрасывается вминимум, инерция руля тоже
+          if (e.kind === 'school' && (blockedX || blockedZ) && (e.rushT ?? 0) > 0.25) {
+            e.rushT = 0;
+            e.speed = SCHOOL_SPD_MIN;
+            e.mvx = 0;
+            e.mvz = 0;
+          }
           // ВОРОНКА Арбузихи: в радиусе 5м от центра всех тянет строго в середину.
           // Всех без разбора — сталкеров тоже (босс тянется в своей ветке ниже).
           if (this.arbuzT > 0 && !e.dead) {
@@ -7626,6 +7636,8 @@ export class Game {
           e.hitCd = e.kind === 'boss' ? 1.2 : e.kind === 'school' ? 1.4 : 0.95;
           // босс бьёт втрое злее; школьник — таран: урон растёт со скоростью, потолок 80
           this.hp -= e.kind === 'boss' ? 18 + Math.random() * 10 : e.kind === 'school' ? schoolRamDmg(e.speed) : 6 + Math.random() * 5;
+          // таран врезался — разгон сбрасывается, едет заново с минимума
+          if (e.kind === 'school') { e.rushT = 0; e.speed = SCHOOL_SPD_MIN; e.mvx = 0; e.mvz = 0; }
           this.sunCharge = 0;
           this.burst(this.px - Math.sin(this.yaw) * 1.2, 1.5, this.pz - Math.cos(this.yaw) * 1.2, 8);
           this.shakeT = 0.25;
