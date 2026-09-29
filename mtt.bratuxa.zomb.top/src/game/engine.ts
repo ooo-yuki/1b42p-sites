@@ -961,7 +961,7 @@ export class Game {
     // Blender/Gorod1-карты — мирные: мобов нет вообще (все spawnWave-гейты завязаны на enemiesOn)
     this.enemiesOn = map === 'blender' || map === 'gorod1' ? false : opts.enemies !== false;
     // CTF: случайная команда при заходе на Blender/Gorod1 (вне их команд нет)
-    this.team = map === 'blender' || map === 'gorod1' ? (Math.random() < 0.5 ? 'red' : 'blue') : null;
+    this.team = map === 'blender' ? (Math.random() < 0.5 ? 'red' : 'blue') : null;
     this.custom = opts.custom ?? null;
     this.mapSeed = (opts.seed ?? Math.floor(Math.random() * 2 ** 31)) >>> 0;
     // Бэкрумс большой: лабиринт ~300м (N=50, CELL=6).
@@ -1701,18 +1701,20 @@ export class Game {
             }
           }
         }
-        // Флаги CTF: синий на синей базе, красный на красной
-        this.flagBlue = this.makeFlag('blue', blueBase.x, blueBase.z);
-        this.flagRed = this.makeFlag('red', redBase.x, redBase.z);
-        scene.add(this.flagBlue!.group);
-        scene.add(this.flagRed!.group);
-        // Маленькие флаги над головой (пока скрыты)
-        this.carryBlue = this.makeFlag('blue', 0, 0, 0.55);
-        this.carryRed = this.makeFlag('red', 0, 0, 0.55);
-        this.carryBlue!.group.visible = false;
-        this.carryRed!.group.visible = false;
-        scene.add(this.carryBlue!.group);
-        scene.add(this.carryRed!.group);
+        // Флаги CTF — только на Blender (gorod1 — мирная карта, без флагов и команд)
+        if (this.team) {
+          this.flagBlue = this.makeFlag('blue', blueBase.x, blueBase.z);
+          this.flagRed = this.makeFlag('red', redBase.x, redBase.z);
+          scene.add(this.flagBlue!.group);
+          scene.add(this.flagRed!.group);
+          // Маленькие флаги над головой (пока скрыты)
+          this.carryBlue = this.makeFlag('blue', 0, 0, 0.55);
+          this.carryRed = this.makeFlag('red', 0, 0, 0.55);
+          this.carryBlue!.group.visible = false;
+          this.carryRed!.group.visible = false;
+          scene.add(this.carryBlue!.group);
+          scene.add(this.carryRed!.group);
+        }
         this.pushHud();
       },
       undefined,
@@ -1773,7 +1775,7 @@ export class Game {
 
   /** Кадр CTF: анимация полотен, подбор/возврат/захват. Вызывается из цикла. */
   private updateFlags(): void {
-    if ((this.map !== 'blender' && this.map !== 'gorod1') || !this.team || !this.flagRed || !this.flagBlue) return;
+    if (this.map !== 'blender' || !this.team || !this.flagRed || !this.flagBlue) return;
     const t = performance.now() / 1000;
     const fR = this.flagRed, fB = this.flagBlue;
     const cR = fR?.group?.getObjectByName('cloth');
@@ -6551,7 +6553,7 @@ export class Game {
       g.fillRect(ex - 2, ez - 2, 4, 4);
     }
     // CTF-флаги на миникарте: красный и синий квадраты (несомый — у игрока).
-    if (this.map === 'blender' || this.map === 'gorod1') {
+    if (this.map === 'blender') {
       const dot = (fx: number, fz: number, color: string): void => {
         const [dx, dz] = toMap(fx, fz);
         g.fillStyle = color;
