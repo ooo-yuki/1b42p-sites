@@ -44,6 +44,8 @@ import szegedAtlasUrl from '../assets/szeged-atlas.jpg';
 import szegedSolids from '../assets/szeged.solids.json';
 import szegedSpawn from '../../tools/szeged-spawn.json';
 import customMapUrl from '../assets/custom-map.glb';
+import gorod1Url from '../assets/gorod1.glb';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 
 export interface UpgState { hp: number; dmg: number; spd: number; sup: number }
 export const UPG_MAX: UpgState = { hp: 5, dmg: 5, spd: 5, sup: 5 };
@@ -106,7 +108,7 @@ export function charSpec(id: string): CharDef {
 }
 
 export type Quality = 'low' | 'medium' | 'high';
-export type MapId = 'arena' | 'duel' | 'backrooms' | 'custom' | 'random' | 'pvp' | 'endless' | 'invasion' | 'szeged' | 'boss' | 'forest' | 'blender';
+export type MapId = 'arena' | 'duel' | 'backrooms' | 'custom' | 'random' | 'pvp' | 'endless' | 'invasion' | 'szeged' | 'boss' | 'forest' | 'blender' | 'gorod1';
 
 /** CTF-команда (карта Blender): синие — база Spawn1, красные — база Spawn2. */
 export type Team = 'red' | 'blue';
@@ -119,6 +121,7 @@ export const MAPS: Array<{ id: MapId; name: string; desc: string }> = [
   { id: 'szeged', name: '🇬🇧 London', desc: 'Приватная карта МТТ' },
   { id: 'forest', name: '🌲 Лес', desc: '300×300 — густой лес, болота, озёра. Карта админа' },
   { id: 'blender', name: '🧊 Blender', desc: 'Кастомная карта из Blender (.glb)' },
+  { id: 'gorod1', name: '🏙 Город1', desc: 'Город из Blender — закрытая карта МТТ' },
   { id: 'backrooms', name: '🟨 Бэкрумс', desc: 'Случайный лабиринт — новый каждый раз' },
   { id: 'random', name: '🎲 Случайная', desc: 'Дикий ландшафт: холмы, скалы, озеро — новый каждый раз' },
 ];
@@ -955,14 +958,14 @@ export class Game {
     readonly map: MapId = 'arena',
     opts: GameOpts = {},
   ) {
-    // Blender-карта — мирная: мобов нет вообще (все spawnWave-гейты завязаны на enemiesOn)
-    this.enemiesOn = map === 'blender' ? false : opts.enemies !== false;
-    // CTF: случайная команда при заходе на Blender (вне Blender команд нет)
-    this.team = map === 'blender' ? (Math.random() < 0.5 ? 'red' : 'blue') : null;
+    // Blender/Gorod1-карты — мирные: мобов нет вообще (все spawnWave-гейты завязаны на enemiesOn)
+    this.enemiesOn = map === 'blender' || map === 'gorod1' ? false : opts.enemies !== false;
+    // CTF: случайная команда при заходе на Blender/Gorod1 (вне их команд нет)
+    this.team = map === 'blender' || map === 'gorod1' ? (Math.random() < 0.5 ? 'red' : 'blue') : null;
     this.custom = opts.custom ?? null;
     this.mapSeed = (opts.seed ?? Math.floor(Math.random() * 2 ** 31)) >>> 0;
     // Бэкрумс большой: лабиринт ~300м (N=50, CELL=6).
-    this.half = map === 'duel' ? 32 : map === 'boss' ? 45 : map === 'forest' ? 100 : map === 'blender' ? 80 : HALF;
+    this.half = map === 'duel' ? 32 : map === 'boss' ? 45 : map === 'forest' ? 100 : map === 'blender' || map === 'gorod1' ? 80 : HALF;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
     // свет наблюдателя: день вместо жути — висят выключенными, зажигаются в specOn
     this.specLight = new THREE.AmbientLight(0xfff6e6, 1.15);
@@ -1005,7 +1008,7 @@ export class Game {
         new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false }),
       );
       this.scene.add(sky);
-    } else if (map === 'blender') {
+    } else if (map === 'blender' || map === 'gorod1') {
       this.scene.background = new THREE.Color(0x87ceeb);
       this.scene.fog = new THREE.Fog(0x87ceeb, 80, 250);
       const skyTex = new THREE.TextureLoader().load(skyUrl);
@@ -1522,7 +1525,7 @@ export class Game {
   }
 
   // ===== BLENDER: карта из .glb (ручные хитбоксы col_*, спавны Spawn1/Spawn2) =====
-  private buildBlender(): void {
+  private buildBlender(url: string = customMapUrl): void {
     const scene = this.scene;
     scene.add(new THREE.HemisphereLight(0xbfd9ff, 0x8a7a66, 0.8));
     const sun = new THREE.DirectionalLight(0xffe7c4, 1.4);
@@ -1553,8 +1556,9 @@ export class Game {
     ground.receiveShadow = true;
     scene.add(ground);
     const loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);
     loader.load(
-      customMapUrl,
+      url,
       (gltf) => {
         const root = gltf.scene;
         let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
@@ -1638,12 +1642,35 @@ export class Game {
         scene.add(root);
         if (skippedSlabs > 0) console.log(`[Blender] skipped ${skippedSlabs} ground slab(s)`);
         this.rebuildSolidGrid();
-        // CTF: синяя база — Spawn1, красная — Spawn2 (нет Spawn2 — зеркалим от синей)
+        // CTF: синяя база — Spawn1, красная — Spawn2 (нет Spawn2 — зеркалим от синей).
+        // В gorod1 спавнов в GLB нет: ставим базы сами — слева/справа от центра
+        // коллизионных границ, не попадая в хитбоксы (freeNear — спираль от точки).
         const s1 = spawns['spawn1'];
         const s2 = spawns['spawn2'];
         if (s2) this.spawn2 = { x: s2.x, z: s2.z };
-        const blueBase: { x: number; z: number } = s1 ?? { x: this.px, z: this.pz };
+        const freeNear = (x: number, z: number): { x: number; z: number } => {
+          if (!this.hitSolid(x, z, 2)) return { x, z };
+          for (let r = 2; r <= this.half; r += 2) {
+            for (let k = 0; k < 8; k++) {
+              const a = (k / 8) * Math.PI * 2;
+              const qx = clampArena(x + Math.cos(a) * r, this.half);
+              const qz = clampArena(z + Math.sin(a) * r, this.half);
+              if (!this.hitSolid(qx, qz, 2)) return { x: qx, z: qz };
+            }
+          }
+          return { x, z };
+        };
+        let blueBase: { x: number; z: number } | null = s1 ?? null;
         let redBase: { x: number; z: number } | null = s2 ?? null;
+        if (!blueBase && !redBase && bx0 < Infinity) {
+          const cx = (bx0 + bx1) / 2, cz = (bz0 + bz1) / 2;
+          const wideX = bx1 - bx0 >= bz1 - bz0;
+          const d = Math.max(bx1 - bx0, bz1 - bz0) * 0.25;
+          blueBase = freeNear(wideX ? cx - d : cx, wideX ? cz : cz - d);
+          redBase = freeNear(wideX ? cx + d : cx, wideX ? cz : cz + d);
+          this.spawn2 = { ...redBase };
+        }
+        if (!blueBase) blueBase = { x: this.px, z: this.pz };
         if (!redBase) {
           const mx = -blueBase.x, mz = -blueBase.z;
           if (!this.hitSolid(mx, mz, 2)) redBase = { x: mx, z: mz };
@@ -1746,7 +1773,7 @@ export class Game {
 
   /** Кадр CTF: анимация полотен, подбор/возврат/захват. Вызывается из цикла. */
   private updateFlags(): void {
-    if (this.map !== 'blender' || !this.team || !this.flagRed || !this.flagBlue) return;
+    if ((this.map !== 'blender' && this.map !== 'gorod1') || !this.team || !this.flagRed || !this.flagBlue) return;
     const t = performance.now() / 1000;
     const fR = this.flagRed, fB = this.flagBlue;
     const cR = fR?.group?.getObjectByName('cloth');
@@ -3538,6 +3565,7 @@ export class Game {
     if (this.map === 'szeged') { this.buildSzeged(); return; }
     if (this.map === 'forest') { this.buildForest(); return; }
     if (this.map === 'blender') { this.buildBlender(); return; }
+    if (this.map === 'gorod1') { this.buildBlender(gorod1Url); return; }
     // arena, pvp, invasion — город
     this.buildCity(); return;
     const scene = this.scene;
@@ -6523,7 +6551,7 @@ export class Game {
       g.fillRect(ex - 2, ez - 2, 4, 4);
     }
     // CTF-флаги на миникарте: красный и синий квадраты (несомый — у игрока).
-    if (this.map === 'blender') {
+    if (this.map === 'blender' || this.map === 'gorod1') {
       const dot = (fx: number, fz: number, color: string): void => {
         const [dx, dz] = toMap(fx, fz);
         g.fillStyle = color;
