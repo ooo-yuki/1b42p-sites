@@ -1274,7 +1274,13 @@ async function loadStats(): Promise<void> {
         body: JSON.stringify({ sid }),
       }).catch(() => undefined);
     }
+    const prevGame = gameRef.current;
     setMenu(false);
+    // закрытие меню пересоздаёт Game (dep menu): ждём свежий инстанс, иначе preload
+    // дождётся GLB у старого, а игрок начнёт бой на пустой карте без коллизий
+    for (let i = 0; i < 60 && gameRef.current === prevGame; i++) {
+      await new Promise((r) => window.setTimeout(r, 20));
+    }
     // загрузка: греем текстуры под оверлеем, в бой — под щитом (щит до движения/выстрела)
     setLoading({ show: true, pct: 0 });
     try {
