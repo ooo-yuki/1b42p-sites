@@ -18,7 +18,7 @@ test('спавн: 30 мобов в лабиринте — ни один не в 
   type M = {
     spawnKind: (k: 'walk' | 'fly' | 'boss') => number;
     foes: () => Array<{ x: number; z: number; dead: boolean; kind: string; ey: number; climb: boolean }>;
-    solidAt: (x: number, z: number, y: number) => boolean;
+    solidAt: (x: number, z: number, y: number, r?: number) => boolean;
   };
   // спавним пачками: движок может капать лимит — читаем всех живых в конце каждой пачки
   const seen = new Map<number, { x: number; z: number }>();
@@ -39,17 +39,19 @@ test('спавн: 30 мобов в лабиринте — ни один не в 
   const foes = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.foes());
   expect(foes.length).toBeGreaterThan(0);
   const embedded: Array<{ x: number; z: number; kind: string; ey: number; climb: boolean }> = [];
-  // тело моба меряем на его высоте (ey + середина): моб ВЫСОТОЙ на ящике/мебели —
-  // это не «в стене», а точка (x,z,0) как раз внутри предмета (ложное срабатывание)
+  // Проверяем инвариант движения, НО с допуском r=0.4: движок пишет позицию лишь
+  // когда тело (r=0.8, а посадка с прыжка — r=0.5) вне стены, моб же отдыхает
+  // вплотную (~0.80–0.85) — тест с дефолтным r=0.9 ловил таких «в стене» (ложное).
+  // y зеркалит hitSolid: муха меряется на 3.2, остальные — на своей высоте ey.
   let at0 = 0;
   for (const f of foes) {
     if (f.dead) continue;
     const r = await page.evaluate(
       ([x, z, y]) => {
         const m = (window as unknown as { __mtt: M }).__mtt;
-        return { body: m.solidAt(x, z, y), base: m.solidAt(x, z, 0) };
+        return { body: m.solidAt(x, z, y, 0.4), base: m.solidAt(x, z, 0) };
       },
-      [f.x, f.z, f.ey + 0.8] as [number, number, number],
+      [f.x, f.z, f.kind === 'fly' ? 3.2 : f.ey] as [number, number, number],
     );
     if (r.base) at0++;
     if (r.body) embedded.push({ x: f.x, z: f.z, kind: f.kind, ey: f.ey, climb: f.climb });

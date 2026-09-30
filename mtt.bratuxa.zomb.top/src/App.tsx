@@ -1850,14 +1850,16 @@ async function loadStats(): Promise<void> {
   }, [adminOpen, admin, loadAdmin]);
 
   const onBustedShown = useRef(false);
-  // плашка нового раунда: всплывает на каждую смену волны
+  // плашка нового раунда: всплывает на каждую смену волны.
+  // Ждём ready: элемент живёт под {!menu && ready}, а при закрытии меню ready ещё
+  // false (preload GLB) — плашка до ready сгорит по таймеру 2.6с и не покажется.
   useEffect(() => {
-    if (menu || hud.wave === prevWave.current) return;
+    if (menu || !ready || hud.wave === prevWave.current) return;
     prevWave.current = hud.wave;
     setWaveBanner(hud.wave);
     const t = window.setTimeout(() => setWaveBanner(0), 2600);
     return () => window.clearTimeout(t);
-  }, [hud.wave, menu]);
+  }, [hud.wave, menu, ready]);
   // плашка БОССА: гопник вышел — все видят
   const [bossBanner, setBossBanner] = useState(false);
   const prevBoss = useRef(0);
