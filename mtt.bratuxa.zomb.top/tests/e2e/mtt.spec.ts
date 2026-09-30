@@ -24,6 +24,8 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#goBtn');
     await expect(page.locator('#menu')).toHaveCount(0);
     await expect(page.locator('#mm')).toHaveCount(0);
+    // HUD (джойстик/кнопки) рисуется только после догрузки карты — ждём реальный старт
+    await started(page);
     await expect(page.locator('#joy')).toBeAttached();
     await expect(page.locator('#hitBtn')).toBeAttached();
   });
@@ -179,6 +181,8 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await expect(tp).toHaveTitle(/42 LIVE/);
     await tp.click('#guestBtn');
     await tp.click('#goBtn');
+    // HUD (джойстик/кнопки) появляется после догрузки карты
+    await started(tp);
     await expect(tp.locator('#joy')).toBeVisible({ timeout: 15000 });
     await expect(tp.locator('#hitBtn')).toBeVisible({ timeout: 15000 });
     await touchCtx.close();

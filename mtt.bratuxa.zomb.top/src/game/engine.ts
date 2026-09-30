@@ -481,6 +481,10 @@ export class Game {
   private raf = 0;
   private destroyed = false;
   private started = false;
+  /** Длина игрового шага симуляции в текущем реальном кадре (≤ 0.05с). */
+  private subDt = 0.05;
+  /** true — это последний подкадр реального кадра: можно рисовать. */
+  private subLast = true;
 
   private px = 0;
   private pz = 22;
@@ -7175,13 +7179,31 @@ export class Game {
     };
   }
 
+  /**
+   * Настоящий кадр: планирует следующий и гонит симуляцию фиксированными
+   * шагами (≤0.05с), чтобы мир шёл в реальном времени даже когда рендер
+   * тормозит (слабая GPU / software-растеризация на 0.2–4 fps). При 20 fps и
+   * выше n=1 — поведение полностью прежнее.
+   */
   private loop = (): void => {
     if (this.destroyed) return;
     this.raf = requestAnimationFrame(this.loop);
+    const real = Math.min(this.clock.getDelta(), 6);
+    const n = Math.max(1, Math.min(120, Math.ceil(real / 0.05)));
+    this.subDt = real / n;
+    // FPS-метр (сглаживание) — по настоящим кадрам, не по подшагам
+    if (real > 0.0005) this.fpsE += (1 / real - this.fpsE) * 0.05;
+    for (let i = 0; i < n && !this.destroyed; i++) {
+      this.subLast = i === n - 1;
+      this.stepFrame();
+    }
+  };
+
+  /** Один шаг симуляции; камера и рендер — только в конце реального кадра (subLast). */
+  private stepFrame = (): void => {
     const tLoop = performance.now();
-    const dt = Math.min(this.clock.getDelta(), 0.05);
-    // FPS-метр (сглаживание) + свежий бюджет BFS на кадр
-    if (dt > 0.0005) this.fpsE += (1 / dt - this.fpsE) * 0.05;
+    const dt = this.subDt;
+    // свежий бюджет BFS — на каждый шаг
     this.bfsBudget = 5;
     this.frame++;
     // жуть Бэкрумса: мигание ламп + фонарь (только если карта их завела)
@@ -8153,6 +8175,11 @@ export class Game {
     }
     // CTF — вне ворот !dead: бросить флаг надо и мёртвым
     this.updateFlags();
+    // промежуточный подкадр: логику посчитали, рисовать нечего — ждём конца кадра
+    if (!this.subLast) {
+      this.perfJs += performance.now() - tLoop;
+      return;
+    }
     // камера от первого лица + покачивание ходьбы.
     // Наблюдатель: свободная камера (высота specY, осмотр мышью), покачивания нет.
     const shake = this.shakeT > 0 ? Math.sin(performance.now() / 20) * 0.03 : 0;
