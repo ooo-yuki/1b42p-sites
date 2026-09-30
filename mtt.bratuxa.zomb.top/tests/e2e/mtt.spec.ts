@@ -1,4 +1,4 @@
-import { test, expect } from './fixture';
+﻿import { test, expect, started } from './fixture';
 
 test.describe('МТТ VI — арена от 1-го лица', () => {
   let errors: string[] = [];
@@ -187,7 +187,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('HP игрока и враги на месте', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(1500);
+    await started(page);
     const st = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { hp: number; enemies: number } } }).__mtt.pos());
     expect(st.hp).toBeGreaterThan(0);
     expect(st.enemies).toBeGreaterThan(0);
@@ -206,7 +206,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('враги не в стенах, оружие на экране', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(1000);
+    await started(page);
     const st = await page.evaluate(() => {
       const m = (window as unknown as {
         __mtt: {
@@ -246,7 +246,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('возрождение поднимает после завала', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     // щит спавна гасит урон — снимаем атакой (синхронно, без таймингов кадров)
     await expect(page.locator('#hudRow2')).toBeVisible({ timeout: 60000 });
     // игра реально стартовала (а не висит на прелоаде): иначе attack/hurt уходят вхолостую
@@ -314,7 +314,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('прыжок поднимает игрока', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     await page.keyboard.down('Space');
     // опрашиваем: под нагрузкой headless-кадры редкие, одного замера мало
     let py = 0;
@@ -329,7 +329,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('враги прыгают', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     let seen = false;
     for (let i = 0; i < 60 && !seen; i++) {
       await page.waitForTimeout(300);
@@ -342,7 +342,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('ствол огромный, белых полос нет, замах живёт', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     await expect(page.locator('#swingFx')).toHaveCount(0);
     const box = await page.locator('#weapon').boundingBox();
     expect(box?.width ?? 0).toBeGreaterThan(500);
@@ -380,7 +380,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('рывок строго по взгляду, не вбок', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     const p0 = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { x: number; z: number } } }).__mtt.pos());
     // стрейф вправо + рывок: рывок должен унести вперёд (по взгляду, -z), а не вбок.
     // держим до результата: под нагрузкой кадры редкие
@@ -401,7 +401,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.evaluate(() => (window as unknown as { __mtt: { charaSet: (id: string) => string } }).__mtt.charaSet('krysa'));
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     await page.keyboard.down('Space');
     // headless идёт медленнее реала (dt clamp) — долгое окно с ранним выходом
     let maxPy = 0;
@@ -419,7 +419,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.evaluate(() => (window as unknown as { __mtt: { charaSet: (id: string) => string } }).__mtt.charaSet('krysa'));
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     // в упор к центральному барьеру (0,0): смотрим на него (yaw 0 = взгляд на -z), жмёмся W до контакта
     await page.evaluate(() => (window as unknown as { __mtt: { teleport: (x: number, z: number, y: number) => void } }).__mtt.teleport(0, 2.5, 0));
     await page.keyboard.down('w');
@@ -454,7 +454,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('летуны парят и бьются', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     const n = await page.evaluate(() => (window as unknown as { __mtt: { spawnKind: (k: string) => number } }).__mtt.spawnKind('fly'));
     expect(n).toBe(1);
     const c = await page.evaluate(() => (window as unknown as { __mtt: { flyers: () => number } }).__mtt.flyers());
@@ -464,7 +464,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('рывок МТТ на C: бросок и кд', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     const p0 = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { x: number; z: number } } }).__mtt.pos());
     // держим C до срабатывания (под нагрузкой кадры редкие)
     await page.keyboard.down('c');
@@ -487,7 +487,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     page.on('pageerror', (e) => errors.push(e.message));
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     // ставим союзника прямо перед носом (смотрим на -z) и лупим ударами
     await page.evaluate(() => (window as unknown as { __mtt: { setRemotes: (l: object[]) => void } }).__mtt.setRemotes([
       { nick: 'СОЮЗ', char: 'krysa', x: 0, z: 20, hp: 100 },
@@ -623,7 +623,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('рывок вверх: смотришь в небо — летишь', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     await page.waitForFunction(
       () => (window as unknown as { __mtt: { playing: () => boolean } }).__mtt.playing(),
       null,
@@ -773,7 +773,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#regBtn');
     await expect(page.locator('#authWho')).toContainText(login, { timeout: 15000 });
     await page.click('#goBtn');
-    await page.waitForTimeout(1000);
+    await started(page);
     await page.evaluate(() => (window as unknown as { __mtt: { give: (n: number) => void } }).__mtt.give(500));
     await page.waitForTimeout(500);
     await page.click('#menuBtn');
@@ -797,7 +797,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('E переключает ствол только среди купленных', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     type M = { give: (n: number) => void; setWave: (n: number) => void };
     await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.setWave(2));
     await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.give(500));
@@ -826,7 +826,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('🔫 пистолет бьёт по прицелу: средняя и в упор', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     type M = { give: (n: number) => void; setWave: (n: number) => void; attack: () => number; spawnKind: (k: string) => number; teleport: (x: number, z: number, yaw: number) => void; pos: () => { x: number; z: number; hp: number }; foes: () => Array<{ x: number; z: number; hp: number; dead: boolean }>; resetcd: () => void };
     await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.setWave(4));
     await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.give(2000));
@@ -860,7 +860,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('💊 аптечки: покупка, cap 3, использование по X', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     type M = { give: (n: number) => void; hurt: (n: number) => number; medBuy: () => boolean; medUse: () => boolean; hp: () => number };
     await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.give(2000));
     await page.click('#shopBtn');
@@ -896,7 +896,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#pick-krysa');
     await page.click('#charGo');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     type M = { teleport: (x: number, z: number, yaw: number) => void; kick: () => number; py: () => number };
     // лицом в восточную стену, давим W
     await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.teleport(50, 0, -Math.PI / 2));
@@ -924,7 +924,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('прицел по центру, бейдж комнаты слева', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     await expect(page.locator('#cross')).toBeVisible();
     const cb = await page.locator('#cross').boundingBox();
     const vw = await page.evaluate(() => window.innerWidth);
@@ -936,7 +936,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#roomCreate');
     await page.click('#nav-play');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     const bb = await page.locator('#roomBadge').boundingBox();
     const fb = await page.locator('#fsBtn').boundingBox();
     expect(bb).toBeTruthy();
@@ -981,36 +981,38 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('крыши держат: опора под ногами выше земли', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     type M = { ground: (x: number, z: number) => number };
-    const roofB1 = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.ground(20, -19));
-    const open = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.ground(0, 10));
-    expect(roofB1).toBe(12.9);
+    // центральный квартал Город1: хитбокс дома (0,30) поднимается до кровли (h=21.08)
+    const roofB1 = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.ground(0, 30));
+    // улица рядом — чистая земля
+    const open = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.ground(10, 0));
+    expect(roofB1).toBeCloseTo(21.08, 1);
     expect(open).toBe(0);
   });
 
   test('переулок и заборы: lane проходим, секции держат', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     type M = { ground: (x: number, z: number) => number; solidAt: (x: number, z: number, y: number) => boolean };
-    // lane восточного переулка свободен
-    expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.ground(33.5, -8.5))).toBe(0);
-    expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solidAt(33.5, -8.5, 0))).toBe(false);
-    // стены переулка держат
-    expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solidAt(30, -11.5, 0))).toBe(true);
-    // оранжевый забор держит
-    expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solidAt(22, -32.5, 0))).toBe(true);
-    // зелёный забор держит
-    expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solidAt(-40, -22, 0))).toBe(true);
-    // Г-дом стоит: опора 12.4
-    expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.ground(-8, 31))).toBe(12.4);
+    // улицы Город1 проходимы: точка у дома и точка у парка
+    expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.ground(10, 0))).toBe(0);
+    expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solidAt(10, 0, 0))).toBe(false);
+    expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.ground(0, -30))).toBe(0);
+    expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solidAt(0, -30, 0))).toBe(false);
+    // ограждение на перекрёстке держит
+    expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solidAt(0, 0, 0))).toBe(true);
+    // парковая плита (h=0.99) держит на земле
+    expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solidAt(10, -30, 0))).toBe(true);
+    // высокий дом стоит: опора на кровле выше земли
+    expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.ground(0, 30))).toBeCloseTo(21.08, 1);
   });
 
   test('выстрел оставляет пулю', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     await page.waitForFunction(
       () => (window as unknown as { __mtt: { playing: () => boolean } }).__mtt.playing(),
       null,
@@ -1044,7 +1046,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('кнопка полного экрана в HUD', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     await expect(page.locator('#fsBtn')).toBeVisible();
     await page.click('#fsBtn');
     await page.waitForTimeout(300);
@@ -1053,11 +1055,11 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('хитбоксы не до неба: выше крыши — проход', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     type M = { solidAt: (x: number, z: number, y: number) => boolean };
-    // фонтан на площади (27,27): у земли стена есть, на высоте 5 — нет
-    const low = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solidAt(27, 27, 0));
-    const high = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solidAt(27, 27, 5));
+    // парковая плита Город1 (47.7,-52.9): у земли хитбокс есть, на высоте 5 — проход
+    const low = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solidAt(47.7, -52.9, 0));
+    const high = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.solidAt(47.7, -52.9, 5));
     expect(low).toBe(true);
     expect(high).toBe(false);
   });
@@ -1087,7 +1089,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#map-random');
     await page.click('#nav-play');
     await page.click('#goBtn');
-    await page.waitForTimeout(1500);
+    await started(page);
     type M = { map: () => string; ground: (x: number, z: number) => number; solids: () => Array<unknown>; pos: () => { x: number; z: number; enemies: number }; solidAt: (x: number, z: number, y: number) => boolean };
     expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.map())).toBe('random');
     // ландшафта много: десятки хитбоксов
@@ -1111,7 +1113,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('💬 чат глушит кнопки: печатаешь — стоишь, подсказок нет', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(1500);
+    await started(page);
     await expect(page.locator('#hint')).toHaveCount(0);
     type M = { pos: () => { x: number; z: number } };
     const before = await page.evaluate(() => { const q = (window as unknown as { __mtt: M }).__mtt.pos(); return { x: q.x, z: q.z }; });
@@ -1136,7 +1138,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
       await page.click('#map-random');
       await page.click('#nav-play');
       await page.click('#goBtn');
-      await page.waitForTimeout(1500);
+      await started(page);
       return await page.evaluate(() => {
         const m = (window as unknown as { __mtt: M }).__mtt;
         return m.map() + ':' + m.solids().length + ':' + JSON.stringify(m.solids().slice(0, 5));
@@ -1146,7 +1148,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#map-random');
     await page.click('#nav-play');
     await page.click('#goBtn');
-    await page.waitForTimeout(1500);
+    await started(page);
     const s1 = await page.evaluate(() => {
       const m = (window as unknown as { __mtt: M }).__mtt;
       return m.map() + ':' + m.solids().length + ':' + JSON.stringify(m.solids().slice(0, 5));
@@ -1163,7 +1165,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#map-backrooms');
     await page.click('#nav-play');
     await page.click('#goBtn');
-    await page.waitForTimeout(1500);
+    await started(page);
     type M = { maze: () => { n: number; cell: number; segs: number; half: number }; map: () => string };
     const m1 = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.maze());
     const map = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.map());
@@ -1176,7 +1178,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#map-backrooms');
     await page.click('#nav-play');
     await page.click('#goBtn');
-    await page.waitForTimeout(1500);
+    await started(page);
     const m2 = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.maze());
     expect(m2.segs).toBeGreaterThan(300);
   });
@@ -1186,7 +1188,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#foeBtn');
     await expect(page.locator('#foeBtn')).toContainText('ВЫКЛ');
     await page.click('#goBtn');
-    await page.waitForTimeout(2500);
+    await started(page);
     type M = { peaceful: () => boolean };
     const p = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.peaceful());
     expect(p).toBe(true);
@@ -1202,7 +1204,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('💬 чат на T: открывается, сообщение уходит', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     await page.keyboard.press('KeyT');
     await expect(page.locator('#chatOv')).toBeVisible();
     await page.fill('#chatIn', 'привет братухи');
@@ -1215,7 +1217,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('👑 босс: гопник спавнится, баннер виден', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     await page.evaluate(() => (window as unknown as { __mtt: { spawnKind: (k: string) => number } }).__mtt.spawnKind('boss'));
     await page.waitForTimeout(800);
     const b = await page.evaluate(() => (window as unknown as { __mtt: { boss: () => number } }).__mtt.boss());
@@ -1236,7 +1238,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.evaluate(() => (document.querySelector('#map-backrooms') as HTMLButtonElement).click());
     await page.evaluate(() => (document.querySelector('#foeBtn') as HTMLButtonElement).click());
     await page.click('#goBtn');
-    await page.waitForTimeout(800);
+    await started(page);
     type M = { py: () => number };
     let maxPy = 0;
     await page.keyboard.down('Space');
@@ -1261,7 +1263,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#edsave');
     await page.click('#nav-play');
     await page.click('#goBtn');
-    await page.waitForTimeout(1500);
+    await started(page);
     type M = { map: () => string; custom: () => { walls: number; half: number } };
     expect(await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.map())).toBe('custom');
     // стена высотой 7 в центре: хитбокс есть у земли, нет выше крыши
@@ -1288,7 +1290,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#nav-play');
     await expect(page.locator('#goBtn')).toContainText('НА СВОЮ');
     await page.click('#goBtn');
-    await page.waitForTimeout(1500);
+    await started(page);
     type M = { map: () => string; custom: () => { walls: number; half: number } };
     const map = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.map());
     expect(map).toBe('custom');

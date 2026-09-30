@@ -1,4 +1,4 @@
-import { test, expect, type Page } from './fixture';
+﻿import { test, expect, started, type Page } from './fixture';
 
 type M = {
   foes: () => Array<{ id: number; x: number; z: number; hp: number; dead: boolean; ey: number; climb: boolean; god: boolean }>;
@@ -20,7 +20,7 @@ async function createAndGo(page: Page, name: string, mode: string): Promise<void
   await page.evaluate(([n, m]) => (window as unknown as { __mtt: M }).__mtt.mkroom(n, m), [uname, mode] as [string, string]);
   await page.click('#nav-play');
   await page.click('#goBtn');
-  await page.waitForTimeout(2500);
+  await started(page);
 }
 
 test('шаги: игрок топает при беге, орда — рядом', async ({ page }: { page: Page }) => {

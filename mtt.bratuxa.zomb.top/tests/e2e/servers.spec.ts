@@ -1,4 +1,4 @@
-import { test, expect, type Page } from './fixture';
+﻿import { test, expect, started, type Page } from './fixture';
 
 type M = {
   pos: () => { x: number; z: number; yaw: number };
@@ -26,7 +26,7 @@ async function createAndGo(page: Page, mode: string): Promise<void> {
   await page.evaluate(([n, m]) => (window as unknown as { __mtt: { mkroom: (name: string, mode: string) => Promise<void> } }).__mtt.mkroom(n, m), [uname, mode] as [string, string]);
   await page.click('#nav-play');
   await page.click('#goBtn');
-  await page.waitForTimeout(2500);
+  await started(page);
 }
 
 function mtt(page: Page): Promise<M> {

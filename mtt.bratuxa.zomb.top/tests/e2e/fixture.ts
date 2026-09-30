@@ -1,4 +1,4 @@
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
 
 // Общий тест-стенд: опрос техперерыва глушится в ВЫКЛ, чтобы реальный
 // перерыв на проде не ронял весь сьют. Сам перерыв проверяется
@@ -13,3 +13,15 @@ export const test = base.extend({
   },
 });
 export { expect };
+
+/** После «В БОЙ»: карта (GLB арены/нашествия) грузится асинхронно, HUD появляется
+    только когда она готова, а управление включает `start()` — ждём и того, и другого
+    вместо фиксированного waitForTimeout, иначе тесты читают пустую карту. */
+export async function started(page: Page): Promise<void> {
+  await expect(page.locator('#hudRow2')).toBeVisible({ timeout: 60000 });
+  await page.waitForFunction(
+    () => (window as unknown as { __mtt?: { playing?: () => boolean } }).__mtt?.playing?.() === true,
+    null,
+    { timeout: 60000, polling: 250 },
+  );
+};
