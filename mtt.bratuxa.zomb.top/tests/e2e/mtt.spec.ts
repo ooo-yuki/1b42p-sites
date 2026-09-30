@@ -1060,7 +1060,8 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.setWave(4));
     await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.give(2000));
     await page.click('#shopBtn');
-    await page.click('#buy-pistol');
+    // прямой клик: page.click висел на «scrolling into view» под игрой в 60 fps
+    await page.evaluate(() => (document.querySelector('#buy-pistol') as HTMLButtonElement).click());
     await page.click('button:has-text("ЗАКРЫТЬ")');
     await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.attack());
     await page.waitForTimeout(150);
