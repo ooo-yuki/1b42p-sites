@@ -1177,6 +1177,7 @@ async function loadStats(): Promise<void> {
       ctf: () => game.debugCtf(),
       duelHp: (hp: number) => game.setDuelHp(hp),
       teleport: (x: number, z: number, yaw?: number) => game.debugTeleport(x, z, yaw),
+      spawn: () => game.randomSpawn(),
       setpy: (n: number) => game.debugSetPy(n),
       devstate: () => ({ god: game.isDevGod(), dmg: game.isDevDmg(), nocd: game.isDevNoCd(), xray: game.isDevXray(), hit: game.isDevHit(), spec: game.debugSpec() }),
       devgod: (on: boolean) => game.setDevGod(on),

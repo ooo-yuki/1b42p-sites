@@ -115,7 +115,7 @@ export type Team = 'red' | 'blue';
 
 /** Карты для выбора в меню: id, название, описание. */
 export const MAPS: Array<{ id: MapId; name: string; desc: string }> = [
-  { id: 'arena', name: '🌍 Арена', desc: 'Новый город: витрины, переулки, Г/П-дома, площадь с фонтаном' },
+  { id: 'arena', name: '🌍 Арена', desc: 'Город МТТ из Blender: улицы, парк, фонари. Старт — случайная точка карты' },
   { id: 'boss', name: '👹 Босс-арена', desc: 'Круглая арена: мировой босс 3500 HP, зоны, прыжки. Респаун 30 мин' },
   { id: 'duel', name: '⚔️ Дуэль', desc: 'Ночной двор 1×1 для разборок' },
   { id: 'szeged', name: '🇬🇧 London', desc: 'Приватная карта МТТ' },
@@ -667,6 +667,18 @@ export class Game {
   /** Счётчик ударов для совместных комнат: каждый attack() +1, все видят замах. */
   private atk = 0;
   private half: number = HALF;
+  /** false, пока GLB карты грузится: волны и спавны ждут готовой геометрии,
+      иначе мобы рождаются там, где через секунду окажутся стены. */
+  private mapReady = true;
+  private mapReadyQ: Array<() => void> = [];
+  /** Загрузка GLB (город/арена/нашествие): preload её дожидается перед стартом. */
+  private glbPending: Promise<void> | null = null;
+  /** Границы игровой площади по хитбоксам GLB — по ним и считаем точки спавна. */
+  private mapBox: { x0: number; x1: number; z0: number; z1: number } | null = null;
+  /** Пул свободных точек (сетка 4м): walk — куда можно встать игроку
+      (включая низкие плиты/ступени), ground — совсем без хитбоксов (для врагов). */
+  private spotsWalk: Array<[number, number]> | null = null;
+  private spotsGround: Array<[number, number]> | null = null;
   /** Прибор лагов: накопленные мс логики/рендера + число кадров. */
   private perfJs = 0;
   private perfR = 0;
@@ -895,6 +907,9 @@ export class Game {
 
   private rebuildSolidGrid(): void {
     this.solidGrid.clear();
+    // стены поменялись — старый пул точек спавна врёт
+    this.spotsWalk = null;
+    this.spotsGround = null;
     const C = Game.GRID;
     const put = (cx: number, cz: number, s: (typeof this.solids)[number]): void => {
       const k = cx + ':' + cz;
@@ -965,7 +980,7 @@ export class Game {
     this.custom = opts.custom ?? null;
     this.mapSeed = (opts.seed ?? Math.floor(Math.random() * 2 ** 31)) >>> 0;
     // Бэкрумс большой: лабиринт ~300м (N=50, CELL=6).
-    this.half = map === 'duel' ? 32 : map === 'boss' ? 45 : map === 'forest' ? 100 : map === 'blender' || map === 'gorod1' ? 80 : HALF;
+    this.half = map === 'duel' ? 32 : map === 'boss' ? 45 : map === 'forest' ? 100 : map === 'blender' || map === 'gorod1' || map === 'arena' || map === 'invasion' ? 80 : HALF;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
     // свет наблюдателя: день вместо жути — висят выключенными, зажигаются в specOn
     this.specLight = new THREE.AmbientLight(0xfff6e6, 1.15);
@@ -1002,7 +1017,7 @@ export class Game {
       this.scene.background = new THREE.Color(0x1a2a10);
       this.scene.fog = new THREE.Fog(0x1a2a10, 30, 120);
       this.applySky();
-    } else if (map === 'blender' || map === 'gorod1') {
+    } else if (map === 'blender' || map === 'gorod1' || map === 'arena' || map === 'invasion') {
       this.scene.background = new THREE.Color(0x87ceeb);
       this.scene.fog = new THREE.Fog(0x87ceeb, 80, 250);
       this.applySky();
@@ -1016,7 +1031,8 @@ export class Game {
     this.buildWorld();
     this.rebuildSolidGrid();
     // endless: только сталкеры (волн нет); duel/pvp: без врагов вообще; boss: только мировой босс (спавнит App/таймер)
-    if (map !== 'duel' && map !== 'endless' && map !== 'pvp' && map !== 'boss' && this.enemiesOn) this.spawnWave();
+    // город (GLB) грузится асинхронно — волна ждёт готовой геометрии, иначе мобы рождаются в стенах
+    if (map !== 'duel' && map !== 'endless' && map !== 'pvp' && map !== 'boss' && this.enemiesOn) this.whenMapReady(() => this.spawnWave());
     window.addEventListener('resize', this.onResize);
     canvas.addEventListener('pointerdown', this.onPointerDown);
     window.addEventListener('pointermove', this.onPointerMove);
@@ -1320,7 +1336,8 @@ export class Game {
   async preload(onPct: (p: number) => void): Promise<void> {
     const core = [vrag1Url, vrag2Url, banditUrl, schoolboyUrl, throwerUrl, bottleUrl, bossUrl, bossPhotoUrl, stalkerUrl, charMttUrl, charKrysaUrl, charShubaUrl, charChumaUrl, charGidroxisUrl, charSunstrikeUrl, charUtugUrl, skyBoxUrl];
     const byMap: Record<string, string[]> = {
-      arena: [dom1Url, travaUrl, facadeUrl, panelUrl, shopUrl, roofUrl, roadUrl, walkUrl, plazaUrl, fenceUrl, edgeUrl, house2Url, brickUrl],
+      // арена и нашествие играют на Город1 — греем только его пол (пол — трава/асфальт)
+      arena: [travaUrl, roadUrl],
       duel: [travaUrl, brickUrl, edgeUrl],
       backrooms: [brFloorUrl, brWallUrl, brCeilUrl, doorExitUrl],
       endless: [brFloorUrl, brWallUrl, brCeilUrl],
@@ -1328,9 +1345,10 @@ export class Game {
       custom: [travaUrl, brickUrl],
       szeged: [szegedAtlasUrl],
       pvp: [travaUrl, brickUrl, edgeUrl, house2Url],
-      invasion: [dom1Url, travaUrl, facadeUrl, brickUrl, edgeUrl],
+      invasion: [travaUrl, roadUrl],
       boss: [travaUrl, brickUrl],
       forest: [travaUrl, walkUrl],
+      gorod1: [travaUrl, roadUrl],
     };
     const urls = [...core, ...(byMap[this.map] ?? Object.values(byMap).flat())];
     if (urls.length === 0) { onPct(100); return; }
@@ -1345,6 +1363,8 @@ export class Game {
         loader.load(u, () => { step(); res(); }, undefined, () => { step(); res(); });
       })));
     }
+    // GLB карты (город) — до старта: без него нет ни коллизий, ни точек спавна
+    if (this.glbPending) await this.glbPending;
     onPct(100);
   }
 
@@ -1515,6 +1535,14 @@ export class Game {
 
   // ===== BLENDER: карта из .glb (ручные хитбоксы col_*, спавны Spawn1/Spawn2) =====
   private buildBlender(url: string = customMapUrl): void {
+    // карта грузится асинхронно: волны, спавны и проверки коллизий ждут её готовности
+    this.mapReady = false;
+    this.mapReadyQ = [];
+    this.mapBox = null;
+    this.spotsWalk = null;
+    this.spotsGround = null;
+    let glbDone: () => void = () => undefined;
+    this.glbPending = new Promise<void>((res) => { glbDone = res; });
     const scene = this.scene;
     scene.add(new THREE.HemisphereLight(0xbfd9ff, 0x8a7a66, 1.0));
     const sun = new THREE.DirectionalLight(0xffe7c4, 2.2);
@@ -1708,6 +1736,7 @@ export class Game {
           bx0 = minX; bx1 = maxX; bz0 = minZ; bz1 = maxZ;
         }
         if (bx0 < Infinity) {
+          this.mapBox = { x0: bx0, x1: bx1, z0: bz0, z1: bz1 };
           this.half = Math.max(bx1 - bx0, bz1 - bz0) / 2 + 15;
           // Трава ровно по размеру карты (+8м поля вокруг), по центру bbox
           const cx = (bx0 + bx1) / 2, cz = (bz0 + bz1) / 2;
@@ -1805,9 +1834,21 @@ export class Game {
           scene.add(this.carryRed!.group);
         }
         this.pushHud();
+        // Карта готова. Арена/Нашествие — случайный старт в любой свободной точке
+        // площади; кто успел заспавниться до геометрии — выталкиваем из хитбоксов,
+        // и только потом отпускаем отложенные волны/спавны (очередь whenMapReady).
+        this.mapReady = true;
+        if (this.map === 'arena' || this.map === 'invasion') this.randomSpawn();
+        this.freeEmbedded();
+        this.mapLoaded();
+        glbDone();
       },
       undefined,
-      (err) => { console.warn('[Blender] GLB load error:', err); },
+      (err) => {
+        console.warn('[Blender] GLB load error:', err);
+        this.mapLoaded();
+        glbDone();
+      },
     );
   }
 
@@ -3656,8 +3697,9 @@ export class Game {
     if (this.map === 'szeged') { this.buildSzeged(); return; }
     if (this.map === 'forest') { this.buildForest(); return; }
     if (this.map === 'blender') { this.buildBlender(); return; }
-    if (this.map === 'gorod1') { this.buildBlender(gorod1Url); return; }
-    // arena, pvp, invasion — город
+    // Арена и Нашествие — та же карта Город1 (город из Blender): волны идут по улицам
+    if (this.map === 'gorod1' || this.map === 'arena' || this.map === 'invasion') { this.buildBlender(gorod1Url); return; }
+    // pvp — старый город
     this.buildCity(); return;
     const scene = this.scene;
     // светло: день вместо ночи
@@ -4595,6 +4637,8 @@ export class Game {
 
   private spawnEnemy(kind: 'walk' | 'fly' | 'boss' | 'gun' | 'school' | 'throw', minDist = 0, at: [number, number] | null = null): void {
     if (this.netSync) return;
+    // карта ещё грузится — коллизий нет, точек спавна тоже: рожаем только после GLB
+    if (!this.mapReady) return;
     const boss = kind === 'boss';
     const fly = kind === 'fly' && this.map !== 'backrooms';
     const { g, body, ol, hpCv, hpTex, hpSpr } = this.makeEnemyVisuals(kind);
@@ -4606,6 +4650,19 @@ export class Game {
     if (at && !this.hitSolid(at[0], at[1], 2)) {
       sx = at[0]; sz = at[1];
       ok = true;
+    }
+    // Город: точка из пула по всей карте — она заведомо вне хитбоксов (стены, дома,
+    // деревья, фонари), плюс кольцо дистанции до игрока, как и раньше
+    if (!ok && this.cityMap()) {
+      const pool = this.spots(false);
+      for (let t = 0; t < 60 && !ok; t++) {
+        if (pool.length === 0) break;
+        const p = pool[(Math.random() * pool.length) | 0]!;
+        const d = Math.hypot(p[0] - this.px, p[1] - this.pz);
+        if (d < keepAway || d > 70) continue;
+        sx = p[0]; sz = p[1];
+        ok = true;
+      }
     }
     for (let t = 0; t < 24 && !ok; t++) {
       const a = Math.random() * Math.PI * 2;
@@ -4835,8 +4892,127 @@ export class Game {
     return true;
   }
 
-  /** Случайная свободная точка арены (спавн PvP/Бэкрумса/Нашествия): 24 попытки мимо стен. */
+  /** Город (арена/нашествие/Город1): карта из Blender — свои границы и пулы точек. */
+  private cityMap(): boolean {
+    return this.map === 'arena' || this.map === 'invasion' || this.map === 'gorod1';
+  }
+
+  /** Запускает сразу, если карта построена, иначе — в очередь до догрузки GLB. */
+  private whenMapReady(fn: () => void): void {
+    if (this.mapReady) { fn(); return; }
+    this.mapReadyQ.push(fn);
+  }
+
+  /** Карта доехала: отпускаем всё, что ждало геометрию (волны, спавны). */
+  private mapLoaded(): void {
+    this.mapReady = true;
+    const q = this.mapReadyQ;
+    this.mapReadyQ = [];
+    for (const f of q) f();
+  }
+
+  /** Область поиска точек: bbox хитбоксов GLB (с отступом), иначе ±half. */
+  private boxRange(): { x0: number; x1: number; z0: number; z1: number } {
+    const b = this.mapBox;
+    if (b) return { x0: b.x0 + 3, x1: b.x1 - 3, z0: b.z0 + 3, z1: b.z1 - 3 };
+    const lim = this.half - 3;
+    return { x0: -lim, x1: lim, z0: -lim, z1: lim };
+  }
+
+  /** Пул свободных точек по всей карте (сетка 4м). walk — можно встать (игрок, в том
+      числе на ступени парка), ground — ни одного хитбокса (тут спавнятся враги). */
+  private spots(forPlayer: boolean): Array<[number, number]> {
+    if (forPlayer && this.spotsWalk) return this.spotsWalk;
+    if (!forPlayer && this.spotsGround) return this.spotsGround;
+    const w: Array<[number, number]> = [];
+    const g: Array<[number, number]> = [];
+    const b = this.boxRange();
+    for (let x = b.x0; x <= b.x1; x += 4) {
+      for (let z = b.z0; z <= b.z1; z += 4) {
+        if (this.hitSolid(x, z, 1.5, 1.1)) continue; // в стене/доме/дереве
+        w.push([x, z]);
+        if (!this.hitSolid(x, z, 1.5, 0)) g.push([x, z]);
+      }
+    }
+    this.spotsWalk = w;
+    this.spotsGround = g;
+    console.log(`[Spawn] spots: walk ${w.length}, ground ${g.length}`);
+    return forPlayer ? w : g;
+  }
+
+  /** Ближайшая свободная точка: кольца радиусом 2м. stand=true — можно и на низкую
+      плиту (ступени), иначе только место совсем без хитбокса. */
+  private nearestFree(x: number, z: number, stand: boolean): [number, number] | null {
+    const b = this.boxRange();
+    const free = (qx: number, qz: number): boolean => {
+      if (qx < b.x0 || qx > b.x1 || qz < b.z0 || qz > b.z1) return false;
+      return !this.hitSolid(qx, qz, 1.0, stand ? 1.1 : 0);
+    };
+    if (free(x, z)) return [x, z];
+    for (let r = 2; r <= this.half * 2; r += 2) {
+      for (let k = 0; k < 12; k++) {
+        const a = (k / 12) * Math.PI * 2;
+        const qx = x + Math.cos(a) * r, qz = z + Math.sin(a) * r;
+        if (free(qx, qz)) return [qx, qz];
+      }
+    }
+    return null;
+  }
+
+  /** Выталкивание из хитбоксов: спавн мог случиться раньше, чем догрузилась карта. */
+  private freeEmbedded(): void {
+    if (this.hitSolid(this.px, this.pz, 1.0, 1.1)) {
+      const p = this.nearestFree(this.px, this.pz, true);
+      if (p) {
+        this.px = p[0]; this.pz = p[1];
+        this.py = this.groundAt(p[0], p[1]); this.pvy = 0;
+      }
+    }
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      const x = e.g.position.x, z = e.g.position.z;
+      if (!this.hitSolid(x, z, 1.0, 0)) continue;
+      const p = this.nearestFree(x, z, false);
+      if (!p) continue;
+      e.g.position.set(p[0], 0, p[1]);
+      e.tx = p[0]; e.tz = p[1]; e.ptx = p[0]; e.ptz = p[1]; e.lx = p[0]; e.lz = p[1];
+      e.path = [];
+      e.repathT = 0.1 + Math.random() * 0.2;
+    }
+  }
+
+  /** Дистанция до ближайшего живого врага — чтобы точка игрока не была в толпе. */
+  private nearestFoe(x: number, z: number): number {
+    let d = Infinity;
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      const dd = Math.hypot(e.g.position.x - x, e.g.position.z - z);
+      if (dd < d) d = dd;
+    }
+    return d;
+  }
+
+  /** Случайная свободная точка карты. Город (арена/нашествие/Город1) — вся площадь
+      по пулу: точка гарантированно вне хитбоксов и подальше от врагов.
+      Остальные карты — как раньше: 24 попытки мимо стен. */
   randomSpawn(): { x: number; z: number } {
+    if (!this.mapReady) { this.whenMapReady(() => this.randomSpawn()); return { x: this.px, z: this.pz }; }
+    if (this.cityMap()) {
+      const pool = this.spots(true);
+      if (pool.length > 0) {
+        let best = pool[(Math.random() * pool.length) | 0]!;
+        let bestD = -1;
+        for (let t = 0; t < 30; t++) {
+          const p = pool[(Math.random() * pool.length) | 0]!;
+          const d = this.nearestFoe(p[0], p[1]);
+          if (d >= 15) { best = p; break; } // врагов рядом нет — берём сразу
+          if (d > bestD) { bestD = d; best = p; }
+        }
+        this.px = best[0]; this.pz = best[1]; this.yaw = 0;
+        this.py = this.groundAt(best[0], best[1]); this.pvy = 0;
+        return { x: best[0], z: best[1] };
+      }
+    }
     for (let t = 0; t < 24; t++) {
       const qx = -48 + Math.random() * 96, qz = -48 + Math.random() * 96;
       if (!this.hitSolid(qx, qz, 1.0)) { this.px = qx; this.pz = qz; this.yaw = 0; this.py = 0; this.pvy = 0; return { x: qx, z: qz }; }
