@@ -1295,7 +1295,10 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     // ставим высоту 7 и рисуем одну клетку
     await page.locator('#edHRange').fill('7');
     const box = await page.locator('#edGrid').boundingBox();
-    await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    // центр сетки 18×18 — шов между клетками 8 и 9: клик ровно по центру по
+    // субпикселю щёлкает то в 8-й, то в 9-й (мировые −2.5/2.5). Берём середину
+    // клетки (9,9): её стена и стоит в точке (2.5, 2.5) мира
+    await page.mouse.click(box!.x + box!.width * (9.5 / 18), box!.y + box!.height * (9.5 / 18));
     await page.fill('#edName', 'ВысотаТест');
     await page.click('#edsave');
     await page.click('#nav-play');
