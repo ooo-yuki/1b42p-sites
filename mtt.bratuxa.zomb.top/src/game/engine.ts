@@ -1621,29 +1621,38 @@ export class Game {
         // --- Фонари: опускаем на 0.5м (визуал + его хитбокс-столб); деревья (остальные col_) не трогаем ---
         const lampNodes: THREE.Object3D[] = [];
         const lampPos: THREE.Vector3[] = [];
+        // Ловушка: GLTFLoader режет точки в именах (Sketchfab_model.001 -> Sketchfab_model001)
+        const parentIsIdentity = (o: THREE.Object3D): boolean => {
+          const e = (o.parent ? o.parent.matrixWorld : new THREE.Matrix4()).elements;
+          for (let i = 0; i < 16; i++) {
+            const want = i % 5 === 0 ? 1 : 0;
+            if (Math.abs(e[i] - want) > 1e-6) return false;
+          }
+          return true;
+        };
         root.traverse((obj) => {
-          if (obj.parent !== root || !obj.name.startsWith('Sketchfab_model.')) return;
+          // узел Sketchfab_model без номера — пустая копия без геометрии, её не трогаем
+          if (!/^Sketchfab_model(\.\d+|\d+)$/.test(obj.name)) return;
+          if (!parentIsIdentity(obj)) return;
           lampNodes.push(obj);
           lampPos.push(obj.getWorldPosition(new THREE.Vector3()));
         });
-        if (lampNodes.length > 0) {
-          lampNodes.forEach((l) => { l.position.y -= 0.5; });
-          let poles = 0;
-          root.traverse((obj) => {
-            if (obj.parent !== root || !obj.name.startsWith('col_')) return;
-            const box = new THREE.Box3().setFromObject(obj);
-            const size = new THREE.Vector3();
-            box.getSize(size);
-            if (size.x > 1.5 || size.z > 1.5 || size.y < 5 || box.max.y < 7 || box.max.y > 9) return;
-            const ctr = new THREE.Vector3();
-            box.getCenter(ctr);
-            if (!lampPos.some((p) => Math.hypot(p.x - ctr.x, p.z - ctr.z) < 0.5)) return;
-            obj.position.y -= 0.5;
-            poles++;
-          });
-          root.updateMatrixWorld(true);
-          console.log(`[Blender] lamps lowered: ${lampNodes.length}, poles: ${poles}`);
-        }
+        lampNodes.forEach((l) => { l.position.y -= 0.5; });
+        let poles = 0;
+        root.traverse((obj) => {
+          if (!obj.name.startsWith('col_') || !parentIsIdentity(obj)) return;
+          const box = new THREE.Box3().setFromObject(obj);
+          const size = new THREE.Vector3();
+          box.getSize(size);
+          if (size.x > 1.5 || size.z > 1.5 || size.y < 5 || box.max.y < 7 || box.max.y > 9) return;
+          const ctr = new THREE.Vector3();
+          box.getCenter(ctr);
+          if (!lampPos.some((p) => Math.hypot(p.x - ctr.x, p.z - ctr.z) < 0.5)) return;
+          obj.position.y -= 0.5;
+          poles++;
+        });
+        root.updateMatrixWorld(true);
+        console.log(`[Blender] lamps lowered: ${lampNodes.length}, poles: ${poles}`);
         root.traverse((obj) => {
           const nm = (obj.name || '').toLowerCase();
           if ((nm === 'spawn1' || nm === 'spawn2') && !('geometry' in obj)) {
