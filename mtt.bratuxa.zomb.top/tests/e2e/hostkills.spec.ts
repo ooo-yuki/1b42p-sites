@@ -44,7 +44,10 @@ test('сеть: фраг гостя гаснет у хоста (общий мо�
     const r = await request.post(`/api/rooms/${id}/beat`, {
       data: { sid: guestSid, char: 'mtt', x: 0, z: 22, yaw: 0, hp: 100, score: 0, kills: 0, wave: 1, weapon: 'fists', py: 0, atk: 0, dead: false },
     });
-    const d = (await r.json()) as { players?: unknown[]; mobs?: Mob[] };
+    const d = (await r.json()) as { players?: unknown[]; mobs?: Mob[]; owner?: boolean; mobHost?: boolean; started?: boolean };
+    // диаг каждый цикл: слепок пуст — видит ли хост мобов и зачислен ли он хостом
+    const hostMobs = await page.evaluate(() => (window as unknown as { __mtt: { mobs: () => unknown[] } }).__mtt.mobs().length);
+    console.log('HOSTKILLS-POLL', i, JSON.stringify({ mobsLen: Array.isArray(d.mobs) ? d.mobs.length : -1, owner: d.owner, mobHost: d.mobHost, started: d.started, hostMobs }));
     if (Array.isArray(d.mobs)) mobs = d.mobs.filter((m) => !m.dead);
     if (mobs.length === 0) await new Promise((r2) => setTimeout(r2, 1000));
   }
