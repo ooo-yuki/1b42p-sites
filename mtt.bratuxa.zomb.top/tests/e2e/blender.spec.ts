@@ -135,10 +135,14 @@ test('blender CTF: подбор, штрафы, захват, дроп при с�
     null,
     { timeout: 60000, polling: 500 },
   );
-  await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.attack());
-  const cd0 = await page.evaluate(() => (window as unknown as { __mtt: C }).__mtt.atkcd());
-  console.log('DIAG control atkcd=' + cd0);
-  expect(cd0, 'контрольная атака не сработала (щит спавна не снят)').toBeGreaterThan(0);
+  // атака и чтение кд — одним вызовом: между двумя evaluate проходит реальный кадр,
+  // а на слабой машине кадр догоняет целые секунды и короткий кд успевает сгореть
+  const ctl = await page.evaluate(() => {
+    const m = (window as unknown as { __mtt: C }).__mtt;
+    return { hits: m.attack(), cd: m.atkcd() };
+  });
+  console.log('DIAG control attack=' + JSON.stringify(ctl));
+  expect(ctl.cd, 'контрольная атака не сработала (щит спавна не снят)').toBeGreaterThan(0);
   await page.waitForFunction(
     () => (window as unknown as { __mtt: C }).__mtt.atkcd() <= 0,
     null,

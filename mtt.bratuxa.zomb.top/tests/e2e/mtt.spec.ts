@@ -290,9 +290,12 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test('плашка нового раунда всплывает', async ({ page }) => {
+    test.setTimeout(180000);
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    await expect(page.locator('#waveBanner')).toBeVisible();
+    // плашка живёт 2.6с и всплывает только когда карта догрузилась (SwiftShader
+    // тянет загрузку дольше дефолтного таймаута) — ждём появления до минуты
+    await expect(page.locator('#waveBanner')).toBeVisible({ timeout: 60000 });
     await expect(page.locator('#waveBanner')).toContainText('ВОЛНА 1');
   });
 
@@ -382,16 +385,43 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test('рывок строго по взгляду, не вбок', async ({ page }) => {
+    test.setTimeout(180000);
     await page.click('#guestBtn');
     await page.click('#goBtn');
     await started(page);
-    const p0 = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { x: number; z: number } } }).__mtt.pos());
+    // Спавн сам выбирает взгляд в свободную сторону, а тест меряет именно -z —
+    // ставим игрока на точку с длинным коридором на -z и взглядом ровно на -z
+    // (yaw=0 => fx=-sin0=0, fz=-cos0=-1), иначе рывок идёт вдоль x и dz=0.
+    const p0 = await page.evaluate(() => {
+      const m = (window as unknown as {
+        __mtt: {
+          pos: () => { x: number; z: number };
+          teleport: (x: number, z: number, yaw?: number) => void;
+          solidAt: (x: number, z: number, y: number) => boolean;
+        }
+      }).__mtt;
+      const cands = [[0, 60], [10, 0], [0, 30], [-30, 0], [30, 60], [0, -30], [30, 0], [-30, 60]];
+      let bx = 0, bz = 60, best = -1;
+      for (const [cx, cz] of cands) {
+        if (m.solidAt(cx, cz, 0)) continue;
+        let run = 0;
+        for (let t = 1; t <= 24; t++) {
+          if (m.solidAt(cx, cz - t, 0)) break;
+          run = t;
+        }
+        if (run > best) { best = run; bx = cx; bz = cz; }
+      }
+      m.teleport(bx, bz, 0);
+      return { ...m.pos(), run: best };
+    });
+    console.log('DIAG dashdir run=' + p0.run + ' at ' + p0.x + ',' + p0.z);
+    expect(p0.run, 'есть коридор на -z для рывка').toBeGreaterThan(5);
     // стрейф вправо + рывок: рывок должен унести вперёд (по взгляду, -z), а не вбок.
     // держим до результата: под нагрузкой кадры редкие
     await page.keyboard.down('d');
     await page.keyboard.down('c');
     let dz = 0;
-    for (let i = 0; i < 20 && dz <= 2; i++) {
+    for (let i = 0; i < 40 && dz <= 2; i++) {
       await page.waitForTimeout(200);
       const p = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { x: number; z: number } } }).__mtt.pos());
       dz = p0.z - p.z;
@@ -865,7 +895,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
     await started(page);
-    type M = { give: (n: number) => void; hurt: (n: number) => number; medBuy: () => boolean; medUse: () => boolean; hp: () => number };
+    type M = { give: (n: number) => void; hurt: (n: number) => number; medBuy: () => boolean; medUse: () => boolean; hp: () => number; devgod: (on: boolean) => void };
     await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.give(2000));
     await page.click('#shopBtn');
     await page.click('#buy-med');
@@ -879,6 +909,9 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     // щит спавна гасит урон — снимаем атакой (синхронно, без таймингов кадров)
     await page.evaluate(() => (window as unknown as { __mtt: M & { attack: () => number } }).__mtt.attack());
     await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.hurt(60));
+    // игра идёт в реальном времени — орда добивает оставшиеся ХП за секунды,
+    // пока идёт лечение; уходим в бессмертие (на лечение оно не влияет)
+    await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.devgod(true));
     const before = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.hp());
     // X под headless тоже может пролететь мимо кадра — дожимаем до лечения
     let after = before;

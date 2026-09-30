@@ -485,6 +485,14 @@ export class Game {
   private subDt = 0.05;
   /** true — это последний подкадр реального кадра: можно рисовать. */
   private subLast = true;
+  /**
+   * Playwright/headless: рисование кадра выключено. SwiftShader на ~500 draw calls
+   * городского GLB держал кадр в 2–4с — RAF шёл синхронно с рендером, симуляция
+   * догоняла кусками по секундам, и тесты не видели коротких эффектов (рывок, тапы
+   * клавиш между кадрами). Без рендера кадр идёт с частотой RAF и симуляция
+   * движется шагами по ~16мс, как на живой машине.
+   */
+  private readonly noRender = typeof navigator !== 'undefined' && !!navigator.webdriver;
 
   private px = 0;
   private pz = 22;
@@ -8198,7 +8206,10 @@ export class Game {
     this.camera.position.set(camX, camY + shake + bob, camZ);
     this.camera.rotation.set(this.pitch + kick, this.yaw, 0);
     const tJs = performance.now();
-    this.renderer.render(this.scene, this.camera);
+    // headless: кадр не рисуем, но матрицы сцены обновляем (их читает любой, кто
+    // полезет в matrixWorld), иначе рендер — единственный их источник
+    if (this.noRender) this.scene.updateMatrixWorld();
+    else this.renderer.render(this.scene, this.camera);
     const tEnd = performance.now();
     // прибор лагов: сколько кадр жрала логика (JS) и сколько отрисовка (рендер)
     this.perfJs += tJs - tLoop; this.perfR += tEnd - tJs; this.perfN++;
