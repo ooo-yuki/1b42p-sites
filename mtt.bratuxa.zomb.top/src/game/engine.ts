@@ -1038,6 +1038,7 @@ export class Game {
     // город (GLB) грузится асинхронно — волна ждёт готовой геометрии, иначе мобы рождаются в стенах
     if (map !== 'duel' && map !== 'endless' && map !== 'pvp' && map !== 'boss' && this.enemiesOn) this.whenMapReady(() => this.spawnWave());
     window.addEventListener('resize', this.onResize);
+    document.addEventListener('visibilitychange', this.onVisible);
     canvas.addEventListener('pointerdown', this.onPointerDown);
     window.addEventListener('pointermove', this.onPointerMove);
     window.addEventListener('pointerup', this.onPointerUp);
@@ -4785,12 +4786,18 @@ export class Game {
     this.started = false;
   }
 
+  /** Вкладку вернули — сбрасываем накопленное время, чтобы мир не догонял её после скрытия. */
+  private onVisible = (): void => {
+    if (!document.hidden) this.clock.getDelta();
+  };
+
   destroy(): void {
     this.destroyed = true;
     cancelAnimationFrame(this.raf);
     for (const r of this.remotes) this.scene.remove(r.g);
     this.remotes = [];
     window.removeEventListener('resize', this.onResize);
+    document.removeEventListener('visibilitychange', this.onVisible);
     this.canvas.removeEventListener('pointerdown', this.onPointerDown);
     window.removeEventListener('pointermove', this.onPointerMove);
     window.removeEventListener('pointerup', this.onPointerUp);
@@ -7188,8 +7195,8 @@ export class Game {
   private loop = (): void => {
     if (this.destroyed) return;
     this.raf = requestAnimationFrame(this.loop);
-    const real = Math.min(this.clock.getDelta(), 6);
-    const n = Math.max(1, Math.min(120, Math.ceil(real / 0.05)));
+    const real = Math.min(this.clock.getDelta(), 30);
+    const n = Math.max(1, Math.min(600, Math.ceil(real / 0.05)));
     this.subDt = real / n;
     // FPS-метр (сглаживание) — по настоящим кадрам, не по подшагам
     if (real > 0.0005) this.fpsE += (1 / real - this.fpsE) * 0.05;
