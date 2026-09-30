@@ -38,9 +38,11 @@ test('сеть: фраг гостя гаснет у хоста (общий мо�
   await page.click('#approve-0');
   await page.click('#roomStart');
   await expect(page.locator('#hudRow2')).toBeVisible({ timeout: 60000 });
-  // ждём: хост запушил мобов (раннер видит слепок в ответе бита)
+  // ждём: хост запушил мобов (раннер видит слепок в ответе бита).
+  // 80 попыток: под нагрузкой воркеров первый заход волны у хоста запаздывает —
+  // раньше тест ловил пустой слепок на 40-й секунде и падал
   let mobs: Mob[] = [];
-  for (let i = 0; i < 40 && mobs.length === 0; i++) {
+  for (let i = 0; i < 80 && mobs.length === 0; i++) {
     const r = await request.post(`/api/rooms/${id}/beat`, {
       data: { sid: guestSid, char: 'mtt', x: 0, z: 22, yaw: 0, hp: 100, score: 0, kills: 0, wave: 1, weapon: 'fists', py: 0, atk: 0, dead: false },
     });
