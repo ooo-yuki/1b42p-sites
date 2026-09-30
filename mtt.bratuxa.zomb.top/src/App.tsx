@@ -1128,6 +1128,7 @@ async function loadStats(): Promise<void> {
       solidAt: (x: number, z: number, y: number, r?: number) => game.debugSolidAt(x, z, y, r ?? 0.9),
       path: (fx: number, fz: number, tx: number, tz: number) => game.debugPath(fx, fz, tx, tz),
       ground: (x: number, z: number) => game.debugGround(x, z),
+      dbgInput: () => game.debugInput(),
       tracers: () => game.debugTracers(),
       bullets: () => game.debugBullets(),
       bpos: () => game.debugBpos(),

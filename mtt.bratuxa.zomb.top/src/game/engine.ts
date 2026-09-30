@@ -6867,6 +6867,20 @@ export class Game {
   debugGround(x: number, z: number): number {
     return this.groundAt(Number(x) || 0, Number(z) || 0);
   }
+  /** Диагностика ввода/гейта для e2e: крутится ли цикл на этом инстансе и видит ли он ввод. */
+  debugInput(): { frame: number; gate: boolean; started: boolean; dead: boolean; maintLock: boolean; fwd: boolean; arrowL: boolean; joyY: number; destroyed: boolean } {
+    return {
+      frame: this.frame,
+      gate: this.started && !this.dead && !this.maintLock,
+      started: this.started,
+      dead: this.dead,
+      maintLock: this.maintLock,
+      fwd: !!this.input[this.keyMap.fwd],
+      arrowL: !!this.input.ArrowLeft,
+      joyY: this.joy.y,
+      destroyed: this.destroyed,
+    };
+  }
 
   private loop = (): void => {
     if (this.destroyed) return;
