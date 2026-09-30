@@ -1516,8 +1516,8 @@ export class Game {
   // ===== BLENDER: карта из .glb (ручные хитбоксы col_*, спавны Spawn1/Spawn2) =====
   private buildBlender(url: string = customMapUrl): void {
     const scene = this.scene;
-    scene.add(new THREE.HemisphereLight(0xbfd9ff, 0x8a7a66, 0.8));
-    const sun = new THREE.DirectionalLight(0xffe7c4, 1.4);
+    scene.add(new THREE.HemisphereLight(0xbfd9ff, 0x8a7a66, 1.0));
+    const sun = new THREE.DirectionalLight(0xffe7c4, 2.2);
     sun.position.set(120, 180, 60);
     sun.castShadow = true;
     sun.shadow.mapSize.width = 1024;
@@ -1578,8 +1578,9 @@ export class Game {
             box.getSize(size);
             box.getCenter(center);
             m.visible = false;
-            // Пластина на всю карту (пол-подложка из Blender) — не стена: пропускаем
-            if (size.x * size.z > 3000 && size.y < 5) { skippedSlabs++; return; }
+            // Пластина на всю карту (пол-подложка 200×200 ≈40000 м²) — не стена: пропускаем.
+            // Порог 20000: игровые плиты (напр. парк 79×64 ≈5076 м², top +1м) остаются коллизией
+            if (size.x * size.z > 20000 && size.y < 5) { skippedSlabs++; return; }
             colBoxes.push({
               x: center.x, z: center.z,
               hx: size.x / 2, hz: size.z / 2,
