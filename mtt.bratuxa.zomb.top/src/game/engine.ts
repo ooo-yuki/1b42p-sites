@@ -5008,8 +5008,9 @@ export class Game {
           if (d >= 15) { best = p; break; } // врагов рядом нет — берём сразу
           if (d > bestD) { bestD = d; best = p; }
         }
-        this.px = best[0]; this.pz = best[1]; this.yaw = 0;
+        this.px = best[0]; this.pz = best[1];
         this.py = this.groundAt(best[0], best[1]); this.pvy = 0;
+        this.yaw = this.openYaw();
         return { x: best[0], z: best[1] };
       }
     }
@@ -5019,6 +5020,23 @@ export class Game {
     }
     this.px = 0; this.pz = 22; this.yaw = 0;
     return { x: 0, z: 22 };
+  }
+
+  /** Взгляд при спавне — в свободную сторону (иначе упираешься в стену и не делаешь шага). */
+  private openYaw(): number {
+    let bestYaw = this.yaw;
+    let bestD = -1;
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+      const fx = -Math.sin(a), fz = -Math.cos(a);
+      let d = 0;
+      for (let s = 2; s <= 8; s += 2) {
+        if (this.hitSolid(this.px + fx * s, this.pz + fz * s, 1.5, this.py + 1.1)) break;
+        d = s;
+      }
+      if (d > bestD) { bestD = d; bestYaw = a; }
+    }
+    return bestYaw;
   }
 
   /** Спавн на круглой босс-арене: кольцо 25–35м от центра. */

@@ -451,6 +451,9 @@ export default function App() {
   const joyId = useRef(-1);
   const gameRef = useRef<Game | null>(null);
   const [menu, setMenu] = useState(true);
+  /** карта/текстуры догружены: HUD и прицел показываем только с этого момента —
+   * иначе «готово» наступает раньше коллизий и врагов на карте. */
+  const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState<{ show: boolean; pct: number }>({ show: false, pct: 0 });
   const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, invis: 0, invisCd: 0, chuma: 0, chumaCd: 0, xray: 0, xrayCd: 0, sun: 0, sunCd: 0, arbuz: 0, arbuzCd: 0, utugT: 0, utugCd: 0, utugBlink: false,    med: 0, lvl: 1, team: null, carrying: null, captures: 0, boss: 0, wbWait: 0, fps: 60, doorPulse: false, waveCd: 0, charm: 0, charmCd: 0 });
   const [scores, setScores] = useState<ScoreRow[]>([]);
@@ -1275,6 +1278,9 @@ async function loadStats(): Promise<void> {
       }).catch(() => undefined);
     }
     const prevGame = gameRef.current;
+    // оверлей ставим ДО закрытия меню: иначе HUD мигнёт, пока ждём свежий Game и GLB
+    setLoading({ show: true, pct: 0 });
+    setReady(false);
     setMenu(false);
     // закрытие меню пересоздаёт Game (dep menu): ждём свежий инстанс, иначе preload
     // дождётся GLB у старого, а игрок начнёт бой на пустой карте без коллизий
@@ -1282,13 +1288,13 @@ async function loadStats(): Promise<void> {
       await new Promise((r) => window.setTimeout(r, 20));
     }
     // загрузка: греем текстуры под оверлеем, в бой — под щитом (щит до движения/выстрела)
-    setLoading({ show: true, pct: 0 });
     try {
       await gameRef.current?.preload((p) => setLoading({ show: true, pct: p }));
     } catch { /* noop */ }
     gameRef.current?.setShield(true);
     // ник для таблицы урона по боссу (пул 7000 делится по урону за спавн)
     try { gameRef.current?.setWbNick(nick); } catch { /* noop */ }
+    setReady(true);
     setLoading({ show: false, pct: 100 });
     window.setTimeout(() => {
       const g = gameRef.current;
@@ -1534,6 +1540,7 @@ async function loadStats(): Promise<void> {
     gameRef.current?.stop();
     gameRef.current?.setNetSync(false);
     setMenu(true);
+    setReady(false);
     loadScores().then(setScores);
     refreshRooms();
   }, [nick, refreshRooms]);
@@ -2187,7 +2194,7 @@ async function loadStats(): Promise<void> {
       <canvas id="c" ref={canvasRef} />
       {!menu && <div id="vig" />}
       {!menu && <div id="utugFlash" className={hud.utugBlink ? 'on' : ''} />}
-      {!menu && (
+      {!menu && ready && (
         <div id="hud">
           <div id="hpWrap">
             <span>❤️ {hud.hp}/{hud.maxhp}</span>
@@ -2197,7 +2204,7 @@ async function loadStats(): Promise<void> {
           <div id="hudRow2">🎟️ {hud.fantiki} · 💊 {hud.med}/3 · ⭐ {hud.lvl} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}{char === 'krysa' && (hud.kick > 0 ? ` · 🌀 ${hud.kick.toFixed(1)}с` : ' · 🌀 вол-кик готов')}{char === 'shuba' && (hud.invis > 0 ? ` · 👻 ещё ${hud.invis.toFixed(1)}с` : hud.invisCd > 0 ? ` · 👻 ${hud.invisCd.toFixed(1)}с` : ' · 👻 несутка готова')}{char === 'chuma' && (hud.chuma > 0 ? ` · 🦠 ещё ${hud.chuma.toFixed(1)}с` : hud.chumaCd > 0 ? ` · 🦠 ${hud.chumaCd.toFixed(1)}с` : ' · 🦠 облако готово')}{char === 'gidroxis' && (hud.xray > 0 ? ` · 🔍 ещё ${hud.xray.toFixed(1)}с` : hud.xrayCd > 0 ? ` · 🔍 ${hud.xrayCd.toFixed(1)}с` : ' · 🔍 рентген готов')}{char === 'sunstrike' && (hud.sunCd > 0 ? ` · ☀️ ${hud.sunCd.toFixed(1)}с` : ` · ☀️ заряд ${hud.sun}/15`)}{char === 'arbuz' && (hud.arbuz > 0 ? ` · 🌪️ ещё ${hud.arbuz.toFixed(1)}с` : hud.arbuzCd > 0 ? ` · 🌪️ ${hud.arbuzCd.toFixed(1)}с` : ' · 🌪️ воронка готова')}{char === 'jbl' && (hud.waveCd > 0 ? ` · 🔊 ${hud.waveCd.toFixed(1)}с` : ' · 🔊 волна готова')}{char === 'jbl' && (hud.charm > 0 ? ` · 🧠 ещё ${hud.charm.toFixed(1)}с` : hud.charmCd > 0 ? ` · 🧠 ${hud.charmCd.toFixed(1)}с` : ' · 🧠 подчинение готово')}{char === 'utug' && (hud.utugT > 0 ? ' · 💥 взрыв…' : hud.utugCd > 0 ? ` · 💥 ${hud.utugCd.toFixed(1)}с` : ' · 💥 взрыв готов')}</div>
         </div>
       )}
-      {!menu && (
+      {!menu && ready && (
         <>
           <button id="shopBtn" onClick={() => setShopOpen(true)}>🛒 Магазин</button>
           <button id="setBtn" onClick={() => setSetOpen(true)}>⚙️</button>
