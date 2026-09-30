@@ -1554,6 +1554,96 @@ export class Game {
         const spawns: Record<string, { x: number; z: number }> = {};
         let skippedSlabs = 0;
         const colBoxes: Array<{ x: number; z: number; hx: number; hz: number; h: number }> = [];
+        // --- Пол: трава/асфальт по COLOR_0 (только меш DefaultMaterial*, в gorod1 это Cube/Cube.001/Cube.002) ---
+        const floorTex = (url: string, tile: number): THREE.Texture => {
+          const t = new THREE.TextureLoader().load(url);
+          t.colorSpace = THREE.SRGBColorSpace;
+          t.wrapS = t.wrapT = THREE.RepeatWrapping;
+          t.anisotropy = 4;
+          t.repeat.set(1 / tile, 1 / tile);
+          return t;
+        };
+        const roadMat = new THREE.MeshStandardMaterial({ map: floorTex(roadUrl, 8), roughness: 0.85, metalness: 0 });
+        const grassMat = new THREE.MeshStandardMaterial({ map: floorTex(travaUrl, 4), roughness: 0.95, metalness: 0 });
+        root.updateMatrixWorld(true);
+        let floored = 0;
+        root.traverse((obj) => {
+          const m = obj as THREE.Mesh;
+          if (!m.isMesh || !m.geometry) return;
+          if (!obj.name || obj.name.startsWith('col_') || obj.name.startsWith('fog_')) return;
+          const geo = m.geometry;
+          const idx = geo.getIndex();
+          const colAttr = geo.getAttribute('color') as THREE.BufferAttribute | undefined;
+          const pos = geo.getAttribute('position') as THREE.BufferAttribute;
+          const mat0 = (Array.isArray(m.material) ? m.material[0] : m.material) as THREE.Material;
+          if (!idx || !colAttr || !pos || !mat0 || !mat0.name.startsWith('DefaultMaterial')) return;
+          // 0 — дорога (тёмный), 1 — трава (зелёный), 2 — белый/прочее (остаётся как было)
+          const cls = (i: number): number => {
+            const r = colAttr.getX(i), g = colAttr.getY(i), b = colAttr.getZ(i);
+            if (Math.max(r, g, b) < 0.15) return 0;
+            if (g > r && g > b && g > 0.3) return 1;
+            return 2;
+          };
+          const buckets: number[][] = [[], [], []];
+          for (let t = 0; t < idx.count; t += 3) {
+            const a = cls(idx.getX(t)), b = cls(idx.getX(t + 1)), c = cls(idx.getX(t + 2));
+            const k = a === b || a === c ? a : b === c ? b : a;
+            buckets[k].push(idx.getX(t), idx.getX(t + 1), idx.getX(t + 2));
+          }
+          if (buckets[0].length + buckets[1].length + buckets[2].length !== idx.count) return;
+          // Планарные UV из мировых XZ; физический размер плитки задаётся repeat текстуры
+          const uv = new Float32Array(pos.count * 2);
+          const wp = new THREE.Vector3();
+          for (let i = 0; i < pos.count; i++) {
+            wp.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld);
+            uv[i * 2] = wp.x;
+            uv[i * 2 + 1] = wp.z;
+          }
+          geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+          const next: Uint16Array | Uint32Array = pos.count > 65535 ? new Uint32Array(idx.count) : new Uint16Array(idx.count);
+          const mats: THREE.Material[] = [roadMat, grassMat, mat0];
+          const used: THREE.Material[] = [];
+          geo.clearGroups();
+          let off = 0;
+          for (let k = 0; k < 3; k++) {
+            const bk = buckets[k];
+            if (bk.length === 0) continue;
+            next.set(bk, off);
+            geo.addGroup(off, bk.length, used.length);
+            used.push(mats[k]);
+            off += bk.length;
+          }
+          geo.setIndex(new THREE.BufferAttribute(next, 1));
+          m.material = used.length === 1 ? used[0] : used;
+          floored++;
+        });
+        if (floored > 0) console.log(`[Blender] floor textured: ${floored} mesh(es)`);
+        // --- Фонари: опускаем на 0.5м (визуал + его хитбокс-столб); деревья (остальные col_) не трогаем ---
+        const lampNodes: THREE.Object3D[] = [];
+        const lampPos: THREE.Vector3[] = [];
+        root.traverse((obj) => {
+          if (obj.parent !== root || !obj.name.startsWith('Sketchfab_model.')) return;
+          lampNodes.push(obj);
+          lampPos.push(obj.getWorldPosition(new THREE.Vector3()));
+        });
+        if (lampNodes.length > 0) {
+          lampNodes.forEach((l) => { l.position.y -= 0.5; });
+          let poles = 0;
+          root.traverse((obj) => {
+            if (obj.parent !== root || !obj.name.startsWith('col_')) return;
+            const box = new THREE.Box3().setFromObject(obj);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            if (size.x > 1.5 || size.z > 1.5 || size.y < 5 || box.max.y < 7 || box.max.y > 9) return;
+            const ctr = new THREE.Vector3();
+            box.getCenter(ctr);
+            if (!lampPos.some((p) => Math.hypot(p.x - ctr.x, p.z - ctr.z) < 0.5)) return;
+            obj.position.y -= 0.5;
+            poles++;
+          });
+          root.updateMatrixWorld(true);
+          console.log(`[Blender] lamps lowered: ${lampNodes.length}, poles: ${poles}`);
+        }
         root.traverse((obj) => {
           const nm = (obj.name || '').toLowerCase();
           if ((nm === 'spawn1' || nm === 'spawn2') && !('geometry' in obj)) {
