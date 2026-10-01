@@ -50,7 +50,7 @@ test('бэкрумс-карта: только бессмертные сталк�
   for (let i = 0; i < 12; i++) {
     await page.waitForTimeout(1000);
     foes = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.foes());
-    if (foes.length >= 5) break;
+    if (foes.length >= 4) break;
   }
   expect(foes.length, 'пак вышел (4)').toBeGreaterThanOrEqual(4);
   expect(foes.every((f) => f.god === true), 'все — бессмертные, обычных нет').toBe(true);

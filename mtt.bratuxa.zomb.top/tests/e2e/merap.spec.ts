@@ -75,6 +75,7 @@ test('💜 Лорд Мерап: окно 10с → наведение 5с → л�
       foes: () => Foe[];
       solidAt: (x: number, z: number, y: number, r?: number) => boolean;
       teleport: (x: number, z: number, yaw?: number) => void;
+      merapLos: (x: number, y: number, z: number) => boolean;
       devgod: (on: boolean) => void;
     } }).__mtt;
     m.charaSet('merap');
@@ -87,21 +88,38 @@ test('💜 Лорд Мерап: окно 10с → наведение 5с → л�
       return f ? f.hp : 0;
     };
     const OFFS: Array<[number, number]> = [[0, 8], [0, -8], [8, 0], [-8, 0], [0, 12], [12, 0], [0, -12], [-12, 0], [0, 16], [16, 0]];
-    // встать в 8–16м от ближайшей пешей цели и смотреть точно на неё
-    const aimAt = (): boolean => {
-      const f = all().filter((x) => !x.dead && x.kind === 'walk')[0];
-      if (!f) return false;
+    // встать в 8–16м от пешей цели, смотреть на неё; берём точку с ЧИСТЫМ обзором,
+    // иначе луч упирается в стену и урона не будет (за стеной — это отдельный тест)
+    const placeAt = (f: Foe, requireLos: boolean): number => {
+      let placed = 0;
       for (const [ox, oz] of OFFS) {
         const px = f.x + ox, pz = f.z + oz;
         if (m.solidAt(px, pz, 0) || m.solidAt(px, pz, 1.7)) continue;
         m.teleport(px, pz, Math.atan2(ox, oz));
-        return true;
+        if (m.merapLos(f.x, 1.0, f.z)) return 2;
+        placed = 1;
+        if (!requireLos) return 1;
       }
-      return false;
+      return placed;
+    };
+    const walk = (): Foe[] => all().filter((x) => !x.dead && x.kind === 'walk');
+    const pickFoe = (): number => {
+      const foes = walk();
+      for (const f of foes) if (placeAt(f, true) === 2) return f.id;
+      if (foes.length) placeAt(foes[0], false);
+      return foes.length ? foes[0].id : -1;
+    };
+    let foeId = pickFoe();
+    const aimAt = (): boolean => {
+      let f = all().find((x) => x.id === foeId && !x.dead);
+      if (!f) { foeId = pickFoe(); f = all().find((x) => x.id === foeId && !x.dead); }
+      if (!f) return false;
+      if (placeAt(f, true) === 2) return true;
+      return placeAt(f, false) > 0;
     };
     aimAt();
     const go = m.doMerap();
-    let marks = 0, aimMax = 0, laserMax = 0, fx = false;
+    let marks = 0, aimMax = 0, laserMax = 0, fx = false, blockedFrames = 0;
     let ids: number[] = [], hpThen = 0, hpNow = 0;
     const t0 = performance.now();
     let d: MerapDbg = m.merap();
@@ -112,6 +130,7 @@ test('💜 Лорд Мерап: окно 10с → наведение 5с → л�
       aimMax = Math.max(aimMax, d.aim);
       if (d.laser > 0) {
         laserMax = Math.max(laserMax, d.laser);
+        if (d.blocked) blockedFrames++;
         if (!ids.length) {
           ids = all().filter((f) => !f.dead).map((f) => f.id);
           hpThen = ids.reduce((s, id) => s + hpById(id), 0);
@@ -124,7 +143,7 @@ test('💜 Лорд Мерап: окно 10с → наведение 5с → л�
       await new Promise((r) => setTimeout(r, 200));
     }
     if (ids.length) hpNow = ids.reduce((s, id) => s + hpById(id), 0);
-    return { go, marks, aimMax, laserMax, fx, hpThen, hpNow, ids: ids.length, d };
+    return { go, marks, aimMax, laserMax, fx, hpThen, hpNow, blockedFrames, ids: ids.length, d };
   });
   console.log('DIAG merap run ' + JSON.stringify(out));
   expect(out.go, 'супер активировался').toBe(true);

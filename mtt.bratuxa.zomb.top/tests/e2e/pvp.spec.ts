@@ -2,20 +2,21 @@ import { test, expect } from './fixture';
 
 /** Вход на официальный PvP-сервер через вкладку Сервера; ждём табло. */
 async function joinOfficialPvp(page: import('@playwright/test').Page): Promise<void> {
+  const trail: string[] = [];
+  const short = (u: string): string => u.replace(/^https?:\/\/[^/]+/, '');
+  page.on('request', (r) => { if (r.url().includes('/api/rooms/')) trail.push(r.method() + ' ' + short(r.url())); });
+  page.on('response', (r) => { if (r.url().includes('/api/rooms/')) trail.push('→' + r.status() + ' ' + short(r.url())); });
   await page.goto('/');
   await expect(page).toHaveTitle(/42 LIVE/);
   await page.click('#guestBtn');
   await page.click('#nav-servers');
-  // ловим ответ /join: тихий !r.ok в joinRoom — единственная видимая причина «кликнул и тишина»
-  const joinResp = page
-    .waitForResponse((r) => r.url().includes('/join') && r.method() === 'POST', { timeout: 20000 })
-    .catch(() => null);
   await page.click('#srv-PVP42X');
-  const jr = await joinResp;
-  const body = jr ? await jr.text().catch(() => '') : '';
-  console.log('DIAG pvp join ' + (jr ? jr.status() + ' ' + body.slice(0, 200) : 'no-request'));
-  // официальный сервер уже идёт — автовход через пульс лобби + загрузка
-  await expect(page.locator('#scoreboard')).toBeVisible({ timeout: 45000 });
+  try {
+    // официальный сервер уже идёт — автовход через пульс лобби + загрузка
+    await expect(page.locator('#scoreboard')).toBeVisible({ timeout: 45000 });
+  } finally {
+    console.log('DIAG pvp reqs ' + JSON.stringify(trail));
+  }
 }
 
 test('pvp: табло и таймер рестарта на официальном сервере', async ({ page }) => {
