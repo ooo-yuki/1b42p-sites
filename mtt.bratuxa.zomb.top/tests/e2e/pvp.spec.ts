@@ -6,7 +6,14 @@ async function joinOfficialPvp(page: import('@playwright/test').Page): Promise<v
   await expect(page).toHaveTitle(/42 LIVE/);
   await page.click('#guestBtn');
   await page.click('#nav-servers');
+  // ловим ответ /join: тихий !r.ok в joinRoom — единственная видимая причина «кликнул и тишина»
+  const joinResp = page
+    .waitForResponse((r) => r.url().includes('/join') && r.method() === 'POST', { timeout: 20000 })
+    .catch(() => null);
   await page.click('#srv-PVP42X');
+  const jr = await joinResp;
+  const body = jr ? await jr.text().catch(() => '') : '';
+  console.log('DIAG pvp join ' + (jr ? jr.status() + ' ' + body.slice(0, 200) : 'no-request'));
   // официальный сервер уже идёт — автовход через пульс лобби + загрузка
   await expect(page.locator('#scoreboard')).toBeVisible({ timeout: 45000 });
 }
