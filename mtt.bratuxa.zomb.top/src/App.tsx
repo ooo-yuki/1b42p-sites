@@ -1219,7 +1219,7 @@ async function loadStats(): Promise<void> {
       specpos: () => game.debugSpecPos(),
       unlockall: () => game.unlockAllChars(),
       mkroom: (name: string, mode: MapId) => createRoom(name, mode),
-      charaSet: (id: string) => { game.unlockChar(id); return game.setChar(id); },
+      charaSet: (id: string) => { game.unlockChar(id); const c = game.setChar(id); setChar(c); return c; },
       switchW: () => game.switchWeapon(),
       medBuy: () => game.buyMedkit(),
       medUse: () => game.useMedkit(),
