@@ -34,6 +34,7 @@ import charGidroxisUrl from '../assets/char-gidroxis.png';
 import charSunstrikeUrl from '../assets/char-sunstrike.png';
 import charArbuzUrl from '../assets/char-arbuziha.png';
 import charUtugUrl from '../assets/char-utug.png';
+import charLordmerapUrl from '../assets/char-lordmerap.png';
 import stalkerUrl from '../assets/stalker.png';
 import shotUrl from '../assets/shot.mp3';
 import hitUrl from '../assets/hit.mp3';
@@ -54,8 +55,9 @@ export function upgCost(key: keyof UpgState, lvl: number): number {
   const base = key === 'sup' ? 150 : 100;
   return Math.round(base * Math.pow(3.5, lvl));
 }
-/** Кд суперспособности с учётом прокачки: МТТ/рывок мин 1.7с, Крыса мин 1.7с, Ивангой-несутка и Чума-облако 30с мин 20с, Гидроксис-рентген 20с мин 15с, Санстрайк-луч 30с, Арбузиха-воронка 15с, УтюгКрипер-взрыв 35с. */
+/** Кд суперспособности с учётом прокачки: МТТ/рывок мин 1.7с, Крыса мин 1.7с, Ивангой-несутка и Чума-облако 30с мин 20с, Гидроксис-рентген 20с мин 15с, Санстрайк-луч 30с, Арбузиха-воронка 15с, УтюгКрипер-взрыв 35с, Лорд Мерап-лазер 60с (кд и время наведения прокачка НЕ двигает). */
 export function superCd(id: string, sup: number): number {
+  if (id === 'merap') return 60;
   if (id === 'sunstrike') return 30;
   if (id === 'arbuz') return 15;
   if (id === 'utug') return 35;
@@ -70,6 +72,12 @@ export function superCd(id: string, sup: number): number {
 export function superRange(sup: number): number {
   return Math.round((1 + sup * 0.15) * 100) / 100;
 }
+
+/** Лорд Мерап: радиус окружности-цели (м), окно наведения (с), сколько копить (с), длительность луча (с). */
+const MERAP_R = 1.15;
+const MERAP_WIN = 10;
+const MERAP_NEED = 5;
+const MERAP_LASER = 2;
 
 export interface CharDef {
   id: string;
@@ -91,6 +99,7 @@ export const CHARS: CharDef[] = [
   { id: 'arbuz', name: '🍉 Арбузиха', desc: 'Сверхредкая в короне · супер — цветочная воронка стягивает всех в центр 4с', hp: 100, spd: 1.05, rarity: 'Сверхредкий' },
   { id: 'utug', name: '🟩 УтюгКрипер', desc: 'Сверхредкий крипер · супер — взрыв вокруг себя (3 морга, радиус 6м)', hp: 105, spd: 1.05, rarity: 'Сверхредкий' },
   { id: 'jbl', name: '🔊 JBLка', desc: 'Легендарный колонка · звуковая волна + подчинение врагов', hp: 110, spd: 1.08, rarity: 'Легендарный' },
+  { id: 'merap', name: '💜 Лорд Мерап', desc: 'Мифический лорд в фиолете · супер — прицел-окружность и фиолетовый лазер на 2с', hp: 100, spd: 1.05, rarity: 'Мифический' },
 ];
 
 /** Кейс бойца: цена открытия в фантиках. */
@@ -204,6 +213,14 @@ export interface HudState {
   charm: number;
   /** Перезарядка подчинения JBLка: осталось секунд (0 — готово). */
   charmCd: number;
+  /** Лорд Мерап: перезарядка лазера — всегда 60с (0 — готов). */
+  merapCd: number;
+  /** Лорд Мерап: окно наведения открыто (10с идут). */
+  merapOn: boolean;
+  /** Лорд Мерап: накоплено секунд наведения 0–5 (прицел в окружности). */
+  merapAim: number;
+  /** Лорд Мерап: идёт луч, остаток секунд 0–2 (0 — не идёт). */
+  merapLaser: number;
   med: number;
   lvl: number;
   /** CTF (карта Blender): моя команда, несомый флаг, число захватов. */
@@ -578,7 +595,7 @@ export class Game {
       pool = ['arbuz', 'utug'];
       rarityName = 'Сверхредкий';
     } else if (rarityRoll < 0.90) {
-      pool = ['sunstrike'];
+      pool = ['sunstrike', 'merap'];
       rarityName = 'Мифический';
     } else {
       pool = ['krysa', 'gidroxis', 'jbl'];
@@ -596,7 +613,7 @@ export class Game {
       const labels: Record<string, string> = {
         shuba: '🥷 ИВАНГОЙ', chuma: '🐦‍⬛ ЧУМА', krysa: '🐀 СТЕЙСИ КРЫСА',
         gidroxis: '🧪 ГИДРОКСИС', jbl: '🔊 JBLКА', sunstrike: '☀️ АНДРЕЙ САНСТРАЙК',
-        arbuz: '🍉 АРБУЗИХА', utug: '🟩 УТЮГКРИПЕР',
+        arbuz: '🍉 АРБУЗИХА', utug: '🟩 УТЮГКРИПЕР', merap: '💜 ЛОРД МЕРАП',
       };
       return { ok: true, kind: 'char', char: pick, text: `${labels[pick] ?? pick} · ${rarityName} — твоя!` };
     }
@@ -837,6 +854,22 @@ export class Game {
   private waveRingT = 0;
   /** Визуал: аура подчинения JBLка (пульсирующее кольцо). */
   private charmAura: THREE.Mesh | null = null;
+  /** ЛОРД МЕРАП: merapCd — кд всегда 60с; merapWinT — окно наведения (10с, 0 = нет);
+      merapAim — накоплено секунд при прицелом в окружности (0–5); merapLaserT — идёт
+      луч (2с); merapTgt — запертая цель луча; окружности — пул контур+дуга. */
+  private merapCd = 0;
+  private merapWinT = 0;
+  private merapAim = 0;
+  private merapLaserT = 0;
+  private merapTgt: { mob: Enemy | null; rem: Remote | null } | null = null;
+  private merapDmgAcc = 0;
+  private merapApplyT = 0;
+  private merapSpin = 0;
+  private merapBlocked = false;
+  private merapMarkN = 0;
+  private merapMarksOn = false;
+  private merapMarkPool: Array<{ ring: THREE.Mesh; arc: THREE.Mesh; q: number }> = [];
+  private merapLaser: THREE.Mesh | null = null;
   /** Панель разработчика: бессмертие, сквозной рентген, хитбоксы (только у владельца). */
   private devGod = false;
   private devXray = false;
@@ -1263,6 +1296,9 @@ export class Game {
     this.charmCd = 0;
     this.utugT = 0;
     this.utugCd = 0;
+    // смена бойца: недокастованный лазер Мерапа гасим, кд тоже (новый боец — новый кулдаун)
+    this.merapStop();
+    this.merapCd = 0;
     this.pushHud();
     return this.charId;
   }
@@ -4814,6 +4850,13 @@ export class Game {
     if (this.waveRing) { this.scene.remove(this.waveRing); this.waveRing.geometry.dispose(); (this.waveRing.material as THREE.Material).dispose(); }
     if (this.utugRing) { this.scene.remove(this.utugRing); this.utugRing.geometry.dispose(); (this.utugRing.material as THREE.Material).dispose(); }
     if (this.charmAura) { this.scene.remove(this.charmAura); this.charmAura.geometry.dispose(); (this.charmAura.material as THREE.Material).dispose(); }
+    for (const m of this.merapMarkPool) {
+      this.scene.remove(m.ring); this.scene.remove(m.arc);
+      m.ring.geometry.dispose(); (m.ring.material as THREE.Material).dispose();
+      m.arc.geometry.dispose(); (m.arc.material as THREE.Material).dispose();
+    }
+    this.merapMarkPool = [];
+    if (this.merapLaser) { this.scene.remove(this.merapLaser); this.merapLaser.geometry.dispose(); (this.merapLaser.material as THREE.Material).dispose(); this.merapLaser = null; }
   }
 
   attack(): number {
@@ -4862,11 +4905,12 @@ export class Game {
     return hits;
   }
 
-  /** Попадание по игроку в PvP: картинка + заявка на сервер (HP и фраг считает сервер). */
-  private hitRemote(r: Remote, dmg: number): void {
-    this.burst(r.x, 1.5, r.z, 8);
+  /** Попадание по игроку в PvP: картинка + заявка на сервер (HP и фраг считает сервер).
+      quiet — без брызг и звука (луч Мерапа бьёт пачками каждый кадр). */
+  private hitRemote(r: Remote, dmg: number, quiet = false): void {
+    if (!quiet) this.burst(r.x, 1.5, r.z, 8);
     r.flash = 0.3;
-    this.sfx(hitUrl);
+    if (!quiet) this.sfx(hitUrl);
     if (r.fid >= 0) this.ev.onPvpHit?.(r.fid, Math.round(dmg));
   }
 
@@ -5596,6 +5640,286 @@ export class Game {
 
   debugArbuz(): { t: number; cd: number; x: number; z: number } {
     return { t: Math.round(this.arbuzT * 10) / 10, cd: Math.round(this.arbuzCd * 10) / 10, x: this.arbuzX, z: this.arbuzZ };
+  }
+
+  // ===== ЛОРД МЕРАП: ФИОЛЕТОВЫЙ ЛАЗЕР =====
+  // На C: экран уходит в фиолет, у каждого врага (и вражеского игрока в PvP)
+  // в центре рисуется окружность-цель. 10с окно: пока прицел внутри окружности —
+  // наведение копится (нужно 5с, контур дуги заполняется), вне окружности
+  // накопленное тает по 1с за секунду (не сброс в ноль). Набрал 5с — 2с луч:
+  // вращающийся прямоугольник от твоих глаз к цели, сам ведёт цель, урон идёт
+  // плавно (80 → 142 по прокачке супера) и только пока между тобой и целью нет
+  // стены. Кд всегда 60с — прокачка не двигает ни кд, ни время наведения.
+  merap(): boolean {
+    if (!this.started || this.dead || this.carrying || this.specOn
+      || this.merapCd > 0 || this.merapWinT > 0 || this.merapLaserT > 0 || this.charId !== 'merap') return false;
+    this.merapCd = superCd('merap', this.upg['merap']?.sup ?? 0);
+    this.merapWinT = MERAP_WIN;
+    this.merapAim = 0;
+    this.merapTgt = null;
+    this.merapDmgAcc = 0;
+    this.merapApplyT = 0;
+    this.merapShowMarks();
+    this.burst(this.px, 1.2, this.pz, 14);
+    this.pushHud();
+    return true;
+  }
+
+  /** Луч для тестов: кд, окно, накопленное наведение, остаток луча, цель. */
+  debugMerap(): { cd: number; win: number; aim: number; laser: number; marks: number; target: string | null; blocked: boolean; dmg: number } {
+    let target: string | null = null;
+    if (this.merapTgt) target = this.merapTgt.mob ? 'mob' : this.merapTgt.rem ? `remote:${this.merapTgt.rem.nick}` : null;
+    return {
+      cd: Math.round(this.merapCd * 10) / 10,
+      win: Math.round(this.merapWinT * 10) / 10,
+      aim: Math.round(this.merapAim * 100) / 100,
+      laser: Math.round(this.merapLaserT * 100) / 100,
+      marks: this.merapMarksOn ? this.merapMarkN : 0,
+      target,
+      blocked: this.merapBlocked,
+      dmg: this.merapDmg(),
+    };
+  }
+
+  /** Видна ли точка из моих глаз прямо сейчас (тот же луч, что и у лазера) — для тестов. */
+  debugMerapLos(tx: number, ty: number, tz: number): boolean {
+    return this.merapLos(Number(tx) || 0, Number(ty) || 0, Number(tz) || 0);
+  }
+
+  /** Урон луча за все 2с целиком: 80 на первом уровне прокачки супера, 142 на максимуме. */
+  private merapDmg(): number {
+    const sup = this.upg['merap']?.sup ?? 0;
+    const lv = Math.max(1, Math.min(UPG_MAX.sup, sup));
+    return 80 + ((lv - 1) * (142 - 80)) / (UPG_MAX.sup - 1);
+  }
+
+  /** Живые цели под прицелом: мобы + вражеские игроки (PvP). */
+  private merapTargets(): Array<{ x: number; y: number; z: number; mob: Enemy | null; rem: Remote | null }> {
+    const out: Array<{ x: number; y: number; z: number; mob: Enemy | null; rem: Remote | null }> = [];
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      out.push({ x: e.g.position.x, y: e.kind === 'fly' ? 3.2 : 1.0 + e.ey, z: e.g.position.z, mob: e, rem: null });
+    }
+    if (this.map === 'pvp') {
+      for (const r of this.remotes) {
+        if (r.dead || r.fid < 0) continue;
+        out.push({ x: r.x, y: 1.3, z: r.z, mob: null, rem: r });
+      }
+    }
+    return out;
+  }
+
+  /** Точка цели луча (пусто — цель умерла, луч гаснет). */
+  private merapTargetPos(): { x: number; y: number; z: number } | null {
+    const t = this.merapTgt;
+    if (!t) return null;
+    if (t.mob) {
+      if (t.mob.dead) return null;
+      return { x: t.mob.g.position.x, y: t.mob.kind === 'fly' ? 3.2 : 1.0 + t.mob.ey, z: t.mob.g.position.z };
+    }
+    if (t.rem) {
+      if (t.rem.dead) return null;
+      return { x: t.rem.x, y: 1.3, z: t.rem.z };
+    }
+    return null;
+  }
+
+  /** Пул окружностей-цей: контур + дуга заливки, заводится один раз на 40 целей. */
+  private merapEnsureMarks(): void {
+    while (this.merapMarkPool.length < 40) {
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(0.86, 1, 48),
+        new THREE.MeshBasicMaterial({ color: 0xc060ff, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }),
+      );
+      ring.renderOrder = 997;
+      ring.visible = false;
+      const arc = new THREE.Mesh(
+        new THREE.RingGeometry(0.86, 1, 48, 1, Math.PI / 2, 0.001),
+        new THREE.MeshBasicMaterial({ color: 0xf0c8ff, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false }),
+      );
+      arc.renderOrder = 998;
+      arc.visible = false;
+      this.scene.add(ring);
+      this.scene.add(arc);
+      this.merapMarkPool.push({ ring, arc, q: -1 });
+    }
+  }
+
+  private merapShowMarks(): void {
+    this.merapEnsureMarks();
+    this.merapMarksOn = true;
+    this.merapMarkN = 0;
+    for (const m of this.merapMarkPool) { m.ring.visible = false; m.arc.visible = false; m.q = -1; }
+  }
+
+  private merapHideMarks(): void {
+    this.merapMarksOn = false;
+    this.merapMarkN = 0;
+    for (const m of this.merapMarkPool) { m.ring.visible = false; m.arc.visible = false; m.q = -1; }
+  }
+
+  /** Дуга заливки по контуру: пересобираем геометрию только когда шаг прогресса изменился. */
+  private merapSetArc(m: { arc: THREE.Mesh; q: number }, prog: number): void {
+    const q = Math.round(Math.max(0, Math.min(1, prog)) * 48);
+    if (q === m.q) return;
+    m.q = q;
+    m.arc.geometry.dispose();
+    if (q <= 0) { m.arc.visible = false; m.arc.geometry = new THREE.RingGeometry(0.86, 1, 48, 1, Math.PI / 2, 0.001); return; }
+    m.arc.visible = true;
+    const frac = q / 48;
+    m.arc.geometry = new THREE.RingGeometry(0.86, 1, 48, 1, Math.PI / 2 - frac * Math.PI * 2, frac * Math.PI * 2);
+  }
+
+  /** Прямая видимость от моих глаз до точки: стена на пути — в этот кадр урона нет. */
+  private merapLos(tx: number, ty: number, tz: number): boolean {
+    const cx = this.px, cy = 1.7 + this.py, cz = this.pz;
+    const dx = tx - cx, dy = ty - cy, dz = tz - cz;
+    const d = Math.hypot(dx, dy, dz) || 1;
+    const checks = Math.min(16, Math.max(2, Math.ceil(d / 1.2)));
+    for (let s = 1; s <= checks; s++) {
+      const t = (d * s) / (checks + 1);
+      if (this.hitSolid(cx + (dx / d) * t, cz + (dz / d) * t, 0.3, cy + (dy / d) * t)) return false;
+    }
+    return true;
+  }
+
+  /** Кусок урока луча: мобу — локально, игроку в PvP — заявкой на сервер (без звука). */
+  private merapApply(dmg: number): void {
+    this.merapDmgAcc = 0;
+    const t = this.merapTgt;
+    if (!t) return;
+    if (t.mob && !t.mob.dead) {
+      const dx = t.mob.g.position.x - this.px, dz = t.mob.g.position.z - this.pz;
+      const d = Math.hypot(dx, dz) || 1;
+      this.strikeEnemy(t.mob, dmg, dx, dz, d, 0);
+    } else if (t.rem && !t.rem.dead && t.rem.fid >= 0) {
+      this.hitRemote(t.rem, dmg, true);
+    }
+  }
+
+  /** Погасить окно/луч без выстреля (кд не трогает). */
+  private merapStop(): void {
+    this.merapWinT = 0;
+    this.merapLaserT = 0;
+    this.merapAim = 0;
+    this.merapTgt = null;
+    this.merapDmgAcc = 0;
+    this.merapApplyT = 0;
+    this.merapBlocked = false;
+    this.merapHideMarks();
+    if (this.merapLaser) this.merapLaser.visible = false;
+    this.pushHud();
+  }
+
+  /** Окно наведения: окружности на целях, копление/таяние, запуск луча. */
+  private merapAimTick(dt: number): void {
+    this.merapWinT -= dt;
+    const cx = this.px, cy = 1.7 + this.py, cz = this.pz;
+    const cp = Math.cos(this.pitch);
+    const dx = -Math.sin(this.yaw) * cp, dy = Math.sin(this.pitch), dz = -Math.cos(this.yaw) * cp;
+    const tgts = this.merapTargets();
+    const cam = this.camera;
+    let best = -1, bestT = Infinity;
+    for (let i = 0; i < tgts.length && i < this.merapMarkPool.length; i++) {
+      const t = tgts[i];
+      const m = this.merapMarkPool[i];
+      m.ring.visible = true;
+      m.ring.position.set(t.x, t.y, t.z);
+      m.ring.quaternion.copy(cam.quaternion);
+      m.arc.position.set(t.x, t.y, t.z);
+      m.arc.quaternion.copy(cam.quaternion);
+      const vx = t.x - cx, vy = t.y - cy, vz = t.z - cz;
+      const tt = vx * dx + vy * dy + vz * dz;
+      if (tt <= 0.3 || tt > 70) continue;
+      const perp = Math.hypot(vx - dx * tt, vy - dy * tt, vz - dz * tt);
+      if (perp > MERAP_R) continue;
+      if (tt < bestT) { bestT = tt; best = i; }
+    }
+    const prevTenth = Math.floor(this.merapAim * 10);
+    if (best >= 0) this.merapAim = Math.min(MERAP_NEED, this.merapAim + dt);
+    else this.merapAim = Math.max(0, this.merapAim - dt);
+    for (let i = 0; i < this.merapMarkPool.length; i++) {
+      if (i >= tgts.length) {
+        if (this.merapMarkPool[i].ring.visible) { this.merapMarkPool[i].ring.visible = false; this.merapSetArc(this.merapMarkPool[i], 0); }
+        continue;
+      }
+      this.merapSetArc(this.merapMarkPool[i], i === best ? this.merapAim / MERAP_NEED : 0);
+    }
+    this.merapMarkN = Math.min(tgts.length, this.merapMarkPool.length);
+    // набрал наведение — запуск луча по цели под прицелом
+    if (best >= 0 && this.merapAim >= MERAP_NEED) {
+      const t = tgts[best];
+      this.merapTgt = { mob: t.mob, rem: t.rem };
+      this.merapWinT = 0;
+      this.merapLaserT = MERAP_LASER;
+      this.merapDmgAcc = 0;
+      this.merapApplyT = 0.2;
+      this.merapSpin = 0;
+      this.merapHideMarks();
+      this.burst(cx, cy, cz, 12);
+      this.sfx(hitUrl);
+      this.pushHud();
+      return;
+    }
+    // окно истекло — выстрела нет
+    if (this.merapWinT <= 0) { this.merapStop(); return; }
+    if (Math.floor(this.merapAim * 10) !== prevTenth) this.pushHud();
+  }
+
+  /** Луч: прямоугольник крутится вокруг оси, ведёт цель сам; урон плавно и по прямой видимости. */
+  private merapLaserTick(dt: number): void {
+    this.merapLaserT -= dt;
+    const t = this.merapTargetPos();
+    if (!t) { this.merapStop(); return; }
+    if (!this.merapLaser) {
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.3, 0.3, 1),
+        new THREE.MeshBasicMaterial({ color: 0xb44dff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }),
+      );
+      mesh.renderOrder = 999;
+      this.scene.add(mesh);
+      this.merapLaser = mesh;
+    }
+    const L = this.merapLaser;
+    const sx = this.px, sy = 1.7 + this.py, sz = this.pz;
+    const dx = t.x - sx, dy = t.y - sy, dz = t.z - sz;
+    const len = Math.hypot(dx, dy, dz) || 1;
+    L.position.set(sx + dx / 2, sy + dy / 2, sz + dz / 2);
+    L.lookAt(t.x, t.y, t.z);
+    this.merapSpin += dt * 14;
+    L.rotateZ(this.merapSpin);
+    L.scale.set(1, 1, len);
+    L.visible = true;
+    const los = this.merapLos(t.x, t.y, t.z);
+    this.merapBlocked = !los;
+    if (los) {
+      this.merapDmgAcc += (this.merapDmg() / MERAP_LASER) * dt;
+      this.merapApplyT -= dt;
+      if (this.merapApplyT <= 0) { this.merapApplyT = 0.2; if (this.merapDmgAcc > 0) this.merapApply(this.merapDmgAcc); }
+    }
+    if (Math.floor(this.merapLaserT * 5) !== Math.floor((this.merapLaserT + dt) * 5)) this.pushHud();
+    if (this.merapLaserT <= 0) {
+      if (this.merapDmgAcc > 0) this.merapApply(this.merapDmgAcc);
+      this.merapStop();
+    }
+  }
+
+  /** Тик Лорда Мерапа: кд, окно наведения, луч; мёртвому/наблюдателю всё гасится. */
+  private syncMerap(dt: number): void {
+    const live = this.started && !this.maintLock && !this.dead && !this.specOn;
+    if (this.merapCd > 0 && live) {
+      this.merapCd -= dt;
+      if (this.merapCd <= 0) { this.merapCd = 0; this.pushHud(); }
+      else if (Math.floor(this.merapCd * 5) !== Math.floor((this.merapCd + dt) * 5)) this.pushHud();
+    }
+    if (this.merapWinT <= 0 && this.merapLaserT <= 0) {
+      if (this.merapMarksOn) this.merapHideMarks();
+      if (this.merapLaser && this.merapLaser.visible) this.merapLaser.visible = false;
+      return;
+    }
+    if (!live) { this.merapStop(); return; }
+    if (this.merapLaserT > 0) this.merapLaserTick(dt);
+    else this.merapAimTick(dt);
   }
 
   // ===== УТЮГКРИПЕР: Супер — ВЗРЫВ =====
@@ -6818,6 +7142,10 @@ export class Game {
       waveCd: Math.round(this.waveCd * 10) / 10,
       charm: Math.round(this.charmT * 10) / 10,
       charmCd: Math.round(this.charmCd * 10) / 10,
+      merapCd: Math.round(this.merapCd * 10) / 10,
+      merapOn: this.merapWinT > 0,
+      merapAim: Math.round(this.merapAim * 100) / 100,
+      merapLaser: Math.round(this.merapLaserT * 100) / 100,
       fps: Math.round(this.fpsE),
       doorPulse: this.doorPulse,
     });
@@ -6869,10 +7197,10 @@ export class Game {
   private charTexCache: Record<string, THREE.Texture> = {};
 
   private charTexture(id: string): THREE.Texture {
-    const key = id === 'krysa' ? 'krysa' : id === 'shuba' ? 'shuba' : id === 'chuma' ? 'chuma' : id === 'gidroxis' ? 'gidroxis' : id === 'sunstrike' ? 'sunstrike' : id === 'arbuz' ? 'arbuz' : id === 'utug' ? 'utug' : 'mtt';
+    const key = id === 'krysa' ? 'krysa' : id === 'shuba' ? 'shuba' : id === 'chuma' ? 'chuma' : id === 'gidroxis' ? 'gidroxis' : id === 'sunstrike' ? 'sunstrike' : id === 'arbuz' ? 'arbuz' : id === 'utug' ? 'utug' : id === 'merap' ? 'merap' : 'mtt';
     let t = this.charTexCache[key];
     if (!t) {
-      t = new THREE.TextureLoader().load(key === 'krysa' ? charKrysaUrl : key === 'shuba' ? charShubaUrl : key === 'chuma' ? charChumaUrl : key === 'gidroxis' ? charGidroxisUrl : key === 'sunstrike' ? charSunstrikeUrl : key === 'arbuz' ? charArbuzUrl : key === 'utug' ? charUtugUrl : charMttUrl);
+      t = new THREE.TextureLoader().load(key === 'krysa' ? charKrysaUrl : key === 'shuba' ? charShubaUrl : key === 'chuma' ? charChumaUrl : key === 'gidroxis' ? charGidroxisUrl : key === 'sunstrike' ? charSunstrikeUrl : key === 'arbuz' ? charArbuzUrl : key === 'utug' ? charUtugUrl : key === 'merap' ? charLordmerapUrl : charMttUrl);
       t.colorSpace = THREE.SRGBColorSpace;
       this.charTexCache[key] = t;
     }
@@ -7240,6 +7568,8 @@ export class Game {
     }
     this.syncXray();
     this.syncHit();
+    // Лорд Мерап: кд, окно наведения с окружностями, луч (гаснет сам, если мёртв)
+    this.syncMerap(dt);
     // Бой и движение — живым; НАБЛЮДАТЕЛЬ (и мёртвый тоже) идёт здесь же:
     // в наблюдатели попадают именно мёртвыми, а полёт/камера/следование живут ниже.
     // Защита от трупных артефактов — внутри: attack/jump/абилки/урон проверяют specOn/dead сами.
@@ -7338,7 +7668,7 @@ export class Game {
       // Наблюдатель способностей не жмёт.
       if (this.input[km.ability] && this.charId !== 'krysa' && !this.specOn) {
         this.input[km.ability] = false;
-        if (this.charId === 'shuba') this.invis(); else if (this.charId === 'chuma') this.chuma(); else if (this.charId === 'gidroxis') this.xray(); else if (this.charId === 'sunstrike') this.sunstrike(); else if (this.charId === 'arbuz') this.arbuz(); else if (this.charId === 'utug') this.utugBlast(); else if (this.charId === 'jbl') this.soundWave(); else this.dash();
+        if (this.charId === 'shuba') this.invis(); else if (this.charId === 'chuma') this.chuma(); else if (this.charId === 'gidroxis') this.xray(); else if (this.charId === 'sunstrike') this.sunstrike(); else if (this.charId === 'arbuz') this.arbuz(); else if (this.charId === 'utug') this.utugBlast(); else if (this.charId === 'merap') this.merap(); else if (this.charId === 'jbl') this.soundWave(); else this.dash();
       }
       // способность 2 на V: JBLка — подчинение
       if (this.input[km.ability2] && !this.specOn) {
@@ -7363,6 +7693,7 @@ export class Game {
         if (this.arbuzCd > 0) this.arbuzCd = 0;
         if (this.utugCd > 0) this.utugCd = 0;
         if (this.charmCd > 0) this.charmCd = 0;
+        if (this.merapCd > 0) this.merapCd = 0;
       }
       // несутка тикает: кончилась — сбрасываем HUD (враги снова видят)
       if (this.invisT > 0) {

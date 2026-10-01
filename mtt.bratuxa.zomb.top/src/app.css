@@ -26,6 +26,10 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;opac
 /* белая вспышка супера УтюгКрипера: 3 резких морга перед взрывом */
 #utugFlash{position:fixed;inset:0;z-index:8;pointer-events:none;background:#fff;opacity:0}
 #utugFlash.on{opacity:.95}
+/* фиолетовый экран супера Лорда Мерапа: окно наведения + луч */
+#merapFx{position:fixed;inset:0;z-index:7;pointer-events:none;opacity:0;transition:opacity .25s;
+  background:radial-gradient(ellipse at center,rgba(150,50,255,.16) 0%,rgba(70,0,140,.55) 100%)}
+#merapFx.on{opacity:1}
 ::selection{background:rgba(255,176,32,.4)}
 button{font-family:inherit}
 button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(--gold);outline-offset:2px;border-radius:6px}
