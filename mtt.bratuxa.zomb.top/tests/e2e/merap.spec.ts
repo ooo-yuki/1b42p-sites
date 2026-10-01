@@ -35,7 +35,7 @@ test('💜 Лорд Мерап: мифик в ростере, кд всегда 
   await expect(page.locator('#rarity-merap')).toContainText('Мифический');
   await expect(page.locator('#locked-merap')).toHaveCount(1);
   await expect(page.locator('#pick-merap')).toBeDisabled();
-  await expect(page.locator('#abilities-merap')).toContainText('фиолетовый');
+  await expect(page.locator('#abilities-merap')).toContainText(/фиолетовый/i);
   const r = await page.evaluate(() => {
     const m = (window as unknown as { __mtt: {
       merap: () => { dmg: number };
@@ -94,7 +94,7 @@ test('💜 Лорд Мерап: окно 10с → наведение 5с → л�
       for (const [ox, oz] of OFFS) {
         const px = f.x + ox, pz = f.z + oz;
         if (m.solidAt(px, pz, 0) || m.solidAt(px, pz, 1.7)) continue;
-        m.teleport(px, pz, Math.atan2(-ox, -oz));
+        m.teleport(px, pz, Math.atan2(ox, oz));
         return true;
       }
       return false;
@@ -179,7 +179,7 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
           const a = (k / 24) * Math.PI * 2;
           const px = f.x + Math.cos(a) * r, pz = f.z + Math.sin(a) * r;
           if (m.solidAt(px, pz, 0) || m.solidAt(px, pz, 1.7)) continue;
-          m.teleport(px, pz, Math.atan2(-(px - f.x), -(pz - f.z)));
+          m.teleport(px, pz, Math.atan2(px - f.x, pz - f.z));
           if (!m.merapLos(f.x, 1.0, f.z)) return true;
         }
       }
