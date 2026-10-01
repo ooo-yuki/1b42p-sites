@@ -73,11 +73,12 @@ export function superRange(sup: number): number {
   return Math.round((1 + sup * 0.15) * 100) / 100;
 }
 
-/** Лорд Мерап: радиус окружности-цели (м), окно наведения (с), сколько копить (с), длительность луча (с). */
+/** Лорд Мерап: радиус окружности-цели (м), окно наведения (с), сколько копить (с), длительность луча (с), высота излучения луча (м). */
 const MERAP_R = 1.15;
 const MERAP_WIN = 10;
 const MERAP_NEED = 5;
 const MERAP_LASER = 2;
+const MERAP_EYE = 1.1;
 
 export interface CharDef {
   id: string;
@@ -5728,13 +5729,13 @@ export class Game {
   private merapEnsureMarks(): void {
     while (this.merapMarkPool.length < 40) {
       const ring = new THREE.Mesh(
-        new THREE.RingGeometry(0.86, 1, 48),
+        new THREE.RingGeometry(0.53, 0.65, 48),
         new THREE.MeshBasicMaterial({ color: 0xc060ff, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }),
       );
       ring.renderOrder = 997;
       ring.visible = false;
       const arc = new THREE.Mesh(
-        new THREE.RingGeometry(0.86, 1, 48, 1, Math.PI / 2, 0.001),
+        new THREE.RingGeometry(0.53, 0.65, 48, 1, Math.PI / 2, 0.001),
         new THREE.MeshBasicMaterial({ color: 0xf0c8ff, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false }),
       );
       arc.renderOrder = 998;
@@ -5764,15 +5765,15 @@ export class Game {
     if (q === m.q) return;
     m.q = q;
     m.arc.geometry.dispose();
-    if (q <= 0) { m.arc.visible = false; m.arc.geometry = new THREE.RingGeometry(0.86, 1, 48, 1, Math.PI / 2, 0.001); return; }
+    if (q <= 0) { m.arc.visible = false; m.arc.geometry = new THREE.RingGeometry(0.53, 0.65, 48, 1, Math.PI / 2, 0.001); return; }
     m.arc.visible = true;
     const frac = q / 48;
-    m.arc.geometry = new THREE.RingGeometry(0.86, 1, 48, 1, Math.PI / 2 - frac * Math.PI * 2, frac * Math.PI * 2);
+    m.arc.geometry = new THREE.RingGeometry(0.53, 0.65, 48, 1, Math.PI / 2 - frac * Math.PI * 2, frac * Math.PI * 2);
   }
 
   /** Прямая видимость от моих глаз до точки: стена на пути — в этот кадр урона нет. */
   private merapLos(tx: number, ty: number, tz: number): boolean {
-    const cx = this.px, cy = 1.7 + this.py, cz = this.pz;
+    const cx = this.px, cy = MERAP_EYE + this.py, cz = this.pz;
     const dx = tx - cx, dy = ty - cy, dz = tz - cz;
     const d = Math.hypot(dx, dy, dz) || 1;
     const checks = Math.min(16, Math.max(2, Math.ceil(d / 1.2)));
@@ -5814,7 +5815,7 @@ export class Game {
   /** Окно наведения: окружности на целях, копление/таяние, запуск луча. */
   private merapAimTick(dt: number): void {
     this.merapWinT -= dt;
-    const cx = this.px, cy = 1.7 + this.py, cz = this.pz;
+    const cx = this.px, cy = MERAP_EYE + this.py, cz = this.pz;
     const cp = Math.cos(this.pitch);
     const dx = -Math.sin(this.yaw) * cp, dy = Math.sin(this.pitch), dz = -Math.cos(this.yaw) * cp;
     const tgts = this.merapTargets();
@@ -5874,14 +5875,14 @@ export class Game {
     if (!this.merapLaser) {
       const mesh = new THREE.Mesh(
         new THREE.BoxGeometry(0.3, 0.3, 1),
-        new THREE.MeshBasicMaterial({ color: 0xb44dff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }),
+        new THREE.MeshBasicMaterial({ color: 0xb44dff }),
       );
       mesh.renderOrder = 999;
       this.scene.add(mesh);
       this.merapLaser = mesh;
     }
     const L = this.merapLaser;
-    const sx = this.px, sy = 1.7 + this.py, sz = this.pz;
+    const sx = this.px, sy = MERAP_EYE + this.py, sz = this.pz;
     const dx = t.x - sx, dy = t.y - sy, dz = t.z - sz;
     const len = Math.hypot(dx, dy, dz) || 1;
     L.position.set(sx + dx / 2, sy + dy / 2, sz + dz / 2);
