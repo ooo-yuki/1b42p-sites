@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Game, WEAPONS, CHARS, MAPS, hashSeed, KEY_ACTIONS, DEFAULT_KEYS, UPG_MAX, upgCost, superCd, superRange, CASE_PRICE, type HudState, type KeyMap, type MapId, type CustomMap, type UpgState, type CaseDrop, type RemoteMob } from './game/engine';
+import { Game, WEAPONS, CHARS, MAPS, hashSeed, KEY_ACTIONS, DEFAULT_KEYS, UPG_MAX, upgCost, superCd, superRange, merapDmgOf, CASE_PRICE, type HudState, type KeyMap, type MapId, type CustomMap, type UpgState, type CaseDrop, type RemoteMob } from './game/engine';
 import { canSee } from '../shared/szeged-gate';
 import oruzh1Url from './assets/oruzh1.png';
 import oruzh2Url from './assets/oruzh2.png';
@@ -70,7 +70,7 @@ const CHAR_ABILITIES: Record<string, { lines: string[]; sup: string }> = {
       '💨 Скорость ×1.05 — чуть бодрее МТТ',
       '☀️ Луч с неба — супер бьёт по врагу под прицелом',
     ],
-    sup: '☀️ СУПЕР — Луч Санстрайка на C: метка на точке врага, через 0.5с удар с неба. Заряд 0–15 (+1 за убийство руками, фраги от луча не идут, каст сжигает заряд в 0, урон по тебе — в 0): урон 20→142, радиус 3→6.5м. Кд 30с.',
+    sup: '☀️ СУПЕР — Луч Санстрайка на C: метка на точке врага, через 0.5с удар с неба. Заряд 0–15 (+1 за убийство руками, фраги от луча не идут, каст сжигает заряд в 0, урон по тебе — в 0): урон 20→142, радиус 3→6.5м. Кд 30с фикс, прокачка супера: урон ×1.15 за уровень.',
   },
   arbuz: {
     lines: [
@@ -78,7 +78,7 @@ const CHAR_ABILITIES: Record<string, { lines: string[]; sup: string }> = {
       '💨 Скорость ×1.05 — чуть бодрее МТТ',
       '🌪️ Воронка тянет — супер крутит всех к центру 4 секунды',
     ],
-    sup: '🌪️ СУПЕР — Цветочная воронка на C: прицел на враге — центр на нём, иначе точка поверхности под прицелом. 4с зелёная воронка (r=5м) затягивает ВСЕХ строго в центр — и нечисть, и сталкеров, и даже босса. Кд 15с.',
+    sup: '🌪️ СУПЕР — Цветочная воронка на C: прицел на враге — центр на нём, иначе точка поверхности под прицелом. 4с зелёная воронка (r=5м) затягивает ВСЕХ строго в центр — и нечисть, и сталкеров, и даже босса. Кд 15с фикс, прокачка супера: радиус воронки +15% за уровень.',
   },
   utug: {
     lines: [
@@ -86,7 +86,7 @@ const CHAR_ABILITIES: Record<string, { lines: string[]; sup: string }> = {
       '💨 Скорость ×1.05 — чуть бодрее МТТ',
       '💥 Взрыв вокруг себя — супер трижды моргает белым и бабахает на 6м',
     ],
-    sup: '💥 СУПЕР — Взрыв на C: экран 3 раза моргает белым (0.9с), потом взрыв радиусом 6м вокруг тебя. Урон падает с дистанцией — в центре ~150, у края ~20, врагов отбрасывает на 5м. Кд 35с.',
+    sup: '💥 СУПЕР — Взрыв на C: экран 3 раза моргает белым (0.9с), потом взрыв радиусом 6м вокруг тебя. Урон падает с дистанцией — в центре ~150, у края ~20, врагов отбрасывает на 5м. Кд 35с фикс, прокачка супера: урон ×1.15 за уровень.',
   },
   jbl: {
     lines: [
@@ -95,7 +95,7 @@ const CHAR_ABILITIES: Record<string, { lines: string[]; sup: string }> = {
       '🔊 Звуковая волна — отталкивает врагов на 5м (C)',
       '🧠 Подчинение — враги 10с атакуют друг друга (V)',
     ],
-    sup: '🔊 Способность 1 (C) — Звуковая волна: волна в сторону взгляда, отбрасывает врагов в радиусе 12м на 5м. Кд 25с.\n🧠 Способность 2 (V) — Подчинение: в радиусе 5м подчиняет врагов на 10с — они атакуют других врагов вместо игроков. Действует даже после выхода из радиуса. Кд 35с.',
+    sup: '🔊 Способность 1 (C) — Звуковая волна: волна в сторону взгляда, отбрасывает врагов в радиусе 12м на 5м. Кд 25с.\n🧠 Способность 2 (V) — Подчинение: в радиусе 5м подчиняет врагов на 10с — они атакуют других врагов вместо игроков. Действует даже после выхода из радиуса. Кд 35с.\n🎯 Прокачка супера: радиус волны и подчинения и сила отброса +15% за уровень.',
   },
   merap: {
     lines: [
@@ -1166,6 +1166,8 @@ async function loadStats(): Promise<void> {
       doChuma: () => game.chuma(),
       arbuz: () => game.debugArbuz(),
       doArbuz: () => game.arbuz(),
+      sun: () => game.debugSun(),
+      jbl: () => game.debugJbl(),
       merap: () => game.debugMerap(),
       doMerap: () => game.merap(),
       merapLos: (x: number, y: number, z: number) => game.debugMerapLos(x, y, z),
@@ -1225,6 +1227,7 @@ async function loadStats(): Promise<void> {
       medUse: () => game.useMedkit(),
       level: () => game.level(),
       xp: (id: string) => game.xpOf(id),
+      stats: () => game.debugStats(),
       xpneed: (id: string) => game.xpNeedOf(id),
       upg: (id: string) => game.upgOf(id),
       supercd: (id: string) => game.superCdOf(id),
@@ -2580,8 +2583,16 @@ async function loadStats(): Promise<void> {
                             ['dmg', '💪 Сила', '+8% к урону за уровень'],
                             ['spd', '💨 Скорость', '+6% к скорости за уровень'],
                             ['sup', c.id === 'mtt' ? '⚡ Супер: рывок' : c.id === 'shuba' ? '👻 Супер: несутка' : c.id === 'chuma' ? '🦠 Супер: облако' : c.id === 'gidroxis' ? '🔍 Супер: рентген' : c.id === 'sunstrike' ? '☀️ Супер: луч с неба' : c.id === 'arbuz' ? '🌪️ Супер: воронка' : c.id === 'utug' ? '💥 Супер: взрыв' : c.id === 'merap' ? '💜 Супер: лазер' : '🌀 Супер: вол-кик', c.id === 'merap'
-                              ? `кд всегда 60с · окно наведения 10с и 5с на прицел от прокачки не меняются · урон за 2с луча 80→142 (сейчас ${Math.round(80 + (Math.max(1, Math.min(UPG_MAX.sup, u.sup)) - 1) * (142 - 80) / (UPG_MAX.sup - 1))})`
-                              : `кд → мин ${c.id === 'shuba' || c.id === 'chuma' || c.id === 'sunstrike' ? '30' : c.id === 'gidroxis' || c.id === 'arbuz' ? '15' : c.id === 'utug' ? '35' : '1.7'}с (сейчас ${g?.superCdOf(c.id)}с)${c.id === 'shuba' || c.id === 'chuma' || c.id === 'gidroxis' || c.id === 'sunstrike' || c.id === 'arbuz' || c.id === 'utug' ? '' : ` · дальность ×${superRange(u.sup)} (+15%/ур)`}`],
+                              ? `кд всегда 60с · окно наведения 10с и 5с на прицел от прокачки не меняются · урон за 2с луча 80→142 (сейчас ${merapDmgOf(u.sup)})`
+                              : c.id === 'shuba' || c.id === 'chuma'
+                                ? `кд → мин 20с (сейчас ${g?.superCdOf(c.id) ?? 30}с)`
+                                : c.id === 'gidroxis'
+                                  ? `кд → мин 15с (сейчас ${g?.superCdOf(c.id) ?? 20}с)`
+                                  : c.id === 'sunstrike' || c.id === 'arbuz' || c.id === 'utug'
+                                    ? `кд фикс ${g?.superCdOf(c.id) ?? (c.id === 'sunstrike' ? 30 : c.id === 'arbuz' ? 15 : 35)}с · сила супера ×${superRange(u.sup)} (+15%/ур)`
+                                    : c.id === 'jbl'
+                                      ? `кд фикс: волна 25с, подчинение 35с · сила супера ×${superRange(u.sup)} (+15%/ур)`
+                                      : `кд → мин 1.7с (сейчас ${g?.superCdOf(c.id) ?? (c.id === 'krysa' ? 5 : 3)}с) · дальность ×${superRange(u.sup)} (+15%/ур)`],
                           ] as Array<[keyof UpgState, string, string]>).map(([key, label, hint]) => {
                             const lvlU = u[key];
                             const max = UPG_MAX[key];

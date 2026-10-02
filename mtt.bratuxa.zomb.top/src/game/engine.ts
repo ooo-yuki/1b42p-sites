@@ -68,9 +68,14 @@ export function superCd(id: string, sup: number): number {
   const step = id === 'krysa' ? 0.7 : 0.3;
   return Math.max(1.7, Math.round((base - sup * step) * 10) / 10);
 }
-/** Дальность суперспособности: +15% за уровень. */
+/** Дальность/сила суперспособности: +15% за уровень. */
 export function superRange(sup: number): number {
   return Math.round((1 + sup * 0.15) * 100) / 100;
+}
+/** Урон 2с луча Лорда Мерапа: 80 без прокачки → 142 на 5-м уровне супера (+12.4/ур). */
+export function merapDmgOf(sup: number): number {
+  const lv = Math.max(0, Math.min(UPG_MAX.sup, Math.floor(sup)));
+  return 80 + Math.round((lv * (142 - 80)) / UPG_MAX.sup * 10) / 10;
 }
 
 /** Лорд Мерап: радиус окружности-цели (м), окно наведения (с), сколько копить (с), длительность луча (с), высота излучения луча (м). */
@@ -665,8 +670,10 @@ export class Game {
         spd: Math.max(0, Math.min(UPG_MAX.spd, Math.floor(p?.spd ?? 0))),
         sup: Math.max(0, Math.min(UPG_MAX.sup, Math.floor(p?.sup ?? 0))),
       });
-      return { mtt: clean(d.mtt), krysa: clean(d.krysa), shuba: clean(d.shuba), chuma: clean(d.chuma), gidroxis: clean(d.gidroxis), sunstrike: clean(d.sunstrike), arbuz: clean(d.arbuz), utug: clean(d.utug), jbl: clean(d.jbl) };
-    } catch { return { mtt: blank(), krysa: blank(), shuba: blank(), chuma: blank(), gidroxis: blank(), sunstrike: blank(), arbuz: blank(), utug: blank(), jbl: blank() }; }
+      const out: Record<string, UpgState> = {};
+      for (const c of CHARS) out[c.id] = clean(d[c.id]);
+      return out;
+    } catch { const out: Record<string, UpgState> = {}; for (const c of CHARS) out[c.id] = blank(); return out; }
   })();
   private saveUpg(): void {
     try { localStorage.setItem('mtt_upg_v1', JSON.stringify(this.upg)); } catch { /* noop */ }
@@ -674,8 +681,10 @@ export class Game {
   private xp: Record<string, number> = (() => {
     try {
       const d = JSON.parse(localStorage.getItem('mtt_xp_v1') ?? '{}') as Record<string, number>;
-      return { mtt: Math.max(0, Math.floor(d.mtt ?? 0)), krysa: Math.max(0, Math.floor(d.krysa ?? 0)), shuba: Math.max(0, Math.floor(d.shuba ?? 0)), chuma: Math.max(0, Math.floor(d.chuma ?? 0)), gidroxis: Math.max(0, Math.floor(d.gidroxis ?? 0)), sunstrike: Math.max(0, Math.floor(d.sunstrike ?? 0)), arbuz: Math.max(0, Math.floor(d.arbuz ?? 0)), utug: Math.max(0, Math.floor(d.utug ?? 0)), jbl: Math.max(0, Math.floor(d.jbl ?? 0)) };
-    } catch { return { mtt: 0, krysa: 0, shuba: 0, chuma: 0, gidroxis: 0, sunstrike: 0, arbuz: 0, utug: 0, jbl: 0 }; }
+      const out: Record<string, number> = {};
+      for (const c of CHARS) out[c.id] = Math.max(0, Math.floor(d[c.id] ?? 0));
+      return out;
+    } catch { const out: Record<string, number> = {}; for (const c of CHARS) out[c.id] = 0; return out; }
   })();
   private soundOn = true;
   /** Общая громкость 0..1 (слайдер в настройках). Множит все звуки. */
@@ -1196,6 +1205,10 @@ export class Game {
   superCdOf(id: string): number {
     const cid = charSpec(id).id;
     return superCd(cid, this.upg[cid]?.sup ?? 0);
+  }
+  /** Живые характеристики текущего бойца с учётом прокачки (для тестов). */
+  debugStats(): { maxhp: number; dmgMul: number; spd: number } {
+    return { maxhp: this.maxhp, dmgMul: Math.round(this.dmgMul() * 1000) / 1000, spd: Math.round(this.charSpd * 1000) / 1000 };
   }
   /** Купить апгрейд за фантики. Возвращает true если куплено. */
   buyUpg(id: string, key: keyof UpgState): boolean {
@@ -5591,13 +5604,13 @@ export class Game {
   }
 
   // ЛУЧ Андрея Санстрайка: точка — где стоял враг под прицелом (слепок на касте),
-  // удар через 0.5с. Заряд 0–15: урон 20→142, радиус 3→6.5м, каст сжигает заряд в 0. Кд 30с.
+  // удар через 0.5с. Заряд 0–15: урон 20→142 (×сила супера), радиус 3→6.5м, каст сжигает заряд в 0. Кд 30с.
   sunstrike(): boolean {
     if (!this.started || this.dead || this.carrying || this.sunCd > 0 || this.charId !== 'sunstrike') return false;
     const tgt = this.aimEnemy(45);
     if (!tgt) return false;
     const q = Math.min(15, Math.max(0, this.sunCharge));
-    const dmg = 20 + (q / 15) * (142 - 20);
+    const dmg = (20 + (q / 15) * (142 - 20)) * superRange(this.upg['sunstrike']?.sup ?? 0);
     const r = 3 + (q / 15) * (6.5 - 3);
     this.sunBeams.push({ x: tgt.x, z: tgt.z, t: 0.5, dmg, r });
     // каст сжигает весь заряд в 0
@@ -5627,14 +5640,14 @@ export class Game {
   }
 
   // ВОРОНКА Арбузихи: прицел на враге — центр на нём, иначе точка поверхности
-  // под прицелом. 4с крутит зелёную цветочную воронку (r=5м) — всех затягивает к центру. Кд 15с.
+  // под прицелом. 4с крутит зелёную цветочную воронку (r=5м ×сила супера) — всех затягивает к центру. Кд 15с.
   arbuz(): boolean {
     if (!this.started || this.dead || this.carrying || this.arbuzCd > 0 || this.arbuzT > 0 || this.charId !== 'arbuz') return false;
     const tgt = this.aimEnemy(45);
     const p = tgt ?? this.aimGround(45);
     this.arbuzX = p.x;
     this.arbuzZ = p.z;
-    this.arbuzR = 5;
+    this.arbuzR = 5 * superRange(this.upg['arbuz']?.sup ?? 0);
     this.arbuzT = 4;
     this.arbuzCd = superCd('arbuz', this.upg['arbuz']?.sup ?? 0);
     this.burst(p.x, 0.5, p.z, 18);
@@ -5642,8 +5655,8 @@ export class Game {
     return true;
   }
 
-  debugArbuz(): { t: number; cd: number; x: number; z: number } {
-    return { t: Math.round(this.arbuzT * 10) / 10, cd: Math.round(this.arbuzCd * 10) / 10, x: this.arbuzX, z: this.arbuzZ };
+  debugArbuz(): { t: number; cd: number; x: number; z: number; r: number } {
+    return { t: Math.round(this.arbuzT * 10) / 10, cd: Math.round(this.arbuzCd * 10) / 10, x: this.arbuzX, z: this.arbuzZ, r: Math.round(this.arbuzR * 100) / 100 };
   }
 
   // ===== ЛОРД МЕРАП: ФИОЛЕТОВЫЙ ЛАЗЕР =====
@@ -5691,11 +5704,9 @@ export class Game {
     return this.merapLos(Number(tx) || 0, Number(ty) || 0, Number(tz) || 0);
   }
 
-  /** Урон луча за все 2с целиком: 80 на первом уровне прокачки супера, 142 на максимуме. */
+  /** Урон луча за все 2с целиком: 80 на нулевом уровне прокачки супера, 142 на максимуме (+12.4/ур). */
   private merapDmg(): number {
-    const sup = this.upg['merap']?.sup ?? 0;
-    const lv = Math.max(1, Math.min(UPG_MAX.sup, sup));
-    return 80 + ((lv - 1) * (142 - 80)) / (UPG_MAX.sup - 1);
+    return merapDmgOf(this.upg['merap']?.sup ?? 0);
   }
 
   /** Живые цели под прицелом: мобы + вражеские игроки (PvP). */
@@ -5931,7 +5942,7 @@ export class Game {
 
   // ===== УТЮГКРИПЕР: Супер — ВЗРЫВ =====
   // На C экран трижды моргает белым (0.9с), затем взрыв радиусом 6м вокруг
-  // себя: урон падает с дистанцией (в центре ~150, у края ~20), врагов
+  // себя: урон падает с дистанцией (в центре ~150, у края ~20, ×сила супера), врагов
   // отбрасывает на 5м. Перезарядка 35с (качается hp/dmg/spd, кд фикс).
   utugBlast(): boolean {
     if (!this.started || this.dead || this.carrying || this.utugCd > 0 || this.utugT > 0 || this.charId !== 'utug') return false;
@@ -5948,13 +5959,14 @@ export class Game {
     return Math.floor((0.9 - this.utugT) / 0.15) % 2 === 0;
   }
 
-  debugBlast(): { t: number; cd: number; blink: boolean; n: number } {
-    return { t: Math.round(this.utugT * 100) / 100, cd: Math.round(this.utugCd * 10) / 10, blink: this.utugBlinkNow(), n: this.utugBlinkN };
+  debugBlast(): { t: number; cd: number; blink: boolean; n: number; pow: number } {
+    return { t: Math.round(this.utugT * 100) / 100, cd: Math.round(this.utugCd * 10) / 10, blink: this.utugBlinkNow(), n: this.utugBlinkN, pow: superRange(this.upg['utug']?.sup ?? 0) };
   }
 
-  /** Взрыв: урон тем больше, чем ближе (центр 150 → край 20), отброс 5м. */
+  /** Взрыв: урон тем больше, чем ближе (центр 150 → край 20, ×сила супера), отброс 5м. */
   private utugExplode(): void {
     const R = 6;
+    const pow = superRange(this.upg['utug']?.sup ?? 0);
     this.burst(this.px, 1, this.pz, 34);
     this.sfx(hitUrl);
     if (!this.utugRing) {
@@ -5976,7 +5988,7 @@ export class Game {
       const dx = e.g.position.x - this.px, dz = e.g.position.z - this.pz;
       const d = Math.hypot(dx, dz);
       if (d > R + 0.5) continue;
-      const dmg = Math.max(20, Math.round(20 + 130 * (1 - Math.min(1, d / R))));
+      const dmg = Math.max(20, Math.round((20 + 130 * (1 - Math.min(1, d / R))) * pow));
       this.strikeEnemy(e, dmg, dx, dz, d || 1, 5);
     }
     this.pushHud();
@@ -5984,7 +5996,7 @@ export class Game {
   }
 
   // ===== JBLКА: Способность 1 — Звуковая волна =====
-  // Создаёт волну в сторону взгляда, отталкивает врагов на 5м. Кд 25с.
+  // Создаёт волну в сторону взгляда, отталкивает врагов на 5м (радиус 12м и отброс ×сила супера). Кд 25с.
   soundWave(): boolean {
     if (!this.started || this.dead || this.carrying || this.waveCd > 0 || this.charId !== 'jbl') return false;
     const cp = Math.cos(this.pitch);
@@ -6007,18 +6019,19 @@ export class Game {
     this.waveRingT = 0.6;
     // Визуальный burst
     this.burst(this.px + dx * 2, 0.5, this.pz + dz * 2, 20);
-    // Отталкиваем врагов в радиусе 12м перед игроком
+    // Отталкиваем врагов в радиусе 12м (×сила супера) перед игроком
+    const pow = superRange(this.upg['jbl']?.sup ?? 0);
     for (const e of this.enemies) {
       if (e.dead) continue;
       const ex = e.g.position.x, ez = e.g.position.z;
       const d = Math.hypot(ex - this.px, ez - this.pz);
-      if (d > 12) continue;
+      if (d > 12 * pow) continue;
       // Проверяем, что враг примерно перед игроком (в конусе ~90°)
       const toEx = ex - this.px, toEz = ez - this.pz;
       const dot = toEx * dx + toEz * dz;
       if (dot < 0) continue;
-      // Отбрасываем на 5м
-      const pushDist = 5;
+      // Отбрасываем на 5м (×сила супера)
+      const pushDist = 5 * pow;
       const nx = d > 0.1 ? toEx / d : dx;
       const nz = d > 0.1 ? toEz / d : dz;
       e.g.position.x += nx * pushDist;
@@ -6032,7 +6045,7 @@ export class Game {
   }
 
   // ===== JBLКА: Способность 2 — Подчинение =====
-  // В радиусе 4м подчиняет врагов на 5с: атакуют других врагов. Кд 35с.
+  // В радиусе 5м (×сила супера) подчиняет врагов на 10с: атакуют других врагов. Кд 35с.
   charm(): boolean {
     if (!this.started || this.dead || this.carrying || this.charmCd > 0 || this.charmT > 0 || this.charId !== 'jbl') return false;
     this.charmT = 10;
@@ -6052,11 +6065,12 @@ export class Game {
     if (!this.charmAura.parent) this.scene.add(this.charmAura);
     // Визуальный burst
     this.burst(this.px, 0.8, this.pz, 24);
-    // Подчиняем врагов в радиусе 4м
+    // Подчиняем врагов в радиусе 5м (×сила супера)
+    const pow = superRange(this.upg['jbl']?.sup ?? 0);
     for (const e of this.enemies) {
       if (e.dead) continue;
       const d = Math.hypot(e.g.position.x - this.px, e.g.position.z - this.pz);
-      if (d <= 5) {
+      if (d <= 5 * pow) {
         e.charmT = 10;
         if (e.path) e.path = [];
         e.repathT = 0.3;
@@ -6096,12 +6110,15 @@ export class Game {
     if (m.visible) {
       m.position.set(this.arbuzX, 0, this.arbuzZ);
       m.rotation.y += 0.12;
+      const k = this.arbuzR / 5;
+      m.scale.set(k, 1, k);
       const fade = Math.min(1, this.arbuzT / 0.6);
       for (const c of m.children) { const cm = c as THREE.Mesh; (cm.material as THREE.MeshBasicMaterial).opacity = (cm.geometry instanceof THREE.ConeGeometry ? 0.28 : 0.7) * fade; }
     }
   }
   /** JBLка: анимация волны и ауры подчинения (каждый кадр). */
   private syncJblFx(dt: number): void {
+    const pow = superRange(this.upg['jbl']?.sup ?? 0);
     // Кольцо звуковой волны: расширяется и тает за 0.6с
     if (this.waveRing) {
       if (this.waveRingT > 0) {
@@ -6109,7 +6126,7 @@ export class Game {
         if (!this.waveRing.parent) this.scene.add(this.waveRing);
         this.waveRing.visible = true;
         const p = 1 - Math.max(0, this.waveRingT / 0.6);
-        const s = 1 + p * 8;
+        const s = (1 + p * 8) * pow;
         this.waveRing.scale.set(s, s, s);
         (this.waveRing.material as THREE.MeshBasicMaterial).opacity = 0.85 * (1 - p);
       } else {
@@ -6124,7 +6141,7 @@ export class Game {
         this.charmAura.position.set(this.px, 0.3, this.pz);
         const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.008);
         (this.charmAura.material as THREE.MeshBasicMaterial).opacity = 0.35 + 0.35 * pulse;
-        const sc = 0.9 + 0.15 * pulse;
+        const sc = (0.9 + 0.15 * pulse) * pow;
         this.charmAura.scale.set(sc, sc, sc);
       } else {
         this.charmAura.visible = false;
@@ -6200,9 +6217,21 @@ export class Game {
     this.waveClearCheck();
   }
 
-  /** Луч для тестов: заряд, кд, сколько точек летит. */
-  debugSun(): { charge: number; cd: number; pending: number } {
-    return { charge: this.sunCharge, cd: Math.round(this.sunCd * 10) / 10, pending: this.sunBeams.length };
+  /** Луч для тестов: заряд, кд, сколько точек летит, множитель урона от прокачки супера. */
+  debugSun(): { charge: number; cd: number; pending: number; pow: number } {
+    return { charge: this.sunCharge, cd: Math.round(this.sunCd * 10) / 10, pending: this.sunBeams.length, pow: superRange(this.upg['sunstrike']?.sup ?? 0) };
+  }
+
+  /** JBLка для тестов: кд обеих способностей и текущая сила (радиусы/отброс) от прокачки супера. */
+  debugJbl(): { waveCd: number; charmCd: number; waveR: number; wavePush: number; charmR: number } {
+    const pow = superRange(this.upg['jbl']?.sup ?? 0);
+    return {
+      waveCd: Math.round(this.waveCd * 10) / 10,
+      charmCd: Math.round(this.charmCd * 10) / 10,
+      waveR: Math.round(12 * pow * 100) / 100,
+      wavePush: Math.round(5 * pow * 100) / 100,
+      charmR: Math.round(5 * pow * 100) / 100,
+    };
   }
 
   // 👹 МИРОВОЙ БОСС: 3500 HP, медленный (2.0), три атаки —

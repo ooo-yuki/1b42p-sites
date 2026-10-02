@@ -43,7 +43,7 @@ interface WallOut {
   d: MerapDbg | null;
 }
 
-test('💜 Лорд Мерап: мифик в ростере, кд всегда 60с, урон 80→142', async ({ page }) => {
+test('💜 Лорд Мерап: мифик в ростере, кд всегда 60с, урон 80→142 и живёт после перезагрузки', async ({ page }) => {
   await page.goto('/');
   await expect(page).toHaveTitle(/42 LIVE/);
   await page.click('#guestBtn');
@@ -64,16 +64,32 @@ test('💜 Лорд Мерап: мифик в ростере, кд всегда 
     const base = { cd: m.supercd('merap'), dmg: m.merap().dmg };
     m.give(2000000);
     let bought = 0;
-    for (let i = 0; i < 5; i++) if (m.buyupg('merap', 'sup')) bought++;
-    return { ...base, bought, sup: m.upg('merap').sup, cdMax: m.supercd('merap'), dmgMax: m.merap().dmg };
+    let dmgLvl1 = 0;
+    for (let i = 0; i < 5; i++) if (m.buyupg('merap', 'sup')) { bought++; if (bought === 1) dmgLvl1 = m.merap().dmg; }
+    return { ...base, bought, dmgLvl1, sup: m.upg('merap').sup, cdMax: m.supercd('merap'), dmgMax: m.merap().dmg };
   });
   console.log('DIAG merap cfg ' + JSON.stringify(r));
   expect(r.cd, 'кд без прокачки').toBe(60);
-  expect(r.dmg, 'урон на первом уровне').toBe(80);
+  expect(r.dmg, 'урон на нулевом уровне').toBe(80);
   expect(r.bought, 'супер прокачан 5 раз').toBe(5);
   expect(r.sup).toBe(5);
   expect(r.cdMax, 'прокачка не двигает кд').toBe(60);
+  expect(r.dmgLvl1, 'первый уровень супера даёт +12.4 урона').toBeCloseTo(92.4, 1);
   expect(r.dmgMax, 'урон на максимуме').toBe(142);
+  // прокачка должна пережить перезагрузку страницы (загрузчик апгрейдов её читает)
+  await page.reload();
+  await expect(page).toHaveTitle(/42 LIVE/);
+  await page.click('#guestBtn');
+  const r2 = await page.evaluate(() => {
+    const m = (window as unknown as { __mtt: {
+      merap: () => { dmg: number };
+      upg: (id: string) => { sup: number };
+    } }).__mtt;
+    return { sup: m.upg('merap').sup, dmg: m.merap().dmg };
+  });
+  console.log('DIAG merap reload ' + JSON.stringify(r2));
+  expect(r2.sup, 'прокачка мерапа пережила перезагрузку').toBe(5);
+  expect(r2.dmg, 'урон после перезагрузки').toBe(142);
 });
 
 test('💜 Лорд Мерап: окно 10с → наведение 5с → луч 2с, цель ранена', async ({ page }) => {
