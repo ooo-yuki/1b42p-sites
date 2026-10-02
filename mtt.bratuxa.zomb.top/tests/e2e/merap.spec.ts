@@ -181,7 +181,9 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
   // на сервере бывают многосекундные (до 3-х минут) стагнации страницы —
   // тест обязан пережить их: щедрый таймаут, выходы по игровому времени,
   // wall-кап 300с с запасом на гигантский кадр-гэп после простоя
-  test.setTimeout(900000);
+  test.setTimeout(1200000);
+  // стагнации, пережитые внутри evaluate, видны в логе (страница пишет сама)
+  page.on('console', (msg) => { if (msg.text().startsWith('DIAG stall')) console.log(msg.text()); });
   const tBoot = Date.now();
   await page.goto('/');
   await expect(page).toHaveTitle(/42 LIVE/);
@@ -365,6 +367,7 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
       await new Promise((r) => setTimeout(r, 100));
       const tsl = performance.now() - tsl0;
       if (tsl > res.tSleepMax) res.tSleepMax = tsl;
+      if (tsl > 3000) console.log('DIAG stall ' + JSON.stringify({ ms: Math.round(tsl), win: d.win, aim: d.aim, cd: d.cd, now: Math.round(performance.now()) }));
       const im = performance.now() - tIter;
       if (im > res.iterMaxMs) res.iterMaxMs = im;
     }
