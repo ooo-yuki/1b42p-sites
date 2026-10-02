@@ -136,8 +136,8 @@ test('💜 Лорд Мерап: окно 10с → наведение 5с → л�
     let ids: number[] = [], hpThen = 0, hpNow = 0;
     const t0 = performance.now();
     let d: MerapDbg = m.merap();
-    // стагнации страницы не роняют тест: выходы по игровому времени, кап по стене щедрый
-    while (performance.now() - t0 < 45000) {
+    // стагнации страницы не роняют тест: выходы по игровому времени, wall-кап от мёртвой страницы
+    while (performance.now() - t0 < 240000) {
       aimAt();
       d = m.merap();
       marks = Math.max(marks, d.marks);
@@ -153,7 +153,7 @@ test('💜 Лорд Мерап: окно 10с → наведение 5с → л�
       const fxEl = document.getElementById('merapFx');
       fx = fx || !!fxEl?.classList.contains('on');
       if (laserMax > 0 && d.laser === 0) break;
-      if (laserMax === 0 && d.win === 0 && performance.now() - t0 > 4000) break;
+      if (laserMax === 0 && d.win === 0) break;
       await new Promise((r) => setTimeout(r, 200));
     }
     if (ids.length) hpNow = ids.reduce((s, id) => s + hpById(id), 0);
@@ -174,8 +174,9 @@ test('💜 Лорд Мерап: окно 10с → наведение 5с → л�
 });
 
 test('💜 Лорд Мерап: за стеной луч не наносит урона', async ({ page }) => {
-  // щедрый кап: на сервере бывают многосекундные стагнации страницы (софт-рендер)
-  test.setTimeout(300000);
+  // на сервере бывают многосекундные (до 3-х минут) стагнации страницы —
+  // тест обязан пережить их: щедрый таймаут, выходы по игровому времени
+  test.setTimeout(600000);
   const tBoot = Date.now();
   await page.goto('/');
   await expect(page).toHaveTitle(/42 LIVE/);
@@ -288,9 +289,9 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
     const idsAt = (): number[] => m.foes().filter((x) => !x.dead).map((x) => x.id);
     const t0 = performance.now();
     let d: MerapDbg = m.merap();
-    // длинные кадры/ГЦ страницы не должны съедать тест: кап по стене щедрый,
-    // выходы — по игровому времени (окно истекло / луч кончился)
-    while (performance.now() - t0 < 90000) {
+    // стагнация страницы не роняет тест: главный выход — по игровому времени
+    // (окно истекло / луч кончился), wall-кап только от мёртвой страницы
+    while (performance.now() - t0 < 240000) {
       const tIter = performance.now();
       const tm0 = performance.now();
       d = m.merap();
@@ -325,7 +326,7 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
         }
       }
       if (res.laserMax > 0 && d.laser === 0) break;
-      if (res.laserMax === 0 && d.win === 0 && performance.now() - t0 > 4000) break;
+      if (res.laserMax === 0 && d.win === 0) break;
       const tsl0 = performance.now();
       await new Promise((r) => setTimeout(r, 100));
       const tsl = performance.now() - tsl0;
