@@ -34,6 +34,14 @@ test('сеть: фраг гостя гаснет у хоста (общий мо�
   }, id);
   const guestSid = (gs as { sid: string }).sid;
   expect(guestSid).toBeTruthy();
+  // кипалв заявки/бойца: у призрака нет своего клиента, первые биты пойдут только
+  // после hudRow2 — сервер сносит неактивного через STALE_MS=12с, иначе все биты
+  // отвечают 403 nosid/wating (mobs в ответе нет), пока ждём старт волны
+  const keep = setInterval(() => {
+    void request.post(`/api/rooms/${id}/beat`, {
+      data: { sid: guestSid, char: 'mtt', x: 0, z: 22, yaw: 0, hp: 100, score: 0, kills: 0, wave: 1, weapon: 'fists', py: 0, atk: 0, dead: false },
+    }).catch(() => undefined);
+  }, 4000);
   await expect(page.locator('#approve-0')).toBeVisible({ timeout: 30000 });
   await page.click('#approve-0');
   await page.click('#roomStart');
@@ -62,6 +70,8 @@ test('сеть: фраг гостя гаснет у хоста (общий мо�
   console.log('HOSTKILLS-KILL', JSON.stringify(kd));
   expect(kd.dead).toBe(true);
   expect(kd.freshKill).toBe(true);
+  // гость дальше не нужен — keepalive гасим
+  clearInterval(keep);
   // хост должен погасить копию: ждём исчезновения id из живых (бит 500мс + запас)
   let gone = false;
   for (let i = 0; i < 30; i++) {

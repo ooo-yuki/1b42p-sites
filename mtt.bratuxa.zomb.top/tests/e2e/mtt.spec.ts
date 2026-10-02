@@ -356,7 +356,10 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     // держим удар до результата (под нагрузкой кадры редкие)
     // класс замаха — play (swing в коде/стилях давно нет)
     await page.keyboard.down('j');
-    await expect(page.locator('#weapon.play')).toHaveCount(1, { timeout: 15000 });
+    // класс живёт всего 340мс: expect() уходит в бэкофф (1–2с между проверками)
+    // и пропускает окно, когда кадры после нажатия встали (гипервизор) —
+    // ловим waitForFunction со стабильным опросом 100мс (<340мс — окно не проскочить)
+    await page.waitForFunction(() => !!document.querySelector('#weapon.play'), null, { timeout: 15000, polling: 100 });
     await page.keyboard.up('j');
   });
 
@@ -466,17 +469,30 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     expect(wallSeen).toBe(true);
     // прыжок (Space) + вол-кик на C, W держим — контакт со стеной свежий.
     // В медленном headless кнопки ДЕРЖИМ: одиночный press пролетает между кадрами.
+    // Space не отпускаем, пока крыса реально не оторвалась от земли: под нагрузкой
+    // кадры после старта прыжка редкие — фиксированная пауза проходила впустую,
+    // а C на земле съедается вхолостую (input[ability] гасится без кика: py <= 0.05).
     await page.keyboard.down('Space');
-    await page.waitForTimeout(1500);
-    await page.keyboard.up('Space');
+    let airPy = 0;
+    for (let i = 0; i < 60 && airPy <= 0.15; i++) {
+      await page.waitForTimeout(250);
+      airPy = await page.evaluate(() => (window as unknown as { __mtt: { py: () => number } }).__mtt.py());
+    }
+    expect(airPy, 'крыса в воздухе до кика').toBeGreaterThan(0.15);
     const zBefore = await page.evaluate(() => (window as unknown as { __mtt: { pos: () => { z: number } } }).__mtt.pos());
     await page.keyboard.down('c');
     let k = 0;
     for (let i = 0; i < 20 && k <= 0; i++) {
       await page.waitForTimeout(500);
       k = await page.evaluate(() => (window as unknown as { __mtt: { kick: () => number } }).__mtt.kick());
+      // край k <= 0: одиночное нажатие уже съедено — повторяем edge, пока в воздухе
+      if (k <= 0 && i % 2 === 1) {
+        await page.keyboard.up('c');
+        await page.keyboard.down('c');
+      }
     }
     await page.keyboard.up('c');
+    await page.keyboard.up('Space');
     await page.keyboard.up('w');
     // вол-кик сработал — кд 5с взведено
     expect(k).toBeGreaterThan(0);
