@@ -1424,11 +1424,15 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('💥 дробовик: покупка, ствол в руках, рокет-джамп', async ({ page }) => {
     await page.click('#guestBtn');
     await page.click('#goBtn');
-    // фантики + волна 5 (дробовик с 5-й) — через дебаг-хуки
+    await started(page);
+    // фантики + волна 5 (дробовик с 5-й) — через дебаг-хуки.
+    // Бог обязателен: под нагрузкой игрок стоит у магазина, пока мобы волны 5
+    // его валят — attack() мёртвого не стреляет и рокет-джамп даёт peak=0
     await page.evaluate(() => {
-      const m = (window as unknown as { __mtt: { give: (n: number) => number; setWave: (n: number) => number } }).__mtt;
+      const m = (window as unknown as { __mtt: { give: (n: number) => number; setWave: (n: number) => number; devgod: (on: boolean) => void } }).__mtt;
       m.give(5000);
       m.setWave(5);
+      m.devgod(true);
     });
     await page.click('#shopBtn');
     await expect(page.locator('#buy-shotgun')).toBeVisible();
