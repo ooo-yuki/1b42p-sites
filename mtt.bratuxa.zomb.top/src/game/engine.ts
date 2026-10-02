@@ -5776,7 +5776,8 @@ export class Game {
     const cx = this.px, cy = MERAP_EYE + this.py, cz = this.pz;
     const dx = tx - cx, dy = ty - cy, dz = tz - cz;
     const d = Math.hypot(dx, dy, dz) || 1;
-    const checks = Math.min(16, Math.max(2, Math.ceil(d / 1.2)));
+    // шаг ≈0.4м при радиусе пробы 0.3м: тонкая стена не «проскакивает» между точками
+    const checks = Math.min(64, Math.max(6, Math.ceil(d / 0.4)));
     for (let s = 1; s <= checks; s++) {
       const t = (d * s) / (checks + 1);
       if (this.hitSolid(cx + (dx / d) * t, cz + (dz / d) * t, 0.3, cy + (dy / d) * t)) return false;

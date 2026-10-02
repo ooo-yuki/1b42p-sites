@@ -21,6 +21,7 @@ interface WallOut {
   blockedSeen: boolean;
   blockedFrames: number;
   openFrames: number;
+  reacts: number;
   hpThen: number;
   hpNow: number;
   d: MerapDbg | null;
@@ -180,7 +181,7 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
     } }).__mtt;
     const res: WallOut = {
       noFoe: false, go: false, marks: 0, aimMax: 0, laserMax: 0,
-      blockedSeen: false, blockedFrames: 0, openFrames: 0, hpThen: 0, hpNow: 0, d: null,
+      blockedSeen: false, blockedFrames: 0, openFrames: 0, reacts: 0, hpThen: 0, hpNow: 0, d: null,
     };
     m.charaSet('merap');
     m.devgod(true);
@@ -191,30 +192,53 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
       const f = m.foes().find((x) => x.id === id);
       return f ? f.hp : 0;
     };
-    // ищем точку, из которой цель ЗА СТЕНОЙ: проверяем ДВИЖКОЙ тем же лучом
-    const findBlock = (f: Foe): boolean => {
-      for (let r = 6; r <= 44; r += 2) {
-        for (let k = 0; k < 24; k++) {
-          const a = (k / 24) * Math.PI * 2;
-          const px = f.x + Math.cos(a) * r, pz = f.z + Math.sin(a) * r;
-          if (m.solidAt(px, pz, 0) || m.solidAt(px, pz, 1.7)) continue;
-          m.teleport(px, pz, Math.atan2(px - f.x, pz - f.z));
-          if (!m.merapLos(f.x, 1.0, f.z)) return true;
+    // ищем точку, из которой цель ЗА СТЕНОЙ; тень должна держаться и когда цель сдвинется
+    const PROBES: Array<[number, number]> = [[0, 0], [1.4, 0], [-1.4, 0], [0, 1.4], [0, -1.4]];
+    let off: [number, number] | null = null;
+    const scan = (f: Foe): boolean => {
+      for (const strict of [true, false]) {
+        for (let r = 6; r <= 44; r += 2) {
+          for (let k = 0; k < 24; k++) {
+            const a = (k / 24) * Math.PI * 2;
+            const px = f.x + Math.cos(a) * r, pz = f.z + Math.sin(a) * r;
+            if (m.solidAt(px, pz, 0) || m.solidAt(px, pz, 1.7)) continue;
+            m.teleport(px, pz, Math.atan2(px - f.x, pz - f.z));
+            const hid = strict
+              ? PROBES.every(([dx, dz]) => !m.merapLos(f.x + dx, 1.0, f.z + dz))
+              : !m.merapLos(f.x, 1.0, f.z);
+            if (hid) { off = [px - f.x, pz - f.z]; return true; }
+          }
         }
       }
       return false;
     };
+    // дешёвая перестановка вслед за целью с тем же относительным смещением
+    const stand = (f: Foe): boolean => {
+      if (!off) return scan(f);
+      const px = f.x + off[0], pz = f.z + off[1];
+      if (m.solidAt(px, pz, 0) || m.solidAt(px, pz, 1.7)) return scan(f);
+      m.teleport(px, pz, Math.atan2(px - f.x, pz - f.z));
+      if (!m.merapLos(f.x, 1.0, f.z)) return true;
+      return scan(f);
+    };
     const first = walk()[0];
     if (!first) { res.noFoe = true; return res; }
-    findBlock(first);
+    scan(first);
     res.go = m.doMerap();
     const idsAt = (): number[] => m.foes().filter((x) => !x.dead).map((x) => x.id);
     const t0 = performance.now();
     let d: MerapDbg = m.merap();
     while (performance.now() - t0 < 16000) {
-      const f = walk()[0];
-      if (f) findBlock(f);
       d = m.merap();
+      const f = walk()[0];
+      if (f) {
+        if (d.laser > 0) {
+          // тень держится — стоим; тень спала — переставляемся немедленно
+          if (!d.blocked) { res.reacts++; scan(f); }
+        } else {
+          stand(f);
+        }
+      }
       res.marks = Math.max(res.marks, d.marks);
       res.aimMax = Math.max(res.aimMax, d.aim);
       if (d.laser > 0) {
@@ -230,7 +254,7 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
       }
       if (res.laserMax > 0 && d.laser === 0) break;
       if (res.laserMax === 0 && d.win === 0 && performance.now() - t0 > 4000) break;
-      await new Promise((r) => setTimeout(r, 150));
+      await new Promise((r) => setTimeout(r, 60));
     }
     if (res.hpThen) res.hpNow = idsAt().reduce((s, id) => s + hpById(id), 0);
     res.d = d;
