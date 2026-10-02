@@ -5666,8 +5666,8 @@ export class Game {
     return true;
   }
 
-  /** Луч для тестов: кд, окно, накопленное наведение, остаток луча, цель. */
-  debugMerap(): { cd: number; win: number; aim: number; laser: number; marks: number; target: string | null; blocked: boolean; dmg: number } {
+  /** Луч для тестов: кд, окно, накопленное наведение, остаток луча, цель (id моба). */
+  debugMerap(): { cd: number; win: number; aim: number; laser: number; marks: number; target: string | null; tid: number | null; blocked: boolean; dmg: number } {
     let target: string | null = null;
     if (this.merapTgt) target = this.merapTgt.mob ? 'mob' : this.merapTgt.rem ? `remote:${this.merapTgt.rem.nick}` : null;
     return {
@@ -5677,6 +5677,7 @@ export class Game {
       laser: Math.round(this.merapLaserT * 100) / 100,
       marks: this.merapMarksOn ? this.merapMarkN : 0,
       target,
+      tid: this.merapTgt && this.merapTgt.mob ? this.merapTgt.mob.mobId : null,
       blocked: this.merapBlocked,
       dmg: this.merapDmg(),
     };

@@ -7,10 +7,11 @@ interface MerapDbg {
   laser: number;
   marks: number;
   target: string | null;
+  tid: number | null;
   blocked: boolean;
   dmg: number;
 }
-interface Foe { id: number; kind: string; x: number; z: number; hp: number; dead: boolean }
+interface Foe { id: number; kind: string; x: number; z: number; hp: number; dead: boolean; ey: number }
 
 interface WallOut {
   noFoe: boolean;
@@ -26,6 +27,9 @@ interface WallOut {
   hpNow: number;
   scanMaxMs: number;
   scans: number;
+  scTried: number;
+  scFree: number;
+  scBlocked: number;
   iters: number;
   iterMaxMs: number;
   tSleepMax: number;
@@ -195,7 +199,8 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
     const res: WallOut = {
       noFoe: false, go: false, marks: 0, aimMax: 0, laserMax: 0,
       blockedSeen: false, blockedFrames: 0, openFrames: 0, reacts: 0, hpThen: 0, hpNow: 0,
-      scanMaxMs: 0, scans: 0, iters: 0, iterMaxMs: 0, tSleepMax: 0, tStandMax: 0, tMerapMax: 0, offFound: false, d: null,
+      scanMaxMs: 0, scans: 0, scTried: 0, scFree: 0, scBlocked: 0,
+      iters: 0, iterMaxMs: 0, tSleepMax: 0, tStandMax: 0, tMerapMax: 0, offFound: false, d: null,
     };
     m.charaSet('merap');
     m.devgod(true);
@@ -206,29 +211,37 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
       const f = m.foes().find((x) => x.id === id);
       return f ? f.hp : 0;
     };
+    // высота точки цели у движка: моб 1.0+ey, летун 3.2 — тень проверяем по ней
+    const tY = (f: Foe): number => (f.kind === 'fly' ? 3.2 : 1.0 + f.ey);
     // ищем точку, из которой цель ЗА СТЕНОЙ; тень должна держаться и когда цель сдвинется.
     // полный скан дорогой (сотни вызовов LOS) — режем по бюджету, иначе главный поток занят
     // и игровые часы стоят (окно/наведение не идут)
     const PROBES: Array<[number, number]> = [[0, 0], [1.4, 0], [-1.4, 0], [0, 1.4], [0, -1.4]];
     let off: [number, number] | null = null;
+    let offFor: number | null = null;
     let lastScan = -1e9;
     let budget = 2000;
     const scan = (f: Foe): boolean => {
       const t0s = performance.now();
       res.scans++;
+      const ty = tY(f);
       let loose = false;
       let stop = false;
       for (let r = 6; r <= 44 && !stop; r += 3) {
         for (let k = 0; k < 16 && !stop; k++) {
           if (performance.now() - t0s > budget) { stop = true; break; }
+          res.scTried++;
           const a = (k / 16) * Math.PI * 2;
           const px = f.x + Math.cos(a) * r, pz = f.z + Math.sin(a) * r;
           if (m.solidAt(px, pz, 0) || m.solidAt(px, pz, 1.7)) continue;
+          res.scFree++;
           m.teleport(px, pz, Math.atan2(px - f.x, pz - f.z));
-          if (m.merapLos(f.x, 1.0, f.z)) continue;
+          if (m.merapLos(f.x, ty, f.z)) continue;
+          res.scBlocked++;
           // тень есть — широкая (держится при сдвиге цели ±1.4м) предпочтительнее
           off = [px - f.x, pz - f.z];
-          if (PROBES.every(([dx, dz]) => !m.merapLos(f.x + dx, 1.0, f.z + dz))) stop = true;
+          offFor = f.id;
+          if (PROBES.every(([dx, dz]) => !m.merapLos(f.x + dx, ty, f.z + dz))) stop = true;
           else loose = true;
         }
       }
@@ -251,6 +264,7 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
     };
     // дешёвая перестановка вслед за целью с тем же смещением; тень спала — скан по таймеру
     const stand = (f: Foe): void => {
+      const ty = tY(f);
       if (!off) {
         freeNear(f);
         if (performance.now() - lastScan >= 1500) scan(f);
@@ -259,10 +273,13 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
       const px = f.x + off[0], pz = f.z + off[1];
       if (!m.solidAt(px, pz, 0) && !m.solidAt(px, pz, 1.7)) {
         m.teleport(px, pz, Math.atan2(px - f.x, pz - f.z));
-        if (!m.merapLos(f.x, 1.0, f.z)) return; // тень держится
+        if (!m.merapLos(f.x, ty, f.z)) return; // тень держится
       }
       if (performance.now() - lastScan >= 400) scan(f);
     };
+    // стоять нужно относительно ЗАПЕРТОЙ цели лазера (tid) — тень «не про неё» не спасает
+    const foeById = (id: number | null): Foe | null => (id == null ? null : m.foes().find((x) => x.id === id && !x.dead) ?? null);
+    const pickFoe = (dbg: MerapDbg): Foe | null => foeById(dbg.tid) ?? walk()[0] ?? null;
     const first = walk()[0];
     if (!first) { res.noFoe = true; return res; }
     scan(first);
@@ -280,7 +297,9 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
       const tm = performance.now() - tm0;
       if (tm > res.tMerapMax) res.tMerapMax = tm;
       res.iters++;
-      const f = walk()[0];
+      const f = pickFoe(d);
+      // запертая цель сменилась — старое смещение не про неё, ищем тень заново сразу
+      if (f && off && offFor !== f.id) { off = null; lastScan = -1e9; }
       const ts0 = performance.now();
       if (f) {
         if (d.laser > 0) {
