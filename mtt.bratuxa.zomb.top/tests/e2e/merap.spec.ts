@@ -77,7 +77,7 @@ test('💜 Лорд Мерап: мифик в ростере, кд всегда 
 });
 
 test('💜 Лорд Мерап: окно 10с → наведение 5с → луч 2с, цель ранена', async ({ page }) => {
-  test.setTimeout(300000);
+  test.setTimeout(800000);
   await page.goto('/');
   await expect(page).toHaveTitle(/42 LIVE/);
   await page.click('#guestBtn');
@@ -141,7 +141,7 @@ test('💜 Лорд Мерап: окно 10с → наведение 5с → л�
     const t0 = performance.now();
     let d: MerapDbg = m.merap();
     // стагнации страницы не роняют тест: выходы по игровому времени, wall-кап от мёртвой страницы
-    while (performance.now() - t0 < 240000) {
+    while (performance.now() - t0 < 300000) {
       aimAt();
       d = m.merap();
       marks = Math.max(marks, d.marks);
@@ -179,8 +179,9 @@ test('💜 Лорд Мерап: окно 10с → наведение 5с → л�
 
 test('💜 Лорд Мерап: за стеной луч не наносит урона', async ({ page }) => {
   // на сервере бывают многосекундные (до 3-х минут) стагнации страницы —
-  // тест обязан пережить их: щедрый таймаут, выходы по игровому времени
-  test.setTimeout(600000);
+  // тест обязан пережить их: щедрый таймаут, выходы по игровому времени,
+  // wall-кап 300с с запасом на гигантский кадр-гэп после простоя
+  test.setTimeout(900000);
   const tBoot = Date.now();
   await page.goto('/');
   await expect(page).toHaveTitle(/42 LIVE/);
@@ -309,7 +310,7 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
     document.addEventListener('visibilitychange', onVis);
     // стагнация страницы не роняет тест: главный выход — по игровому времени
     // (окно истекло / луч кончился), wall-кап только от мёртвой страницы
-    while (performance.now() - t0 < 240000) {
+    while (performance.now() - t0 < 300000) {
       const tIter = performance.now();
       const tm0 = performance.now();
       d = m.merap();

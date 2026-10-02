@@ -867,6 +867,9 @@ export class Game {
   private merapApplyT = 0;
   private merapSpin = 0;
   private merapBlocked = false;
+  /** Кадровый гэп (возврат из простоя/края CPU): часы супера на паузе — стагнация
+      страницы (steal time гипервизора) не должна съедать окно/наведение/кд. */
+  private merapGap = false;
   private merapMarkN = 0;
   private merapMarksOn = false;
   private merapMarkPool: Array<{ ring: THREE.Mesh; arc: THREE.Mesh; q: number }> = [];
@@ -5909,6 +5912,7 @@ export class Game {
 
   /** Тик Лорда Мерапа: кд, окно наведения, луч; мёртвому/наблюдателю всё гасится. */
   private syncMerap(dt: number): void {
+    if (this.merapGap) return; // простой страницы: часы супера заморожены
     const live = this.started && !this.maintLock && !this.dead && !this.specOn;
     if (this.merapCd > 0 && live) {
       this.merapCd -= dt;
@@ -7535,6 +7539,10 @@ export class Game {
     if (this.destroyed) return;
     this.raf = requestAnimationFrame(this.loop);
     const real = Math.min(this.clock.getDelta(), 30);
+    // гэп кадра ≥6с: не у 0.2fps-машины (там кадры ≤5с и мир идёт в реальном
+    // времени), а при заморозке страницы (steal time гипервизора) — супер
+    // в это время не тикает: окно/наведение/кд не съедаются простоем
+    this.merapGap = real >= 6;
     const n = Math.max(1, Math.min(600, Math.ceil(real / 0.05)));
     this.subDt = real / n;
     // FPS-метр (сглаживание) — по настоящим кадрам, не по подшагам
