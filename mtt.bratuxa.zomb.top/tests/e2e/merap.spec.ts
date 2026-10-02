@@ -26,7 +26,11 @@ interface WallOut {
   hpNow: number;
   scanMaxMs: number;
   scans: number;
+  iters: number;
   iterMaxMs: number;
+  tSleepMax: number;
+  tStandMax: number;
+  tMerapMax: number;
   offFound: boolean;
   d: MerapDbg | null;
 }
@@ -186,7 +190,7 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
     const res: WallOut = {
       noFoe: false, go: false, marks: 0, aimMax: 0, laserMax: 0,
       blockedSeen: false, blockedFrames: 0, openFrames: 0, reacts: 0, hpThen: 0, hpNow: 0,
-      scanMaxMs: 0, scans: 0, iterMaxMs: 0, offFound: false, d: null,
+      scanMaxMs: 0, scans: 0, iters: 0, iterMaxMs: 0, tSleepMax: 0, tStandMax: 0, tMerapMax: 0, offFound: false, d: null,
     };
     m.charaSet('merap');
     m.devgod(true);
@@ -262,10 +266,17 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
     const idsAt = (): number[] => m.foes().filter((x) => !x.dead).map((x) => x.id);
     const t0 = performance.now();
     let d: MerapDbg = m.merap();
-    while (performance.now() - t0 < 24000) {
+    // длинные кадры/ГЦ страницы не должны съедать тест: кап по стене щедрый,
+    // выходы — по игровому времени (окно истекло / луч кончился)
+    while (performance.now() - t0 < 90000) {
       const tIter = performance.now();
+      const tm0 = performance.now();
       d = m.merap();
+      const tm = performance.now() - tm0;
+      if (tm > res.tMerapMax) res.tMerapMax = tm;
+      res.iters++;
       const f = walk()[0];
+      const ts0 = performance.now();
       if (f) {
         if (d.laser > 0) {
           // тень держится — стоим; спала — переставляемся (скан не чаще 400мс)
@@ -274,6 +285,8 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
           stand(f);
         }
       }
+      const ts = performance.now() - ts0;
+      if (ts > res.tStandMax) res.tStandMax = ts;
       res.marks = Math.max(res.marks, d.marks);
       res.aimMax = Math.max(res.aimMax, d.aim);
       if (d.laser > 0) {
@@ -289,7 +302,10 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
       }
       if (res.laserMax > 0 && d.laser === 0) break;
       if (res.laserMax === 0 && d.win === 0 && performance.now() - t0 > 4000) break;
+      const tsl0 = performance.now();
       await new Promise((r) => setTimeout(r, 100));
+      const tsl = performance.now() - tsl0;
+      if (tsl > res.tSleepMax) res.tSleepMax = tsl;
       const im = performance.now() - tIter;
       if (im > res.iterMaxMs) res.iterMaxMs = im;
     }
