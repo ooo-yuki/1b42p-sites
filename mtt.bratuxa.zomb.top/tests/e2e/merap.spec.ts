@@ -69,7 +69,7 @@ test('💜 Лорд Мерап: мифик в ростере, кд всегда 
 });
 
 test('💜 Лорд Мерап: окно 10с → наведение 5с → луч 2с, цель ранена', async ({ page }) => {
-  test.setTimeout(180000);
+  test.setTimeout(300000);
   await page.goto('/');
   await expect(page).toHaveTitle(/42 LIVE/);
   await page.click('#guestBtn');
@@ -132,7 +132,8 @@ test('💜 Лорд Мерап: окно 10с → наведение 5с → л�
     let ids: number[] = [], hpThen = 0, hpNow = 0;
     const t0 = performance.now();
     let d: MerapDbg = m.merap();
-    while (performance.now() - t0 < 15000) {
+    // стагнации страницы не роняют тест: выходы по игровому времени, кап по стене щедрый
+    while (performance.now() - t0 < 45000) {
       aimAt();
       d = m.merap();
       marks = Math.max(marks, d.marks);
@@ -169,12 +170,16 @@ test('💜 Лорд Мерап: окно 10с → наведение 5с → л�
 });
 
 test('💜 Лорд Мерап: за стеной луч не наносит урона', async ({ page }) => {
-  test.setTimeout(180000);
+  // щедрый кап: на сервере бывают многосекундные стагнации страницы (софт-рендер)
+  test.setTimeout(300000);
+  const tBoot = Date.now();
   await page.goto('/');
   await expect(page).toHaveTitle(/42 LIVE/);
   await page.click('#guestBtn');
   await page.click('#goBtn');
+  const tGo = Date.now();
   await started(page);
+  const tReady = Date.now();
   const out = await page.evaluate<WallOut, unknown>(async () => {
     const m = (window as unknown as { __mtt: {
       merap: () => MerapDbg;
@@ -315,6 +320,7 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
     return res;
   });
   console.log('DIAG merap wall ' + JSON.stringify(out));
+  console.log('DIAG wall stages ' + JSON.stringify({ go: tGo - tBoot, ready: tReady - tGo, eval: Date.now() - tReady }));
   expect(out.noFoe, 'цель есть').toBe(false);
   expect(out.go, 'супер активировался').toBe(true);
   expect(out.aimMax, 'наведение шло сквозь стену').toBeGreaterThanOrEqual(4.4);
