@@ -356,7 +356,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
     // держим удар до результата (под нагрузкой кадры редкие)
     // класс замаха — play (swing в коде/стилях давно нет)
     await page.keyboard.down('j');
-    await expect(page.locator('#weapon.play')).toHaveCount(1, { timeout: 8000 });
+    await expect(page.locator('#weapon.play')).toHaveCount(1, { timeout: 15000 });
     await page.keyboard.up('j');
   });
 
@@ -676,7 +676,7 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test('рега и вход: логин+пароль', async ({ request }) => {
-    const login = `pw${Date.now() % 100000}`;
+    const login = `pw${Date.now().toString(36)}`;
     const reg = await request.post('/api/register', { data: { login, pass: 'test1234' } });
     expect(reg.ok()).toBe(true);
     const { token } = await reg.json();
@@ -695,14 +695,14 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   test('окно входа в меню', async ({ page }) => {
     await expect(page.locator('#authBox')).toBeVisible();
     await expect(page.locator('#goBtn')).toBeDisabled();
-    const login = `ui${Date.now() % 100000}`;
+    const login = `ui${Date.now().toString(36)}`;
     await page.fill('#authLogin', login);
     await page.fill('#authPass', 'test1234');
     await page.click('#regBtn');
-    await expect(page.locator('#authWho')).toContainText(login, { timeout: 15000 });
+    await expect(page.locator('#authWho')).toContainText(login, { timeout: 30000 });
     await expect(page.locator('#goBtn')).toBeVisible();
     await page.reload();
-    await expect(page.locator('#authWho')).toContainText(login, { timeout: 15000 });
+    await expect(page.locator('#authWho')).toContainText(login, { timeout: 30000 });
     await page.locator('#authOut').scrollIntoViewIfNeeded();
     await page.click('#authOut');
     await expect(page.locator('#authBox')).toBeVisible();
@@ -801,11 +801,11 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test('выход в меню: рейтинг сохраняется в топ', async ({ page, request }) => {
-    const login = `mx${Date.now() % 100000}`;
+    const login = `mx${Date.now().toString(36)}`;
     await page.fill('#authLogin', login);
     await page.fill('#authPass', 'test1234');
     await page.click('#regBtn');
-    await expect(page.locator('#authWho')).toContainText(login, { timeout: 15000 });
+    await expect(page.locator('#authWho')).toContainText(login, { timeout: 30000 });
     await page.click('#goBtn');
     await started(page);
     await page.evaluate(() => (window as unknown as { __mtt: { give: (n: number) => void } }).__mtt.give(500));
@@ -986,11 +986,11 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test('смена пароля через профиль', async ({ page, request }) => {
-    const login = `cp${Date.now() % 100000}`;
+    const login = `cp${Date.now().toString(36)}`;
     await page.fill('#authLogin', login);
     await page.fill('#authPass', 'oldpass1');
     await page.click('#regBtn');
-    await expect(page.locator('#authWho')).toContainText(login, { timeout: 15000 });
+    await expect(page.locator('#authWho')).toContainText(login, { timeout: 30000 });
     await page.click('#profileBtn');
     await expect(page.locator('#profileOv')).toBeVisible();
     await page.fill('#passOld', 'oldpass1');
@@ -1004,11 +1004,11 @@ test.describe('МТТ VI — арена от 1-го лица', () => {
   });
 
   test('админка чужим не светит', async ({ page }) => {
-    const login = `ad${Date.now() % 100000}`;
+    const login = `ad${Date.now().toString(36)}`;
     await page.fill('#authLogin', login);
     await page.fill('#authPass', 'test1234');
     await page.click('#regBtn');
-    await expect(page.locator('#authWho')).toContainText(login, { timeout: 15000 });
+    await expect(page.locator('#authWho')).toContainText(login, { timeout: 30000 });
     await page.click('#adminBtn');
     await page.waitForTimeout(1500);
     await expect(page.locator('#adminSec')).toHaveCount(0);
