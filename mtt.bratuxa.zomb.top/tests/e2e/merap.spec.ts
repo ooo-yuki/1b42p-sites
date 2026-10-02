@@ -35,6 +35,9 @@ interface WallOut {
   tSleepMax: number;
   tStandMax: number;
   tMerapMax: number;
+  noStand: number;
+  faceMin: number;
+  trail: Array<[number, number, number, number]>;
   offFound: boolean;
   d: MerapDbg | null;
 }
@@ -196,12 +199,14 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
       solidAt: (x: number, z: number, y: number, r?: number) => boolean;
       teleport: (x: number, z: number, yaw?: number) => void;
       devgod: (on: boolean) => void;
+      pos: () => { x: number; z: number; yaw: number };
     } }).__mtt;
     const res: WallOut = {
       noFoe: false, go: false, marks: 0, aimMax: 0, laserMax: 0,
       blockedSeen: false, blockedFrames: 0, openFrames: 0, reacts: 0, hpThen: 0, hpNow: 0,
       scanMaxMs: 0, scans: 0, scTried: 0, scFree: 0, scBlocked: 0,
-      iters: 0, iterMaxMs: 0, tSleepMax: 0, tStandMax: 0, tMerapMax: 0, offFound: false, d: null,
+      iters: 0, iterMaxMs: 0, tSleepMax: 0, tStandMax: 0, tMerapMax: 0,
+      noStand: 0, faceMin: 1, trail: [], offFound: false, d: null,
     };
     m.charaSet('merap');
     m.devgod(true);
@@ -301,6 +306,15 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
       const f = pickFoe(d);
       // запертая цель сменилась — старое смещение не про неё, ищем тень заново сразу
       if (f && off && offFor !== f.id) { off = null; lastScan = -1e9; }
+      if (!f) res.noStand++;
+      else {
+        const p = m.pos();
+        const fx = f.x - p.x, fz = f.z - p.z;
+        const fl = Math.hypot(fx, fz) || 1;
+        const dot = (-Math.sin(p.yaw) * fx - Math.cos(p.yaw) * fz) / fl;
+        if (dot < res.faceMin) res.faceMin = dot;
+        if (res.trail.length < 200) res.trail.push([Math.round(d.win * 10), Math.round(d.aim * 100), f.id, Math.round(dot * 100)]);
+      }
       const ts0 = performance.now();
       if (f) {
         if (d.laser > 0) {
