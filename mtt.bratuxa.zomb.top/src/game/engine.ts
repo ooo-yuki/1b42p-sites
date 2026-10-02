@@ -5729,14 +5729,14 @@ export class Game {
   private merapEnsureMarks(): void {
     while (this.merapMarkPool.length < 40) {
       const ring = new THREE.Mesh(
-        new THREE.RingGeometry(0.53, 0.65, 48),
-        new THREE.MeshBasicMaterial({ color: 0xc060ff, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }),
+        new THREE.RingGeometry(0.86, 1, 48),
+        new THREE.MeshBasicMaterial({ color: 0xc060ff, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
       );
       ring.renderOrder = 997;
       ring.visible = false;
       const arc = new THREE.Mesh(
-        new THREE.RingGeometry(0.53, 0.65, 48, 1, Math.PI / 2, 0.001),
-        new THREE.MeshBasicMaterial({ color: 0xf0c8ff, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false }),
+        new THREE.RingGeometry(0.86, 1, 48, 1, Math.PI / 2, 0.001),
+        new THREE.MeshBasicMaterial({ color: 0xf0c8ff, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false, depthTest: false }),
       );
       arc.renderOrder = 998;
       arc.visible = false;
@@ -5765,10 +5765,10 @@ export class Game {
     if (q === m.q) return;
     m.q = q;
     m.arc.geometry.dispose();
-    if (q <= 0) { m.arc.visible = false; m.arc.geometry = new THREE.RingGeometry(0.53, 0.65, 48, 1, Math.PI / 2, 0.001); return; }
+    if (q <= 0) { m.arc.visible = false; m.arc.geometry = new THREE.RingGeometry(0.86, 1, 48, 1, Math.PI / 2, 0.001); return; }
     m.arc.visible = true;
     const frac = q / 48;
-    m.arc.geometry = new THREE.RingGeometry(0.53, 0.65, 48, 1, Math.PI / 2 - frac * Math.PI * 2, frac * Math.PI * 2);
+    m.arc.geometry = new THREE.RingGeometry(0.86, 1, 48, 1, Math.PI / 2 - frac * Math.PI * 2, frac * Math.PI * 2);
   }
 
   /** Прямая видимость от моих глаз до точки: стена на пути — в этот кадр урона нет. */
