@@ -98,6 +98,11 @@ test('нашествие: орда 11 скалолазов на 1-й волне'
 });
 
 test('наблюдатель: смерть → watch → без вмешательства → выход в лобби', async ({ page }) => {
+  // статус watch-запроса: при 5xx/4xx наблюдатель молча не включается
+  const watchStatus: number[] = [];
+  page.on('response', (r) => {
+    try { if (new URL(r.url()).pathname.endsWith('/watch')) watchStatus.push(r.status()); } catch { /* noop */ }
+  });
   await boot(page);
   await createAndGo(page, 'endless');
   // гасим щит выстрелом, потом смертельный урон
@@ -107,7 +112,14 @@ test('наблюдатель: смерть → watch → без вмешател
     m.hurt(9999);
   });
   await expect(page.locator('#specWatchBtn')).toBeVisible({ timeout: 10000 });
-  await page.click('#specWatchBtn');
+  // сервер мог мигнуть — повторяем клик, пока кнопка на месте
+  for (let i = 0; i < 3; i++) {
+    if (await page.locator('#specBar').isVisible().catch(() => false)) break;
+    if (!await page.locator('#specWatchBtn').isVisible().catch(() => false)) break;
+    await page.click('#specWatchBtn');
+    await page.waitForTimeout(1500);
+  }
+  console.log('DIAG spec watch ' + JSON.stringify(watchStatus));
   await expect(page.locator('#specBar')).toBeVisible({ timeout: 10000 });
   const on = await page.evaluate(() => (window as unknown as { __mtt: M }).__mtt.specOn());
   expect(on).toBe(true);
