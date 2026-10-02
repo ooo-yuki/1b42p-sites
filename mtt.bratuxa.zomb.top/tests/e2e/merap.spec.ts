@@ -37,7 +37,8 @@ interface WallOut {
   tMerapMax: number;
   noStand: number;
   faceMin: number;
-  trail: Array<[number, number, number, number]>;
+  hidN: number;
+  trail: Array<[number, number, number, number, number, number, number, number, number]>;
   offFound: boolean;
   d: MerapDbg | null;
 }
@@ -206,7 +207,7 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
       blockedSeen: false, blockedFrames: 0, openFrames: 0, reacts: 0, hpThen: 0, hpNow: 0,
       scanMaxMs: 0, scans: 0, scTried: 0, scFree: 0, scBlocked: 0,
       iters: 0, iterMaxMs: 0, tSleepMax: 0, tStandMax: 0, tMerapMax: 0,
-      noStand: 0, faceMin: 1, trail: [], offFound: false, d: null,
+      noStand: 0, faceMin: 1, hidN: 0, trail: [], offFound: false, d: null,
     };
     m.charaSet('merap');
     m.devgod(true);
@@ -294,6 +295,18 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
     const idsAt = (): number[] => m.foes().filter((x) => !x.dead).map((x) => x.id);
     const t0 = performance.now();
     let d: MerapDbg = m.merap();
+    // счётчики для стагнаций: живёт ли rAF (движок крутится) и не скрыта ли вкладка
+    let rafN = 0;
+    let rafT = performance.now();
+    let stopRaf = false;
+    const rafLoop = (): void => {
+      rafN++;
+      rafT = performance.now();
+      if (!stopRaf) requestAnimationFrame(rafLoop);
+    };
+    requestAnimationFrame(rafLoop);
+    const onVis = (): void => { if (document.hidden) res.hidN++; };
+    document.addEventListener('visibilitychange', onVis);
     // стагнация страницы не роняет тест: главный выход — по игровому времени
     // (окно истекло / луч кончился), wall-кап только от мёртвой страницы
     while (performance.now() - t0 < 240000) {
@@ -313,7 +326,13 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
         const fl = Math.hypot(fx, fz) || 1;
         const dot = (-Math.sin(p.yaw) * fx - Math.cos(p.yaw) * fz) / fl;
         if (dot < res.faceMin) res.faceMin = dot;
-        if (res.trail.length < 200) res.trail.push([Math.round(d.win * 10), Math.round(d.aim * 100), f.id, Math.round(dot * 100)]);
+        if (res.trail.length < 200) {
+          res.trail.push([
+            Math.round(d.win * 10), Math.round(d.aim * 100), f.id, Math.round(dot * 100),
+            Math.round(d.cd * 10), rafN, document.hidden ? 1 : 0,
+            Math.round(performance.now() - rafT), Math.round(performance.now()),
+          ]);
+        }
       }
       const ts0 = performance.now();
       if (f) {
@@ -349,6 +368,8 @@ test('💜 Лорд Мерап: за стеной луч не наносит у�
       if (im > res.iterMaxMs) res.iterMaxMs = im;
     }
     if (res.hpThen) res.hpNow = idsAt().reduce((s, id) => s + hpById(id), 0);
+    stopRaf = true;
+    document.removeEventListener('visibilitychange', onVis);
     res.offFound = !!off;
     res.d = d;
     return res;
