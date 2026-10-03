@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Game, WEAPONS, CHARS, MAPS, hashSeed, KEY_ACTIONS, DEFAULT_KEYS, UPG_MAX, upgCost, superCd, superRange, merapDmgOf, CASE_PRICE, type HudState, type KeyMap, type MapId, type CustomMap, type UpgState, type CaseDrop, type RemoteMob } from './game/engine';
+import { Game, WEAPONS, CHARS, MAPS, hashSeed, KEY_ACTIONS, DEFAULT_KEYS, UPG_MAX, upgCost, superCd, superRange, merapDmgOf, CASE_PRICE, MEDALS, SERVER_MEDALS, type MedalDef, type HudState, type KeyMap, type MapId, type CustomMap, type UpgState, type CaseDrop, type RemoteMob } from './game/engine';
 import { canSee } from '../shared/szeged-gate';
 import oruzh1Url from './assets/oruzh1.png';
 import oruzh2Url from './assets/oruzh2.png';
@@ -465,7 +465,7 @@ export default function App() {
    * иначе «готово» наступает раньше коллизий и врагов на карте. */
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState<{ show: boolean; pct: number }>({ show: false, pct: 0 });
-  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, invis: 0, invisCd: 0, chuma: 0, chumaCd: 0, xray: 0, xrayCd: 0, sun: 0, sunCd: 0, arbuz: 0, arbuzCd: 0, utugT: 0, utugCd: 0, utugBlink: false,    med: 0, lvl: 1, team: null, carrying: null, captures: 0, boss: 0, wbWait: 0, fps: 60, doorPulse: false, waveCd: 0, charm: 0, charmCd: 0, merapCd: 0, merapOn: false, merapAim: 0, merapLaser: 0 });
+  const [hud, setHud] = useState<HudState>({ hp: 100, maxhp: 100, score: 0, kills: 0, enemies: 0, wave: 1, dead: false, fantiki: 0, weapon: 'fists', owned: ['fists'], moving: false, dash: 0, kick: 0, invis: 0, invisCd: 0, chuma: 0, chumaCd: 0, xray: 0, xrayCd: 0, sun: 0, sunCd: 0, arbuz: 0, arbuzCd: 0, utugT: 0, utugCd: 0, utugBlink: false,    med: 0, lvl: 1, team: null, carrying: null, captures: 0, boss: 0, wbWait: 0, fps: 60, doorPulse: false, waveCd: 0, charm: 0, charmCd: 0, merapCd: 0, merapOn: false, merapAim: 0, merapLaser: 0, combo: 0, comboMult: 1 });
   const [scores, setScores] = useState<ScoreRow[]>([]);
   const [duelTop, setDuelTop] = useState<Array<{ login: string; wins: number }>>([]);
   const [gstats, setGstats] = useState<{ games: number; best: number; online: number } | null>(null);
@@ -728,6 +728,55 @@ async function loadStats(): Promise<void> {
   /** скример: жуть на весь экран 5с после ваншота сталкера, поверх абсолютно всего */
   const [jumpscare, setJumpscare] = useState(false);
   const jumpscareTimer = useRef(0);
+  // ---- цифры урона и килфид: чистый DOM (без ререндеров React на каждый удар) ----
+  const fxLayerRef = useRef<HTMLDivElement>(null);
+  const killFeedRef = useRef<HTMLDivElement>(null);
+  /** Всплывающая цифра урона: максимум 10 штук, жизнь 0.7с (см. .dmgNum в app.css). */
+  const addDmgNum = (x: number, y: number, text: string, kill: boolean): void => {
+    const layer = fxLayerRef.current;
+    if (!layer) return;
+    while (layer.children.length >= 10) layer.removeChild(layer.firstChild as Node);
+    const s = document.createElement('span');
+    s.className = kill ? 'dmgNum kill' : 'dmgNum';
+    s.textContent = text;
+    s.style.left = `${x}px`;
+    s.style.top = `${y}px`;
+    layer.appendChild(s);
+    window.setTimeout(() => s.remove(), 700);
+  };
+  /** Строка килфида: максимум 5, жизнь 4с (см. .killFeed в app.css). */
+  const addKillFeed = (text: string, kill: boolean): void => {
+    const box = killFeedRef.current;
+    if (!box) return;
+    while (box.children.length >= 5) box.removeChild(box.firstChild as Node);
+    const d = document.createElement('div');
+    d.className = kill ? 'kf kill' : 'kf';
+    d.textContent = text;
+    box.appendChild(d);
+    window.setTimeout(() => d.remove(), 4000);
+  };
+  /** Тост новой медали (образец wbRewardToast). */
+  const [medalToast, setMedalToast] = useState<MedalDef | null>(null);
+  const medalToastTimer = useRef(0);
+  const showMedal = (id: string): void => {
+    const def = MEDALS.find((m) => m.id === id) ?? SERVER_MEDALS.find((m) => m.id === id);
+    if (!def) return;
+    setMedalToast(def);
+    window.clearTimeout(medalToastTimer.current);
+    medalToastTimer.current = window.setTimeout(() => setMedalToast(null), 4000);
+    void pushMedal(id);
+  };
+  /** Отдать открытую медаль серверу (после логина; гость молча пропускает). */
+  const pushMedal = async (id: string): Promise<void> => {
+    if (!id) return;
+    try {
+      await fetch('/api/medal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: token(), id }),
+      });
+    } catch { /* noop */ }
+  };
   const [specTargets, setSpecTargets] = useState<Array<{ sid: string; nick: string; hp: number; dead: boolean }>>([]);
   /** Побег через дверь: баннер «ты выбрался» (приз + баланс после зачисления). */
   const [escaped, setEscaped] = useState<{ gain: number; bal: number } | null>(null);
@@ -750,7 +799,7 @@ async function loadStats(): Promise<void> {
   const [loginMsg, setLoginMsg] = useState('');
   const [adminOpen, setAdminOpen] = useState(false);
   const [admin, setAdmin] = useState<null | { rooms: Array<{ id: string; name: string; mode: string; started: boolean; round: number; players: Array<{ nick: string; login: string; char: string; score: number; kills: number; wave: number; hp: number; x: number; z: number }> ; pending: Array<{ nick: string; login: string }> }>; totalPlayers: number }>(null);
-  const [profile, setProfile] = useState<{ login: string; games: number; best: number; coins: number } | null>(null);
+  const [profile, setProfile] = useState<{ login: string; games: number; best: number; coins: number; medals: string[] } | null>(null);
   const [mapChoice, setMapChoice] = useState<MapId>('arena');
   // вкладки меню в стиле TWD: каждая кнопка слева — своя вкладка справа
   type TabId = 'play' | 'fighter' | 'cases' | 'promo' | 'maps' | 'editor' | 'rooms' | 'servers' | 'boss' | 'settings' | 'tops';
@@ -931,6 +980,20 @@ async function loadStats(): Promise<void> {
     }).catch(() => undefined);
   }, []);
 
+  /** Отдать открытые локально медали серверу (синк гостей после входа). */
+  const syncMedals = useCallback(async (): Promise<void> => {
+    const ids = gameRef.current?.medalIds() ?? [];
+    for (const id of ids) {
+      try {
+        await fetch('/api/medal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: token(), id }),
+        });
+      } catch { /* noop */ }
+    }
+  }, []);
+
   // вход/рега: токен в сейф, ник = логин
   const doAuth = useCallback(async (kind: 'login' | 'register') => {
     setAuthMsg('');
@@ -951,10 +1014,11 @@ async function loadStats(): Promise<void> {
       } catch { /* noop */ }
       setNick(d.login);
       setAuthed(d.login);
+      void syncMedals(); // локальные медали гостя закрепляем за аккаунтом
     } catch {
       setAuthMsg('Нет связи');
     }
-  }, [authLogin, authPass]);
+  }, [authLogin, authPass, syncMedals]);
 
   const guestIn = useCallback(() => { setAuthed('guest'); }, []);
   const authOut = useCallback(() => {
@@ -1035,8 +1099,9 @@ async function loadStats(): Promise<void> {
     if (!t) return;
     fetch(`/api/me?token=${encodeURIComponent(t)}`)
       .then((r) => r.json())
-      .then((d: { login?: string }) => { if (d.login) { setAuthed(d.login); setNick(d.login); } })
+      .then((d: { login?: string }) => { if (d.login) { setAuthed(d.login); setNick(d.login); void syncMedals(); } })
       .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -1122,6 +1187,10 @@ async function loadStats(): Promise<void> {
         }).catch(() => undefined);
       },
       onPvpDead: () => { pvpDeadRef.current = true; setPvpDead(true); },
+      // цифры урона / килфид / медали — чистый DOM, без ререндеров
+      onDmgNum: (x, y, text, kill) => addDmgNum(x, y, text, kill),
+      onKillFeed: (text, kill) => addKillFeed(text, kill),
+      onMedal: (id) => showMedal(id),
     }, mapChoice, { enemies: !noEnemies && mapChoice !== 'pvp', custom: mapChoice === 'custom' ? customsRef.current[customSel ?? ''] ?? null : undefined,
       // сид от сервера: один на всех в комнате, новый после рестарта.
       // Нет серверного (соло) — хеш комнаты или случайный («новый каждый раз»).
@@ -1228,6 +1297,9 @@ async function loadStats(): Promise<void> {
       level: () => game.level(),
       xp: (id: string) => game.xpOf(id),
       stats: () => game.debugStats(),
+      combo: () => game.debugCombo(),
+      score: () => game.debugScore(),
+      medals: () => game.medalState(),
       xpneed: (id: string) => game.xpNeedOf(id),
       upg: (id: string) => game.upgOf(id),
       supercd: (id: string) => game.superCdOf(id),
@@ -1353,11 +1425,16 @@ async function loadStats(): Promise<void> {
   // профиль: сведения об аккаунте, скрыты пока не откроешь
   const openProfile = useCallback(async () => {
     setProfileOpen(true);
-    if (authed === 'guest' || !authed) { setProfile(null); return; }
+    // локальные медали (mtt_stats_v1) есть и у гостя — витрина показывается всегда
+    const local = gameRef.current?.medalState() ?? { medals: [] };
+    if (authed === 'guest' || !authed) { setProfile({ login: 'guest', games: 0, best: 0, coins: 0, medals: local.medals }); return; }
     try {
       const r = await fetch(`/api/profile?login=${encodeURIComponent(authed)}`);
       if (!r.ok) { setProfile(null); return; }
-      setProfile((await r.json()) as { login: string; games: number; best: number; coins: number });
+      const d = (await r.json()) as { login: string; games: number; best: number; coins: number; medals?: string[] };
+      // серверные (duelist и синк гостей) + локальные: объединяем без дублей
+      const merged = [...new Set([...(d.medals ?? []), ...local.medals])];
+      setProfile({ login: d.login, games: d.games, best: d.best, coins: d.coins, medals: merged });
     } catch { setProfile(null); }
   }, [authed]);
 
@@ -2214,6 +2291,9 @@ async function loadStats(): Promise<void> {
       )}
       <canvas id="c" ref={canvasRef} />
       {!menu && <div id="vig" />}
+      {!menu && <div id="fxLayer" ref={fxLayerRef} aria-hidden />}
+      {!menu && <div id="killFeed" ref={killFeedRef} aria-hidden />}
+      {medalToast && <div id="medalToast" key={`${medalToast.id}-${medalToast.name}`}>🏆 {medalToast.emoji} {medalToast.name} — {medalToast.desc}</div>}
       {!menu && <div id="utugFlash" className={hud.utugBlink ? 'on' : ''} />}
       {!menu && <div id="merapFx" className={hud.merapOn || hud.merapLaser > 0 ? 'on' : ''} />}
       {!menu && ready && (
@@ -2224,6 +2304,11 @@ async function loadStats(): Promise<void> {
           </div>
           <div id="hudRow">{mapChoice === 'blender' ? `${hud.team === 'red' ? '🔴 КРАСНЫЕ' : '🔵 СИНИЕ'}${hud.carrying ? (hud.carrying === 'red' ? ' · 🚩 НЕСУ КРАСНЫЙ' : ' · 🚩 НЕСУ СИНИЙ') : ''} · 🏁 ${hud.captures} · ` : noEnemies || mapChoice === 'gorod1' ? '🕊️ МИРНЫЙ РЕЖИМ · ' : `🌊 Волна ${hud.wave} · 👹 ${hud.enemies} · `}💀 {hud.kills} · 🏆 {hud.score}</div>
           <div id="hudRow2">🎟️ {hud.fantiki} · 💊 {hud.med}/3 · ⭐ {hud.lvl} · {wname}{char === 'mtt' && (hud.dash > 0 ? ` · ⚡ ${hud.dash.toFixed(1)}с` : ' · ⚡ рывок готов')}{char === 'krysa' && (hud.kick > 0 ? ` · 🌀 ${hud.kick.toFixed(1)}с` : ' · 🌀 вол-кик готов')}{char === 'shuba' && (hud.invis > 0 ? ` · 👻 ещё ${hud.invis.toFixed(1)}с` : hud.invisCd > 0 ? ` · 👻 ${hud.invisCd.toFixed(1)}с` : ' · 👻 несутка готова')}{char === 'chuma' && (hud.chuma > 0 ? ` · 🦠 ещё ${hud.chuma.toFixed(1)}с` : hud.chumaCd > 0 ? ` · 🦠 ${hud.chumaCd.toFixed(1)}с` : ' · 🦠 облако готово')}{char === 'gidroxis' && (hud.xray > 0 ? ` · 🔍 ещё ${hud.xray.toFixed(1)}с` : hud.xrayCd > 0 ? ` · 🔍 ${hud.xrayCd.toFixed(1)}с` : ' · 🔍 рентген готов')}{char === 'sunstrike' && (hud.sunCd > 0 ? ` · ☀️ ${hud.sunCd.toFixed(1)}с` : ` · ☀️ заряд ${hud.sun}/15`)}{char === 'arbuz' && (hud.arbuz > 0 ? ` · 🌪️ ещё ${hud.arbuz.toFixed(1)}с` : hud.arbuzCd > 0 ? ` · 🌪️ ${hud.arbuzCd.toFixed(1)}с` : ' · 🌪️ воронка готова')}{char === 'jbl' && (hud.waveCd > 0 ? ` · 🔊 ${hud.waveCd.toFixed(1)}с` : ' · 🔊 волна готова')}{char === 'jbl' && (hud.charm > 0 ? ` · 🧠 ещё ${hud.charm.toFixed(1)}с` : hud.charmCd > 0 ? ` · 🧠 ${hud.charmCd.toFixed(1)}с` : ' · 🧠 подчинение готово')}{char === 'utug' && (hud.utugT > 0 ? ' · 💥 взрыв…' : hud.utugCd > 0 ? ` · 💥 ${hud.utugCd.toFixed(1)}с` : ' · 💥 взрыв готов')}{char === 'merap' && (hud.merapLaser > 0 ? ' · 💜 ЛАЗЕР!' : hud.merapOn ? ` · 💜 наведение ${hud.merapAim.toFixed(1)}/5с` : hud.merapCd > 0 ? ` · 💜 ${hud.merapCd.toFixed(1)}с` : ' · 💜 лазер готов')}</div>
+          {hud.combo >= 2 && (
+            <div id="comboTag" className={hud.comboMult >= 3 ? 'hot' : ''}>
+              🔥 {hud.combo}{hud.comboMult > 1 ? ` · ×${hud.comboMult}` : ''}
+            </div>
+          )}
         </div>
       )}
       {!menu && ready && (
@@ -2856,15 +2941,26 @@ async function loadStats(): Promise<void> {
             <div className="modal" id="profileOv">
               <div className="sheet">
                 <h3>👤 Профиль</h3>
-                {authed === 'guest' ? (
-                  <div>Гость: статистика не ведётся. Войди под логином — будем считать!</div>
-                ) : profile ? (
+                {profile ? (
                   <>
                     <div>🔐 <b>{profile.login}</b></div>
                     <div>🎮 Игр сыграно: <b>{profile.games}</b></div>
                     <div>🏆 Лучший счёт: <b>{profile.best}</b></div>
                     <div>🎟️ Фантиков всего: <b>{profile.coins}</b></div>
                     <div>🎭 Боец: {char === 'krysa' ? '🐀 Стейси' : char === 'shuba' ? '🥷 Ивангой' : char === 'chuma' ? '🐦‍⬛ Чума' : char === 'gidroxis' ? '🧪 Гидроксис' : char === 'sunstrike' ? '☀️ Санстрайк' : char === 'arbuz' ? '🍉 Арбузиха' : char === 'utug' ? '🟩 УтюгКрипер' : char === 'jbl' ? '🔊 JBLка' : char === 'merap' ? '💜 Лорд Мерап' : '🕶️ МТТ'} · ⭐ Ур. {hud.lvl} · Ник: {nick}</div>
+                    <h3>🏆 Медали · {profile.medals.length}/{MEDALS.length + SERVER_MEDALS.length}</h3>
+                    <div id="medalGrid">
+                      {[...MEDALS, ...SERVER_MEDALS].map((m) => (
+                        <div key={m.id} className={'medal' + (profile.medals.includes(m.id) ? ' on' : '')} title={m.desc}>
+                          <span className="mEmoji">{m.emoji}</span>
+                          <span className="mName">{m.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {authed === 'guest' ? (
+                      <div>Гость: очки и дуэли не ведутся — медали локальные. Войди под логином, чтобы закрепить!</div>
+                    ) : (
+                    <>
                     <h3>🔑 Сменить пароль</h3>
                     <input
                       id="passOld"
@@ -2912,6 +3008,8 @@ async function loadStats(): Promise<void> {
                     </button>
                     {loginMsg && <div id="loginMsg">{loginMsg}</div>}
                     <button className="wbtn" id="loginBtn2" onClick={changeLogin}>СМЕНИТЬ ЛОГИН</button>
+                      </>
+                    )}
                   </>
                 ) : (
                   <div>Загрузка…</div>

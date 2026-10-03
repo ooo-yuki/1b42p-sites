@@ -78,6 +78,66 @@ export function merapDmgOf(sup: number): number {
   return 80 + Math.round((lv * (142 - 80)) / UPG_MAX.sup * 10) / 10;
 }
 
+/** Комбо-множитель: фраги подряд без урона по себе. 0–3 → ×1, 4–7 → ×1.5, … 16+ → ×5. */
+export function comboMultOf(combo: number): number {
+  return Math.min(5, 1 + Math.floor(Math.max(0, combo) / 4) * 0.5);
+}
+/** Секунды жизни комбо без фрага (таймер сбрасывается каждым фрагом). */
+export const COMBO_TTL = 3;
+
+/** Название моба для килфида. */
+export function killFeedLabel(kind: string): string {
+  switch (kind) {
+    case 'fly': return '🦇 Летун';
+    case 'gun': return '🔫 Бандит';
+    case 'school': return '🏎 Школьник';
+    case 'throw': return '🧨 Метатель';
+    case 'boss': return '👹 БОСС';
+    default: return '🧟 Ходок';
+  }
+}
+
+/** Медаль-достижение: id стабильный (пишется на сервер), desc — подсказка в витрине. */
+export interface MedalDef { id: string; emoji: string; name: string; desc: string }
+/** Все медали клиента. Серверные ('duelist') приходят из /api/profile и сюда не входят. */
+export const MEDALS: MedalDef[] = [
+  { id: 'first_kill', emoji: '💀', name: 'Первый фраг', desc: 'Убить первого моба' },
+  { id: 'kills100', emoji: '🔪', name: 'Сто трупов', desc: '100 убийств за всё время' },
+  { id: 'kills1000', emoji: '☠️', name: 'Тысяча', desc: '1000 убийств за всё время' },
+  { id: 'wave5', emoji: '🌊', name: 'Первый рубеж', desc: 'Дойти до 5-й волны' },
+  { id: 'wave10', emoji: '🌊', name: 'Десятка', desc: 'Дойти до 10-й волны' },
+  { id: 'wave25', emoji: '🌊', name: 'Шторм', desc: 'Дойти до 25-й волны' },
+  { id: 'wave50', emoji: '🌊', name: 'Безумие', desc: 'Дойти до 50-й волны' },
+  { id: 'combo5', emoji: '🔥', name: 'Комбо ×5', desc: 'Держать комбо до множителя ×5 (16 фрагов без урона)' },
+  { id: 'boss_kill', emoji: '👹', name: 'Охотник на боссов', desc: 'Убить босса' },
+  { id: 'escape', emoji: '🚪', name: 'Беглец', desc: 'Выбраться из Бэкрумса через дверь' },
+  { id: 'case10', emoji: '🎰', name: 'Коллекционер', desc: 'Открыть 10 кейсов' },
+  { id: 'rare_pull', emoji: '🌟', name: 'Редкая удача', desc: 'Вытянуть Мифического или Легендарного из кейса' },
+  { id: 'allchars', emoji: '🎭', name: 'Весь отряд', desc: 'Открыть всех 10 бойцов' },
+  { id: 'maxupg', emoji: '⭐', name: 'Прокачан', desc: 'Довести любого бойца до 5/5/5/5' },
+  { id: 'runs25', emoji: '🏃', name: 'Завсегдатай', desc: 'Провести 25 забегов' },
+];
+/** Серверная медаль: победа в дуэли (duel_top). */
+export const SERVER_MEDALS: MedalDef[] = [
+  { id: 'duelist', emoji: '⚔️', name: 'Дуэлянт', desc: 'Победить в дуэли' },
+];
+
+/** Персистентная статистика для медалей (mtt_stats_v1). */
+export interface MedalStats {
+  kills: number;
+  waveBest: number;
+  bossKills: number;
+  escapes: number;
+  cases: number;
+  /** Вытянут Мифический/Легендарный из кейса (0/1). */
+  rare: number;
+  runs: number;
+  /** Рекорд комбо (фрагов подряд без урона). */
+  combo: number;
+  /** Открытые медали (id) — чтобы не дублировать тосты. */
+  medals: string[];
+}
+
 /** Лорд Мерап: радиус окружности-цели (м), окно наведения (с), сколько копить (с), длительность луча (с), высота излучения луча (м). */
 const MERAP_R = 1.15;
 const MERAP_WIN = 10;
@@ -241,6 +301,10 @@ export interface HudState {
   fps: number;
   /** Маяк двери: светится прямо сейчас (раз в минуту 5 секунд). */
   doorPulse: boolean;
+  /** Комбо: фрагов подряд без урона по себе (0 — комбо сломано/не начато). */
+  combo: number;
+  /** Комбо: текущий множитель наград 1–5 (см. comboMultOf). */
+  comboMult: number;
 }
 
 export interface WeaponDef {
@@ -308,6 +372,12 @@ export interface GameEvents {
   /** дверь выхода в Бэкрумсе: живой боец коснулся — баннер «ты выбрался» + награда (App) */
   onEscape?: () => void;
   onSwing: () => void;
+  /** всплывающая цифра урона: экранные координаты + текст (App рисует span и сам гасит) */
+  onDmgNum?: (x: number, y: number, text: string, kill: boolean) => void;
+  /** строка килфида (справа под HUD): добивший, очки с множителем комбо */
+  onKillFeed?: (text: string, kill: boolean) => void;
+  /** новая медаль: id из MEDALS (App показывает тост) */
+  onMedal?: (id: string) => void;
   /** удар по сетевому мобу: App шлёт mobhit на сервер, ответ применяет через netSyncHp/netKill */
   onNetHit?: (id: number, dmg: number) => void;
   /** урон хоста по боссу: ХП уже ушло пушем, App шлёт record-only mobdmg для таблицы спавна */
@@ -543,6 +613,64 @@ export class Game {
   private score = 0;
   private kills = 0;
   private wave = 1;
+  // ---- комбо: фраги подряд без урона по себе (comboT тикает в stepFrame) ----
+  private combo = 0;
+  private comboT = 0;
+  /** Рекорд комбо за всё время — нужен медали «×5» (mtt_stats_v1). */
+  private comboMax = 0;
+  /** HP прошлого шага: падение = урон по себе → слом комбо (ловит все источники, включая серверный PvP). */
+  private comboHp = 100;
+  // ---- медали: статистика за всё время (mtt_stats_v1), см. MEDALS/checkMedals ----
+  private mstats: MedalStats = (() => {
+    const blank: MedalStats = { kills: 0, waveBest: 0, bossKills: 0, escapes: 0, cases: 0, rare: 0, runs: 0, combo: 0, medals: [] };
+    try {
+      const d = JSON.parse(localStorage.getItem('mtt_stats_v1') ?? '{}') as Partial<MedalStats>;
+      return {
+        kills: Math.max(0, Math.floor(d.kills ?? 0)),
+        waveBest: Math.max(0, Math.floor(d.waveBest ?? 0)),
+        bossKills: Math.max(0, Math.floor(d.bossKills ?? 0)),
+        escapes: Math.max(0, Math.floor(d.escapes ?? 0)),
+        cases: Math.max(0, Math.floor(d.cases ?? 0)),
+        rare: d.rare ? 1 : 0,
+        runs: Math.max(0, Math.floor(d.runs ?? 0)),
+        combo: Math.max(0, Math.floor(d.combo ?? 0)),
+        medals: Array.isArray(d.medals) ? d.medals.filter((x) => typeof x === 'string') : [],
+      };
+    } catch { return blank; }
+  })();
+  private saveMStats(): void {
+    try { localStorage.setItem('mtt_stats_v1', JSON.stringify(this.mstats)); } catch { /* noop */ }
+  }
+  /** Сводка медалей для витрины: прогресс счётчиков + открытые id. */
+  medalState(): MedalStats { return { ...this.mstats, medals: [...this.mstats.medals] }; }
+  /** Выдать открытые локально медали серверу (вызывается после логина). */
+  medalIds(): string[] { return [...this.mstats.medals]; }
+  /** Проверить условия медалей; новые — сохранить и анонсировать через onMedal. */
+  private checkMedals(): void {
+    const s = this.mstats;
+    const fresh: string[] = [];
+    const has = (id: string): boolean => s.medals.includes(id);
+    const unlock = (id: string, ok: boolean): void => { if (ok && !has(id)) fresh.push(id); };
+    unlock('first_kill', s.kills >= 1);
+    unlock('kills100', s.kills >= 100);
+    unlock('kills1000', s.kills >= 1000);
+    unlock('wave5', s.waveBest >= 5);
+    unlock('wave10', s.waveBest >= 10);
+    unlock('wave25', s.waveBest >= 25);
+    unlock('wave50', s.waveBest >= 50);
+    unlock('combo5', comboMultOf(s.combo) >= 5);
+    unlock('boss_kill', s.bossKills >= 1);
+    unlock('escape', s.escapes >= 1);
+    unlock('case10', s.cases >= 10);
+    unlock('rare_pull', s.rare === 1);
+    unlock('allchars', this.ownedChars.length >= CHARS.length);
+    unlock('maxupg', Object.values(this.upg).some((u) => u.hp >= UPG_MAX.hp && u.dmg >= UPG_MAX.dmg && u.spd >= UPG_MAX.spd && u.sup >= UPG_MAX.sup));
+    unlock('runs25', s.runs >= 25);
+    if (fresh.length === 0) return;
+    s.medals.push(...fresh);
+    this.saveMStats();
+    for (const id of fresh) { try { this.ev.onMedal?.(id); } catch { /* noop */ } }
+  }
   private dead = false;
   private atkCd = 0;
   private swingT = 0;
@@ -571,6 +699,7 @@ export class Game {
     this.ownedChars.push(cid);
     this.saveChars();
     this.pushHud();
+    this.checkMedals(); // возможная медаль «Весь отряд»
     return true;
   }
   /** Промокод на всех: открывает каждого бойца. Возвращает вновь открытых. */
@@ -579,7 +708,7 @@ export class Game {
     for (const c of CHARS) {
       if (!this.ownedChars.includes(c.id)) { this.ownedChars.push(c.id); fresh.push(c.id); }
     }
-    if (fresh.length) { this.saveChars(); this.pushHud(); }
+    if (fresh.length) { this.saveChars(); this.pushHud(); this.checkMedals(); }
     return fresh;
   }
   /** Открыть кейс бойца за фантики. Двухэтапная система:
@@ -589,6 +718,9 @@ export class Game {
   openCase(): CaseDrop {
     if (this.fantiki < CASE_PRICE) return { ok: false, kind: 'empty', text: 'Не хватает фантиков' };
     this.fantiki -= CASE_PRICE;
+    this.mstats.cases++;
+    this.saveMStats();
+    this.checkMedals();
 
     // Этап 1: определяем редкость
     const rarityRoll = Math.random();
@@ -614,8 +746,12 @@ export class Game {
       const pick = available[Math.floor(Math.random() * available.length)];
       this.unlockChar(pick);
       this.addXp(100);
+      // медаль «Редкая удача»: Мифический/Легендарный вытянут
+      if (rarityName === 'Мифический' || rarityName === 'Легендарный') this.mstats.rare = 1;
+      this.saveMStats();
       this.saveShop();
       this.pushHud();
+      this.checkMedals();
       const labels: Record<string, string> = {
         shuba: '🥷 ИВАНГОЙ', chuma: '🐦‍⬛ ЧУМА', krysa: '🐀 СТЕЙСИ КРЫСА',
         gidroxis: '🧪 ГИДРОКСИС', jbl: '🔊 JBLКА', sunstrike: '☀️ АНДРЕЙ САНСТРАЙК',
@@ -1225,6 +1361,7 @@ export class Game {
     const spec = charSpec(this.charId);
     this.charSpd = spec.spd * (1 + (this.upg[this.charId]?.spd ?? 0) * 0.06);
     this.pushHud();
+    this.checkMedals(); // возможная медаль «Прокачан» (5/5/5/5 у любого бойца)
     return true;
   }
 
@@ -4841,6 +4978,10 @@ export class Game {
   start(): void {
     this.started = true;
     this.deathPlayed = false;
+    // забег засчитан (для медали «Завсегдатай»); чек — тут же, лениво и дёшево
+    this.mstats.runs++;
+    this.saveMStats();
+    this.checkMedals();
   }
 
   stop(): void {
@@ -5138,10 +5279,16 @@ export class Game {
 
   // удар по врагу: локальному — сразу HP и фраг, сетевому — картинка + заявка на сервер (HP считает сервер)
   private strikeEnemy(e: Enemy, dmg: number, dx: number, dz: number, d: number, push: number): void {
+    // всплывающая цифра урона (учитывает devDmg ниже; экранная точка — проекция головы)
+    const showNum = (shown: number, kill: boolean): void => {
+      const p = this.worldToScreen(e.g.position.x, (e.kind === 'fly' ? 3.2 : 1.4) + e.ey, e.g.position.z);
+      if (p) this.ev.onDmgNum?.(p.x, p.y, String(shown), kill);
+    };
     // мировой босс у гостя: урон считает сервер (мой слепок только картинка)
     if (e.wb && !this.bossHost) {
       this.ev.onNetHit?.(777, Math.round(dmg));
       this.burst(e.g.position.x, 1.2, e.g.position.z, 4);
+      showNum(Math.round(dmg), false);
       return;
     }
     // панель разработчика: бесконечный урон — сносит всё с одного удара
@@ -5156,10 +5303,25 @@ export class Game {
       this.burst(e.g.position.x, 1.2, e.g.position.z, 6);
       this.updateHpBar(e);
       this.ev.onNetHit?.(e.mobId, Math.round(dmg));
+      showNum(Math.round(dmg), false);
       return;
+    }
+    // DOT-доты (облако/воронка) зовут сюда уже с hp<=0 — добивку не нумеруем
+    if (e.hp > 0) {
+      const kill = e.hp - dmg <= 0;
+      showNum(Math.min(Math.round(dmg), Math.max(1, Math.ceil(e.hp))), kill);
     }
     e.hp -= dmg;
     this.afterHit(e, dx, dz, d, push);
+  }
+
+  /** Мировая точка → экранные px (для цифр урона); null, если за камерой. */
+  private worldToScreen(x: number, y: number, z: number): { x: number; y: number } | null {
+    const v = new THREE.Vector3(x, y, z).project(this.camera);
+    if (v.z > 1) return null; // за дальней плоскостью
+    const w = this.renderer.domElement.clientWidth || window.innerWidth;
+    const h = this.renderer.domElement.clientHeight || window.innerHeight;
+    return { x: Math.round((v.x * 0.5 + 0.5) * w), y: Math.round((-v.y * 0.5 + 0.5) * h) };
   }
 
   // общий итог попадания: отброс, полоса HP, частицы, фраг
@@ -5188,14 +5350,28 @@ export class Game {
       if (this.charId === 'sunstrike' && !this.sunNoCharge) this.sunCharge = Math.min(15, this.sunCharge + 1);
       // за босса кубков нет: награда — доля пула 7000 фантиков по урону за спавн.
       // соло — всё моё сразу; в комнате делит серверная таблица (награждает App).
+      // НЕБОССЫ: фраг в комбо (+1, таймер 3с) и награда ×comboMultOf (см. comboMultOf).
+      let gained = 0;
       if (e.kind === 'boss') {
         if (this.map === 'boss' && !this.wbExt) this.addFantiki(this.wbMyShare() || this.wbPool);
+        this.mstats.bossKills++;
       } else {
-        this.score += 100 + e.ewave * 10;
-        this.fantiki += 10;
+        this.combo++;
+        this.comboT = COMBO_TTL;
+        if (this.combo > this.comboMax) this.comboMax = this.combo;
+        if (this.combo > this.mstats.combo) this.mstats.combo = this.combo;
+        const mult = comboMultOf(this.combo);
+        gained = Math.round((100 + e.ewave * 10) * mult);
+        this.score += gained;
+        this.fantiki += Math.round(10 * mult);
       }
+      this.mstats.kills++;
+      this.saveMStats();
       this.addXp(e.kind === 'boss' ? 100 : 10);
       this.saveShop();
+      this.pushHud();
+      this.checkMedals();
+      this.ev.onKillFeed?.(killFeedLabel(e.kind) + (gained > 0 ? ` · +${gained}` : ''), true);
       if (!e.net) {
         this.deadLog.push({ id: e.mobId, kind: e.kind, x: Math.round(e.g.position.x * 10) / 10, z: Math.round(e.g.position.z * 10) / 10, hp: 0, dead: true, wave: e.ewave });
         if (this.deadLog.length > 24) this.deadLog.splice(0, this.deadLog.length - 24);
@@ -5222,6 +5398,9 @@ export class Game {
       this.hp = Math.min(this.maxhp, this.hp + 25);
       this.fantiki += 25;
       this.addXp(50);
+      this.mstats.waveBest = Math.max(this.mstats.waveBest, this.wave);
+      this.saveMStats();
+      this.checkMedals();
       this.saveShop();
       this.spawnWave();
     }
@@ -6820,12 +6999,30 @@ export class Game {
     this.scene.remove(e.g);
     if (!reward) { this.pushHud(); return true; }
     this.kills++;
-    this.score += e.kind === 'boss' ? 500 + e.ewave * 10 : 100 + e.ewave * 10;
-    this.fantiki += e.kind === 'boss' ? 100 : 10;
+    this.mstats.kills++;
+    let gained = 0;
+    if (e.kind === 'boss') {
+      this.score += 500 + e.ewave * 10;
+      this.fantiki += 100;
+      this.mstats.bossKills++;
+    } else {
+      // сетевой фраг идёт в то же комбо, что и локальный
+      this.combo++;
+      this.comboT = COMBO_TTL;
+      if (this.combo > this.comboMax) this.comboMax = this.combo;
+      if (this.combo > this.mstats.combo) this.mstats.combo = this.combo;
+      const mult = comboMultOf(this.combo);
+      gained = Math.round((100 + e.ewave * 10) * mult);
+      this.score += gained;
+      this.fantiki += Math.round(10 * mult);
+    }
+    this.saveMStats();
     this.addXp(e.kind === 'boss' ? 100 : 10);
     this.saveShop();
     this.pushHud();
     this.drawMM();
+    this.checkMedals();
+    this.ev.onKillFeed?.(killFeedLabel(e.kind) + (gained > 0 ? ` · +${gained}` : ''), true);
     return true;
   }
 
@@ -7184,6 +7381,8 @@ export class Game {
       merapLaser: Math.round(this.merapLaserT * 100) / 100,
       fps: Math.round(this.fpsE),
       doorPulse: this.doorPulse,
+      combo: this.combo,
+      comboMult: comboMultOf(this.combo),
     });
   }
 
@@ -7463,6 +7662,14 @@ export class Game {
 
   debugAttack(): number { return this.attack(); }
   debugHp(): number { return Math.round(this.hp); }
+  /** Комбо для тестов: счётчик, множитель, остаток таймера (с), рекорд. */
+  debugCombo(): { n: number; mult: number; t: number; max: number } {
+    return { n: this.combo, mult: comboMultOf(this.combo), t: Math.round(this.comboT * 10) / 10, max: this.comboMax };
+  }
+  /** Счёт и фраги для тестов (HUD-строка: 💀 kills · 🏆 score). */
+  debugScore(): { score: number; kills: number } {
+    return { score: this.score, kills: this.kills };
+  }
   debugGive(n: number): number { this.fantiki += n; this.saveShop(); this.pushHud(); return this.fantiki; }
   debugHurt(n: number): number {
     if (!this.started || this.dead) return Math.round(this.hp);
@@ -7610,6 +7817,15 @@ export class Game {
     this.syncHit();
     // Лорд Мерап: кд, окно наведения с окружностями, луч (гаснет сам, если мёртв)
     this.syncMerap(dt);
+    // Комбо: таймер без фрага истёк — множитель гаснет; урон по себе (hp упал
+    // относительно прошлого шага) ломает сразу. comboHp обновляем всегда — и в
+    // меню, и на паузе, иначе первый кадр после возрождения сочтёт разницу уроном.
+    if (this.comboT > 0) {
+      this.comboT -= dt;
+      if (this.comboT <= 0) { this.comboT = 0; if (this.combo > 0) { this.combo = 0; this.pushHud(); } }
+    }
+    if (this.hp < this.comboHp - 0.01 && this.combo > 0) { this.combo = 0; this.comboT = 0; this.pushHud(); }
+    this.comboHp = this.hp;
     // Бой и движение — живым; НАБЛЮДАТЕЛЬ (и мёртвый тоже) идёт здесь же:
     // в наблюдатели попадают именно мёртвыми, а полёт/камера/следование живут ниже.
     // Защита от трупных артефактов — внутри: attack/jump/абилки/урон проверяют specOn/dead сами.
@@ -8011,6 +8227,9 @@ export class Game {
         const dd = Math.hypot(ddx, ddz);
         if (dd < 1.4 && ddx * this.doorFace.x + ddz * this.doorFace.z > -0.3) {
           this.escapedFired = true;
+          this.mstats.escapes++;
+          this.saveMStats();
+          this.checkMedals();
           try { this.ev.onEscape?.(); } catch { /* noop */ }
         }
       }

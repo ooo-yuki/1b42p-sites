@@ -34,6 +34,18 @@ db.run(`CREATE TABLE IF NOT EXISTS duel_top (
   login TEXT PRIMARY KEY,
   wins INTEGER NOT NULL DEFAULT 0
 )`);
+// медали-достижения: id из белого списка клиента (MEDALS в engine.ts), один раз на логин
+db.run(`CREATE TABLE IF NOT EXISTS medals (
+  login TEXT NOT NULL,
+  id TEXT NOT NULL,
+  ts INTEGER NOT NULL,
+  PRIMARY KEY (login, id)
+)`);
+/** Белый список медалей клиента — чужие id в таблицу не пишем. */
+const MEDAL_IDS = new Set([
+  'first_kill', 'kills100', 'kills1000', 'wave5', 'wave10', 'wave25', 'wave50',
+  'combo5', 'boss_kill', 'escape', 'case10', 'rare_pull', 'allchars', 'maxupg', 'runs25',
+]);
 // промокоды: кто какой код уже забрал (один код — один раз на логин)
 db.run(`CREATE TABLE IF NOT EXISTS promo_redeems (
   login TEXT NOT NULL,
@@ -390,7 +402,7 @@ function duelSpawn(i: number): { x: number; z: number; yaw: number } {
 async function roomsApi(req: Request): Promise<Response | null> {
   const u = new URL(req.url);
   const p = u.pathname;
-  if (!p.startsWith('/api/rooms') && !p.startsWith('/api/register') && !p.startsWith('/api/login') && !p.startsWith('/api/me') && !p.startsWith('/api/profile') && !p.startsWith('/api/password') && !p.startsWith('/api/promo') && !p.startsWith('/api/admin') && !p.startsWith('/api/stats') && !p.startsWith('/api/dev') && !p.startsWith('/api/maintenance')) return null;
+  if (!p.startsWith('/api/rooms') && !p.startsWith('/api/register') && !p.startsWith('/api/login') && !p.startsWith('/api/me') && !p.startsWith('/api/profile') && !p.startsWith('/api/medal') && !p.startsWith('/api/password') && !p.startsWith('/api/promo') && !p.startsWith('/api/admin') && !p.startsWith('/api/stats') && !p.startsWith('/api/dev') && !p.startsWith('/api/maintenance')) return null;
   const parts = p.split('/').filter(Boolean); // ['api','rooms', id?, action?]
 
   // ---- аккаунты ----
@@ -424,10 +436,25 @@ async function roomsApi(req: Request): Promise<Response | null> {
       const row = db.query(
         'SELECT COUNT(*) AS games, MAX(score) AS best, COALESCE(SUM(coins),0) AS coins FROM scores WHERE login = ?',
       ).get(login) as { games: number; best: number | null; coins: number };
-      return Response.json({ login, games: row.games ?? 0, best: row.best ?? 0, coins: row.coins ?? 0 });
+      const medals = (db.query('SELECT id FROM medals WHERE login = ? ORDER BY ts').all(login) as Array<{ id: string }>).map((m) => m.id);
+      // дуэлянт — серверная медаль: победа в дуэли уже в duel_top
+      const duel = db.query('SELECT wins FROM duel_top WHERE login = ?').get(login) as { wins: number } | null;
+      if (duel && duel.wins >= 1) medals.push('duelist');
+      return Response.json({ login, games: row.games ?? 0, best: row.best ?? 0, coins: row.coins ?? 0, medals });
     } catch {
-      return Response.json({ login, games: 0, best: 0, coins: 0 });
+      return Response.json({ login, games: 0, best: 0, coins: 0, medals: [] as string[] });
     }
+  }
+  // выдать медаль (клиент после логина шлёт свои: INSERT OR IGNORE, белый список)
+  if (p === '/api/medal' && req.method === 'POST') {
+    let body: Record<string, unknown> = {};
+    try { body = await req.json() as Record<string, unknown>; } catch { return Response.json({ error: 'bad' }, { status: 400 }); }
+    const login = loginByToken(body.token);
+    if (!login) return Response.json({ error: 'nouser' }, { status: 401 });
+    const id = String(body.id ?? '');
+    if (!MEDAL_IDS.has(id)) return Response.json({ error: 'badid' }, { status: 400 });
+    try { db.run('INSERT OR IGNORE INTO medals (login, id, ts) VALUES (?, ?, ?)', [login, id, Date.now()]); } catch { /* уже есть */ }
+    return Response.json({ ok: true, id });
   }
   // смена пароля: нужен живой токен + старый пароль
   if (p === '/api/password' && req.method === 'POST') {
@@ -458,6 +485,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     db.run('UPDATE sessions SET login = ? WHERE login = ?', [next, login]);
     db.run('UPDATE duel_top SET login = ? WHERE login = ?', [next, login]);
     db.run('UPDATE promo_redeems SET login = ? WHERE login = ?', [next, login]);
+    try { db.run('UPDATE medals SET login = ? WHERE login = ?', [next, login]); } catch { /* таблицы ещё нет */ }
     try { db.run('UPDATE scores SET login = ? WHERE login = ?', [next, login]); } catch { /* старый сейв без колонки */ }
     return Response.json({ ok: true, login: next });
   }
@@ -614,6 +642,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
     db.run('DELETE FROM sessions WHERE login = ?', [target]);
     db.run('DELETE FROM promo_redeems WHERE login = ?', [target]);
     db.run('DELETE FROM duel_top WHERE login = ?', [target]);
+    try { db.run('DELETE FROM medals WHERE login = ?', [target]); } catch { /* таблицы ещё нет */ }
     db.run('DELETE FROM ip_log WHERE login = ?', [target]);
     db.run('DELETE FROM users WHERE login = ?', [target]);
     // выкинуть из комнат
