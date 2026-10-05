@@ -768,7 +768,7 @@ async function loadStats(): Promise<void> {
   };
   /** Отдать открытую медаль серверу (после логина; гость молча пропускает). */
   const pushMedal = async (id: string): Promise<void> => {
-    if (!id) return;
+    if (!id || !token()) return; // гость: серверу нечего, 401 не нужен
     try {
       await fetch('/api/medal', {
         method: 'POST',
@@ -982,6 +982,7 @@ async function loadStats(): Promise<void> {
 
   /** Отдать открытые локально медали серверу (синк гостей после входа). */
   const syncMedals = useCallback(async (): Promise<void> => {
+    if (!token()) return;
     const ids = gameRef.current?.medalIds() ?? [];
     for (const id of ids) {
       try {
