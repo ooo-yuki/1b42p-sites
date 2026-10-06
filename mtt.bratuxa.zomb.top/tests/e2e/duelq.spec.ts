@@ -13,6 +13,46 @@ async function guestOnDuel(page: Page, nick: string): Promise<void> {
   await expect(page.locator('#goBtn')).toContainText('В ДУЭЛЬ');
 }
 
+interface IntroSnap {
+  title: string; go: string; foeNick: string; foeUpg: string; meNick: string; meUpg: string;
+  foeY: number; meY: number; find: boolean;
+}
+
+/** Интро живёт всего 3с, а вторая страница в это время грузит карту и тормозит рендер —
+    поэтому карточки пишем в момент первого рендера через MutationObserver, а не щёлкаем
+    по локаторам (иначе проверки не укладываются в окно и интро успевает уйти). */
+const armIntro = (p: Page) => p.evaluate(() => {
+  const w = window as unknown as { __introSnap?: IntroSnap | null };
+  w.__introSnap = null;
+  const y = (e: Element | null) => (e ? e.getBoundingClientRect().y : -1);
+  const obs = new MutationObserver(() => {
+    const title = document.querySelector('#duelIntroTitle');
+    const foe = document.querySelector('.dqCard.foe');
+    const me = document.querySelector('.dqCard.me');
+    if (!title || !foe || !me) return;
+    w.__introSnap = {
+      title: title.textContent ?? '',
+      go: document.querySelector('#duelGo')?.textContent ?? '',
+      foeNick: foe.querySelector('.dqNick')?.textContent ?? '',
+      foeUpg: foe.querySelector('.dqUpg')?.textContent ?? '',
+      meNick: me.querySelector('.dqNick')?.textContent ?? '',
+      meUpg: me.querySelector('.dqUpg')?.textContent ?? '',
+      foeY: y(foe), meY: y(me),
+      find: !!document.querySelector('#duelFind'),
+    };
+    obs.disconnect();
+  });
+  obs.observe(document.body, { childList: true, subtree: true, characterData: true });
+});
+
+async function readIntro(p: Page): Promise<IntroSnap> {
+  const h = await p.waitForFunction(
+    () => (window as unknown as { __introSnap?: IntroSnap | null }).__introSnap != null,
+    null, { timeout: 30000, polling: 100 },
+  );
+  return await h.jsonValue<IntroSnap>();
+}
+
 test('подбор дуэли: пара, интро с карточками и автостарт через 3с', async ({ page, browser }) => {
   test.setTimeout(240000);
   const errs: string[] = [];
@@ -26,39 +66,45 @@ test('подбор дуэли: пара, интро с карточками и �
 
   // A заходит первым: вместо соло на карте — экран поиска с кнопкой отмены
   await guestOnDuel(page, 'DuelA');
+  await armIntro(page);
   await page.click('#goBtn');
   await expect(page.locator('#duelFind')).toBeVisible();
   await expect(page.locator('#duelFindTitle')).toContainText('ПОИСК');
   await expect(page.locator('#duelCancel')).toBeVisible();
   await expect(page.locator('#menu')).toBeVisible();
 
-  // B заходит: его join сразу получает пару
+  // B заходит: его join сразу получает пару, интро показывается сразу
   await guestOnDuel(b, 'DuelB');
+  await armIntro(b);
   await b.click('#goBtn');
-  await expect(b.locator('#duelIntro')).toBeVisible({ timeout: 20000 });
-  await expect(b.locator('#duelFind')).toHaveCount(0);
+  const bSnap = await readIntro(b);
 
   // A узнаёт о паре на ближайшем поллинге (раз в 1.5с)
-  await expect(page.locator('#duelIntro')).toBeVisible({ timeout: 15000 });
+  const aSnap = await readIntro(page);
   await expect(page.locator('#duelFind')).toHaveCount(0);
-  await expect(page.locator('#duelIntroTitle')).toContainText('ПРОТИВНИК НАЙДЕН');
 
-  // карточки: враг сверху, ты снизу, у каждой своя строка прокачки как в меню бойца
-  const foeBox = await page.locator('.dqCard.foe').boundingBox();
-  const meBox = await page.locator('.dqCard.me').boundingBox();
-  expect(foeBox && meBox ? foeBox.y : 1e9).toBeLessThan(meBox ? meBox.y : -1e9);
-  await expect(page.locator('.dqCard.foe .dqNick')).toContainText('DuelB');
-  await expect(page.locator('.dqCard.me .dqNick')).toContainText('DuelA');
-  await expect(b.locator('.dqCard.foe .dqNick')).toContainText('DuelA');
-  await expect(b.locator('.dqCard.me .dqNick')).toContainText('DuelB');
-  for (const p of [page, b]) {
-    for (const cls of ['.dqCard.foe .dqUpg', '.dqCard.me .dqUpg']) {
-      await expect(p.locator(cls)).toContainText('🔧 ❤️×');
-      await expect(p.locator(cls)).toContainText('💪×');
-      await expect(p.locator(cls)).toContainText('💨×');
+  // оба экрана одинаковые: заголовок, отмена ушла, обратный отсчёт идёт
+  for (const [who, s] of [['DuelA', aSnap], ['DuelB', bSnap]] as Array<[string, IntroSnap]>) {
+    expect(s.title).toContain('ПРОТИВНИК НАЙДЕН');
+    expect(s.find).toBe(false);
+    expect(s.go).toContain('Старт через');
+    expect(s.meNick).toContain(who);
+    // строка прокачки — как в карточке бойца: ❤️💪💨 и эмодзи супера
+    for (const upg of [s.foeUpg, s.meUpg]) {
+      expect(upg).toContain('🔧');
+      expect(upg).toContain('❤️×');
+      expect(upg).toContain('💪×');
+      expect(upg).toContain('💨×');
     }
-    await expect(p.locator('#duelGo')).toContainText('Старт через');
   }
+
+  // карточки: враг сверху, ты снизу; соперники поменяны местами
+  expect(aSnap.foeY).toBeLessThan(aSnap.meY);
+  expect(bSnap.foeY).toBeLessThan(bSnap.meY);
+  expect(aSnap.foeNick).toContain('DuelB');
+  expect(aSnap.meNick).toContain('DuelA');
+  expect(bSnap.foeNick).toContain('DuelA');
+  expect(bSnap.meNick).toContain('DuelB');
 
   // автостарт: интро живёт 3с, потом оба уходят в бой сами
   await expect(page.locator('#menu')).toHaveCount(0, { timeout: 30000 });
