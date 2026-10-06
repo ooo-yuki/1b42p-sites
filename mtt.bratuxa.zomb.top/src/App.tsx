@@ -453,6 +453,9 @@ function EditorPreview({ grid, size }: { grid: number[][]; size: number }) {
   );
 }
 
+/** Эмодзи супера по бойцу — как в карточке прокачки (для плашек дуэли). */
+const SUP_EMOJI: Record<string, string> = { mtt: '⚡', krysa: '🌀', shuba: '👻', chuma: '🦠', gidroxis: '🔍', sunstrike: '☀️', arbuz: '🌪️', utug: '💥', jbl: '🔊', merap: '💜' };
+
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const joyRef = useRef<HTMLDivElement>(null);
@@ -1939,6 +1942,105 @@ async function loadStats(): Promise<void> {
     return () => window.clearInterval(t);
   }, [menu, roomId, go]);
 
+  // ---- подбор дуэли: очередь на сервере, пара → тёмное интро 3с → сами в бой ----
+  interface DQCard { nick: string; char: string; upg: UpgState }
+  interface DQOut {
+    qid: string; status: 'waiting' | 'matched';
+    roomId?: string; sid?: string; spawn?: { x: number; z: number; yaw: number };
+    seed?: number; owner?: boolean; foe?: DQCard;
+  }
+  /** непустой qid = идёт поиск; после находки обнуляется, а на экране интро */
+  const [duelQ, setDuelQ] = useState('');
+  const [duelIntro, setDuelIntro] = useState<{ foe: DQCard; me: DQCard } | null>(null);
+  const [duelCount, setDuelCount] = useState(3);
+  const goRef = useRef(go);
+  useEffect(() => { goRef.current = go; }, [go]);
+
+  /** Нашли пару: комната уже создана сервером — займём своё место и покажем интро. */
+  const enterDuel = useCallback((d: DQOut) => {
+    if (!d.roomId || !d.sid || !d.spawn || !d.foe) return;
+    const g = gameRef.current;
+    const myChar = g?.getChar() ?? 'mtt';
+    roomRef.current = { id: d.roomId, sid: d.sid, mode: 'duel' };
+    setRoomId(d.roomId);
+    setMapSeed((d.seed ?? 0) >>> 0);
+    // новая комната — новый чат
+    chatRoom.current = d.roomId; chatLast.current = 0; setChatLog([]);
+    setRoomName('⚔️ ДУЭЛЬ 1×1');
+    setRoomMode('duel');
+    setMapChoice('duel');
+    spawnRef.current = d.spawn;
+    prevRound.current = 1;
+    setDuel(null);
+    duelRef.current = null;
+    setMates([]);
+    matesRef.current = [];
+    setIsOwner(!!d.owner);
+    setWaiting(false);
+    setLobby(null);
+    // автостарт из лобби не нужен: в бой пойдём сами после интро
+    startedRef.current = true;
+    setDuelQ('');
+    setDuelIntro({ foe: d.foe, me: { nick: nickRef.current, char: myChar, upg: g?.upgOf(myChar) ?? { hp: 0, dmg: 0, spd: 0, sup: 0 } } });
+    setDuelCount(3);
+  }, []);
+
+  /** Клик «⚔️ В ДУЭЛЬ»: вместо соло на карте — в очередь подбора. */
+  const duelFind = useCallback(async () => {
+    const g = gameRef.current;
+    const myChar = g?.getChar() ?? 'mtt';
+    try {
+      const r = await fetch('/api/duelq', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'join', nick: nickRef.current, char: myChar, upg: g?.upgOf(myChar) ?? {}, token: token() }),
+      });
+      if (!r.ok) return;
+      const d = (await r.json()) as DQOut;
+      setDuelQ(d.qid);
+      if (d.status === 'matched') enterDuel(d);
+    } catch { /* noop */ }
+  }, [enterDuel]);
+
+  /** Отмена поиска: уходим из очереди, в меню остаёмся. */
+  const duelCancel = useCallback(async () => {
+    setDuelQ('');
+    try {
+      await fetch('/api/duelq', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'leave', nick: nickRef.current, token: token() }),
+      });
+    } catch { /* noop */ }
+  }, []);
+
+  // поллинг: ждём пару; сервер ответил 404 — запись протухла, поиск прерван
+  useEffect(() => {
+    if (!duelQ || duelIntro) return;
+    let dead = false;
+    const t = window.setInterval(async () => {
+      try {
+        const r = await fetch(`/api/duelq?qid=${encodeURIComponent(duelQ)}`);
+        if (dead) return;
+        if (r.status === 404) { setDuelQ(''); return; }
+        if (!r.ok) return;
+        const d = (await r.json()) as DQOut;
+        if (d.status === 'matched') enterDuel(d);
+      } catch { /* noop */ }
+    }, 1500);
+    return () => { dead = true; window.clearInterval(t); };
+  }, [duelQ, duelIntro, enterDuel]);
+
+  // интро: тёмный экран с карточками 3с, потом сами в бой (goRef — свежий замыкание)
+  useEffect(() => {
+    if (!duelIntro) return;
+    setDuelCount(3);
+    let n = 3;
+    const tick = window.setInterval(() => { n -= 1; setDuelCount(Math.max(0, n)); }, 1000);
+    const t = window.setTimeout(() => { setDuelIntro(null); goRef.current(); }, 3000);
+    return () => { window.clearInterval(tick); window.clearTimeout(t); };
+  }, [duelIntro]);
+
   // админка открыта — обновляем онлайн каждые 2 секунды
   useEffect(() => {
     if (!adminOpen || admin === null) return;
@@ -2933,8 +3035,14 @@ async function loadStats(): Promise<void> {
             <button id="goBtn" disabled title="Ждём старта от создателя">⏳ ЖДУ СТАРТА…</button>
           ) : !authed ? (
             <button id="goBtn" disabled title="Сначала войди или жми «ИГРАТЬ ГОСТЕМ»">🔐 СНАЧАЛА ВОЙДИ</button>
+          ) : duelQ ? (
+            <button id="goBtn" disabled title="Ищем соперника — можешь отменить">🔍 ПОИСК ПРОТИВНИКА…</button>
           ) : (
-            <button id="goBtn" onClick={go}>{(() => { const gm = roomId ? roomMode : mapChoice; return gm === 'duel' ? '⚔️ В ДУЭЛЬ' : gm === 'backrooms' ? '🟨 В БЭКРУМС' : gm === 'pvp' ? '⚔️ В PvP-БОЙ' : gm === 'endless' ? '♾️ В БЕСКОНЕЧНЫЙ' : gm === 'invasion' ? '🌊 В НАШЕСТВИЕ' : gm === 'custom' ? '🧩 НА СВОЮ' : gm === 'random' ? '🎲 НА СЛУЧАЙНУЮ' : '▶️ ПОГНАЛИ'; })()}</button>
+            <button id="goBtn" onClick={() => {
+              const gm = roomId ? roomMode : mapChoice;
+              if (!roomId && gm === 'duel') { void duelFind(); return; }
+              void go();
+            }}>{(() => { const gm = roomId ? roomMode : mapChoice; return gm === 'duel' ? '⚔️ В ДУЭЛЬ' : gm === 'backrooms' ? '🟨 В БЭКРУМС' : gm === 'pvp' ? '⚔️ В PvP-БОЙ' : gm === 'endless' ? '♾️ В БЕСКОНЕЧНЫЙ' : gm === 'invasion' ? '🌊 В НАШЕСТВИЕ' : gm === 'custom' ? '🧩 НА СВОЮ' : gm === 'random' ? '🎲 НА СЛУЧАЙНУЮ' : '▶️ ПОГНАЛИ'; })()}</button>
           )}
           </div>
           </div>
@@ -3429,6 +3537,35 @@ async function loadStats(): Promise<void> {
               </>
             )}
           </div>
+        </div>
+      )}
+      {/* подбор дуэли: ожидание пары и тёмное интро перед стартом (только в меню) */}
+      {menu && duelQ && !duelIntro && (
+        <div id="duelFind">
+          <div id="duelFindTitle">🔍 ПОИСК ПРОТИВНИКА</div>
+          <div id="duelFindSub">⚔️ Дуэль 1×1 · ждём соперника</div>
+          <div id="duelFindSpin">⚔️</div>
+          <div id="duelFindHint">Можно ждать сколько угодно</div>
+          <button id="duelCancel" className="wbtn" onClick={() => { void duelCancel(); }}>✕ ОТМЕНА</button>
+        </div>
+      )}
+      {menu && duelIntro && (
+        <div id="duelIntro">
+          <div id="duelIntroTitle">⚔️ ПРОТИВНИК НАЙДЕН</div>
+          <div id="duelCards">
+            <div className="dqCard foe">
+              <img className="dqFace" src={CHARIMG[duelIntro.foe.char] ?? CHARIMG.mtt} alt="" />
+              <div className="dqNick">🎯 {duelIntro.foe.nick}</div>
+              <div className="dqUpg">🔧 ❤️×{duelIntro.foe.upg.hp} 💪×{duelIntro.foe.upg.dmg} 💨×{duelIntro.foe.upg.spd} {SUP_EMOJI[duelIntro.foe.char] ?? '🌀'}×{duelIntro.foe.upg.sup}</div>
+            </div>
+            <div id="duelVs">VS</div>
+            <div className="dqCard me">
+              <img className="dqFace" src={CHARIMG[duelIntro.me.char] ?? CHARIMG.mtt} alt="" />
+              <div className="dqNick">😎 {duelIntro.me.nick}</div>
+              <div className="dqUpg">🔧 ❤️×{duelIntro.me.upg.hp} 💪×{duelIntro.me.upg.dmg} 💨×{duelIntro.me.upg.spd} {SUP_EMOJI[duelIntro.me.char] ?? '🌀'}×{duelIntro.me.upg.sup}</div>
+            </div>
+          </div>
+          <div id="duelGo">Старт через <b>{duelCount}</b>…</div>
         </div>
       )}
       {/* Технический перерыв: fullscreen-блок для всех без DEV-доступа, в любом месте сайта */}

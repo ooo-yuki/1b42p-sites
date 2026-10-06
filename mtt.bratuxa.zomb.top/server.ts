@@ -227,7 +227,7 @@ const BOSS_MAXHP = 3500;
 const BOSS_RESPAWN_MS = 30 * 60 * 1000;
 /** Жизнь босса после появления, мс (30 минут): не убили — спавн заново, награды нет. */
 const BOSS_LIFE_MS = 30 * 60 * 1000;
-interface Room { id: string; name: string; mode: 'arena' | 'duel' | 'backrooms' | 'pvp' | 'endless' | 'invasion' | 'szeged' | 'boss'; created: number; /** Сид карты бэкрумса: один на всех в комнате, новый на каждую комнату/рестарт. */ seed: number; /** TTL-рестарт сек (0 = без рестарта) */ ttlSec: number; /** официальная комната батальона — живёт всегда, рестарт сбрасывает игру на месте */ official: boolean; round: number; lastWinner: string; owner: string; started: boolean; players: Map<string, Member>; pending: Map<string, Member>; chat: ChatMsg[]; mobs: Map<number, Mob>; mobHost: string; /** тихий вылет: ключ→когда ушёл (грейс-возврат без заявки) */ gone: Map<string, number>; /** кик = бан: ключ→до когда нельзя */ banned: Map<string, number>; /** выбрались через дверь: ключ→когда (до рестарта только наблюдатели) */ escaped: Map<string, number>; /** мировой босс: жив ли, раунд (растёт на каждый респаун), когда следующий, кто умер и ждёт респауна */ bossAlive: boolean; bossRound: number; bossNext: number; bossOut: Map<string, number>; /** когда босс появился (мс): через 30 мин без убийства — спавн заново без награды */ bossBorn: number; /** урон по боссу за спавн: ключ→ник/логин/урон (награда 7000 фантиков) */ bossDmg: Map<string, { nick: string; login: string; dmg: number }>; }
+interface Room { id: string; name: string; mode: 'arena' | 'duel' | 'backrooms' | 'pvp' | 'endless' | 'invasion' | 'szeged' | 'boss'; created: number; /** Сид карты бэкрумса: один на всех в комнате, новый на каждую комнату/рестарт. */ seed: number; /** TTL-рестарт сек (0 = без рестарта) */ ttlSec: number; /** официальная комната батальона — живёт всегда, рестарт сбрасывает игру на месте */ official: boolean; round: number; lastWinner: string; owner: string; started: boolean; players: Map<string, Member>; pending: Map<string, Member>; chat: ChatMsg[]; mobs: Map<number, Mob>; mobHost: string; /** тихий вылет: ключ→когда ушёл (грейс-возврат без заявки) */ gone: Map<string, number>; /** кик = бан: ключ→до когда нельзя */ banned: Map<string, number>; /** выбрались через дверь: ключ→когда (до рестарта только наблюдатели) */ escaped: Map<string, number>; /** мировой босс: жив ли, раунд (растёт на каждый респаун), когда следующий, кто умер и ждёт респауна */ bossAlive: boolean; bossRound: number; bossNext: number; bossOut: Map<string, number>; /** когда босс появился (мс): через 30 мин без убийства — спавн заново без награды */ bossBorn: number; /** урон по боссу за спавн: ключ→ник/логин/урон (награда 7000 фантиков) */ bossDmg: Map<string, { nick: string; login: string; dmg: number }>; /** комнаты из подбора дуэли: не показывать в списке (входят только по паре из очереди) */ mq?: boolean; }
 const rooms = new Map<string, Room>();
 const STALE_MS = 12000;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -383,7 +383,7 @@ function ensureOfficial(): void {
 }
 
 function cleanChar(v: unknown): string {
-  return v === 'krysa' ? 'krysa' : v === 'shuba' ? 'shuba' : v === 'chuma' ? 'chuma' : v === 'gidroxis' ? 'gidroxis' : v === 'sunstrike' ? 'sunstrike' : 'mtt';
+  return v === 'krysa' || v === 'shuba' || v === 'chuma' || v === 'gidroxis' || v === 'sunstrike' || v === 'arbuz' || v === 'utug' || v === 'jbl' || v === 'merap' ? String(v) : 'mtt';
 }
 
 function pubList(m: Member): object {
@@ -399,10 +399,52 @@ function duelSpawn(i: number): { x: number; z: number; yaw: number } {
   return i % 2 === 1 ? { x: 0, z: -20, yaw: Math.PI } : { x: 0, z: 20, yaw: 0 };
 }
 
+/** Участник дуэли из очереди подбора: спавн по индексу (0 — первый, 1 — второй). */
+function duelMember(sid: string, nick: string, login: string, char: string, spawnIdx: number): Member {
+  const sp = duelSpawn(spawnIdx);
+  return { sid, nick, login, char, x: sp.x, z: sp.z, yaw: sp.yaw, hp: 100, score: 0, kills: 0, wave: 1, weapon: 'fists', py: 0, atk: 0, dead: false, duelHp: 100, wins: 0, spawnIdx, frags: 0, spec: false, specTarget: '', respawn: null, ts: Date.now() };
+}
+
+/** ---- Подбор дуэли 1×1: очередь ждущих + комната, когда нажали двое ---- */
+interface DuelQUpg { hp: number; dmg: number; spd: number; sup: number }
+interface DuelQEntry {
+  qid: string; key: string; nick: string; login: string; char: string; upg: DuelQUpg;
+  /** последний поллинг клиента: без него запись уходит (вкладку закрыли) */
+  ts: number;
+  sid: string;
+  /** пусто, пока не нашли пару; после находки — комната и соперник */
+  roomId: string;
+  spawn: { x: number; z: number; yaw: number } | null;
+  foe: { nick: string; char: string; upg: DuelQUpg } | null;
+}
+const duelQueue = new Map<string, DuelQEntry>();
+/** Запись без поллинга живёт столько: закрытая/умершая вкладка сама уходит из подбора. */
+const DUELQ_STALE_MS = 20000;
+
+function duelQPrune(): void {
+  const now = Date.now();
+  for (const [qid, e] of duelQueue) if (now - e.ts > DUELQ_STALE_MS) duelQueue.delete(qid);
+}
+
+function cleanUpg(v: unknown): DuelQUpg {
+  const o = (v ?? {}) as Partial<DuelQUpg>;
+  const n = (x: unknown): number => Math.max(0, Math.min(5, Math.floor(Number(x) || 0)));
+  return { hp: n(o.hp), dmg: n(o.dmg), spd: n(o.spd), sup: n(o.sup) };
+}
+
+function duelQOut(e: DuelQEntry): object {
+  if (e.roomId && e.foe && e.spawn) {
+    const r = rooms.get(e.roomId);
+    // каждому — своя сторона: spawn/owner свои, foe — карточка соперника
+    return { qid: e.qid, status: 'matched', roomId: e.roomId, sid: e.sid, spawn: e.spawn, seed: r?.seed ?? 0, owner: !!r && r.owner === e.sid, foe: e.foe };
+  }
+  return { qid: e.qid, status: 'waiting' };
+}
+
 async function roomsApi(req: Request): Promise<Response | null> {
   const u = new URL(req.url);
   const p = u.pathname;
-  if (!p.startsWith('/api/rooms') && !p.startsWith('/api/register') && !p.startsWith('/api/login') && !p.startsWith('/api/me') && !p.startsWith('/api/profile') && !p.startsWith('/api/medal') && !p.startsWith('/api/password') && !p.startsWith('/api/promo') && !p.startsWith('/api/admin') && !p.startsWith('/api/stats') && !p.startsWith('/api/dev') && !p.startsWith('/api/maintenance')) return null;
+  if (!p.startsWith('/api/rooms') && !p.startsWith('/api/register') && !p.startsWith('/api/login') && !p.startsWith('/api/me') && !p.startsWith('/api/profile') && !p.startsWith('/api/medal') && !p.startsWith('/api/duelq') && !p.startsWith('/api/password') && !p.startsWith('/api/promo') && !p.startsWith('/api/admin') && !p.startsWith('/api/stats') && !p.startsWith('/api/dev') && !p.startsWith('/api/maintenance')) return null;
   const parts = p.split('/').filter(Boolean); // ['api','rooms', id?, action?]
 
   // ---- аккаунты ----
@@ -699,12 +741,72 @@ async function roomsApi(req: Request): Promise<Response | null> {
     }
   }
 
+  // ---- подбор дуэли 1×1: POST join/leave, GET ?qid= (поллинг) ----
+  if (p === '/api/duelq') {
+    duelQPrune();
+    if (req.method === 'GET') {
+      const qid = String(u.searchParams.get('qid') ?? '');
+      const e = duelQueue.get(qid);
+      if (!e) return Response.json({ error: 'gone' }, { status: 404 });
+      e.ts = Date.now(); // поллинг = присутствие
+      return Response.json(duelQOut(e));
+    }
+    let b: Record<string, unknown> = {};
+    try { b = await req.json() as Record<string, unknown>; }
+    catch { return Response.json({ error: 'bad' }, { status: 400 }); }
+    const nick = cleanNick(b.nick);
+    const login = loginByToken(b.token);
+    const key = memberKey({ login, nick });
+    const act = String(b.action ?? '');
+    if (act === 'leave') {
+      for (const [q, e] of duelQueue) if (e.key === key) duelQueue.delete(q);
+      return Response.json({ ok: true });
+    }
+    // уже в очереди (повторный заход/свежий qid) — отдать существующую запись.
+    // Сматченные не трогаем: от них остаток живёт до чистки (20с), иначе
+    // быстрый повторный поиск после боя увёл бы игрока в старую комнату.
+    for (const [, e] of duelQueue) {
+      if (e.key === key && !e.roomId) { e.ts = Date.now(); return Response.json(duelQOut(e)); }
+    }
+    const entry: DuelQEntry = {
+      qid: newSid(), key, nick, login, char: cleanChar(b.char), upg: cleanUpg(b.upg),
+      ts: Date.now(), sid: newSid(), roomId: '', spawn: null, foe: null,
+    };
+    // пара: любой ждущий с другим ключом и без комнаты
+    let waiting: DuelQEntry | undefined;
+    for (const e of duelQueue.values()) if (!e.roomId && e.key !== key) { waiting = e; break; }
+    if (waiting) {
+      const id = newCode();
+      const room: Room = {
+        id, name: `⚔️ ${waiting.nick} vs ${nick}`, mode: 'duel', created: Date.now(), seed: newSeed(),
+        ttlSec: ttlFor('duel'), official: false, round: 1, lastWinner: '', owner: waiting.sid, started: false,
+        players: new Map(), pending: new Map(), chat: [], mobs: new Map(), mobHost: '', gone: new Map(),
+        banned: new Map(), escaped: new Map(), bossAlive: false, bossRound: 1, bossNext: 0, bossOut: new Map(),
+        bossBorn: Date.now(), bossDmg: new Map(), mq: true,
+      };
+      room.players.set(waiting.sid, duelMember(waiting.sid, waiting.nick, waiting.login, waiting.char, 0));
+      room.players.set(entry.sid, duelMember(entry.sid, entry.nick, entry.login, entry.char, 1));
+      rooms.set(id, room);
+      // каждому — своя сторона, карточка соперника
+      waiting.roomId = id; waiting.spawn = duelSpawn(0);
+      waiting.foe = { nick: entry.nick, char: entry.char, upg: entry.upg };
+      entry.roomId = id; entry.spawn = duelSpawn(1);
+      entry.foe = { nick: waiting.nick, char: waiting.char, upg: waiting.upg };
+      duelQueue.set(waiting.qid, waiting);
+      duelQueue.set(entry.qid, entry);
+      return Response.json(duelQOut(entry));
+    }
+    duelQueue.set(entry.qid, entry);
+    return Response.json(duelQOut(entry));
+  }
+
   if (req.method === 'GET' && parts.length === 2) {
     ensureOfficial();
     const out: object[] = [];
     for (const r of rooms.values()) {
       prune(r);
       if (checkExpiry(r) === 'gone') continue;
+      if (r.mq) continue; // подбор дуэли: пара видит только себя
       if (r.players.size === 0 && r.pending.size === 0 && !r.official) { rooms.delete(r.id); continue; }
       if (r.mode === 'szeged') { const ll = loginByToken(u.searchParams.get('token')); if (!visibleInList(ll, ll === devOwner())) continue; }
       if (r.mode === 'boss') bossTick(r);
