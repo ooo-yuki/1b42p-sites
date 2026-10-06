@@ -46,8 +46,12 @@ const armIntro = (p: Page) => p.evaluate(() => {
 });
 
 async function readIntro(p: Page): Promise<IntroSnap> {
+  // ждём именно снимок: waitForFunction отдаёт то, что вернула функция
   const h = await p.waitForFunction(
-    () => (window as unknown as { __introSnap?: IntroSnap | null }).__introSnap != null,
+    () => {
+      const v = (window as unknown as { __introSnap?: IntroSnap | null }).__introSnap;
+      return v == null ? undefined : v;
+    },
     null, { timeout: 30000, polling: 100 },
   );
   return await h.jsonValue<IntroSnap>();
