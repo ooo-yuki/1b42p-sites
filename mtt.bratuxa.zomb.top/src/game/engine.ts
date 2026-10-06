@@ -402,6 +402,13 @@ export interface RemotePlayer {
   py?: number;
   atk?: number;
   dead?: boolean;
+  /** последняя использованная способность: id, счётчик и точка/радиус применения —
+      по смене счётчика другие игроки показывают 3D-эффект на её месте */
+  sup?: string;
+  supSeq?: number;
+  supX?: number;
+  supZ?: number;
+  supR?: number;
 }
 
 interface Remote {
@@ -433,10 +440,27 @@ interface Remote {
   atk: number;
   flash: number;
   dead: boolean;
+  /** последняя чужая способность: id и счётчик (смена = сыграть эффект) + точка/радиус */
+  sup: string;
+  supSeq: number;
 }
 
 /** Ствол сокомнатника текстом: эмодзи всегда чёткие, без боксов фона. */
 const GUNEMOJI: Record<string, string> = { fists: '👊', bat: '🏏', axe: '🪓', pistol: '🔫', shotgun: '💥' };
+
+/** Чужой эффект способности в мире: кольцо/столб/купол/воронка/луч — живёт tot секунд. */
+interface SupFx {
+  kind: 'ring' | 'column' | 'dome' | 'vortex' | 'laser';
+  mesh: THREE.Object3D;
+  x: number;
+  z: number;
+  r: number;
+  /** прошло секунд от появления */
+  t: number;
+  tot: number;
+  /** задержка до появления (удар санстрайка — 0.5с) */
+  delay: number;
+}
 
 interface Enemy {
   g: THREE.Group;
@@ -841,6 +865,15 @@ export class Game {
   private remotes: Remote[] = [];
   /** Счётчик ударов для совместных комнат: каждый attack() +1, все видят замах. */
   private atk = 0;
+  /** Последняя моя способность: id, счётчик (растёт на каждом применении) и куда/с каким
+      радиусом — уходит в beat/presence, чтобы соперники показали эффект у себя. */
+  private supId = '';
+  private supSeq = 0;
+  private supX = 0;
+  private supZ = 0;
+  private supR = 0;
+  /** Сколько чужих способностей мы сыграли (для тестов). */
+  private supSeen = 0;
   private half: number = HALF;
   /** false, пока GLB карты грузится: волны и спавны ждут готовой геометрии,
       иначе мобы рождаются там, где через секунду окажутся стены. */
@@ -921,6 +954,8 @@ export class Game {
   private kickAirT = 0;
   // трассеры пуль: светящиеся линии выстрелов, живут долю секунды
   private tracers: Array<{ l: THREE.Line; life: number }> = [];
+  /** 3D-эффекты чужих способностей (кукольные, без урона): кольца, купола, лучи. */
+  private supFxA: SupFx[] = [];
   // живые пули: летят сами с гравитацией, у каждой свой хитбокс-шар r.
   // Вид — светящийся болт (видно хорошо) + белый еле видный след, хитбокс от вида не зависит.
   private bullets: Array<{ m: THREE.Mesh; glow: THREE.Sprite; trail: THREE.Line; hist: Array<[number, number, number]>; x: number; y: number; z: number; vx: number; vy: number; vz: number; g: number; dmg: number; range: number; flown: number; r: number; fallPow: number; knock: number; foe: boolean; from: Enemy | null }> = [];
@@ -4998,6 +5033,8 @@ export class Game {
     cancelAnimationFrame(this.raf);
     for (const r of this.remotes) this.scene.remove(r.g);
     this.remotes = [];
+    for (const f of this.supFxA) this.killSupFx(f);
+    this.supFxA = [];
     window.removeEventListener('resize', this.onResize);
     document.removeEventListener('visibilitychange', this.onVisible);
     this.canvas.removeEventListener('pointerdown', this.onPointerDown);
@@ -5042,16 +5079,11 @@ export class Game {
       this.strikeEnemy(e, W.dmg * this.dmgMul() + Math.random() * 8, dx, dz, d, 1.6);
       hits++;
     }
-    // PvP: ближний бой достаёт и игроков (конус тот же, урон считает сервер)
+    // PvP: ближний бой достаёт и игроков (попадание — луч против капсулы тела, урон считает сервер)
     if (this.map === 'pvp') {
       for (const r of this.remotes) {
         if (r.dead || r.fid < 0) continue;
-        const dx = r.x - this.px;
-        const dz = r.z - this.pz;
-        const d = Math.hypot(dx, dz);
-        if (d > W.range) continue;
-        const cos = (dx * fx + dz * fz) / (d || 1);
-        if (cos < 0.35) continue;
+        if (!this.aimHitsPlayer({ x: r.x, z: r.z, py: r.py }, W.range)) continue;
         this.hitRemote(r, W.dmg * this.dmgMul() + Math.random() * 8);
         hits++;
       }
@@ -5272,9 +5304,22 @@ export class Game {
     return { x: 0, z: 30 };
   }
 
-  /** Пульс присутствия для комнаты: ствол, высота, счётчик ударов, смерть. */
-  presence(): { weapon: string; py: number; atk: number; dead: boolean } {
-    return { weapon: this.weaponId, py: Math.round(this.py * 10) / 10, atk: this.atk, dead: this.dead };
+  /** Пульс присутствия для комнаты: ствол, высота, счётчик ударов, смерть + моя способность. */
+  presence(): { weapon: string; py: number; atk: number; dead: boolean; sup: string; supSeq: number; supX: number; supZ: number; supR: number } {
+    return {
+      weapon: this.weaponId, py: Math.round(this.py * 10) / 10, atk: this.atk, dead: this.dead,
+      sup: this.supId, supSeq: this.supSeq,
+      supX: Math.round(this.supX * 10) / 10, supZ: Math.round(this.supZ * 10) / 10, supR: Math.round(this.supR * 10) / 10,
+    };
+  }
+
+  /** Способность применена: запоминаем что/где и толкаем счётчик — остальные игроки увидят эффект. */
+  private supUsed(id: string, x = this.px, z = this.pz, r = 0): void {
+    this.supId = id;
+    this.supX = x;
+    this.supZ = z;
+    this.supR = r;
+    this.supSeq++;
   }
 
   // удар по врагу: локальному — сразу HP и фраг, сетевому — картинка + заявка на сервер (HP считает сервер)
@@ -5536,6 +5581,58 @@ export class Game {
     return dx * dx + dy * dy + dz * dz <= r * r;
   }
 
+  /** Отрезок полёта пули пересекает тело игрока (вертикальная капсула: полradius по горизонтали,
+      половина высоты half вокруг центра cy). Сфера тут не годится: она либо пускает мимо по бокам,
+      либо бьёт через голову/ноги — капсула повторяет силуэт бойца. */
+  private segHitsCapsule(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, cx: number, cy: number, cz: number, r: number, half: number): boolean {
+    const ax = x0 - cx, az = z0 - cz;
+    const bx = x1 - x0, bz = z1 - z0;
+    const ab2 = bx * bx + bz * bz;
+    // горизонтальное расстояние от отрезка до оси тела <= r: отрезок параметров [ta..tb]
+    let ta = 0, tb = 1;
+    if (ab2 > 0) {
+      const B = 2 * (ax * bx + az * bz);
+      const C = ax * ax + az * az - r * r;
+      const disc = B * B - 4 * ab2 * C;
+      if (disc < 0) return false;
+      const sq = Math.sqrt(disc);
+      ta = Math.max(0, (-B - sq) / (2 * ab2));
+      tb = Math.min(1, (-B + sq) / (2 * ab2));
+      if (ta > tb) return false;
+    } else if (ax * ax + az * az > r * r) return false;
+    // по вертикали y(t) линейна — хватает значений на концах интервала
+    const ya = y0 + (y1 - y0) * ta - cy, yb = y0 + (y1 - y0) * tb - cy;
+    const lo = -half, hi = half;
+    return (ya >= lo && ya <= hi) || (yb >= lo && yb <= hi) || (ya < lo ? yb > hi : ya > hi && yb < lo);
+  }
+
+  /** Строгое попадание прицела в игрока: луч из глаз (по yaw/pitch) должен пройти сквозь
+      капсулу тела цели в пределах оружейной дальности. Цель «где-то впереди» — не попадание:
+      раньше хитбоксом считался конус ~75° (мимо — всё равно урон) и шар 1.2м.
+      spread — допуск на разброс оружия (радианы; дробь веером), стена на пути не даёт попасть. */
+  aimHitsPlayer(foe: { x: number; z: number; py?: number }, range: number, spread = 0): boolean {
+    const cp = Math.cos(this.pitch);
+    const ox = this.px, oy = 1.7 + this.py, oz = this.pz;
+    const dx = -Math.sin(this.yaw) * cp, dy = Math.sin(this.pitch), dz = -Math.cos(this.yaw) * cp;
+    const cx = foe.x, cy = 1.0 + (foe.py ?? 0), cz = foe.z;
+    const vx = cx - ox, vy = cy - oy, vz = cz - oz;
+    const t = vx * dx + vy * dy + vz * dz;
+    if (t <= 0.2 || t > range + 0.5) return false;
+    const hx = ox + dx * t - cx, hy = oy + dy * t - cy, hz = oz + dz * t - cz;
+    // капсула: тело — вертикальный стержень полуострой ~1м; выше головы/ниже ног считаем боком
+    const vOff = Math.max(0, Math.abs(hy) - 1.0);
+    const d = vOff > 0 ? Math.hypot(Math.hypot(hx, hz), vOff) : Math.hypot(hx, hz);
+    // 0.5м — запас на опоздание бита (позиции цели приходят ~0.1с), растёт с дистанцией
+    if (d > 0.5 + spread * t + Math.min(0.35, t * 0.02)) return false;
+    // между нами стена (или земля на пути) — пуля не долетела
+    for (let s = 0.5; s < t; s += 0.5) {
+      const sx = ox + dx * s, sy = oy + dy * s, sz = oz + dz * s;
+      if (this.hitSolid(sx, sz, 0.15, sy)) return false;
+      if (sy <= this.groundAt(sx, sz) + 0.12) return false;
+    }
+    return true;
+  }
+
   /** Метатель: бутылка летит по дуге к точке (горизонталь зажата на 10м). */
   private spawnBottle(x: number, y: number, z: number, tx: number, tz: number): void {
     if (!this.bottleTex) {
@@ -5685,14 +5782,15 @@ export class Game {
             dead = true; break;
           }
         }
-        // PvP: пули встречают игроков (тем же отрезком)
-        if (pvpMode) {
+        // игроки: пуля встречает тело-капсулу (не шар 1.2м — мимо больше не «проходит»).
+        // PvP — урон серверу; дуэль — только вспышка и остановка пули (урон там ставит /hit).
+        if (pvpMode || this.map === 'duel') {
           for (const r of this.remotes) {
             if (r.dead || r.fid < 0) continue;
             const ty = 1.0 + (r.py || 0);
-            const rr = 0.9 + b.r;
-            if (!this.segHitsBall(x0, y0, z0, b.x, b.y, b.z, r.x, ty, r.z, rr)) continue;
-            this.hitRemote(r, b.dmg * fall * this.dmgMul() + Math.random() * 5);
+            if (!this.segHitsCapsule(x0, y0, z0, b.x, b.y, b.z, r.x, ty, r.z, 0.45 + b.r, 1.0)) continue;
+            if (pvpMode) this.hitRemote(r, b.dmg * fall * this.dmgMul() + Math.random() * 5);
+            else r.flash = 0.3;
             this.burst(b.x, b.y, b.z, 5);
             this.pushHud();
             this.drawMM();
@@ -5727,6 +5825,7 @@ export class Game {
     this.dashCd = superCd(this.charId, this.upg[this.charId]?.sup ?? 0);
     this.pvy = 0;
     this.burst(this.px, 0.4, this.pz, 12);
+    this.supUsed('mtt', this.px, this.pz, 4);
     this.pushHud();
     return true;
   }
@@ -5739,6 +5838,7 @@ export class Game {
     this.invisT = 3;
     this.invisCd = superCd('shuba', this.upg['shuba']?.sup ?? 0);
     this.burst(this.px, 0.4, this.pz, 12);
+    this.supUsed('shuba', this.px, this.pz, 0);
     this.pushHud();
     return true;
   }
@@ -5754,6 +5854,7 @@ export class Game {
     this.chumaT = 5;
     this.chumaCd = superCd('chuma', this.upg['chuma']?.sup ?? 0);
     this.burst(this.px, 0.8, this.pz, 16);
+    this.supUsed('chuma', this.px, this.pz, 9);
     this.pushHud();
     return true;
   }
@@ -5774,6 +5875,7 @@ export class Game {
     this.xrayT = 5;
     this.xrayCd = superCd('gidroxis', this.upg['gidroxis']?.sup ?? 0);
     this.burst(this.px, 1.2, this.pz, 12);
+    this.supUsed('gidroxis', this.px, this.pz, 0);
     this.pushHud();
     return true;
   }
@@ -5797,6 +5899,7 @@ export class Game {
     this.sunCd = superCd('sunstrike', this.upg['sunstrike']?.sup ?? 0);
     this.showSunRing(tgt.x, tgt.z, r);
     this.burst(this.px, 1.5, this.pz, 8);
+    this.supUsed('sunstrike', tgt.x, tgt.z, r);
     this.pushHud();
     return true;
   }
@@ -5830,6 +5933,7 @@ export class Game {
     this.arbuzT = 4;
     this.arbuzCd = superCd('arbuz', this.upg['arbuz']?.sup ?? 0);
     this.burst(p.x, 0.5, p.z, 18);
+    this.supUsed('arbuz', p.x, p.z, this.arbuzR);
     this.pushHud();
     return true;
   }
@@ -5857,6 +5961,7 @@ export class Game {
     this.merapApplyT = 0;
     this.merapShowMarks();
     this.burst(this.px, 1.2, this.pz, 14);
+    this.supUsed('merap', this.px, this.pz, 0);
     this.pushHud();
     return true;
   }
@@ -6053,6 +6158,8 @@ export class Game {
       this.merapSpin = 0;
       this.merapHideMarks();
       this.burst(cx, cy, cz, 12);
+      const mp = this.merapTargetPos();
+      this.supUsed('merapLaser', mp ? mp.x : this.px, mp ? mp.z : this.pz, 0);
       this.sfx(hitUrl);
       this.pushHud();
       return;
@@ -6146,6 +6253,7 @@ export class Game {
   private utugExplode(): void {
     const R = 6;
     const pow = superRange(this.upg['utug']?.sup ?? 0);
+    this.supUsed('utug', this.px, this.pz, R * pow);
     this.burst(this.px, 1, this.pz, 34);
     this.sfx(hitUrl);
     if (!this.utugRing) {
@@ -6219,6 +6327,7 @@ export class Game {
       e.repathT = 0.5;
       e.hurtT = 0.3;
     }
+    this.supUsed('jbl', this.px, this.pz, 12 * pow);
     this.pushHud();
     return true;
   }
@@ -6255,6 +6364,7 @@ export class Game {
         e.repathT = 0.3;
       }
     }
+    this.supUsed('jbl2', this.px, this.pz, 5 * pow);
     this.pushHud();
     return true;
   }
@@ -7479,6 +7589,175 @@ export class Game {
     return { x: last.x, z: last.z };
   }
 
+  /** Соперник применил способность (сменённый supSeq из beat): играем её 3D-эффект на точке
+      применения. Никаких своих состояний (урон, отброс, невидимость) — только картинка. */
+  private remoteSup(r: Remote, id: string, x: number, z: number, rad: number): void {
+    if (r.dead) return;
+    this.supSeen++;
+    const eyeY = 1.7 + r.py;
+    switch (id) {
+      case 'mtt': // рывок: брызги под ногами + полоса в сторону взгляда
+      case 'krysa': { // вол-кик: то же, длина — реальный отскок
+        this.burst(r.x, 0.5 + r.py, r.z, 14);
+        const dx = -Math.sin(r.yaw), dz = -Math.cos(r.yaw);
+        const len = rad > 0.5 ? rad : 2.5;
+        this.tracer(r.x, eyeY, r.z, r.x + dx * len, eyeY + 0.5, r.z + dz * len);
+        break;
+      }
+      case 'shuba': // несутка: облачко исчезновения
+        this.burst(r.x, 0.6 + r.py, r.z, 20);
+        this.spawnSupFx('ring', r.x, r.z, 1.6, 0.45, 0, 0xffffff);
+        break;
+      case 'chuma': // чумное облако: зелёный купол на весь радиус
+        this.burst(x, 0.8 + r.py, z, 16);
+        this.spawnSupFx('dome', x, z, rad || 9, 5, 0, 0x6bd44a);
+        break;
+      case 'gidroxis': // рентген: вспышка, дальше это личное зрение соперника
+        this.burst(r.x, 1.2 + r.py, r.z, 12);
+        this.spawnSupFx('ring', r.x, r.z, 2, 0.5, 0, 0x9ad7ff);
+        break;
+      case 'sunstrike': // кольцо-метка, через 0.5с — столб света (как у кастующего)
+        this.burst(r.x, 1.5 + r.py, r.z, 8);
+        this.spawnSupFx('ring', x, z, rad || 4, 0.5, 0, 0xffc93c);
+        this.spawnSupFx('column', x, z, rad || 4, 0.6, 0.5, 0xfff6c0);
+        break;
+      case 'arbuz': // воронка: та же зелёная конструкция, только чужая
+        this.burst(x, 0.5, z, 18);
+        this.spawnSupFx('vortex', x, z, rad || 5, 4, 0, 0x39d353);
+        break;
+      case 'utug': // взрыв: белая волна + брызги
+        this.burst(x, 1, z, 34);
+        this.spawnSupFx('ring', x, z, rad || 6, 0.45, 0, 0xffffff);
+        break;
+      case 'jbl': // звуковая волна
+        this.burst(x, 0.5, z, 20);
+        this.spawnSupFx('ring', x, z, rad || 12, 0.6, 0, 0x00d4ff);
+        break;
+      case 'jbl2': // подчинение: магентовая аура вокруг него
+        this.burst(x, 0.8, z, 24);
+        this.spawnSupFx('ring', x, z, rad || 5, 0.6, 0, 0xff44ff);
+        break;
+      case 'merap': // открыл окно наведения
+        this.burst(r.x, 1.2 + r.py, r.z, 14);
+        this.spawnSupFx('ring', r.x, r.z, 2.5, 0.5, 0, 0xb44dff);
+        break;
+      case 'merapLaser': // фиолетовый луч от его глаз к цели
+        this.burst(r.x, 1.2 + r.py, r.z, 12);
+        this.spawnSupFx('laser', x, z, 0, MERAP_LASER, 0, 0xb44dff, 0, { x: r.x, y: eyeY, z: r.z });
+        break;
+      default:
+        this.burst(x, 1, z, 12);
+    }
+  }
+
+  /** Вешаем в мир эффект чужой способности (delay>0 — появится позже, как удар санстрайка). */
+  private spawnSupFx(kind: SupFx['kind'], x: number, z: number, r: number, tot: number, delay: number, color: number, y = 0, from?: { x: number; y: number; z: number }): void {
+    const gy = this.groundAt(x, z) + y;
+    let mesh: THREE.Object3D;
+    if (kind === 'ring') {
+      const m = new THREE.Mesh(
+        new THREE.RingGeometry(0.75, 1, 48),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }),
+      );
+      m.rotation.x = -Math.PI / 2;
+      m.position.set(x, gy + 0.1, z);
+      m.renderOrder = 8;
+      mesh = m;
+    } else if (kind === 'column') {
+      const m = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.75, 1, 60, 16, 1, true),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
+      );
+      m.position.set(x, gy + 30, z);
+      m.scale.set(Math.max(0.5, r), 1, Math.max(0.5, r));
+      m.renderOrder = 9;
+      mesh = m;
+    } else if (kind === 'dome') {
+      const m = new THREE.Mesh(
+        new THREE.SphereGeometry(1, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }),
+      );
+      m.position.set(x, gy, z);
+      m.scale.set(r, r * 0.7, r);
+      m.renderOrder = 6;
+      mesh = m;
+    } else if (kind === 'vortex') {
+      this.syncArbuzFx(); // болванка воронки строится лениво — дожидаемся
+      const src = this.arbuzMesh;
+      if (!src) return;
+      const m = src.clone(true);
+      m.traverse((o) => {
+        const mm = o as THREE.Mesh;
+        if (mm.material) mm.material = (mm.material as THREE.Material).clone();
+      });
+      const k = Math.max(0.2, r / 5);
+      m.position.set(x, 0, z);
+      m.scale.set(k, 1, k);
+      mesh = m;
+    } else { // laser: от точки (from) к цели
+      const f = from ?? { x, y: 1.7, z };
+      const ty = gy + 1.3;
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 1), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95 }));
+      m.position.set((f.x + x) / 2, (f.y + ty) / 2, (f.z + z) / 2);
+      m.lookAt(x, ty, z);
+      m.scale.set(1, 1, Math.hypot(x - f.x, ty - f.y, z - f.z) || 1);
+      m.renderOrder = 9;
+      mesh = m;
+    }
+    mesh.visible = delay <= 0;
+    this.scene.add(mesh);
+    this.supFxA.push({ kind, mesh, x, z, r, t: 0, tot, delay });
+    if (this.supFxA.length > 24) { const old = this.supFxA.shift(); if (old) this.killSupFx(old); }
+  }
+
+  private killSupFx(f: SupFx): void {
+    this.scene.remove(f.mesh);
+    f.mesh.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.geometry) m.geometry.dispose();
+      const mat = m.material as THREE.Material | THREE.Material[] | undefined;
+      if (Array.isArray(mat)) mat.forEach((q) => q.dispose());
+      else if (mat) mat.dispose();
+    });
+  }
+
+  /** Тик эффектов чужих способностей: задержка, расширение/угасание, снятие с сцены. */
+  private tickSupFx(dt: number): void {
+    for (let i = this.supFxA.length - 1; i >= 0; i--) {
+      const f = this.supFxA[i];
+      if (f.delay > 0) {
+        f.delay -= dt;
+        if (f.delay > 0) continue;
+        f.mesh.visible = true;
+        f.t = 0;
+      }
+      f.t += dt;
+      const k = Math.min(1, f.t / f.tot);
+      const m = f.mesh as THREE.Mesh;
+      if (f.kind === 'ring') {
+        const s = (0.25 + 0.75 * k) * Math.max(0.5, f.r);
+        m.scale.set(s, s, 1);
+        (m.material as THREE.MeshBasicMaterial).opacity = 0.9 * (1 - k);
+      } else if (f.kind === 'column') {
+        (m.material as THREE.MeshBasicMaterial).opacity = 0.85 * (k < 0.4 ? 1 : 1 - (k - 0.4) / 0.6);
+      } else if (f.kind === 'dome') {
+        const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.006);
+        (m.material as THREE.MeshBasicMaterial).opacity = (0.18 + 0.16 * pulse) * (k > 0.8 ? (1 - k) / 0.2 : 1);
+      } else if (f.kind === 'vortex') {
+        m.rotation.y += dt * 7;
+        m.traverse((o) => {
+          const mm = o as THREE.Mesh;
+          const mat = mm.material as THREE.MeshBasicMaterial | undefined;
+          if (mat) mat.opacity = (mm.geometry instanceof THREE.ConeGeometry ? 0.28 : 0.7) * (k > 0.85 ? (1 - k) / 0.15 : 1);
+        });
+      } else if (f.kind === 'laser') {
+        m.rotateZ(dt * 14);
+        (m.material as THREE.MeshBasicMaterial).opacity = 0.95 * (k > 0.7 ? (1 - k) / 0.3 : 1);
+      }
+      if (f.t >= f.tot) { this.killSupFx(f); this.supFxA.splice(i, 1); }
+    }
+  }
+
   setRemotes(list: RemotePlayer[]): void {
     const seen = new Set<string>();
     for (const p of list.slice(0, 12)) {
@@ -7523,7 +7802,7 @@ export class Game {
         lab.position.set(0, 2.5, 0);
         g.add(lab);
         this.scene.add(g);
-        r = { nick, g, body, ol, cv, tex: ltex, gunCv, gunTex, x: 0, z: 0, yaw: 0, tx: 0, tz: 0, snaps: [], hp: 100, char, weapon: '', py: 0, atk: 0, flash: 0, dead: false, fid: -1 };
+        r = { nick, g, body, ol, cv, tex: ltex, gunCv, gunTex, x: 0, z: 0, yaw: 0, tx: 0, tz: 0, snaps: [], hp: 100, char, weapon: '', py: 0, atk: 0, flash: 0, dead: false, fid: -1, sup: '', supSeq: -1 };
         this.gunIcon(weapon, gunCv, gunTex);
         r.weapon = weapon;
         this.remotes.push(r);
@@ -7577,6 +7856,18 @@ export class Game {
       rr.dead = p.dead === true;
       const pfid = Math.floor(Number(p.fid));
       rr.fid = Number.isFinite(pfid) && pfid >= 0 ? pfid : -1;
+      // чужая способность: счётчик дёрнулся — показываем эффект там, где её применили
+      // (первый слепок только запоминаем: у куклы, вошедшей в комнату, счётчик уже не ноль)
+      const supSeq = Math.max(-1, Math.floor(Number(p.supSeq)));
+      if (Number.isFinite(supSeq) && supSeq !== rr.supSeq) {
+        const first = rr.supSeq < 0;
+        rr.supSeq = supSeq;
+        rr.sup = String(p.sup ?? '').slice(0, 24);
+        if (!first && rr.sup) {
+          const sx = Number(p.supX), sz = Number(p.supZ);
+          this.remoteSup(rr, rr.sup, Number.isFinite(sx) ? sx : r.x, Number.isFinite(sz) ? sz : r.z, Number(p.supR) || 0);
+        }
+      }
       this.drawRemote(rr);
     }
     this.remotes = this.remotes.filter((r) => {
@@ -7614,6 +7905,10 @@ export class Game {
   }
 
   debugRemotes(): number { return this.remotes.length; }
+
+  /** Чужие способности: сколько сыграно и сколько эффектов сейчас в сцене (тесты). */
+  debugSupSeen(): number { return this.supSeen; }
+  debugSupFx(): number { return this.supFxA.length; }
   /** Сколько линий пуль сейчас висит в кадре (для тестов). */
   debugTracers(): number { return this.tracers.length; }
   debugBullets(): number { return this.bullets.length; }
@@ -7885,6 +8180,7 @@ export class Game {
           this.wallT = 0;
           this.wallKickCd = superCd('krysa', this.upg.krysa?.sup ?? 0);
           this.burst(this.px, 1.0, this.pz, 10);
+          this.supUsed('krysa', this.px, this.pz, krange);
           this.sfx(wallkickUrl);
           this.pushHud();
         }
@@ -7903,6 +8199,8 @@ export class Game {
           (t.l.material as THREE.LineBasicMaterial).opacity = t.life * 0.95;
         }
       }
+      // чужие эффекты способностей (кольца/купола/лучи) тают тем же кадром
+      this.tickSupFx(dt);
       // живые пули тикают тут же: полёт + гравитация + свои хитбоксы
       this.tickBullets(dt);
       // бутылки метателя и зелёные лужи (отрава идёт даже вне лужи)

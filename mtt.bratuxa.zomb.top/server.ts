@@ -191,6 +191,12 @@ interface Member {
   py: number;
   atk: number;
   dead: boolean;
+  /** последняя применённая способность: id, счётчик и точка/радиус — раздаём остальным */
+  sup?: string;
+  supSeq?: number;
+  supX?: number;
+  supZ?: number;
+  supR?: number;
   duelHp: number;
   wins: number;
   spawnIdx: number;
@@ -387,7 +393,7 @@ function cleanChar(v: unknown): string {
 }
 
 function pubList(m: Member): object {
-  return { nick: m.nick, login: m.login, char: m.char, x: m.x, z: m.z, yaw: m.yaw, hp: m.hp, score: m.score, kills: m.kills, frags: m.frags, spec: m.spec, wave: m.wave, weapon: m.weapon, py: m.py, atk: m.atk, dead: m.dead };
+  return { nick: m.nick, login: m.login, char: m.char, x: m.x, z: m.z, yaw: m.yaw, hp: m.hp, score: m.score, kills: m.kills, frags: m.frags, spec: m.spec, wave: m.wave, weapon: m.weapon, py: m.py, atk: m.atk, dead: m.dead, sup: m.sup ?? '', supSeq: m.supSeq ?? 0, supX: m.supX ?? 0, supZ: m.supZ ?? 0, supR: m.supR ?? 0 };
 }
 
 // только для лобби создателя: sid нужен кнопкам ПРИНЯТЬ/КИК (beat его не отдаёт)
@@ -1193,6 +1199,13 @@ async function roomsApi(req: Request): Promise<Response | null> {
     if (w === 'fists' || w === 'bat' || w === 'axe' || w === 'pistol' || w === 'shotgun') me.weapon = w;
     me.py = Math.round(num(body.py, 0, 30) * 10) / 10;
     me.atk = Math.round(num(body.atk, 0, 1000000000));
+    // применённая способность: id строкой, счётчик растёт — по нему клиенты играют эффект
+    const supId = String(body.sup ?? '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 24);
+    if (supId) me.sup = supId;
+    me.supSeq = Math.round(num(body.supSeq, 0, 1000000000));
+    me.supX = Math.round(num(body.supX, -400, 400) * 10) / 10;
+    me.supZ = Math.round(num(body.supZ, -400, 400) * 10) / 10;
+    me.supR = Math.round(num(body.supR, 0, 400) * 10) / 10;
     me.dead = body.dead === true;
     me.ts = Date.now();
     prune(room);
@@ -1220,7 +1233,7 @@ async function roomsApi(req: Request): Promise<Response | null> {
           active: true,
           round: room.round,
           lastWinner: room.lastWinner,
-          foe: { nick: foe.nick, login: foe.login, char: foe.char, x: foe.x, z: foe.z, hp: Math.round(foe.duelHp), weapon: foe.weapon, py: foe.py, atk: foe.atk, dead: foe.dead },
+          foe: { nick: foe.nick, login: foe.login, char: foe.char, x: foe.x, z: foe.z, hp: Math.round(foe.duelHp), weapon: foe.weapon, py: foe.py, atk: foe.atk, dead: foe.dead, sup: foe.sup ?? '', supSeq: foe.supSeq ?? 0, supX: foe.supX ?? 0, supZ: foe.supZ ?? 0, supR: foe.supR ?? 0 },
           myHp: Math.round(me.duelHp),
           myWins: me.wins,
           foeWins: foe.wins,

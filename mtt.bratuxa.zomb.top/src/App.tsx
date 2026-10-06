@@ -133,6 +133,12 @@ interface RoomMate {
   py?: number;
   atk?: number;
   dead?: boolean;
+  /** последняя применённая способность: по смене счётчика движок играет её 3D-эффект */
+  sup?: string;
+  supSeq?: number;
+  supX?: number;
+  supZ?: number;
+  supR?: number;
 }
 
 interface DuelFoe {
@@ -146,6 +152,12 @@ interface DuelFoe {
   py?: number;
   atk?: number;
   dead?: boolean;
+  /** его последняя способность — чтобы и в дуэли у куклы сыгрался эффект */
+  sup?: string;
+  supSeq?: number;
+  supX?: number;
+  supZ?: number;
+  supR?: number;
 }
 
 interface DuelInfo {
@@ -960,20 +972,17 @@ async function loadStats(): Promise<void> {
     if (n === 'wswing' || n === 'wrecoil') { swingingRef.current = false; setSwinging(false); }
   }, []);
 
-  // удар по дуэлянту: бьём только если противник в радиусе ствола и по курсу; урон ставит сервер
+  // удар по дуэлянту: попадание решает движок — луч из глаз против капсулы тела цели
+  // (раньше: конус ~75° и радиус +1.5м — стрельба мимо всё равно проходила). Урон ставит сервер.
   const tryDuelHit = useCallback(() => {
     const d = duelRef.current;
     const g = gameRef.current;
     if (!d?.active || !d.foe || !g) return;
     const { id, sid } = roomRef.current;
     if (!id || !sid) return;
-    const p = g.debugPos();
-    const dx = d.foe.x - p.x, dz = d.foe.z - p.z;
-    const dist = Math.hypot(dx, dz);
     const W = WEAPONS.find((w) => w.id === hudRef.current.weapon);
-    if (dist > (W?.range ?? 3.8) + 1.5) return;
-    const cos = (dx * -Math.sin(p.yaw) + dz * -Math.cos(p.yaw)) / (dist || 1);
-    if (cos < 0.25) return;
+    const range = W?.range ?? 3.8;
+    if (!g.aimHitsPlayer({ x: d.foe.x, z: d.foe.z, py: d.foe.py ?? 0 }, range, W?.spread ? 0.07 : 0)) return;
     fetch(`/api/rooms/${id}/hit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1231,6 +1240,10 @@ async function loadStats(): Promise<void> {
       look: (dx: number, dy: number) => game.addLook(dx, dy),
       remotes: () => game.debugRemotes(),
       setRemotes: (list: RoomMate[]) => game.setRemotes(list),
+      // чужие способности и хитбокс прицела (для тестов)
+      supSeen: () => game.debugSupSeen(),
+      supFx: () => game.debugSupFx(),
+      aimHits: (x: number, z: number, py: number, range: number, spread: number) => game.aimHitsPlayer({ x, z, py }, range, spread),
       chara: () => game.getChar(),
       sound: () => game.getSound(),
       dash: () => game.debugDash(),
@@ -1723,7 +1736,7 @@ async function loadStats(): Promise<void> {
           r = await fetch(`/api/rooms/${id}/beat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sid, char: g.getChar(), x: p.x, z: p.z, yaw: p.yaw, hp: h.hp, score: h.score, kills: h.kills, wave: h.wave, weapon: pr.weapon, py: pr.py, atk: pr.atk, dead: pr.dead }),
+            body: JSON.stringify({ sid, char: g.getChar(), x: p.x, z: p.z, yaw: p.yaw, hp: h.hp, score: h.score, kills: h.kills, wave: h.wave, weapon: pr.weapon, py: pr.py, atk: pr.atk, dead: pr.dead, sup: pr.sup, supSeq: pr.supSeq, supX: pr.supX, supZ: pr.supZ, supR: pr.supR }),
             signal: ctl.signal,
           });
         } finally { window.clearTimeout(to); }
@@ -1785,7 +1798,10 @@ async function loadStats(): Promise<void> {
         const all = [...plist];
         if (d.duel && d.duel.active && d.duel.foe) {
           const f = d.duel.foe;
-          all.push({ nick: f.nick, login: f.login, char: f.char, x: f.x, z: f.z, hp: f.hp, score: 0, kills: 0, wave: 1, weapon: f.weapon, py: f.py, atk: f.atk, dead: f.dead });
+          // противник уже приходит в players (там он с fid для pvphit) — не дублируем куклу
+          if (!plist.some((m) => m.nick === f.nick)) {
+            all.push({ nick: f.nick, login: f.login, char: f.char, x: f.x, z: f.z, hp: f.hp, score: 0, kills: 0, wave: 1, weapon: f.weapon, py: f.py, atk: f.atk, dead: f.dead, sup: f.sup, supSeq: f.supSeq, supX: f.supX, supZ: f.supZ, supR: f.supR });
+          }
         }
         g.setRemotes(all);
         // PvP: табло сверху, серверный hp, очередь ресауна, таймер рестарта
@@ -1982,7 +1998,7 @@ async function loadStats(): Promise<void> {
     startedRef.current = true;
     setDuelQ('');
     setDuelIntro({ foe: d.foe, me: { nick: nickRef.current, char: myChar, upg: g?.upgOf(myChar) ?? { hp: 0, dmg: 0, spd: 0, sup: 0 } } });
-    setDuelCount(3);
+    setDuelCount(5);
   }, []);
 
   /** Клик «⚔️ В ДУЭЛЬ»: вместо соло на карте — в очередь подбора. */
@@ -2031,13 +2047,13 @@ async function loadStats(): Promise<void> {
     return () => { dead = true; window.clearInterval(t); };
   }, [duelQ, duelIntro, enterDuel]);
 
-  // интро: тёмный экран с карточками 3с, потом сами в бой (goRef — свежий замыкание)
+  // интро: тёмный экран с карточками 5с, потом сами в бой (goRef — свежий замыкание)
   useEffect(() => {
     if (!duelIntro) return;
-    setDuelCount(3);
-    let n = 3;
+    setDuelCount(5);
+    let n = 5;
     const tick = window.setInterval(() => { n -= 1; setDuelCount(Math.max(0, n)); }, 1000);
-    const t = window.setTimeout(() => { setDuelIntro(null); goRef.current(); }, 3000);
+    const t = window.setTimeout(() => { setDuelIntro(null); goRef.current(); }, 5000);
     return () => { window.clearInterval(tick); window.clearTimeout(t); };
   }, [duelIntro]);
 

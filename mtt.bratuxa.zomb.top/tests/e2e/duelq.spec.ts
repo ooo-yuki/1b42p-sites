@@ -18,7 +18,7 @@ interface IntroSnap {
   foeY: number; meY: number; find: boolean;
 }
 
-/** Интро живёт всего 3с, а вторая страница в это время грузит карту и тормозит рендер —
+/** Интро живёт 5с, а вторая страница в это время грузит карту и тормозит рендер —
     поэтому карточки пишем в момент первого рендера через MutationObserver, а не щёлкаем
     по локаторам (иначе проверки не укладываются в окно и интро успевает уйти). */
 const armIntro = (p: Page) => p.evaluate(() => {
@@ -57,7 +57,7 @@ async function readIntro(p: Page): Promise<IntroSnap> {
   return await h.jsonValue<IntroSnap>();
 }
 
-test('подбор дуэли: пара, интро с карточками и автостарт через 3с', async ({ page, browser }) => {
+test('подбор дуэли: пара, интро с карточками и автостарт через 5с', async ({ page, browser }) => {
   test.setTimeout(240000);
   const errs: string[] = [];
   page.on('pageerror', (e) => errs.push('pageerror: ' + e.message.slice(0, 160)));
@@ -110,7 +110,7 @@ test('подбор дуэли: пара, интро с карточками и �
   expect(bSnap.foeNick).toContain('DuelA');
   expect(bSnap.meNick).toContain('DuelB');
 
-  // автостарт: интро живёт 3с, потом оба уходят в бой сами
+  // автостарт: интро живёт 5с, потом оба уходят в бой сами
   await expect(page.locator('#menu')).toHaveCount(0, { timeout: 30000 });
   await expect(b.locator('#menu')).toHaveCount(0, { timeout: 30000 });
   await started(page);
@@ -152,4 +152,56 @@ test('подбор дуэли: отмена возвращает в меню, п
   await expect(page.locator('#duelFind')).toBeVisible();
   await page.click('#duelCancel');
   await expect(page.locator('#duelFind')).toHaveCount(0);
+});
+
+test('дуэль: соперник видит мою способность, прицел бьёт только по телу', async ({ page, browser }) => {
+  test.setTimeout(240000);
+  const errs: string[] = [];
+  page.on('pageerror', (e) => errs.push('pageerror: ' + e.message.slice(0, 160)));
+  const ctxB = await browser.newContext();
+  await ctxB.route('**/api/maintenance', (r) => r.fulfill({ json: { ok: true, on: false } }));
+  await ctxB.route('**/hub.bratuxa.zomb.top/**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
+  const b = await ctxB.newPage();
+  b.on('pageerror', (e) => errs.push('pageerror: ' + e.message.slice(0, 160)));
+
+  // A — Чума (её облако и смотрим у B), B — обычный боец
+  await guestOnDuel(page, 'SupA');
+  await page.evaluate(() => (window as unknown as { __mtt: { charaSet: (id: string) => string } }).__mtt.charaSet('chuma'));
+  await page.click('#goBtn');
+  await expect(page.locator('#duelFind')).toBeVisible();
+  await guestOnDuel(b, 'SupB');
+  await b.click('#goBtn');
+
+  await expect(page.locator('#menu')).toHaveCount(0, { timeout: 40000 });
+  await expect(b.locator('#menu')).toHaveCount(0, { timeout: 40000 });
+  await started(page);
+  await started(b);
+
+  // хитбокс: точка ровно по прицелю в 6м — попадание, та же точка + 3м вбок — мимо
+  // (старый конус ~75° засчитывал и боковую цель; в дуэли счёт центра — спавн 0,20 → 0,-20)
+  const aim = await page.evaluate(() => {
+    const m = (window as unknown as {
+      __mtt: { pos: () => { x: number; z: number; yaw: number; py: number }; aimHits: (x: number, z: number, py: number, range: number, spread: number) => boolean };
+    }).__mtt;
+    const p = m.pos();
+    const dx = -Math.sin(p.yaw), dz = -Math.cos(p.yaw);
+    const sx = -dz, sz = dx;
+    return {
+      hit: m.aimHits(p.x + dx * 6, p.z + dz * 6, p.py, 30, 0),
+      miss: m.aimHits(p.x + dx * 6 + sx * 3, p.z + dz * 6 + sz * 3, p.py, 30, 0),
+    };
+  });
+  expect(aim.hit).toBe(true);
+  expect(aim.miss).toBe(false);
+
+  // A кастует чумное облако — у B сыгрался чужой эффект (купол на его стороне)
+  expect(await page.evaluate(() => (window as unknown as { __mtt: { doChuma: () => boolean } }).__mtt.doChuma())).toBe(true);
+  await b.waitForFunction(
+    () => (window as unknown as { __mtt: { supSeen: () => number } }).__mtt.supSeen() >= 1,
+    null, { timeout: 20000, polling: 200 },
+  );
+  expect(await b.evaluate(() => (window as unknown as { __mtt: { supFx: () => number } }).__mtt.supFx())).toBeGreaterThanOrEqual(1);
+
+  expect(errs).toEqual([]);
+  await ctxB.close();
 });
