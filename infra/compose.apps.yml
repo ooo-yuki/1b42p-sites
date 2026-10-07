@@ -24,6 +24,17 @@ services:
       - /data:/app/data
     ports: ["127.0.0.1:8095:8095"]
 
+  cultivationtoilet-api:
+    build:
+      context: ../cultivationtoilet.bratuxa.zomb.top
+      dockerfile: ../infra/docker/bun.Dockerfile
+    image: bat42/cultivationtoilet-api:latest
+    restart: unless-stopped
+    command: ["bun", "run", "server.ts"]
+    volumes:
+      - /data:/app/data
+    ports: ["127.0.0.1:8096:8096"]
+
   sasha-arena:
     build:
       context: ../sasha.bratuxa.zomb.top
