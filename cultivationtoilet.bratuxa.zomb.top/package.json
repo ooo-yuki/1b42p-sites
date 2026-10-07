@@ -1,0 +1,21 @@
+{
+  "name": "cultivationtoilet",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "server": "bun run build && bun ./server.ts",
+    "build": "rm -rf dist && bun build ./index.html --outdir ./dist --minify",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test ./tests/logic.test.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/bun": "^1.4.1",
+    "@types/three": "^0.186.0",
+    "typescript": "^5.5.3"
+  },
+  "dependencies": {
+    "three": "^0.186.1"
+  }
+}

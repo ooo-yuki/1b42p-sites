@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CULTIVATION TOILET — симулятор развития туалетной комнаты</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- вход -->
+<section id="gate" class="gate">
+  <div class="gateBox">
+    <div class="logo">CULTIVATION<br>TOILET</div>
+    <div class="sub">симулятор развития туалетной комнаты</div>
+    <label>ник<input id="nick" maxlength="20" autocomplete="username" placeholder="Обитатель"></label>
+    <label>пароль<input id="pass" type="password" maxlength="60" autocomplete="current-password" placeholder="••••"></label>
+    <div class="gateBtns">
+      <button id="loginBtn" class="btn primary">ВОЙТИ</button>
+      <button id="regBtn" class="btn">СОЗДАТЬ</button>
+    </div>
+    <div id="gateErr" class="err"></div>
+    <div class="gateNote">у каждого свой мир — но площадка и рейтинг общие</div>
+  </div>
+</section>
+
+<!-- меню -->
+<section id="menu" class="menu hidden">
+  <div class="menuBox">
+    <div class="logo">CULTIVATION TOILET</div>
+    <div class="sub">каждый раз карта строится заново: главная клетка с туалетом + клетка спавна</div>
+    <div class="menuStats" id="menuStats"></div>
+    <button id="startBtn" class="btn primary big">НАЧАТЬ ИГРУ</button>
+    <div class="menuHint">WASD — идти · мышь — смотреть · E — попытать удачу · Tab — панели и курсор для стройки · Esc — в меню</div>
+    <button id="menuLogout" class="btn ghost">выйти</button>
+  </div>
+</section>
+
+<!-- игра -->
+<main id="game" class="game hidden">
+  <canvas id="gl"></canvas>
+
+  <header class="top" id="hud">
+    <div class="who"><b id="whoami">—</b><span id="whoScore" class="dim"></span></div>
+    <div class="res">
+      <span class="chip money"><i>монеты</i><b id="money">0</b></span>
+      <span class="chip"><i>доход/сек</i><b id="income">0</b></span>
+      <span class="chip hp"><i>состояние</i><b id="hp">100</b></span>
+      <span class="chip dirty"><i>грязь</i><b id="dirty">0</b></span>
+      <span class="chip"><i>событие через</i><b id="nextEv">—</b></span>
+      <span class="chip"><i>клетки</i><b id="cells">2</b></span>
+      <span class="chip"><i>онлайн</i><b id="online">0</b></span>
+    </div>
+    <button id="escBtn" class="btn ghost">меню</button>
+  </header>
+
+  <div id="crosshair" class="crosshair"></div>
+  <div id="prompt" class="prompt hidden"><kbd>E</kbd><span>ПОПЫТАТЬ УДАЧУ</span></div>
+
+  <div class="buildBar" id="buildBar">
+    <div class="buildRow">
+      <button class="btn dir" data-dir="n" title="север">▲</button>
+      <button class="btn dir" data-dir="w" title="запад">◀</button>
+      <button class="btn dir" data-dir="s" title="юг">▼</button>
+      <button class="btn dir" data-dir="e" title="восток">▶</button>
+    </div>
+    <div class="buildInfo" id="buildInfo">построить клетку</div>
+  </div>
+
+  <div id="toasts" class="toasts"></div>
+  <footer class="hint" id="hint">Смывай унитаз (E), собирай ресурсы, строй клетки кнопками ◀▲▼▶ (Tab — снять захват мыши). Раз в 1.2 сек — не чаще.</footer>
+</main>
+
+<!-- панели: видны и в меню, и в игре -->
+<nav class="side" id="side">
+  <div class="tabs">
+    <button class="tab active" data-tab="upg">АПГРЕЙДЫ</button>
+    <button class="tab" data-tab="inv">ИНВЕНТАРЬ</button>
+    <button class="tab" data-tab="market">ПЛОЩАДКА</button>
+    <button class="tab" data-tab="rating">РЕЙТИНГ</button>
+    <button class="tab" data-tab="log">ЖУРНАЛ</button>
+  </div>
+  <div id="tab-upg" class="panel active"><div id="upgList" class="list"></div></div>
+  <div id="tab-inv" class="panel"><div id="invList" class="list"></div></div>
+  <div id="tab-market" class="panel">
+    <div class="subhead">Мои вещи <span class="dim">— цена продажи = 90% от цены</span></div>
+    <div id="myItems" class="list"></div>
+    <div class="subhead">Лоты игроков <span class="dim">— комиссия 5% с продавца</span></div>
+    <div id="marketList" class="list"></div>
+  </div>
+  <div id="tab-rating" class="panel"><div id="ratingList" class="list"></div></div>
+  <div id="tab-log" class="panel"><div id="logList" class="list"></div></div>
+</nav>
+
+<script type="module" src="./src/main.ts"></script>
+</body>
+</html>
