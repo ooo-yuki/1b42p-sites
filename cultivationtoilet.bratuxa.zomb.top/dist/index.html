@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CULTIVATION TOILET — симулятор развития туалетной комнаты</title>
 
-<link rel="stylesheet" crossorigin href="./index-1q1zq8ye.css"><script type="module" crossorigin src="./index-yqbypy8e.js"></script></head>
+<link rel="stylesheet" crossorigin href="./index-fexya882.css"><script type="module" crossorigin src="./index-1qmz2vqt.js"></script></head>
 <body>
 
 <!-- вход -->
@@ -32,6 +32,7 @@
     <div class="menuStats" id="menuStats"></div>
     <button id="startBtn" class="btn primary big">НАЧАТЬ ИГРУ</button>
     <div class="menuHint">WASD — идти · мышь — смотреть · E — попытать удачу · Tab — панели и курсор для стройки · Esc — в меню</div>
+    <button class="btn ghost gfxBtn">НАСТРОЙКИ ГРАФИКИ</button>
     <button id="menuLogout" class="btn ghost">выйти</button>
   </div>
 </section>
@@ -51,6 +52,7 @@
       <span class="chip"><i>клетки</i><b id="cells">2</b></span>
       <span class="chip"><i>онлайн</i><b id="online">0</b></span>
     </div>
+    <button class="btn ghost gfxBtn" title="настройки графики (клавиша G)">⚙ ГРАФИКА</button>
     <button id="escBtn" class="btn ghost">меню</button>
   </header>
 
@@ -91,6 +93,15 @@
   <div id="tab-rating" class="panel"><div id="ratingList" class="list"></div></div>
   <div id="tab-log" class="panel"><div id="logList" class="list"></div></div>
 </nav>
+
+<!-- настройки графики -->
+<div id="gfx" class="gfx hidden">
+  <div class="gfxBox">
+    <div class="gfxTitle"><span>НАСТРОЙКИ ГРАФИКИ</span><button id="gfxClose" class="btn ghost">закрыть</button></div>
+    <div id="gfxRows"></div>
+    <div class="gfxNote">G — открыть/закрыть · Esc — закрыть · настройки сохраняются в браузере</div>
+  </div>
+</div>
 
 
 </body>

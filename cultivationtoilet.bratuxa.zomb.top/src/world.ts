@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Cell } from './api';
+import { DRAW_FAR, type Gfx } from './settings';
 
 export const CELL = 2; // клетка 2×2 м
 export const WALL_H = 3;
@@ -27,6 +28,7 @@ export interface World {
   rebuild(cells: Cell[]): void;
   hasCell(x: number, z: number): boolean;
   update(dt: number): void;
+  applyGfx(g: Gfx): void;
 }
 
 type Side = 'n' | 's' | 'e' | 'w';
@@ -213,8 +215,16 @@ export function createWorld(): World {
   const root = new THREE.Group();
   scene.add(root);
 
-  scene.add(new THREE.AmbientLight(0xaebccb, 1.1));
-  scene.add(new THREE.HemisphereLight(0x8fa6bd, 0x14181d, 0.7));
+  const ambient = new THREE.AmbientLight(0xaebccb, 1.1);
+  const hemi = new THREE.HemisphereLight(0x8fa6bd, 0x14181d, 0.7);
+  scene.add(ambient, hemi);
+
+  // состояние настроек графики (применяется после загрузки GLB)
+  let gfxCur: Gfx | null = null;
+  let lightLevel = 2;
+  const cellLights: THREE.PointLight[] = [];
+  const allTextures = new Set<THREE.Texture>();
+  const allMats = new Set<THREE.MeshStandardMaterial>();
 
   const markMat = new THREE.MeshBasicMaterial({ color: 0x5ad6c0, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
   const markGeo = new THREE.RingGeometry(0.4, 0.55, 32);
@@ -263,6 +273,16 @@ export function createWorld(): World {
       }
     },
 
+    applyGfx(g: Gfx): void {
+      gfxCur = g;
+      if (!T) return; // GLB ещё не загружен — применим в doLoad()
+      applyTex(g.tex);
+      applyRefl(g.refl);
+      lightLevel = g.light;
+      applyLight();
+      applyFog(g.draw);
+    },
+
     rebuild(next) {
       if (!T) return; // карта ещё не загружена — соберётся после load()
       const prevSet = new Set(cells.map((c) => c.x + ',' + c.z));
@@ -275,6 +295,7 @@ export function createWorld(): World {
           if (m.geometry && !m.geometry.userData.shared) m.geometry.dispose();
         });
       }
+      cellLights.length = 0;
 
       for (const cell of cells) {
         const cx = cell.x * CELL;
@@ -305,6 +326,7 @@ export function createWorld(): World {
           const light = new THREE.PointLight(0xfff0cf, 7, 7, 2);
           light.position.set(cx, T.lampY, cz);
           root.add(light);
+          cellLights.push(light);
         }
 
         if (cell.kind === 'toilet') {
@@ -336,6 +358,7 @@ export function createWorld(): World {
           spawnCollapse(T, old.x * CELL, old.z * CELL, dir);
         }
       }
+      applyLight(); // новые лампы — применяем текущий уровень света
     },
   } as World;
 
@@ -419,14 +442,18 @@ export function createWorld(): World {
 
     // единая подготовка материалов: видны с двух сторон (плоскости), чёткая фильтрация
     const materials = new Set<THREE.Material>();
-    cell.scene.traverse((o) => {
-      const m = o as THREE.Mesh;
-      if (m.isMesh) for (const mm of Array.isArray(m.material) ? m.material : [m.material]) materials.add(mm);
-    });
+    for (const src of [cell.scene, toiletGltf.scene]) {
+      src.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh) for (const mm of Array.isArray(m.material) ? m.material : [m.material]) materials.add(mm);
+      });
+    }
     for (const mm of materials) {
       const s = mm as THREE.MeshStandardMaterial;
       s.side = THREE.DoubleSide;
       for (const tex of [s.map, s.normalMap, s.roughnessMap, s.metalnessMap, s.emissiveMap]) if (tex) tex.anisotropy = 8;
+      allMats.add(s);
+      for (const tex of [s.map, s.normalMap, s.roughnessMap, s.metalnessMap, s.emissiveMap]) if (tex) allTextures.add(tex);
     }
 
     const wall = {} as Templates['wall'];
@@ -477,6 +504,71 @@ export function createWorld(): World {
       toilet: toiletObj,
       toiletBox,
     };
+    if (gfxCur) world.applyGfx(gfxCur); // настройки выставляли до загрузки GLB
+  }
+
+  // ---------------------------------------------------------------- настройки графики
+  function downscale(img: HTMLImageElement | HTMLCanvasElement | ImageBitmap, size: number): HTMLCanvasElement {
+    const w = (img as HTMLImageElement).width;
+    const h = (img as HTMLImageElement).height;
+    const k = Math.min(1, size / Math.max(w, h));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * k));
+    c.height = Math.max(1, Math.round(h * k));
+    c.getContext('2d')!.drawImage(img as CanvasImageSource, 0, 0, c.width, c.height);
+    return c;
+  }
+
+  function applyTex(level: number): void {
+    const target = [512, 1024, 0][level] || 0;
+    const aniso = [1, 4, 8][level] || 8;
+    for (const t of allTextures) {
+      if (t.userData._origImg === undefined) t.userData._origImg = t.image;
+      const orig = t.userData._origImg;
+      if (!orig || !orig.width) continue;
+      let img: HTMLImageElement | HTMLCanvasElement = orig;
+      if (target && (orig.width > target || orig.height > target)) {
+        const cache: Record<number, HTMLCanvasElement> = t.userData._scaled || (t.userData._scaled = {});
+        if (!cache[target]) cache[target] = downscale(orig, target);
+        img = cache[target];
+      }
+      if (t.image !== img) {
+        t.image = img;
+        t.needsUpdate = true;
+      }
+      t.anisotropy = aniso;
+    }
+  }
+
+  function applyRefl(level: number): void {
+    const on = level > 0;
+    for (const m of allMats) {
+      if (m.userData._origPBR === undefined) {
+        m.userData._origPBR = { r: m.roughness, mm: m.metalness, rmap: m.roughnessMap, mmap: m.metalnessMap };
+      }
+      const o = m.userData._origPBR;
+      if (on) {
+        m.roughness = o.r;
+        m.metalness = o.mm;
+        m.roughnessMap = o.rmap;
+        m.metalnessMap = o.mmap;
+      } else {
+        m.roughness = 1;
+        m.metalness = 0;
+        m.roughnessMap = null;
+        m.metalnessMap = null;
+      }
+    }
+  }
+
+  function applyLight(): void {
+    ambient.intensity = [1.9, 1.45, 1.1][lightLevel] ?? 1.1;
+    hemi.intensity = [0, 0.85, 0.7][lightLevel] ?? 0.7;
+    for (const l of cellLights) l.visible = lightLevel === 2;
+  }
+
+  function applyFog(draw: number): void {
+    if (scene.fog) (scene.fog as THREE.Fog).far = DRAW_FAR[draw] ?? 26;
   }
 
   // временная отладка: что лежит в корне сцены

@@ -132,6 +132,21 @@ button{font:inherit;color:inherit}
 .logline.loot{color:var(--gold)}
 .logline.sys{color:#9fb4c8}
 
+/* ---------- настройки графики ---------- */
+.gfx{position:fixed;inset:0;z-index:70;display:grid;place-items:center;padding:20px;background:rgba(9,12,16,.74);backdrop-filter:blur(3px)}
+.gfxBox{width:min(470px,100%);max-height:90vh;overflow:auto;border:1px solid var(--line);background:var(--panel);padding:20px;box-shadow:6px 6px 0 #000}
+.gfxTitle{display:flex;justify-content:space-between;align-items:center;gap:10px;color:var(--accent);letter-spacing:2px;font-size:15px;margin-bottom:12px;text-shadow:2px 2px 0 #000}
+.gfxTitle .btn{font-size:11px;letter-spacing:1px;padding:5px 10px}
+.gfxRow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px dashed #1d2530}
+.gfxRow:last-child{border-bottom:0}
+.gfxLabel{flex:1;font-size:13px}
+.gfxLabel small{display:block;color:var(--dim);font-size:10px;margin-top:2px}
+.gfxOpts{display:flex;gap:5px;flex-shrink:0}
+.gfxOpt{padding:5px 9px;font-size:11px;letter-spacing:1px;background:#1b232d;border:1px solid var(--line);cursor:pointer;box-shadow:2px 2px 0 #000}
+.gfxOpt:hover{border-color:var(--accent);color:var(--accent)}
+.gfxOpt.on{background:var(--accent);color:#08110f;border-color:var(--accent);font-weight:700}
+.gfxNote{margin-top:13px;font-size:11px;color:var(--dim);line-height:1.6}
+
 @media(max-width:760px){
   .side{width:100%}
   .hint{display:none}

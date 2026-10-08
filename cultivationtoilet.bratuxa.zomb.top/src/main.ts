@@ -13,6 +13,7 @@ import {
 } from './api';
 import { CELL, createWorld, type World } from './world';
 import { Player } from './player';
+import { DRAW_FAR, RES_SCALE, gfxPanelClose, gfxPanelOpen, gfxPanelToggle, gfxState, initSettingsUI, onGfx, onGfxPanelState } from './settings';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -318,6 +319,16 @@ async function loadRating(): Promise<void> {
 }
 
 // ---------------------------------------------------------------- three.js
+function applyGfxMain(): void {
+  const g = gfxState();
+  if (renderer) renderer.setPixelRatio(Math.min(2, window.devicePixelRatio) * RES_SCALE[g.res]);
+  if (camera) {
+    camera.far = DRAW_FAR[g.draw] + 2; // за туманом геометрия не нужна
+    camera.updateProjectionMatrix();
+  }
+  world?.applyGfx(g);
+}
+
 function initThree(): void {
   if (renderer) return;
   const canvas = $('gl') as HTMLCanvasElement;
@@ -336,6 +347,7 @@ function initThree(): void {
   };
   window.addEventListener('resize', resize);
   resize();
+  applyGfxMain();
 
   canvas.addEventListener('click', () => {
     if (panelOpen) {
@@ -409,16 +421,19 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     togglePanel();
   } else if (e.code === 'Escape') {
-    if (panelOpen) togglePanel();
+    if (gfxPanelOpen()) gfxPanelClose();
+    else if (panelOpen) togglePanel();
     else if (gameOn) backToMenu();
-  } else if (e.code === 'KeyE' && gameOn && !panelOpen) {
+  } else if (e.code === 'KeyG') {
+    gfxPanelToggle();
+  } else if (e.code === 'KeyE' && gameOn && !panelOpen && !gfxPanelOpen()) {
     if (!prompt().classList.contains('hidden')) pull();
   }
 });
 
 // Esc РїСЂРё Р·Р°С…РІР°С‚Рµ РјС‹С€Рё РІС‹С…РѕРґРёС‚ РёР· pointer lock вЂ” С‚РѕРіРґР° Р¶Рµ РІРѕР·РІСЂР°С‰Р°РµРјСЃСЏ РІ РјРµРЅСЋ
 document.addEventListener('pointerlockchange', () => {
-  if (gameOn && !panelOpen && document.pointerLockElement === null) backToMenu();
+  if (gameOn && !panelOpen && !gfxPanelOpen() && document.pointerLockElement === null) backToMenu();
 });
 
 document.querySelectorAll<HTMLButtonElement>('.tab').forEach((b) => {
@@ -454,10 +469,14 @@ setInterval(() => void refresh(), 4000);
 
 // ---------------------------------------------------------------- С†РёРєР»
 let last = performance.now();
+let lastDraw = 0;
 let frames = 0;
 function loop(): void {
   requestAnimationFrame(loop);
   const now = performance.now();
+  const cap = gfxState().fps;
+  if (cap > 0 && now - lastDraw < 1000 / cap - 2) return; // лимит FPS: кадр пропускаем целиком
+  lastDraw = now;
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   if (!gameOn || !renderer || !camera || !world || !player) return;
@@ -475,6 +494,15 @@ function loop(): void {
   frames++;
 }
 loop();
+
+// gfx settings
+initSettingsUI();
+onGfx(() => applyGfxMain());
+onGfxPanelState((open) => {
+  if (!gameOn) return;
+  if (open) player?.unlock(); // need cursor for settings clicks
+  else if (!panelOpen) void player?.lock();
+});
 
 // РїР°РЅРµР»Рё СЃРєСЂС‹С‚С‹ РґРѕ РІС…РѕРґР°
 show('gate');
