@@ -1,4 +1,4 @@
-/* CULTIVATION TOILET — вход, меню, HUD, панели и игровой цикл (three.js). */
+﻿/* CULTIVATION TOILET вЂ” РІС…РѕРґ, РјРµРЅСЋ, HUD, РїР°РЅРµР»Рё Рё РёРіСЂРѕРІРѕР№ С†РёРєР» (three.js). */
 import * as THREE from 'three';
 import {
   api,
@@ -27,12 +27,12 @@ let flushUntil = 0;
 let gameOn = false;
 let panelOpen = false;
 
-// ---------------------------------------------------------------- экраны
+// ---------------------------------------------------------------- СЌРєСЂР°РЅС‹
 function show(id: 'gate' | 'menu' | 'game'): void {
   $('gate').classList.toggle('hidden', id !== 'gate');
   $('menu').classList.toggle('hidden', id !== 'menu');
   $('game').classList.toggle('hidden', id !== 'game');
-  $('side').classList.toggle('hidden', id === 'gate'); // панели видны и в меню, и в игре
+  $('side').classList.toggle('hidden', id === 'gate'); // РїР°РЅРµР»Рё РІРёРґРЅС‹ Рё РІ РјРµРЅСЋ, Рё РІ РёРіСЂРµ
 }
 
 function toast(text: string, kind?: string): void {
@@ -43,7 +43,7 @@ function toast(text: string, kind?: string): void {
   setTimeout(() => el.remove(), 2600);
 }
 
-// ---------------------------------------------------------------- вход
+// ---------------------------------------------------------------- РІС…РѕРґ
 async function gate(mode: 'login' | 'register'): Promise<void> {
   const nick = ($('nick') as HTMLInputElement).value.trim();
   const pass = ($('pass') as HTMLInputElement).value;
@@ -57,6 +57,7 @@ async function gate(mode: 'login' | 'register'): Promise<void> {
     renderPanels();
     show('menu');
     renderMenu();
+    initThree(); // РЅР°С‡РёРЅР°РµРј Р·Р°СЂР°РЅРµРµ РіСЂСѓР·РёС‚СЊ РєР°СЂС‚Сѓ (28 РњР‘)
   } catch (e) {
     $('gateErr').textContent = errText(e as Error);
   }
@@ -72,6 +73,7 @@ async function restore(): Promise<void> {
     renderPanels();
     show('menu');
     renderMenu();
+    initThree(); // РЅР°С‡РёРЅР°РµРј Р·Р°СЂР°РЅРµРµ РіСЂСѓР·РёС‚СЊ РєР°СЂС‚Сѓ (28 РњР‘)
   } catch {
     logout();
   }
@@ -86,7 +88,7 @@ function logout(): void {
   show('gate');
 }
 
-// ---------------------------------------------------------------- обновление состояния
+// ---------------------------------------------------------------- РѕР±РЅРѕРІР»РµРЅРёРµ СЃРѕСЃС‚РѕСЏРЅРёСЏ
 async function refresh(): Promise<void> {
   if (!getSid() || !st) return;
   try {
@@ -112,7 +114,7 @@ async function action(path: string, body: Record<string, unknown>, okText?: stri
       renderPanels();
       if (path === '/api/build' && world && st) {
         world.rebuild(st.cells);
-        toast('Клетка построена', 'event');
+        toast('РљР»РµС‚РєР° РїРѕСЃС‚СЂРѕРµРЅР°', 'event');
       }
     }
     if (d.result) {
@@ -129,7 +131,7 @@ async function action(path: string, body: Record<string, unknown>, okText?: stri
   }
 }
 
-// ---------------------------------------------------------------- смыв
+// ---------------------------------------------------------------- СЃРјС‹РІ
 async function pull(): Promise<void> {
   if (Date.now() < flushUntil) return;
   flushUntil = Date.now() + 1250;
@@ -140,7 +142,7 @@ async function pull(): Promise<void> {
 function renderHud(): void {
   if (!st) return;
   $('whoami').textContent = st.login;
-  $('whoScore').textContent = `счёт ${fmt(st.score)} · смертей ${st.deaths} · смывов ${st.pulls}`;
+  $('whoScore').textContent = `СЃС‡С‘С‚ ${fmt(st.score)} В· СЃРјРµСЂС‚РµР№ ${st.deaths} В· СЃРјС‹РІРѕРІ ${st.pulls}`;
   $('money').textContent = fmt(st.money);
   $('income').textContent = st.income.toFixed(2);
   $('hp').textContent = st.hp.toFixed(0);
@@ -166,20 +168,20 @@ function renderBuild(): void {
     if (!busyCell) free++;
   }
   info.innerHTML = free
-    ? `построить клетку <b>${fmt(st.buildCost)}</b> <span class="dim">— выбери сторону от клетки [${cx}, ${cz}]</span>`
-    : '<span class="dim">вокруг клетки нет места</span>';
+    ? `РїРѕСЃС‚СЂРѕРёС‚СЊ РєР»РµС‚РєСѓ <b>${fmt(st.buildCost)}</b> <span class="dim">вЂ” РІС‹Р±РµСЂРё СЃС‚РѕСЂРѕРЅСѓ РѕС‚ РєР»РµС‚РєРё [${cx}, ${cz}]</span>`
+    : '<span class="dim">РІРѕРєСЂСѓРі РєР»РµС‚РєРё РЅРµС‚ РјРµСЃС‚Р°</span>';
 }
 
 function renderMenu(): void {
   if (!st) return;
   $('menuStats').innerHTML =
-    `<span>монеты <b>${fmt(st.money)}</b></span>` +
-    `<span>клеток <b>${st.cells.length}</b></span>` +
-    `<span>счёт <b>${fmt(st.score)}</b></span>` +
-    `<span>доход/сек <b>${st.income.toFixed(2)}</b></span>`;
+    `<span>РјРѕРЅРµС‚С‹ <b>${fmt(st.money)}</b></span>` +
+    `<span>РєР»РµС‚РѕРє <b>${st.cells.length}</b></span>` +
+    `<span>СЃС‡С‘С‚ <b>${fmt(st.score)}</b></span>` +
+    `<span>РґРѕС…РѕРґ/СЃРµРє <b>${st.income.toFixed(2)}</b></span>`;
 }
 
-// ---------------------------------------------------------------- панели
+// ---------------------------------------------------------------- РїР°РЅРµР»Рё
 function renderPanels(): void {
   if (!st) return;
   renderUpg();
@@ -199,13 +201,13 @@ function renderUpg(): void {
     row.dataset.upg = u.id;
     row.innerHTML =
       `<span class="name">${u.name}<small>${u.desc}</small></span>` +
-      `<span class="lvl">ур.${lvl}</span><span class="price">${fmt(cost)}</span>`;
+      `<span class="lvl">СѓСЂ.${lvl}</span><span class="price">${fmt(cost)}</span>`;
     const b = document.createElement('button');
     b.className = 'btn';
     b.id = 'buy-' + u.id;
-    b.textContent = lvl ? 'УЛУЧШИТЬ' : 'КУПИТЬ';
+    b.textContent = lvl ? 'РЈР›РЈР§РЁРРўР¬' : 'РљРЈРџРРўР¬';
     b.disabled = st.money < cost;
-    b.onclick = () => action('/api/upgrade', { id: u.id }, u.name + ' улучшен');
+    b.onclick = () => action('/api/upgrade', { id: u.id }, u.name + ' СѓР»СѓС‡С€РµРЅ');
     row.appendChild(b);
     box.appendChild(row);
   }
@@ -216,7 +218,7 @@ function renderInv(): void {
   const box = $('invList');
   box.innerHTML = '';
   if (!st.inv.length) {
-    box.innerHTML = '<div class="row empty">пусто — смывай унитаз</div>';
+    box.innerHTML = '<div class="row empty">РїСѓСЃС‚Рѕ вЂ” СЃРјС‹РІР°Р№ СѓРЅРёС‚Р°Р·</div>';
     return;
   }
   st.inv.forEach((it, idx) => {
@@ -225,11 +227,11 @@ function renderInv(): void {
     row.dataset.item = it.id;
     row.innerHTML =
       `<span class="name">${nameOf(it.id)}<small>${rarityName(it.rarity)}</small></span>` +
-      `<span class="price">≈${fmt(it.sell)}</span>`;
+      `<span class="price">в‰€${fmt(it.sell)}</span>`;
     const b = document.createElement('button');
     b.className = 'btn';
-    b.textContent = 'ВЫСТАВИТЬ';
-    b.onclick = () => action('/api/market/sell', { idx, price: it.sell }, 'Выставлен лот: ' + nameOf(it.id));
+    b.textContent = 'Р’Р«РЎРўРђР’РРўР¬';
+    b.onclick = () => action('/api/market/sell', { idx, price: it.sell }, 'Р’С‹СЃС‚Р°РІР»РµРЅ Р»РѕС‚: ' + nameOf(it.id));
     row.appendChild(b);
     box.appendChild(row);
   });
@@ -260,32 +262,32 @@ async function loadMarket(): Promise<void> {
       '/api/market?sid=' + encodeURIComponent(getSid()),
     );
     const mine = $('myItems');
-    mine.innerHTML = d.inv.length ? '' : '<div class="row empty">нет вещей</div>';
+    mine.innerHTML = d.inv.length ? '' : '<div class="row empty">РЅРµС‚ РІРµС‰РµР№</div>';
     d.inv.forEach((it, idx) => {
       const row = document.createElement('div');
       row.className = 'row ' + it.rarity;
       row.innerHTML = `<span class="name">${nameOf(it.id)}<small>${rarityName(it.rarity)}</small></span><span class="price">${fmt(it.sell)}</span>`;
       const b = document.createElement('button');
       b.className = 'btn';
-      b.textContent = 'ПРОДАТЬ';
-      b.onclick = () => action('/api/market/sell', { idx, price: it.sell }, 'Лот выставлен');
+      b.textContent = 'РџР РћР”РђРўР¬';
+      b.onclick = () => action('/api/market/sell', { idx, price: it.sell }, 'Р›РѕС‚ РІС‹СЃС‚Р°РІР»РµРЅ');
       row.appendChild(b);
       mine.appendChild(row);
     });
     const box = $('marketList');
-    box.innerHTML = d.lots.length ? '' : '<div class="row empty">лотов нет</div>';
+    box.innerHTML = d.lots.length ? '' : '<div class="row empty">Р»РѕС‚РѕРІ РЅРµС‚</div>';
     for (const lot of d.lots) {
       const row = document.createElement('div');
       row.className = 'row ' + lot.item.rarity;
       row.dataset.lot = String(lot.id);
       row.innerHTML =
-        `<span class="name">${nameOf(lot.item.id)}<small>${rarityName(lot.item.rarity)} · ${lot.seller}</small></span>` +
+        `<span class="name">${nameOf(lot.item.id)}<small>${rarityName(lot.item.rarity)} В· ${lot.seller}</small></span>` +
         `<span class="price">${fmt(lot.price)}</span>`;
       const b = document.createElement('button');
       b.className = 'btn';
-      b.textContent = 'КУПИТЬ';
+      b.textContent = 'РљРЈРџРРўР¬';
       b.disabled = st.money < lot.price || lot.seller === st.login;
-      b.onclick = () => action('/api/market/buy', { lot: lot.id }, 'Куплено: ' + nameOf(lot.item.id));
+      b.onclick = () => action('/api/market/buy', { lot: lot.id }, 'РљСѓРїР»РµРЅРѕ: ' + nameOf(lot.item.id));
       row.appendChild(b);
       box.appendChild(row);
     }
@@ -305,11 +307,11 @@ async function loadRating(): Promise<void> {
       row.className = 'row rank' + (st && e.login === st.login ? ' me' : '');
       row.dataset.nick = e.login;
       row.innerHTML =
-        `<span class="pos">${i + 1}</span><span class="name">${e.login}${st && e.login === st.login ? '<small>ты</small>' : ''}</span>` +
-        `<span class="lvl">ур.${e.levels}</span><span class="price">${fmt(e.score)}</span>`;
+        `<span class="pos">${i + 1}</span><span class="name">${e.login}${st && e.login === st.login ? '<small>С‚С‹</small>' : ''}</span>` +
+        `<span class="lvl">СѓСЂ.${e.levels}</span><span class="price">${fmt(e.score)}</span>`;
       box.appendChild(row);
     });
-    if (!d.top.length) box.innerHTML = '<div class="row empty">пока пусто</div>';
+    if (!d.top.length) box.innerHTML = '<div class="row empty">РїРѕРєР° РїСѓСЃС‚Рѕ</div>';
   } catch (e) {
     toast(errText(e as Error), 'hit');
   }
@@ -362,6 +364,12 @@ function updatePrompt(): void {
 async function startGame(): Promise<void> {
   if (!st) return;
   initThree();
+  try {
+    await world!.load(); // РґРѕР¶РёРґР°РµРјСЃСЏ GLB-РєР°СЂС‚С‹ (РѕР±С‹С‡РЅРѕ СѓР¶Рµ Р·Р°РіСЂСѓР¶РµРЅР° СЃ СЌРєСЂР°РЅР° РІС…РѕРґР°)
+  } catch {
+    toast('РЅРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РєР°СЂС‚Сѓ', 'hit');
+    return;
+  }
   world!.rebuild(st.cells);
   player!.reset(world!.spawn);
   gameOn = true;
@@ -394,7 +402,7 @@ function togglePanel(name?: string): void {
   }
 }
 
-// ---------------------------------------------------------------- ввод
+// ---------------------------------------------------------------- РІРІРѕРґ
 document.addEventListener('keydown', (e) => {
   if (!st) return;
   if (e.code === 'Tab') {
@@ -408,7 +416,7 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// Esc при захвате мыши выходит из pointer lock — тогда же возвращаемся в меню
+// Esc РїСЂРё Р·Р°С…РІР°С‚Рµ РјС‹С€Рё РІС‹С…РѕРґРёС‚ РёР· pointer lock вЂ” С‚РѕРіРґР° Р¶Рµ РІРѕР·РІСЂР°С‰Р°РµРјСЃСЏ РІ РјРµРЅСЋ
 document.addEventListener('pointerlockchange', () => {
   if (gameOn && !panelOpen && document.pointerLockElement === null) backToMenu();
 });
@@ -433,19 +441,20 @@ $('menuLogout').addEventListener('click', logout);
 $('startBtn').addEventListener('click', () => void startGame());
 $('escBtn').addEventListener('click', backToMenu);
 
-// локальные «капли» пассивного дохода между опросами
+// Р»РѕРєР°Р»СЊРЅС‹Рµ В«РєР°РїР»РёВ» РїР°СЃСЃРёРІРЅРѕРіРѕ РґРѕС…РѕРґР° РјРµР¶РґСѓ РѕРїСЂРѕСЃР°РјРё
 setInterval(() => {
   if (!st) return;
   const secs = Math.max(0, Math.round((st.nextEventIn - (Date.now() - st.serverTime)) / 1000));
-  $('nextEv').textContent = secs > 0 ? secs + 'с' : 'сейчас';
+  $('nextEv').textContent = secs > 0 ? secs + 'СЃ' : 'СЃРµР№С‡Р°СЃ';
   st.dirty = Math.min(100, st.dirty + st.dirtyRate / 60);
   st.money += st.income / 60;
   renderHud();
 }, 1000);
 setInterval(() => void refresh(), 4000);
 
-// ---------------------------------------------------------------- цикл
+// ---------------------------------------------------------------- С†РёРєР»
 let last = performance.now();
+let frames = 0;
 function loop(): void {
   requestAnimationFrame(loop);
   const now = performance.now();
@@ -454,6 +463,7 @@ function loop(): void {
   if (!gameOn || !renderer || !camera || !world || !player) return;
   player.update(dt, panelOpen);
   player.apply(camera);
+  world.update(dt);
   if (world.toilet && world.toilet.anim > 0) {
     world.toilet.anim = Math.max(0, world.toilet.anim - dt * 1.4);
     const k = world.toilet.anim;
@@ -462,14 +472,15 @@ function loop(): void {
   updatePrompt();
   renderBuild();
   renderer.render(world.scene, camera);
+  frames++;
 }
 loop();
 
-// панели скрыты до входа
+// РїР°РЅРµР»Рё СЃРєСЂС‹С‚С‹ РґРѕ РІС…РѕРґР°
 show('gate');
 void restore();
 
-// отладка/e2e
+// РѕС‚Р»Р°РґРєР°/e2e
 declare global {
   interface Window {
     __ct: {
@@ -482,6 +493,11 @@ declare global {
       promptVisible: () => boolean;
       look: (yaw: number, pitch: number) => void;
       money: () => number;
+      frames: () => number;
+      cam: () => { p: number[]; r: number[] } | null;
+      render: () => unknown;
+      rayScreen: (x: number, y: number) => unknown;
+      sample: (pts: number[][]) => unknown;
     };
   }
 }
@@ -495,4 +511,60 @@ window.__ct = {
   promptVisible: () => !prompt().classList.contains('hidden'),
   look: (yaw, pitch) => { if (player) { player.yaw = yaw; player.pitch = pitch; } },
   money: () => (st ? st.money : 0),
+  frames: () => frames,
+  cam: () => (camera ? { p: camera.position.toArray().map((v) => +v.toFixed(2)), r: [camera.rotation.x, camera.rotation.y, camera.rotation.z].map((v) => +v.toFixed(2)) } : null),
+  render: () => {
+    if (!renderer || !camera || !world) return null;
+    const r = renderer.info.render;
+    const canvas = renderer.domElement;
+    const visible: Record<string, number> = {};
+    let total = 0;
+    world.root.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      total++;
+      visible[String(m.visible)] = (visible[String(m.visible)] || 0) + 1;
+    });
+    return {
+      calls: r.calls, triangles: r.triangles, points: r.points, lines: r.lines,
+      canvas: [canvas.width, canvas.height, canvas.clientWidth, canvas.clientHeight],
+      camPos: camera.position.toArray().map((v) => +v.toFixed(2)),
+      camFov: camera.fov, aspect: +camera.aspect.toFixed(3),
+      sceneChildren: world.scene.children.length, meshes: total, visible,
+    };
+  },
+  // РІСЂРµРјРµРЅРЅР°СЏ РѕС‚Р»Р°РґРєР°: С†РІРµС‚ РїРёРєСЃРµР»РµР№ СЃСЂР°Р·Сѓ РїРѕСЃР»Рµ РїСЂРёРЅСѓРґРёС‚РµР»СЊРЅРѕРіРѕ СЂРµРЅРґРµСЂР° (РѕР±С…РѕРґ РєРѕРјРїРѕР·РёС‚РѕСЂР°)
+  sample: (pts: number[][]) => {
+    if (!renderer || !camera || !world) return null;
+    renderer.render(world.scene, camera);
+    const gl = renderer.getContext();
+    const w = renderer.domElement.width;
+    const h = renderer.domElement.height;
+    return pts.map(([x, y]) => {
+      const px = Math.max(0, Math.min(w - 1, Math.round((x / window.innerWidth) * w)));
+      const py = Math.max(0, Math.min(h - 1, Math.round((1 - y / window.innerHeight) * h)));
+      const buf = new Uint8Array(4);
+      gl.readPixels(px, py, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+      return [buf[0], buf[1], buf[2]];
+    });
+  },
+  rayScreen: (x: number, y: number) => {
+    if (!camera || !world) return null;
+    const root = world.root;
+    const rc = new THREE.Raycaster();
+    rc.setFromCamera(new THREE.Vector2(x, y), camera);
+    rc.far = 50;
+    return rc.intersectObjects(root.children, true).slice(0, 4).map((h) => ({
+      d: +h.distance.toFixed(3),
+      p: h.point.toArray().map((v) => +v.toFixed(3)),
+      i: root.children.indexOf(h.object.parent && h.object.parent !== root ? h.object.parent : h.object),
+      m: Array.isArray((h.object as THREE.Mesh).material)
+        ? ((h.object as THREE.Mesh).material as THREE.Material[]).map((mm) => mm.name).join('|')
+        : ((h.object as THREE.Mesh).material as THREE.Material)?.name,
+      uv: (() => {
+        const u = h.uv;
+        return u ? [+u.x.toFixed(3), +u.y.toFixed(3)] : null;
+      })(),
+    }));
+  },
 };

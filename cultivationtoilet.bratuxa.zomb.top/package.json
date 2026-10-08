@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "server": "bun run build && bun ./server.ts",
-    "build": "rm -rf dist && bun build ./index.html --outdir ./dist --minify",
+    "build": "rm -rf dist && bun build ./index.html --outdir ./dist --minify && mkdir -p dist/assets && cp assets/*.glb dist/assets/",
     "typecheck": "tsc --noEmit",
     "test": "bun test ./tests/logic.test.ts"
   },
