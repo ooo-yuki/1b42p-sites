@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CULTIVATION TOILET — симулятор развития туалетной комнаты</title>
 
-<link rel="stylesheet" crossorigin href="./index-fexya882.css"><script type="module" crossorigin src="./index-1qmz2vqt.js"></script></head>
+<link rel="stylesheet" crossorigin href="./index-8xqj3pt3.css"><script type="module" crossorigin src="./index-b8n6qne6.js"></script></head>
 <body>
 
 <!-- вход -->
@@ -31,7 +31,8 @@
     <div class="sub">каждый раз карта строится заново: главная клетка с туалетом + клетка спавна</div>
     <div class="menuStats" id="menuStats"></div>
     <button id="startBtn" class="btn primary big">НАЧАТЬ ИГРУ</button>
-    <div class="menuHint">WASD — идти · мышь — смотреть · E — попытать удачу · Tab — панели и курсор для стройки · Esc — в меню</div>
+    <button class="btn panelBtn">ИНВЕНТАРЬ · АПГРЕЙДЫ · ПЛОЩАДКА <kbd>Q</kbd></button>
+    <div class="menuHint">WASD — идти · мышь — смотреть · E — смыв · Q — меню с инвентарём · Tab — курсор · G — графика · Esc — в меню</div>
     <button class="btn ghost gfxBtn">НАСТРОЙКИ ГРАФИКИ</button>
     <button id="menuLogout" class="btn ghost">выйти</button>
   </div>
@@ -70,28 +71,36 @@
   </div>
 
   <div id="toasts" class="toasts"></div>
-  <footer class="hint" id="hint">Смывай унитаз (E), собирай ресурсы, строй клетки кнопками ◀▲▼▶ (Tab — снять захват мыши). Раз в 1.2 сек — не чаще.</footer>
+  <footer class="hint" id="hint">Смывай унитаз (E), собирай ресурсы, строй клетки кнопками ◀▲▼▶. Tab — курсор, Q — меню, G — графика. Раз в 1.2 сек — не чаще.</footer>
 </main>
 
-<!-- панели: видны и в меню, и в игре -->
+<!-- панели: видны и в меню, и в игре (Q) -->
 <nav class="side" id="side">
-  <div class="tabs">
-    <button class="tab active" data-tab="upg">АПГРЕЙДЫ</button>
-    <button class="tab" data-tab="inv">ИНВЕНТАРЬ</button>
-    <button class="tab" data-tab="market">ПЛОЩАДКА</button>
-    <button class="tab" data-tab="rating">РЕЙТИНГ</button>
-    <button class="tab" data-tab="log">ЖУРНАЛ</button>
+  <div class="sideBox">
+    <div class="sideTop" id="sideTop"></div>
+    <div class="tabs">
+      <button class="tab active" data-tab="upg">АПГРЕЙДЫ</button>
+      <button class="tab" data-tab="inv">ИНВЕНТАРЬ</button>
+      <button class="tab" data-tab="market">ПЛОЩАДКА</button>
+      <button class="tab" data-tab="rating">РЕЙТИНГ</button>
+      <button class="tab" data-tab="log">ЖУРНАЛ</button>
+    </div>
+    <div class="panels">
+      <div id="tab-upg" class="panel active"><div id="upgList" class="list"></div></div>
+      <div id="tab-inv" class="panel"><div id="invList" class="list"></div></div>
+      <div id="tab-market" class="panel">
+        <div class="subhead">Мои вещи <span class="dim">— цена продажи = 90% от цены</span></div>
+        <div id="myItems" class="list"></div>
+        <div class="subhead">Лоты игроков <span class="dim">— комиссия 5% с продавца</span></div>
+        <div id="marketList" class="list"></div>
+      </div>
+      <div id="tab-rating" class="panel"><div id="ratingList" class="list"></div></div>
+      <div id="tab-log" class="panel"><div id="logList" class="list"></div></div>
+    </div>
+    <div class="sideBottom">
+      <kbd>WASD</kbd> идти · <kbd>мышь</kbd> смотреть · <kbd>E</kbd> смыв · <kbd>Q</kbd> это меню · <kbd>Tab</kbd> курсор · <kbd>G</kbd> графика · <kbd>Esc</kbd> в меню
+    </div>
   </div>
-  <div id="tab-upg" class="panel active"><div id="upgList" class="list"></div></div>
-  <div id="tab-inv" class="panel"><div id="invList" class="list"></div></div>
-  <div id="tab-market" class="panel">
-    <div class="subhead">Мои вещи <span class="dim">— цена продажи = 90% от цены</span></div>
-    <div id="myItems" class="list"></div>
-    <div class="subhead">Лоты игроков <span class="dim">— комиссия 5% с продавца</span></div>
-    <div id="marketList" class="list"></div>
-  </div>
-  <div id="tab-rating" class="panel"><div id="ratingList" class="list"></div></div>
-  <div id="tab-log" class="panel"><div id="logList" class="list"></div></div>
 </nav>
 
 <!-- настройки графики -->

@@ -77,8 +77,8 @@ test('вход, мир от первого лица, бирка у туалет�
   expect(codes).toEqual([200, 429]);
 
   // пассивный доход: деньги позволяют купить прокачку
-  // Tab снимает захват мыши — иначе клики уходят в canvas
-  await page.keyboard.press('Tab');
+  // Q открывает меню (мышь автоматически свободна) — иначе клики уходят в canvas
+  await page.keyboard.press('q');
   await page.click('.tab[data-tab="upg"]');
   await expect(page.locator('#buy-toilet')).toBeEnabled({ timeout: 40000 });
   await page.click('#buy-toilet');
@@ -145,6 +145,7 @@ test('общая площадка: A выставляет лот, B покупа
   const ctxB = await browser.newContext();
   const pageB = await ctxB.newPage();
   await register(pageB, nickB);
+  await pageB.keyboard.press('q'); // открыть меню
   await pageB.click('.tab[data-tab="market"]');
   const lot = pageB.locator('#marketList .row').filter({ hasText: nickA });
   await expect(lot.first()).toBeVisible({ timeout: 15000 });
@@ -161,6 +162,7 @@ test('общая площадка: A выставляет лот, B покупа
 test('рейтинг показывает игрока, вкладки переключаются из меню', async ({ page }) => {
   const nick = 'r' + run;
   await register(page, nick);
+  await page.keyboard.press('q'); // открыть меню (панели скрыты, пока не открыл)
   await page.click('.tab[data-tab="rating"]');
   // топ-50 давно переполнен — проверяем, что список вообще отрисован
   await expect(page.locator('#ratingList .row').first()).toBeVisible({ timeout: 15000 });

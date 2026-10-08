@@ -27,13 +27,14 @@ let busy = false;
 let flushUntil = 0;
 let gameOn = false;
 let panelOpen = false;
+let cursorFree = false;
 
 // ---------------------------------------------------------------- СЌРєСЂР°РЅС‹
 function show(id: 'gate' | 'menu' | 'game'): void {
   $('gate').classList.toggle('hidden', id !== 'gate');
   $('menu').classList.toggle('hidden', id !== 'menu');
   $('game').classList.toggle('hidden', id !== 'game');
-  $('side').classList.toggle('hidden', id === 'gate'); // РїР°РЅРµР»Рё РІРёРґРЅС‹ Рё РІ РјРµРЅСЋ, Рё РІ РёРіСЂРµ
+  $('side').classList.toggle('hidden', id === 'gate' || !panelOpen); // РїР°РЅРµР»Рё РІРёРґРЅС‹ Рё РІ РјРµРЅСЋ, Рё РІ РёРіСЂРµ
 }
 
 function toast(text: string, kind?: string): void {
@@ -85,6 +86,8 @@ function logout(): void {
   setSid('');
   st = null;
   gameOn = false;
+  panelOpen = false;
+  cursorFree = false;
   player?.unlock();
   show('gate');
 }
@@ -151,7 +154,32 @@ function renderHud(): void {
   $('cells').textContent = String(st.cells.length);
   document.querySelector('.chip.hp')?.classList.toggle('low', st.hp < 40);
   document.querySelector('.chip.dirty')?.classList.toggle('high', st.dirty > 70);
+  renderSideTop();
   renderBuild();
+}
+
+// шапка полноэкранного меню: все ключевые показатели
+function renderSideTop(): void {
+  const box = $('sideTop');
+  if (!st) {
+    box.innerHTML = '';
+    return;
+  }
+  const chip = (label: string, val: string, cls = '') =>
+    `<span class="chip ${cls}"><i>${label}</i><b>${val}</b></span>`;
+  box.innerHTML =
+    chip('игрок', st.login) +
+    chip('монеты', fmt(st.money), 'money') +
+    chip('доход/сек', st.income.toFixed(2)) +
+    chip('счёт', fmt(st.score)) +
+    chip('комната', 'ур.' + st.roomLevel) +
+    chip('клетки', String(st.cells.length)) +
+    chip('состояние', st.hp.toFixed(0), 'hp') +
+    chip('грязь', st.dirty.toFixed(1), 'dirty') +
+    chip('смывы', String(st.pulls)) +
+    chip('смерти', String(st.deaths)) +
+    chip('вещи', String(st.inv.length)) +
+    chip('онлайн', $('online').textContent || '—');
 }
 
 function renderBuild(): void {
@@ -175,11 +203,18 @@ function renderBuild(): void {
 
 function renderMenu(): void {
   if (!st) return;
+  const m = (label: string, val: string) => `<span>${label} <b>${val}</b></span>`;
   $('menuStats').innerHTML =
-    `<span>РјРѕРЅРµС‚С‹ <b>${fmt(st.money)}</b></span>` +
-    `<span>РєР»РµС‚РѕРє <b>${st.cells.length}</b></span>` +
-    `<span>СЃС‡С‘С‚ <b>${fmt(st.score)}</b></span>` +
-    `<span>РґРѕС…РѕРґ/СЃРµРє <b>${st.income.toFixed(2)}</b></span>`;
+    m('монеты', fmt(st.money)) +
+    m('доход/сек', st.income.toFixed(2)) +
+    m('клеток', String(st.cells.length)) +
+    m('комната', 'ур.' + st.roomLevel) +
+    m('счёт', fmt(st.score)) +
+    m('смывов', String(st.pulls)) +
+    m('смертей', String(st.deaths)) +
+    m('вещей', String(st.inv.length)) +
+    m('состояние', st.hp.toFixed(0)) +
+    m('грязь', st.dirty.toFixed(1));
 }
 
 // ---------------------------------------------------------------- РїР°РЅРµР»Рё
@@ -218,8 +253,13 @@ function renderInv(): void {
   if (!st) return;
   const box = $('invList');
   box.innerHTML = '';
+  const total = st.inv.reduce((s, i) => s + i.sell, 0);
+  const head = document.createElement('div');
+  head.className = 'subhead';
+  head.innerHTML = `Вещи: <b>${st.inv.length}</b> · на сумму <b>${fmt(total)}</b> <span class="dim">— выставляй на площадку</span>`;
+  box.appendChild(head);
   if (!st.inv.length) {
-    box.innerHTML = '<div class="row empty">РїСѓСЃС‚Рѕ вЂ” СЃРјС‹РІР°Р№ СѓРЅРёС‚Р°Р·</div>';
+    box.innerHTML += '<div class="row empty">пусто — смывай унитаз (E), вещи падают с шансом</div>';
     return;
   }
   st.inv.forEach((it, idx) => {
@@ -354,7 +394,10 @@ function initThree(): void {
       togglePanel();
       return;
     }
-    if (gameOn && !player!.locked) player!.lock();
+    if (gameOn && !player!.locked) {
+      cursorFree = false;
+      void player!.lock();
+    }
   });
 }
 
@@ -392,6 +435,7 @@ async function startGame(): Promise<void> {
 
 function backToMenu(): void {
   gameOn = false;
+  cursorFree = false;
   player?.unlock();
   prompt().classList.add('hidden');
   renderMenu();
@@ -409,8 +453,20 @@ function togglePanel(name?: string): void {
   panelOpen = !panelOpen || !!name;
   $('side').classList.toggle('hidden', !panelOpen);
   if (gameOn) {
-    if (panelOpen) player?.unlock();
-    else player?.lock();
+    if (panelOpen) player?.unlock(); // открыли меню — мышь сразу свободна
+    else void player?.lock();
+  }
+}
+
+// Tab: просто показать/спрятать курсор, без панелей
+function toggleCursor(): void {
+  if (!gameOn || !player) return;
+  if (player.locked) {
+    cursorFree = true;
+    player.unlock();
+  } else {
+    cursorFree = false;
+    void player.lock();
   }
 }
 
@@ -419,7 +475,11 @@ document.addEventListener('keydown', (e) => {
   if (!st) return;
   if (e.code === 'Tab') {
     e.preventDefault();
-    togglePanel();
+    if (panelOpen) togglePanel();
+    else toggleCursor(); // просто курсор, без панелей
+  } else if (e.code === 'KeyQ') {
+    e.preventDefault();
+    togglePanel(panelOpen ? undefined : 'inv'); // меню с инвентарём
   } else if (e.code === 'Escape') {
     if (gfxPanelOpen()) gfxPanelClose();
     else if (panelOpen) togglePanel();
@@ -433,11 +493,21 @@ document.addEventListener('keydown', (e) => {
 
 // Esc РїСЂРё Р·Р°С…РІР°С‚Рµ РјС‹С€Рё РІС‹С…РѕРґРёС‚ РёР· pointer lock вЂ” С‚РѕРіРґР° Р¶Рµ РІРѕР·РІСЂР°С‰Р°РµРјСЃСЏ РІ РјРµРЅСЋ
 document.addEventListener('pointerlockchange', () => {
-  if (gameOn && !panelOpen && !gfxPanelOpen() && document.pointerLockElement === null) backToMenu();
+  if (gameOn && !panelOpen && !gfxPanelOpen() && !cursorFree && document.pointerLockElement === null) backToMenu();
 });
 
 document.querySelectorAll<HTMLButtonElement>('.tab').forEach((b) => {
   b.addEventListener('click', () => togglePanel(b.dataset.tab));
+});
+
+// клик по фону полноэкранного меню — закрыть (в игре)
+$('side').addEventListener('click', (e) => {
+  if (e.target === $('side') && panelOpen && gameOn) togglePanel();
+});
+
+// кнопка «открыть меню» (как Q)
+document.querySelectorAll('.panelBtn').forEach((b) => {
+  b.addEventListener('click', () => togglePanel(panelOpen ? undefined : 'inv'));
 });
 
 document.querySelectorAll<HTMLButtonElement>('.btn.dir').forEach((b) => {
