@@ -388,6 +388,7 @@ function initThree(): void {
   window.addEventListener('resize', resize);
   resize();
   applyGfxMain();
+  void world!.load().catch(() => {}); // GLB (29 МБ) грузятся заранее, пока игрок в меню
 
   canvas.addEventListener('click', () => {
     if (panelOpen) {
@@ -419,12 +420,20 @@ function updatePrompt(): void {
 async function startGame(): Promise<void> {
   if (!st) return;
   initThree();
+  const btn = $('startBtn') as HTMLButtonElement;
+  const label = btn.textContent || 'НАЧАТЬ ИГРУ';
+  btn.disabled = true;
+  btn.textContent = 'ЗАГРУЗКА КАРТЫ… 29 МБ';
   try {
     await world!.load(); // РґРѕР¶РёРґР°РµРјСЃСЏ GLB-РєР°СЂС‚С‹ (РѕР±С‹С‡РЅРѕ СѓР¶Рµ Р·Р°РіСЂСѓР¶РµРЅР° СЃ СЌРєСЂР°РЅР° РІС…РѕРґР°)
   } catch {
     toast('РЅРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РєР°СЂС‚Сѓ', 'hit');
+    btn.disabled = false;
+    btn.textContent = label;
     return;
   }
+  btn.disabled = false;
+  btn.textContent = label;
   world!.rebuild(st.cells);
   player!.reset(world!.spawn);
   gameOn = true;
