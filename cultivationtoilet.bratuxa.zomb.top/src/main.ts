@@ -30,6 +30,8 @@ let flushUntil = 0;
 let gameOn = false;
 let panelOpen = false;
 let cursorFree = false;
+// открытый редактор продажи: пока мышь над строкой — список не перестраиваем (иначе его сносит refresh каждые 4 c)
+let sellEdit: { list: 'inv' | 'market'; hovered: boolean } | null = null;
 
 // ---------------------------------------------------------------- экраны
 function show(id: 'gate' | 'menu' | 'game'): void {
@@ -290,7 +292,7 @@ function bindTip(row: HTMLElement, html: string): void {
 }
 
 /** Строка инвентаря: стак ×N, кнопка «выставить» открывает редактор цены и количества. */
-function invRow(it: InvItem, idx: number, refresh: () => void): HTMLElement {
+function invRow(it: InvItem, idx: number, list: 'inv' | 'market', refresh: () => void): HTMLElement {
   const row = document.createElement('div');
   row.className = 'row ' + it.rarity;
   row.dataset.item = it.id;
@@ -301,13 +303,16 @@ function invRow(it: InvItem, idx: number, refresh: () => void): HTMLElement {
   const b = document.createElement('button');
   b.className = 'btn';
   b.textContent = 'ВЫСТАВИТЬ';
-  b.onclick = () => openSellEditor(row, it, idx, refresh);
+  b.onclick = () => openSellEditor(row, it, idx, list, refresh);
   row.appendChild(b);
   bindTip(row, itemTipHtml(it));
   return row;
 }
 
-function openSellEditor(row: HTMLElement, it: InvItem, idx: number, refresh: () => void): void {
+function openSellEditor(row: HTMLElement, it: InvItem, idx: number, list: 'inv' | 'market', refresh: () => void): void {
+  sellEdit = { list, hovered: true };
+  row.addEventListener('mouseenter', () => { if (sellEdit) sellEdit.hovered = true; });
+  row.addEventListener('mouseleave', () => { if (sellEdit) sellEdit.hovered = false; });
   row.classList.add('editing');
   row.innerHTML =
     `<span class="name">${nameOf(it.id)}<small>${rarityName(it.rarity)}${it.count > 1 ? ' · ×' + it.count : ''}</small></span>` +
@@ -332,8 +337,9 @@ function openSellEditor(row: HTMLElement, it: InvItem, idx: number, refresh: () 
   };
   priceIn.addEventListener('input', upd);
   qtyIn.addEventListener('input', upd);
-  cancel.onclick = () => refresh();
+  cancel.onclick = () => { sellEdit = null; refresh(); };
   ok.onclick = () => {
+    sellEdit = null;
     const price = Math.round(Number(priceIn.value)) || 0;
     const qty = Math.round(Number(qtyIn.value)) || 0;
     void action('/api/market/sell', { idx, price, qty }, 'Выставлен лот: ' + nameOf(it.id));
@@ -342,6 +348,9 @@ function openSellEditor(row: HTMLElement, it: InvItem, idx: number, refresh: () 
 
 function renderInv(): void {
   if (!st) return;
+  // редактор продажи открыт и мышь над строкой — список не перестраиваем, иначе refresh каждые 4 c снесёт поля
+  if (sellEdit && sellEdit.list === 'inv' && sellEdit.hovered) return;
+  if (sellEdit && sellEdit.list === 'inv') sellEdit = null;
   const box = $('invList');
   box.innerHTML = '';
   const count = st.inv.reduce((s, i) => s + i.count, 0);
@@ -354,8 +363,9 @@ function renderInv(): void {
     box.innerHTML += '<div class="row empty">пусто — смывай унитаз (E), вещи падают с шансом</div>';
     return;
   }
-  st.inv.forEach((it, idx) => box.appendChild(invRow(it, idx, renderInv)));
+  st.inv.forEach((it, idx) => box.appendChild(invRow(it, idx, 'inv', renderInv)));
 }
+
 
 function nameOf(id: string): string {
   const it = cat?.items.find((i) => i.id === id);
@@ -383,8 +393,14 @@ async function loadMarket(): Promise<void> {
       inv: InvItem[];
     }>('/api/market?sid=' + encodeURIComponent(getSid()));
     const mine = $('myItems');
-    mine.innerHTML = d.inv.length ? '' : '<div class="row empty">нет вещей</div>';
-    d.inv.forEach((it, idx) => mine.appendChild(invRow(it, idx, loadMarket)));
+    const skipMine = !!(sellEdit && sellEdit.list === 'market' && sellEdit.hovered);
+    if (skipMine) {
+      // не перестраиваем «мои вещи», пока редактор продажи открыт и мышь над строкой
+    } else {
+      if (sellEdit && sellEdit.list === 'market') sellEdit = null;
+      mine.innerHTML = d.inv.length ? '' : '<div class="row empty">нет вещей</div>';
+      d.inv.forEach((it, idx) => mine.appendChild(invRow(it, idx, 'market', loadMarket)));
+    }
     const box = $('marketList');
     box.innerHTML = d.lots.length ? '' : '<div class="row empty">лотов нет</div>';
     for (const lot of d.lots) {

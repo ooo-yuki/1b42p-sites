@@ -188,6 +188,35 @@ test('инвентарь: тултип с шансом дропа и редак�
   await expect(page.locator('#invList .sellTotal')).toBeVisible();
 });
 
+test('редактор продажи держится, пока мышь над строкой (не сносится refresh)', async ({ page }) => {
+  const nick = 'h' + run;
+  await register(page, nick);
+  let inv = (await st(page)).inv;
+  for (let i = 0; i < 25 && inv.length === 0; i++) {
+    await ct(page, 'pull');
+    await page.waitForTimeout(1300);
+    inv = (await st(page)).inv;
+  }
+  expect(inv.length, 'нужен предмет в инвентаре').toBeGreaterThan(0);
+
+  await page.keyboard.press('q');
+  await page.click('.tab[data-tab="inv"]');
+  const row = page.locator('#invList .row').first();
+  await row.hover();
+  await row.locator('button').click();
+  const price = page.locator('#invList .sellPrice');
+  await expect(price).toBeVisible();
+
+  // вводим цену, чтобы при сносе списка её исчезновение было заметно
+  await price.fill('42');
+
+  // наведение держим, ждём дольше интервала refresh (4 c) — редактор не должен исчезнуть
+  await row.hover();
+  await page.waitForTimeout(6500);
+  await expect(price, 'редактор не должен сноситься refresh при наведении').toBeVisible();
+  await expect(price).toHaveValue('42');
+});
+
 test('рейтинг показывает игрока, вкладки переключаются из меню', async ({ page }) => {
   const nick = 'r' + run;
   await register(page, nick);
