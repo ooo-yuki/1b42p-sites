@@ -322,12 +322,10 @@ export function createWorld(): World {
           lamp.position.set(cx, 0, cz);
           root.add(lamp);
         }
-        if (cell.kind !== 'room') {
-          const light = new THREE.PointLight(0xfff0cf, 7, 7, 2);
-          light.position.set(cx, T.lampY, cz);
-          root.add(light);
-          cellLights.push(light);
-        }
+        const light = new THREE.PointLight(0xfff0cf, 7, 7, 2);
+        light.position.set(cx, T.lampY, cz);
+        root.add(light);
+        cellLights.push(light);
 
         if (cell.kind === 'toilet') {
           toilet = placeToilet(T, cx, cz);
