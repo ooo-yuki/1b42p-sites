@@ -5,7 +5,7 @@ const run = Date.now().toString(36);
 interface CtState {
   pulls: number;
   money: number;
-  inv: { id: string; sell: number }[];
+  inv: { id: string; sell: number; count?: number }[];
   upg: Record<string, number>;
   login: string;
   cells: { x: number; z: number; kind: string }[];
@@ -131,15 +131,16 @@ test('общая площадка: A выставляет лот, B покупа
   }
   expect(inv.length, 'после смывов должен выпасть предмет').toBeGreaterThan(0);
 
+  const qty0 = inv[0].count || 1;
   const sell = await page.evaluate(async (arg) => {
     const sid = (window as unknown as { __ct: CtApi }).__ct.sid();
     const r = await fetch('/api/market/sell', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sid, idx: arg.idx, price: 10 }),
+      body: JSON.stringify({ sid, idx: arg.idx, price: 10, qty: arg.qty }),
     });
     return r.status;
-  }, { idx: 0 });
+  }, { idx: 0, qty: qty0 });
   expect(sell).toBe(200);
 
   const ctxB = await browser.newContext();
@@ -157,6 +158,34 @@ test('общая площадка: A выставляет лот, B покупа
   await expect(page.locator('#menu')).toBeVisible({ timeout: 15000 });
   expect((await st(page)).inv.length).toBe(0);
   await ctxB.close();
+});
+
+test('инвентарь: тултип с шансом дропа и редактор продажи (цена + количество)', async ({ page }) => {
+  const nick = 't' + run;
+  await register(page, nick);
+  let inv = (await st(page)).inv;
+  for (let i = 0; i < 25 && inv.length === 0; i++) {
+    await ct(page, 'pull');
+    await page.waitForTimeout(1300);
+    inv = (await st(page)).inv;
+  }
+  expect(inv.length, 'нужен предмет в инвентаре').toBeGreaterThan(0);
+
+  await page.keyboard.press('q'); // открыть меню
+  await page.click('.tab[data-tab="inv"]');
+  const row = page.locator('#invList .row').first();
+  await expect(row).toBeVisible();
+
+  // тултип при наведении: имя + шанс за смыв
+  await row.hover();
+  await expect(page.locator('#tip')).toBeVisible();
+  await expect(page.locator('#tip')).toContainText('шанс за смыв');
+
+  // кнопка «выставить» открывает поля цены и количества
+  await row.locator('button').click();
+  await expect(page.locator('#invList .sellPrice')).toBeVisible();
+  await expect(page.locator('#invList .sellQty')).toBeVisible();
+  await expect(page.locator('#invList .sellTotal')).toBeVisible();
 });
 
 test('рейтинг показывает игрока, вкладки переключаются из меню', async ({ page }) => {

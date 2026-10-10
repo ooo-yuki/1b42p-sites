@@ -7,6 +7,7 @@ export interface InvItem {
   id: string;
   rarity: Rarity;
   price: number;
+  count: number; // сколько штук в этом слоте (стак), 1..MAX_STACK
 }
 
 export interface LogEntry {
@@ -128,6 +129,33 @@ export interface PullResult {
 
 const MAX_LOG = 40;
 const MAX_INV = 40;
+export const MAX_STACK = 50;
+
+/** Сколько ещё помещается в существующие стаки предмета + в пустые слоты. */
+export function invRoom(p: Player, id: string): number {
+  let room = 0;
+  for (const st of p.inv) if (st.id === id) room += MAX_STACK - st.count;
+  room += (MAX_INV - p.inv.length) * MAX_STACK;
+  return room;
+}
+
+/** Добавляет qty штук предмета в инвентарь, стакая до MAX_STACK в слоте. Возвращает сколько реально добавлено. */
+export function addToInv(p: Player, item: Omit<InvItem, 'count'>, qty: number): number {
+  let added = 0;
+  for (const st of p.inv) {
+    if (st.id !== item.id || st.count >= MAX_STACK) continue;
+    const take = Math.min(MAX_STACK - st.count, qty - added);
+    st.count += take;
+    added += take;
+    if (added >= qty) return added;
+  }
+  while (added < qty && p.inv.length < MAX_INV) {
+    const take = Math.min(MAX_STACK, qty - added);
+    p.inv.push({ ...item, count: take });
+    added += take;
+  }
+  return added;
+}
 
 export function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
@@ -167,7 +195,8 @@ export function resistFactor(p: Player): number {
 
 export function score(p: Player): number {
   const levels = Object.values(p.upg).reduce((a, b) => a + b, 0);
-  return Math.floor(p.roomLevel * 1000 + levels * 120 + p.money + p.inv.length * 25);
+  const items = p.inv.reduce((s, i) => s + i.count, 0);
+  return Math.floor(p.roomLevel * 1000 + levels * 120 + p.money + items * 25);
 }
 
 export function newPlayer(login: string, now: number): Player {
@@ -294,7 +323,14 @@ export function die(p: Player, now: number): void {
   p.money = Math.floor(p.money * 0.7);
   p.hp = 45;
   p.dirty = 55;
-  p.inv = p.inv.slice(0, Math.max(0, p.inv.length - 2));
+  let lost = 2; // теряем до 2 штук предметов
+  for (let i = p.inv.length - 1; i >= 0 && lost > 0; i--) {
+    const st = p.inv[i];
+    const take = Math.min(st.count, lost);
+    st.count -= take;
+    lost -= take;
+    if (st.count <= 0) p.inv.splice(i, 1);
+  }
   pushLog(p, 'hit', 'Комната сдохла: −30% денег, потеряли 2 предмета', now);
 }
 
@@ -319,14 +355,14 @@ export function pull(p: Player, rng: () => number, now: number): PullResult {
   } else if (r < 0.7) {
     const pool = ITEMS_BY_RARITY[rollRarity(rng)];
     const def = pool[Math.floor(rng() * pool.length)];
-    const item: InvItem = { id: def.id, rarity: def.rarity, price: Math.round(def.base * (1 + p.roomLevel * 0.1)) };
-    if (p.inv.length >= MAX_INV) {
-      const refund = Math.round(item.price / 2);
+    const one: Omit<InvItem, 'count'> = { id: def.id, rarity: def.rarity, price: Math.round(def.base * (1 + p.roomLevel * 0.1)) };
+    const added = addToInv(p, one, 1);
+    if (added === 0) {
+      const refund = Math.round(one.price / 2);
       p.money += refund;
       res = { kind: 'money', text: `Инвентарь полон — предмет продан за ${refund}`, money: refund };
     } else {
-      p.inv.push(item);
-      res = { kind: 'item', text: `Выпал предмет: ${def.name}`, item };
+      res = { kind: 'item', text: `Выпал предмет: ${def.name}`, item: { ...one, count: added } };
     }
   } else if (r < 0.82) {
     const dirty = 5 + Math.floor(rng() * 10);

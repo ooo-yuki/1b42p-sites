@@ -1,7 +1,8 @@
-﻿/* CULTIVATION TOILET вЂ” РІС…РѕРґ, РјРµРЅСЋ, HUD, РїР°РЅРµР»Рё Рё РёРіСЂРѕРІРѕР№ С†РёРєР» (three.js). */
+﻿/* CULTIVATION TOILET — вход, меню, HUD, панели и игровой цикл (three.js). */
 import * as THREE from 'three';
 import {
   api,
+  dropChance,
   errText,
   fmt,
   getSid,
@@ -9,6 +10,7 @@ import {
   setSid,
   type Catalog,
   type GameState,
+  type InvItem,
   type PullResult,
 } from './api';
 import { CELL, createWorld, type World } from './world';
@@ -29,12 +31,12 @@ let gameOn = false;
 let panelOpen = false;
 let cursorFree = false;
 
-// ---------------------------------------------------------------- СЌРєСЂР°РЅС‹
+// ---------------------------------------------------------------- экраны
 function show(id: 'gate' | 'menu' | 'game'): void {
   $('gate').classList.toggle('hidden', id !== 'gate');
   $('menu').classList.toggle('hidden', id !== 'menu');
   $('game').classList.toggle('hidden', id !== 'game');
-  $('side').classList.toggle('hidden', id === 'gate' || !panelOpen); // РїР°РЅРµР»Рё РІРёРґРЅС‹ Рё РІ РјРµРЅСЋ, Рё РІ РёРіСЂРµ
+  $('side').classList.toggle('hidden', id === 'gate' || !panelOpen); // панели видны и в меню, и в игре
 }
 
 function toast(text: string, kind?: string): void {
@@ -45,7 +47,7 @@ function toast(text: string, kind?: string): void {
   setTimeout(() => el.remove(), 2600);
 }
 
-// ---------------------------------------------------------------- РІС…РѕРґ
+// ---------------------------------------------------------------- вход
 async function gate(mode: 'login' | 'register'): Promise<void> {
   const nick = ($('nick') as HTMLInputElement).value.trim();
   const pass = ($('pass') as HTMLInputElement).value;
@@ -59,7 +61,7 @@ async function gate(mode: 'login' | 'register'): Promise<void> {
     renderPanels();
     show('menu');
     renderMenu();
-    initThree(); // РЅР°С‡РёРЅР°РµРј Р·Р°СЂР°РЅРµРµ РіСЂСѓР·РёС‚СЊ РєР°СЂС‚Сѓ (28 РњР‘)
+    initThree(); // начинаем заранее грузить карту (28 МБ)
   } catch (e) {
     $('gateErr').textContent = errText(e as Error);
   }
@@ -75,7 +77,7 @@ async function restore(): Promise<void> {
     renderPanels();
     show('menu');
     renderMenu();
-    initThree(); // РЅР°С‡РёРЅР°РµРј Р·Р°СЂР°РЅРµРµ РіСЂСѓР·РёС‚СЊ РєР°СЂС‚Сѓ (28 РњР‘)
+    initThree(); // начинаем заранее грузить карту (28 МБ)
   } catch {
     logout();
   }
@@ -92,7 +94,7 @@ function logout(): void {
   show('gate');
 }
 
-// ---------------------------------------------------------------- РѕР±РЅРѕРІР»РµРЅРёРµ СЃРѕСЃС‚РѕСЏРЅРёСЏ
+// ---------------------------------------------------------------- обновление состояния
 async function refresh(): Promise<void> {
   if (!getSid() || !st) return;
   try {
@@ -118,7 +120,7 @@ async function action(path: string, body: Record<string, unknown>, okText?: stri
       renderPanels();
       if (path === '/api/build' && world && st) {
         world.rebuild(st.cells);
-        toast('РљР»РµС‚РєР° РїРѕСЃС‚СЂРѕРµРЅР°', 'event');
+        toast('Клетка построена', 'event');
       }
     }
     if (d.result) {
@@ -135,7 +137,7 @@ async function action(path: string, body: Record<string, unknown>, okText?: stri
   }
 }
 
-// ---------------------------------------------------------------- СЃРјС‹РІ
+// ---------------------------------------------------------------- смыв
 async function pull(): Promise<void> {
   if (Date.now() < flushUntil) return;
   flushUntil = Date.now() + 1250;
@@ -146,7 +148,7 @@ async function pull(): Promise<void> {
 function renderHud(): void {
   if (!st) return;
   $('whoami').textContent = st.login;
-  $('whoScore').textContent = `СЃС‡С‘С‚ ${fmt(st.score)} В· СЃРјРµСЂС‚РµР№ ${st.deaths} В· СЃРјС‹РІРѕРІ ${st.pulls}`;
+  $('whoScore').textContent = `счёт ${fmt(st.score)} · смертей ${st.deaths} · смывов ${st.pulls}`;
   $('money').textContent = fmt(st.money);
   $('income').textContent = st.income.toFixed(2);
   $('hp').textContent = st.hp.toFixed(0);
@@ -178,7 +180,7 @@ function renderSideTop(): void {
     chip('грязь', st.dirty.toFixed(1), 'dirty') +
     chip('смывы', String(st.pulls)) +
     chip('смерти', String(st.deaths)) +
-    chip('вещи', String(st.inv.length)) +
+    chip('вещи', String(st.inv.reduce((s, i) => s + i.count, 0))) +
     chip('онлайн', $('online').textContent || '—');
 }
 
@@ -197,8 +199,8 @@ function renderBuild(): void {
     if (!busyCell) free++;
   }
   info.innerHTML = free
-    ? `РїРѕСЃС‚СЂРѕРёС‚СЊ РєР»РµС‚РєСѓ <b>${fmt(st.buildCost)}</b> <span class="dim">вЂ” РІС‹Р±РµСЂРё СЃС‚РѕСЂРѕРЅСѓ РѕС‚ РєР»РµС‚РєРё [${cx}, ${cz}]</span>`
-    : '<span class="dim">РІРѕРєСЂСѓРі РєР»РµС‚РєРё РЅРµС‚ РјРµСЃС‚Р°</span>';
+    ? `построить клетку <b>${fmt(st.buildCost)}</b> <span class="dim">— выбери сторону от клетки [${cx}, ${cz}]</span>`
+    : '<span class="dim">вокруг клетки нет места</span>';
 }
 
 function renderMenu(): void {
@@ -212,12 +214,12 @@ function renderMenu(): void {
     m('счёт', fmt(st.score)) +
     m('смывов', String(st.pulls)) +
     m('смертей', String(st.deaths)) +
-    m('вещей', String(st.inv.length)) +
+    m('вещей', String(st.inv.reduce((s, i) => s + i.count, 0))) +
     m('состояние', st.hp.toFixed(0)) +
     m('грязь', st.dirty.toFixed(1));
 }
 
-// ---------------------------------------------------------------- РїР°РЅРµР»Рё
+// ---------------------------------------------------------------- панели
 function renderPanels(): void {
   if (!st) return;
   renderUpg();
@@ -237,45 +239,122 @@ function renderUpg(): void {
     row.dataset.upg = u.id;
     row.innerHTML =
       `<span class="name">${u.name}<small>${u.desc}</small></span>` +
-      `<span class="lvl">СѓСЂ.${lvl}</span><span class="price">${fmt(cost)}</span>`;
+      `<span class="lvl">ур.${lvl}</span><span class="price">${fmt(cost)}</span>`;
     const b = document.createElement('button');
     b.className = 'btn';
     b.id = 'buy-' + u.id;
-    b.textContent = lvl ? 'РЈР›РЈР§РЁРРўР¬' : 'РљРЈРџРРўР¬';
+    b.textContent = lvl ? 'УЛУЧШИТЬ' : 'КУПИТЬ';
     b.disabled = st.money < cost;
-    b.onclick = () => action('/api/upgrade', { id: u.id }, u.name + ' СѓР»СѓС‡С€РµРЅ');
+    b.onclick = () => action('/api/upgrade', { id: u.id }, u.name + ' улучшен');
     row.appendChild(b);
     box.appendChild(row);
   }
+}
+
+// ---------------------------------------------------------------- подсказка предмета
+const tipEl = $('tip');
+function tipShow(html: string, e: MouseEvent): void {
+  tipEl.innerHTML = html;
+  tipEl.classList.remove('hidden');
+  tipMove(e);
+}
+function tipMove(e: MouseEvent): void {
+  const pad = 14;
+  const r = tipEl.getBoundingClientRect();
+  let x = e.clientX + pad;
+  let y = e.clientY + pad;
+  if (x + r.width > innerWidth - 8) x = e.clientX - r.width - pad;
+  if (y + r.height > innerHeight - 8) y = e.clientY - r.height - pad;
+  tipEl.style.left = x + 'px';
+  tipEl.style.top = y + 'px';
+}
+function tipHide(): void {
+  tipEl.classList.add('hidden');
+}
+function itemTipHtml(it: { id: string; rarity: string; sell: number; count?: number }, extra?: string): string {
+  const chance = dropChance(cat?.items || [], it.id);
+  const pct = (chance * 100).toFixed(chance < 0.01 ? 2 : 1);
+  return (
+    `<div class="tipName ${it.rarity}">${nameOf(it.id)}</div>` +
+    `<div class="tipRow"><span>редкость</span><b>${rarityName(it.rarity)}</b></div>` +
+    `<div class="tipRow"><span>шанс за смыв</span><b>${pct}%</b></div>` +
+    `<div class="tipRow"><span>цена за шт</span><b>${fmt(it.sell)}</b></div>` +
+    (it.count && it.count > 1 ? `<div class="tipRow"><span>в стаке</span><b>×${it.count}</b></div>` : '') +
+    (extra || '')
+  );
+}
+function bindTip(row: HTMLElement, html: string): void {
+  row.addEventListener('mouseenter', (e) => tipShow(html, e));
+  row.addEventListener('mousemove', tipMove);
+  row.addEventListener('mouseleave', tipHide);
+}
+
+/** Строка инвентаря: стак ×N, кнопка «выставить» открывает редактор цены и количества. */
+function invRow(it: InvItem, idx: number, refresh: () => void): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'row ' + it.rarity;
+  row.dataset.item = it.id;
+  const cnt = it.count > 1 ? `<span class="cnt">×${it.count}</span>` : '';
+  row.innerHTML =
+    `<span class="name">${nameOf(it.id)}<small>${rarityName(it.rarity)}</small>${cnt}</span>` +
+    `<span class="price">${fmt(it.sell * it.count)}</span>`;
+  const b = document.createElement('button');
+  b.className = 'btn';
+  b.textContent = 'ВЫСТАВИТЬ';
+  b.onclick = () => openSellEditor(row, it, idx, refresh);
+  row.appendChild(b);
+  bindTip(row, itemTipHtml(it));
+  return row;
+}
+
+function openSellEditor(row: HTMLElement, it: InvItem, idx: number, refresh: () => void): void {
+  row.classList.add('editing');
+  row.innerHTML =
+    `<span class="name">${nameOf(it.id)}<small>${rarityName(it.rarity)}${it.count > 1 ? ' · ×' + it.count : ''}</small></span>` +
+    `<span class="sellFields">` +
+    `<label>цена <input type="number" class="sellPrice" min="1" max="1000000" value="${it.sell}"></label>` +
+    `<label>кол-во <input type="number" class="sellQty" min="1" max="${it.count}" value="${it.count}"></label>` +
+    `<span class="dim">итого <b class="sellTotal">${fmt(it.sell * it.count)}</b></span>` +
+    `</span>`;
+  const ok = document.createElement('button');
+  ok.className = 'btn primary';
+  ok.textContent = 'ВЫСТАВИТЬ';
+  const cancel = document.createElement('button');
+  cancel.className = 'btn ghost';
+  cancel.textContent = '✕';
+  row.appendChild(ok);
+  row.appendChild(cancel);
+  const priceIn = row.querySelector('.sellPrice') as HTMLInputElement;
+  const qtyIn = row.querySelector('.sellQty') as HTMLInputElement;
+  const totalEl = row.querySelector('.sellTotal') as HTMLElement;
+  const upd = () => {
+    totalEl.textContent = fmt((Math.round(Number(priceIn.value)) || 0) * (Math.round(Number(qtyIn.value)) || 0));
+  };
+  priceIn.addEventListener('input', upd);
+  qtyIn.addEventListener('input', upd);
+  cancel.onclick = () => refresh();
+  ok.onclick = () => {
+    const price = Math.round(Number(priceIn.value)) || 0;
+    const qty = Math.round(Number(qtyIn.value)) || 0;
+    void action('/api/market/sell', { idx, price, qty }, 'Выставлен лот: ' + nameOf(it.id));
+  };
 }
 
 function renderInv(): void {
   if (!st) return;
   const box = $('invList');
   box.innerHTML = '';
-  const total = st.inv.reduce((s, i) => s + i.sell, 0);
+  const count = st.inv.reduce((s, i) => s + i.count, 0);
+  const total = st.inv.reduce((s, i) => s + i.sell * i.count, 0);
   const head = document.createElement('div');
   head.className = 'subhead';
-  head.innerHTML = `Вещи: <b>${st.inv.length}</b> · на сумму <b>${fmt(total)}</b> <span class="dim">— выставляй на площадку</span>`;
+  head.innerHTML = `Вещи: <b>${count}</b> шт. · на сумму <b>${fmt(total)}</b> <span class="dim">— задай цену и количество</span>`;
   box.appendChild(head);
   if (!st.inv.length) {
     box.innerHTML += '<div class="row empty">пусто — смывай унитаз (E), вещи падают с шансом</div>';
     return;
   }
-  st.inv.forEach((it, idx) => {
-    const row = document.createElement('div');
-    row.className = 'row ' + it.rarity;
-    row.dataset.item = it.id;
-    row.innerHTML =
-      `<span class="name">${nameOf(it.id)}<small>${rarityName(it.rarity)}</small></span>` +
-      `<span class="price">в‰€${fmt(it.sell)}</span>`;
-    const b = document.createElement('button');
-    b.className = 'btn';
-    b.textContent = 'Р’Р«РЎРўРђР’РРўР¬';
-    b.onclick = () => action('/api/market/sell', { idx, price: it.sell }, 'Р’С‹СЃС‚Р°РІР»РµРЅ Р»РѕС‚: ' + nameOf(it.id));
-    row.appendChild(b);
-    box.appendChild(row);
-  });
+  st.inv.forEach((it, idx) => box.appendChild(invRow(it, idx, renderInv)));
 }
 
 function nameOf(id: string): string {
@@ -299,37 +378,33 @@ function renderLog(): void {
 async function loadMarket(): Promise<void> {
   if (!getSid() || !st) return;
   try {
-    const d = await api<{ lots: { id: number; seller: string; item: { id: string; rarity: string; sell: number }; price: number }[]; inv: { id: string; rarity: string; sell: number }[] }>(
-      '/api/market?sid=' + encodeURIComponent(getSid()),
-    );
+    const d = await api<{
+      lots: { id: number; seller: string; item: { id: string; rarity: string; sell: number }; price: number; qty: number; total: number }[];
+      inv: InvItem[];
+    }>('/api/market?sid=' + encodeURIComponent(getSid()));
     const mine = $('myItems');
-    mine.innerHTML = d.inv.length ? '' : '<div class="row empty">РЅРµС‚ РІРµС‰РµР№</div>';
-    d.inv.forEach((it, idx) => {
-      const row = document.createElement('div');
-      row.className = 'row ' + it.rarity;
-      row.innerHTML = `<span class="name">${nameOf(it.id)}<small>${rarityName(it.rarity)}</small></span><span class="price">${fmt(it.sell)}</span>`;
-      const b = document.createElement('button');
-      b.className = 'btn';
-      b.textContent = 'РџР РћР”РђРўР¬';
-      b.onclick = () => action('/api/market/sell', { idx, price: it.sell }, 'Р›РѕС‚ РІС‹СЃС‚Р°РІР»РµРЅ');
-      row.appendChild(b);
-      mine.appendChild(row);
-    });
+    mine.innerHTML = d.inv.length ? '' : '<div class="row empty">нет вещей</div>';
+    d.inv.forEach((it, idx) => mine.appendChild(invRow(it, idx, loadMarket)));
     const box = $('marketList');
-    box.innerHTML = d.lots.length ? '' : '<div class="row empty">Р»РѕС‚РѕРІ РЅРµС‚</div>';
+    box.innerHTML = d.lots.length ? '' : '<div class="row empty">лотов нет</div>';
     for (const lot of d.lots) {
       const row = document.createElement('div');
       row.className = 'row ' + lot.item.rarity;
       row.dataset.lot = String(lot.id);
+      const cnt = lot.qty > 1 ? `<span class="cnt">×${lot.qty}</span>` : '';
       row.innerHTML =
-        `<span class="name">${nameOf(lot.item.id)}<small>${rarityName(lot.item.rarity)} В· ${lot.seller}</small></span>` +
-        `<span class="price">${fmt(lot.price)}</span>`;
+        `<span class="name">${nameOf(lot.item.id)}<small>${rarityName(lot.item.rarity)} · ${lot.seller}</small>${cnt}</span>` +
+        `<span class="price">${fmt(lot.total)}</span>`;
       const b = document.createElement('button');
       b.className = 'btn';
-      b.textContent = 'РљРЈРџРРўР¬';
-      b.disabled = st.money < lot.price || lot.seller === st.login;
-      b.onclick = () => action('/api/market/buy', { lot: lot.id }, 'РљСѓРїР»РµРЅРѕ: ' + nameOf(lot.item.id));
+      b.textContent = 'КУПИТЬ';
+      b.disabled = st.money < lot.total || lot.seller === st.login;
+      b.onclick = () => action('/api/market/buy', { lot: lot.id }, 'Куплено: ' + nameOf(lot.item.id));
       row.appendChild(b);
+      bindTip(
+        row,
+        itemTipHtml({ ...lot.item, count: lot.qty }, `<div class="tipRow"><span>продавец</span><b>${lot.seller}</b></div>`),
+      );
       box.appendChild(row);
     }
   } catch (e) {
@@ -348,11 +423,11 @@ async function loadRating(): Promise<void> {
       row.className = 'row rank' + (st && e.login === st.login ? ' me' : '');
       row.dataset.nick = e.login;
       row.innerHTML =
-        `<span class="pos">${i + 1}</span><span class="name">${e.login}${st && e.login === st.login ? '<small>С‚С‹</small>' : ''}</span>` +
-        `<span class="lvl">СѓСЂ.${e.levels}</span><span class="price">${fmt(e.score)}</span>`;
+        `<span class="pos">${i + 1}</span><span class="name">${e.login}${st && e.login === st.login ? '<small>ты</small>' : ''}</span>` +
+        `<span class="lvl">ур.${e.levels}</span><span class="price">${fmt(e.score)}</span>`;
       box.appendChild(row);
     });
-    if (!d.top.length) box.innerHTML = '<div class="row empty">РїРѕРєР° РїСѓСЃС‚Рѕ</div>';
+    if (!d.top.length) box.innerHTML = '<div class="row empty">пока пусто</div>';
   } catch (e) {
     toast(errText(e as Error), 'hit');
   }
@@ -425,9 +500,9 @@ async function startGame(): Promise<void> {
   btn.disabled = true;
   btn.textContent = 'ЗАГРУЗКА КАРТЫ… ~6 МБ';
   try {
-    await world!.load(); // РґРѕР¶РёРґР°РµРјСЃСЏ GLB-РєР°СЂС‚С‹ (РѕР±С‹С‡РЅРѕ СѓР¶Рµ Р·Р°РіСЂСѓР¶РµРЅР° СЃ СЌРєСЂР°РЅР° РІС…РѕРґР°)
+    await world!.load(); // дожидаемся GLB-карты (обычно уже загружена с экрана входа)
   } catch {
-    toast('РЅРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РєР°СЂС‚Сѓ', 'hit');
+    toast('не удалось загрузить карту', 'hit');
     btn.disabled = false;
     btn.textContent = label;
     return;
@@ -479,7 +554,7 @@ function toggleCursor(): void {
   }
 }
 
-// ---------------------------------------------------------------- РІРІРѕРґ
+// ---------------------------------------------------------------- ввод
 document.addEventListener('keydown', (e) => {
   if (!st) return;
   if (e.code === 'Tab') {
@@ -500,7 +575,7 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// Esc РїСЂРё Р·Р°С…РІР°С‚Рµ РјС‹С€Рё РІС‹С…РѕРґРёС‚ РёР· pointer lock вЂ” С‚РѕРіРґР° Р¶Рµ РІРѕР·РІСЂР°С‰Р°РµРјСЃСЏ РІ РјРµРЅСЋ
+// Esc при захвате мыши выходит из pointer lock — тогда же возвращаемся в меню
 document.addEventListener('pointerlockchange', () => {
   if (gameOn && !panelOpen && !gfxPanelOpen() && !cursorFree && document.pointerLockElement === null) backToMenu();
 });
@@ -535,18 +610,18 @@ $('menuLogout').addEventListener('click', logout);
 $('startBtn').addEventListener('click', () => void startGame());
 $('escBtn').addEventListener('click', backToMenu);
 
-// Р»РѕРєР°Р»СЊРЅС‹Рµ В«РєР°РїР»РёВ» РїР°СЃСЃРёРІРЅРѕРіРѕ РґРѕС…РѕРґР° РјРµР¶РґСѓ РѕРїСЂРѕСЃР°РјРё
+// локальные «капли» пассивного дохода между опросами
 setInterval(() => {
   if (!st) return;
   const secs = Math.max(0, Math.round((st.nextEventIn - (Date.now() - st.serverTime)) / 1000));
-  $('nextEv').textContent = secs > 0 ? secs + 'СЃ' : 'СЃРµР№С‡Р°СЃ';
+  $('nextEv').textContent = secs > 0 ? secs + 'с' : 'сейчас';
   st.dirty = Math.min(100, st.dirty + st.dirtyRate / 60);
   st.money += st.income / 60;
   renderHud();
 }, 1000);
 setInterval(() => void refresh(), 4000);
 
-// ---------------------------------------------------------------- С†РёРєР»
+// ---------------------------------------------------------------- цикл
 let last = performance.now();
 let lastDraw = 0;
 let frames = 0;
@@ -583,11 +658,11 @@ onGfxPanelState((open) => {
   else if (!panelOpen) void player?.lock();
 });
 
-// РїР°РЅРµР»Рё СЃРєСЂС‹С‚С‹ РґРѕ РІС…РѕРґР°
+// панели скрыты до входа
 show('gate');
 void restore();
 
-// РѕС‚Р»Р°РґРєР°/e2e
+// отладка/e2e
 declare global {
   interface Window {
     __ct: {
@@ -640,7 +715,7 @@ window.__ct = {
       sceneChildren: world.scene.children.length, meshes: total, visible,
     };
   },
-  // РІСЂРµРјРµРЅРЅР°СЏ РѕС‚Р»Р°РґРєР°: С†РІРµС‚ РїРёРєСЃРµР»РµР№ СЃСЂР°Р·Сѓ РїРѕСЃР»Рµ РїСЂРёРЅСѓРґРёС‚РµР»СЊРЅРѕРіРѕ СЂРµРЅРґРµСЂР° (РѕР±С…РѕРґ РєРѕРјРїРѕР·РёС‚РѕСЂР°)
+  // временная отладка: цвет пикселей сразу после принудительного рендера (обход композитора)
   sample: (pts: number[][]) => {
     if (!renderer || !camera || !world) return null;
     renderer.render(world.scene, camera);

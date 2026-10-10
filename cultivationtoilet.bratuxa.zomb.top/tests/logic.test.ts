@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  addToInv,
   applyEvent,
   buildCost,
   canBuild,
@@ -9,6 +10,7 @@ import {
   dirtyRate,
   expandCost,
   incomeRate,
+  invRoom,
   neighbour,
   newPlayer,
   pull,
@@ -22,6 +24,7 @@ import {
   upgCost,
   EVENTS,
   ITEMS,
+  MAX_STACK,
   type Player,
 } from '../logic';
 
@@ -85,8 +88,8 @@ describe('базовые формулы', () => {
   test('цены продажи по редкости: legendary дороже common', () => {
     const common = ITEMS.find((i) => i.rarity === 'common')!;
     const legendary = ITEMS.find((i) => i.rarity === 'legendary')!;
-    const sell = sellPrice({ ...common, price: 10 }) * 100;
-    expect(sellPrice({ ...legendary, price: 10 })).toBeGreaterThan(sell / 100);
+    const sell = sellPrice({ ...common, price: 10, count: 1 }) * 100;
+    expect(sellPrice({ ...legendary, price: 10, count: 1 })).toBeGreaterThan(sell / 100);
   });
 });
 
@@ -268,5 +271,50 @@ describe('каталоги', () => {
   test('все предметы покрыты редкостями и имеют цену', () => {
     expect(ITEMS.every((i) => i.base > 0)).toBe(true);
     expect(new Set(ITEMS.map((i) => i.id)).size).toBe(ITEMS.length);
+  });
+});
+
+describe('стакание предметов', () => {
+  const one = { id: 'rag', rarity: 'common' as const, price: 10 };
+
+  test('addToInv складывает одинаковые предметы в один слот', () => {
+    const p = fresh();
+    addToInv(p, one, 3);
+    expect(p.inv.length).toBe(1);
+    expect(p.inv[0].count).toBe(3);
+    addToInv(p, one, 2);
+    expect(p.inv.length).toBe(1);
+    expect(p.inv[0].count).toBe(5);
+  });
+
+  test('стак ограничен MAX_STACK, лишнее уходит в новый слот', () => {
+    const p = fresh();
+    addToInv(p, one, MAX_STACK + 10);
+    expect(p.inv.length).toBe(2);
+    expect(p.inv[0].count).toBe(MAX_STACK);
+    expect(p.inv[1].count).toBe(10);
+  });
+
+  test('разные предметы не смешиваются в одном стаке', () => {
+    const p = fresh();
+    addToInv(p, one, 2);
+    addToInv(p, { id: 'coin', rarity: 'common' as const, price: 16 }, 3);
+    expect(p.inv.length).toBe(2);
+    expect(p.inv[0].count).toBe(2);
+    expect(p.inv[1].count).toBe(3);
+  });
+
+  test('invRoom считает свободное место с учётом стаков', () => {
+    const p = fresh();
+    addToInv(p, one, MAX_STACK - 5);
+    expect(invRoom(p, 'rag')).toBe(5 + 39 * MAX_STACK);
+  });
+
+  test('die теряет до 2 штук, а не 2 слота', () => {
+    const p = fresh();
+    addToInv(p, one, 10);
+    die(p, now);
+    expect(p.inv.length).toBe(1);
+    expect(p.inv[0].count).toBe(8);
   });
 });

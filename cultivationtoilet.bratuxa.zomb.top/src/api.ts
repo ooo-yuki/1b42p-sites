@@ -1,7 +1,7 @@
 // API + типы состояния. Всё, что приходит с сервера, фронт только рисует.
 export interface Cell { x: number; z: number; kind: 'toilet' | 'spawn' | 'room' }
 
-export interface InvItem { id: string; rarity: string; price: number; sell: number }
+export interface InvItem { id: string; rarity: string; price: number; sell: number; count: number }
 
 export interface LogEntry { ts: number; kind: string; text: string }
 
@@ -76,6 +76,9 @@ const ERR: Record<string, string> = {
   gone: 'лот уже купили',
   blocked: 'там уже есть клетка',
   'too-many': 'слишком много попыток, подожди минуту',
+  'no-item': 'предмет не найден',
+  'bad-price': 'цена: 1 – 1 000 000',
+  'bad-qty': 'количество: от 1 до числа в стаке',
 };
 
 export function errText(e: { message?: string; code?: number }): string {
@@ -86,4 +89,14 @@ export function errText(e: { message?: string; code?: number }): string {
 
 export function rarityName(r: string): string {
   return { common: 'обычный', rare: 'редкий', epic: 'эпик', legendary: 'ЛЕГЕНДА' }[r] || r;
+}
+
+const RARITY_DROP: Record<string, number> = { common: 0.6, rare: 0.25, epic: 0.12, legendary: 0.03 };
+
+/** Шанс выпадения конкретного предмета за один смыв (ветка «предмет» 20% × шанс редкости × 1/размер пула). */
+export function dropChance(items: ItemDef[], id: string): number {
+  const it = items.find((i) => i.id === id);
+  if (!it) return 0;
+  const pool = items.filter((i) => i.rarity === it.rarity).length || 1;
+  return 0.2 * (RARITY_DROP[it.rarity] || 0) / pool;
 }

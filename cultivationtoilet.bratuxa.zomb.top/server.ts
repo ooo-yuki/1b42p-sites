@@ -6,12 +6,14 @@ import {
   EVENTS,
   ITEMS,
   UPGRADES,
+  addToInv,
   buildCost,
   canBuild,
   cleanCost,
   expandCost,
   incomeRate,
   dirtyRate,
+  invRoom,
   newPlayer,
   pull,
   pushLog,
@@ -59,6 +61,13 @@ db.run(`CREATE TABLE IF NOT EXISTS market (
   ts INTEGER NOT NULL
 )`);
 db.run('CREATE INDEX IF NOT EXISTS market_score ON players(score DESC)');
+// миграция: у лотов площадки появилось количество (qty)
+{
+  const marketCols = db.query('PRAGMA table_info(market)').all() as { name: string }[];
+  if (!marketCols.some((c) => c.name === 'qty')) {
+    db.run('ALTER TABLE market ADD COLUMN qty INTEGER NOT NULL DEFAULT 1');
+  }
+}
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -95,6 +104,9 @@ function loadPlayer(login: string): Player | null {
     const p = JSON.parse(r.data) as Player;
     // миграция: старые записи без карты получают стартовые клетки
     if (!Array.isArray(p.cells) || p.cells.length < 2) p.cells = startCells();
+    // миграция: старые предметы без стака получают count = 1
+    if (!Array.isArray(p.inv)) p.inv = [];
+    for (const it of p.inv) if (!Number.isFinite(it.count) || it.count < 1) it.count = 1;
     return p;
   } catch {
     return null;
@@ -310,13 +322,14 @@ async function api(req: Request, path: string): Promise<Response> {
     const r = authed(req);
     if (r instanceof Response) return r;
     r.save();
-    const lots = rows<{ id: number; seller: string; item: string; price: number; ts: number }>(
-      'SELECT id, seller, item, price, ts FROM market ORDER BY id DESC LIMIT 60',
+    const lots = rows<{ id: number; seller: string; item: string; price: number; qty: number; ts: number }>(
+      'SELECT id, seller, item, price, qty, ts FROM market ORDER BY id DESC LIMIT 60',
     );
     return json({
       lots: lots.map((l) => {
         const item = JSON.parse(l.item) as InvItem;
-        return { ...l, item: { ...item, sell: sellPrice(item) } };
+        const qty = Math.max(1, l.qty || 1);
+        return { ...l, qty, total: l.price * qty, item: { ...item, sell: sellPrice(item) } };
       }),
       inv: r.p.inv.map((i) => ({ ...i, sell: sellPrice(i) })),
       fee: MARKET_FEE,
@@ -327,13 +340,17 @@ async function api(req: Request, path: string): Promise<Response> {
     const r = withPlayer(body.sid);
     if (r instanceof Response) return r;
     const idx = Number(body.idx);
-    const price = Math.round(Number(body.price));
-    const item = r.p.inv[idx];
-    if (!item) return err('no-item');
-    if (!(price >= 1 && price <= 1_000_000)) return err('bad-price');
-    r.p.inv.splice(idx, 1);
+    const unit = Math.round(Number(body.price));
+    const qty = Math.max(1, Math.round(Number(body.qty) || 1));
+    const st = r.p.inv[idx];
+    if (!st) return err('no-item');
+    if (!(unit >= 1 && unit <= 1_000_000)) return err('bad-price');
+    if (!(qty >= 1 && qty <= st.count)) return err('bad-qty');
+    const one: InvItem = { id: st.id, rarity: st.rarity, price: st.price, count: 1 };
+    if (qty >= st.count) r.p.inv.splice(idx, 1);
+    else st.count -= qty;
     r.save();
-    exec('INSERT INTO market(seller, item, price, ts) VALUES(?, ?, ?, ?)', r.p.login, JSON.stringify(item), price, Date.now());
+    exec('INSERT INTO market(seller, item, price, qty, ts) VALUES(?, ?, ?, ?, ?)', r.p.login, JSON.stringify(one), unit, qty, Date.now());
     return json({ ok: true, state: publicState(r.p) });
   }
 
@@ -341,19 +358,22 @@ async function api(req: Request, path: string): Promise<Response> {
     const r = withPlayer(body.sid);
     if (r instanceof Response) return r;
     const lotId = Number(body.lot);
-    const lot = row<{ id: number; seller: string; item: string; price: number }>(
-      'SELECT id, seller, item, price FROM market WHERE id = ?',
+    const lot = row<{ id: number; seller: string; item: string; price: number; qty: number }>(
+      'SELECT id, seller, item, price, qty FROM market WHERE id = ?',
       lotId,
     );
     if (!lot) return err('gone', 404);
     if (lot.seller === r.p.login) return err('own-lot');
-    if (r.p.money < lot.price) return err('no-money', 402);
-    if (r.p.inv.length >= 40) return err('inv-full', 402);
+    const qty = Math.max(1, lot.qty || 1);
+    const total = lot.price * qty;
+    if (r.p.money < total) return err('no-money', 402);
+    const one = JSON.parse(lot.item) as InvItem;
+    if (invRoom(r.p, one.id) < qty) return err('inv-full', 402);
     const seller = loadPlayer(lot.seller);
     if (!seller) return err('seller-gone', 500);
-    r.p.money -= lot.price;
-    r.p.inv.push(JSON.parse(lot.item) as InvItem);
-    seller.money += Math.round(lot.price * (1 - MARKET_FEE));
+    r.p.money -= total;
+    addToInv(r.p, one, qty);
+    seller.money += Math.round(total * (1 - MARKET_FEE));
     savePlayer(seller);
     exec('DELETE FROM market WHERE id = ?', lotId);
     r.save();

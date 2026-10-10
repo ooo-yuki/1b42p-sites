@@ -157,3 +157,21 @@ button{font:inherit;color:inherit}
   .side{width:100%}
   .hint{display:none}
 }
+
+/* ---------- подсказка предмета при наведении ---------- */
+.tip{position:fixed;z-index:90;min-width:180px;max-width:270px;padding:10px 12px;background:var(--panel);border:1px solid var(--accent);box-shadow:4px 4px 0 #000;font-size:12px;pointer-events:none}
+.tipName{font-weight:700;margin-bottom:6px;font-size:13px}
+.tipRow{display:flex;justify-content:space-between;gap:12px;padding:2px 0;color:var(--dim)}
+.tipRow b{color:var(--text);font-weight:600}
+.tipName.common{color:#c7d0da}
+.tipName.rare{color:#5aa0ff}
+.tipName.epic{color:#b06bff}
+.tipName.legendary{color:var(--gold)}
+
+/* ---------- стак ×N и редактор продажи (цена + количество) ---------- */
+.cnt{display:inline-block;margin-left:7px;padding:1px 6px;font-size:11px;font-weight:700;background:#1b232d;border:1px solid var(--line);color:var(--gold)}
+.row.editing{border-color:var(--accent);flex-wrap:wrap}
+.sellFields{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12px}
+.sellFields label{display:flex;align-items:center;gap:5px;color:var(--dim)}
+.sellFields input{width:74px;padding:4px 6px;background:#0d131a;border:1px solid var(--line);color:var(--text);font:inherit}
+.sellFields input:focus{outline:none;border-color:var(--accent)}
